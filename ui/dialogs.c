@@ -414,7 +414,7 @@ void dlg_settings(void)
 	static char hz[44], vz[44];
 	short r, row = 1, i;
 	/* a blank row between the groups, where there's room (not in ST high) */
-	short gap = desk_h >= 21 * (ch + 6) + 2 * (cw + 2) ? 2 : 1;
+	short gap = desk_h >= 20 * (ch + 6) ? 2 : 1;
 	str_copy(hz, opt.home_tz, sizeof(hz));
 	str_copy(vz, opt.view_tz, sizeof(vz));
 	put(&f[L1], FT_LABEL, 0, 0, row, 0, "Week starts on:");
