@@ -76,7 +76,7 @@ static int connection_ready(const char *url)
 	URL u;
 	if (!url_parse(url, &u) || !u.tls || opt.falcon || opt.gate[0])
 		return 1;
-	if (alert(1, "[1][Calendar servers want a secure connection. Set up the Raspberry Pi gateway, or Falcon mode, in Connection settings.][Settings|Cancel]") == 1)
+	if (alert(1, "[1][Calendar servers want a secure connection. Set up the Raspberry Pi gateway, or Falcon mode, in Settings, Connection.][Settings|Cancel]") == 1)
 		dlg_connection();
 	return opt.falcon || opt.gate[0];
 }
@@ -406,37 +406,77 @@ static const short alert_min[] = { -1, 0, 5, 10, 15, 30, 60 };
 static const char *const hour_items[] = { "  6:00", "  7:00", "  8:00", "  9:00", "  10:00" };
 static const char *const heb_items[] = { "  Atari (standard)", "  ISO-8859-8 font", "  PC (code page 862)" };
 
-void dlg_settings(void)
+/* ---------------- settings ----------------
+ * As in EMail: a list of sections on the left (the chosen one in a black
+ * bar) and that section's settings on the right, under its name. */
+
+enum { S_GENERAL = 1, S_EVENTS, S_ZONES, S_REFRESH, S_CONN };
+static const char *const section_names[] = { "General", "Events", "Time zones", "Refresh", "Connection" };
+
+#define SIDE 12			/* the list's width */
+#define CX (SIDE + 2)		/* where a section's settings start */
+#define VX (CX + 17)		/* and their values */
+#define SW (VX + 31)		/* the dialog's width */
+
+static void in(FIELD *f, short page)
 {
-	enum { L1, F1, L2, F2, F3, F4, L5, F5, L6, F6, F7, L8, F8, F9, L10, F10, L11, F11, L12, F12, L13, F13,
+	f->page = page;
+}
+
+static void settings(short first)
+{
+	enum { L1, F1, L2, F2, F3, F4, L13, F13,
+	       L5, F5, L6, F6, F7,
+	       L8, F8, F9, L10, F10,
+	       L11, F11, F12, H3, L15, F15, L16, F16,
+	       C1, C2, N1, L3, C3, L4, C4, N2, C7,
 	       BCAN, BOK, N };
 	FIELD f[N];
-	static char hz[44], vz[44];
-	short r, row = 1, i;
-	/* a blank row between the groups, where there's room (not in ST high) */
-	short gap = desk_h >= 20 * (ch + 6) ? 2 : 1;
+	DLG d;
+	static char hz[44], vz[44], gate[64], port[8], past[8], future[8];
+	static const char *hz_items[2], *vz_items[2];
+	static char hz_lab[50], vz_lab[50];
+	short r, i, row;
+	int can_falcon = tls_available && get_cookie(0x5F435055L) >= 20;	/* _CPU: 68020 or better */
 	str_copy(hz, opt.home_tz, sizeof(hz));
 	str_copy(vz, opt.view_tz, sizeof(vz));
-	put(&f[L1], FT_LABEL, 0, 0, row, 0, "Week starts on:");
-	put(&f[F1], FT_POPUP, 0, 18, row, 14, 0);
+	str_copy(gate, opt.gate, sizeof(gate));
+	snprintf(port, sizeof(port), "%u", opt.gateport);
+	snprintf(past, sizeof(past), "%d", opt.past_days);
+	snprintf(future, sizeof(future), "%d", opt.future_days);
+
+	/* General */
+	row = 3;
+	put(&f[L1], FT_LABEL, 0, CX, row, 0, "Week starts on:");
+	put(&f[F1], FT_POPUP, 0, VX, row, 14, 0);
 	f[F1].items = week_items;
 	f[F1].nitems = 3;
 	f[F1].val = opt.weekstart == 1 ? 1 : opt.weekstart == 6 ? 2 : 0;
 	row++;
-	put(&f[L2], FT_LABEL, 0, 0, row, 0, "Day view from:");
-	put(&f[F2], FT_POPUP, 0, 18, row, 10, 0);
+	put(&f[L2], FT_LABEL, 0, CX, row, 0, "Day view from:");
+	put(&f[F2], FT_POPUP, 0, VX, row, 10, 0);
 	f[F2].items = hour_items;
 	f[F2].nitems = 5;
 	f[F2].val = opt.daystart >= 6 && opt.daystart <= 10 ? opt.daystart - 6 : 2;
 	row++;
-	put(&f[F3], FT_CHECK, 0, 18, row, 24, "24-hour clock");
+	put(&f[F3], FT_CHECK, 0, VX, row, 24, "24-hour clock");
 	f[F3].val = opt.h24;
 	row++;
-	put(&f[F4], FT_CHECK, 0, 18, row, 30, "Show Hebrew dates");
+	put(&f[F4], FT_CHECK, 0, VX, row, 24, "Show Hebrew dates");
 	f[F4].val = opt.hebdates;
-	row += gap;
-	put(&f[L5], FT_LABEL, 0, 0, row, 0, "New events last:");
-	put(&f[F5], FT_POPUP, 0, 18, row, 16, 0);
+	row++;
+	put(&f[L13], FT_LABEL, 0, CX, row, 0, "Hebrew in font:");
+	put(&f[F13], FT_POPUP, 0, VX, row, 24, 0);
+	f[F13].items = heb_items;
+	f[F13].nitems = 3;
+	f[F13].val = opt.hebfont;
+	for (i = L1; i <= F13; i++)
+		in(&f[i], S_GENERAL);
+
+	/* Events */
+	row = 3;
+	put(&f[L5], FT_LABEL, 0, CX, row, 0, "New events last:");
+	put(&f[F5], FT_POPUP, 0, VX, row, 16, 0);
 	f[F5].items = len_items;
 	f[F5].nitems = 5;
 	f[F5].val = 2;
@@ -444,81 +484,122 @@ void dlg_settings(void)
 		if (len_min[i] == opt.duration)
 			f[F5].val = i;
 	row++;
-	put(&f[L6], FT_LABEL, 0, 0, row, 0, "...with alert:");
-	put(&f[F6], FT_POPUP, 0, 18, row, 22, 0);
+	put(&f[L6], FT_LABEL, 0, CX, row, 0, "...with alert:");
+	put(&f[F6], FT_POPUP, 0, VX, row, 22, 0);
 	f[F6].items = alert_items;
 	f[F6].nitems = 7;
 	for (i = 0; i < 7; i++)
 		if (alert_min[i] == opt.alarm_default)
 			f[F6].val = i;
 	row++;
-	put(&f[F7], FT_CHECK, 0, 18, row, 30, "Show alerts");
+	put(&f[F7], FT_CHECK, 0, VX, row, 24, "Show alerts");
 	f[F7].val = opt.alarms;
-	row += gap;
-	put(&f[L8], FT_LABEL, 0, 0, row, 0, "Atari clock in:");
-	put(&f[F8], FT_POPUP, 0, 18, row, 30, 0);
-	{
-		static const char *hz_items[2];
-		static char hz_lab[50];
-		snprintf(hz_lab, sizeof(hz_lab), "  %s", hz);
-		hz_items[0] = hz_lab;
-		hz_items[1] = "  Other...";
-		f[F8].items = hz_items;
-		f[F8].nitems = 2;
-	}
+	for (i = L5; i <= F7; i++)
+		in(&f[i], S_EVENTS);
+
+	/* Time zones */
+	row = 3;
+	put(&f[L8], FT_LABEL, 0, CX, row, 0, "Atari clock in:");
+	put(&f[F8], FT_POPUP, 0, VX, row, 30, 0);
+	snprintf(hz_lab, sizeof(hz_lab), "  %s", hz);
+	hz_items[0] = hz_lab;
+	hz_items[1] = "  Other...";
+	f[F8].items = hz_items;
+	f[F8].nitems = 2;
 	row++;
-	put(&f[F9], FT_CHECK, 0, 18, row, 30, "Time zone support");
+	put(&f[F9], FT_CHECK, 0, VX, row, 30, "Time zone support");
 	f[F9].val = opt.tzsupport;
 	row++;
-	put(&f[L10], FT_LABEL, 0, 0, row, 0, "Show times in:");
-	put(&f[F10], FT_POPUP, 0, 18, row, 30, 0);
-	{
-		static const char *vz_items[2];
-		static char vz_lab[50];
-		snprintf(vz_lab, sizeof(vz_lab), "  %s", vz);
-		vz_items[0] = vz_lab;
-		vz_items[1] = "  Other...";
-		f[F10].items = vz_items;
-		f[F10].nitems = 2;
-	}
-	row += gap;
-	put(&f[L11], FT_LABEL, 0, 0, row, 0, "Refresh all:");
-	put(&f[F11], FT_POPUP, 0, 18, row, 22, 0);
+	put(&f[L10], FT_LABEL, 0, CX, row, 0, "Show times in:");
+	put(&f[F10], FT_POPUP, 0, VX, row, 30, 0);
+	snprintf(vz_lab, sizeof(vz_lab), "  %s", vz);
+	vz_items[0] = vz_lab;
+	vz_items[1] = "  Other...";
+	f[F10].items = vz_items;
+	f[F10].nitems = 2;
+	for (i = L8; i <= F10; i++)
+		in(&f[i], S_ZONES);
+
+	/* Refresh */
+	row = 3;
+	put(&f[L11], FT_LABEL, 0, CX, row, 0, "Refresh all:");
+	put(&f[F11], FT_POPUP, 0, VX, row, 22, 0);
 	f[F11].items = refresh_items;
 	f[F11].nitems = 5;
 	for (i = 0; i < 5; i++)
 		if (refresh_min[i] == opt.refresh)
 			f[F11].val = i;
 	row++;
-	put(&f[L12], FT_LABEL, 0, 0, row, 0, "");
-	put(&f[F12], FT_CHECK, 0, 18, row, 32, "Refresh when the window opens");
+	put(&f[F12], FT_CHECK, 0, VX, row, 30, "When the window opens");
 	f[F12].val = opt.sync_open;
+	row += 2;
+	put(&f[H3], FT_LABEL, 0, CX, row, 0, "Keep on this Atari:");
 	row++;
-	put(&f[L13], FT_LABEL, 0, 0, row, 0, "Hebrew in font:");
-	put(&f[F13], FT_POPUP, 0, 18, row, 24, 0);
-	f[F13].items = heb_items;
-	f[F13].nitems = 3;
-	f[F13].val = opt.hebfont;
-	row += gap;
-	put(&f[BCAN], FT_BUTTON, FF_CANCEL, 26, row, 10, "Cancel");
-	put(&f[BOK], FT_BUTTON, FF_DEFAULT, 38, row, 10, "OK");
-	for (;;) {
-		r = run("Settings", f, N, 49, row + 1, -1);
-		if (r != BOK)
-			return;
-		break;
-	}
+	put(&f[L15], FT_LABEL, 0, CX + 2, row, 0, "Days back");
+	text(&f[F15], FF_LTR, VX, row, 5, past, 5);
+	row++;
+	put(&f[L16], FT_LABEL, 0, CX + 2, row, 0, "Days ahead");
+	text(&f[F16], FF_LTR, VX, row, 5, future, 5);
+	for (i = L11; i <= F16; i++)
+		in(&f[i], S_REFRESH);
+
+	/* Connection */
+	row = 3;
+	put(&f[C1], FT_CHECK, can_falcon ? 0 : FF_DISABLED, CX, row, 44, "Falcon mode: TLS on this Atari");
+	f[C1].val = opt.falcon;
+	row++;
+	put(&f[C2], FT_CHECK, can_falcon ? 0 : FF_DISABLED, CX + 3, row, 40, "Check certificates on the DSP");
+	f[C2].val = opt.dsp;
+	row++;
+	put(&f[N1], FT_LABEL, FF_LTR, CX + 3, row, 0, can_falcon ? "Needs CACERT.PEM, ROOTS.DAT in ECAL"
+							  : !tls_available ? "Not in the ST edition: ECAL.ACC has it"
+							  : "Needs a 68030 (Falcon or TT)");
+	row += 2;
+	put(&f[L3], FT_LABEL, 0, CX, row, 0, "Pi gateway:");
+	text(&f[C3], FF_LTR, CX + 12, row, 20, gate, 60);
+	put(&f[L4], FT_LABEL, 0, CX + 34, row, 0, "Port:");
+	text(&f[C4], FF_LTR, CX + 40, row, 6, port, 6);
+	row++;
+	put(&f[N2], FT_LABEL, FF_LTR, CX + 12, row, 0, "gateway/install.sh on the Pi");
+	row++;
+	put(&f[C7], FT_CHECK, 0, CX, row, 40, "Write a log (ECAL.LOG)");
+	f[C7].val = opt.log;
+	for (i = C1; i <= C7; i++)
+		in(&f[i], S_CONN);
+
+	/* on every section */
+	row = 11;
+	put(&f[BCAN], FT_BUTTON, FF_CANCEL, SW - 24, row, 10, "Cancel");
+	put(&f[BOK], FT_BUTTON, FF_DEFAULT, SW - 12, row, 10, "OK");
+
+	memset(&d, 0, sizeof(d));
+	d.title = "Settings";
+	d.f = f;
+	d.n = N;
+	d.w = SW;
+	d.h = row + 1;
+	d.focus = -1;
+	d.pages = section_names;
+	d.npages = 5;
+	d.side = SIDE;
+	d.page = first;
+	r = dlg_run(&d);
+	if (r != BOK)
+		return;
+
 	opt.weekstart = f[F1].val == 1 ? 1 : f[F1].val == 2 ? 6 : 0;
 	opt.daystart = f[F2].val + 6;
 	opt.h24 = f[F3].val;
 	opt.hebdates = f[F4].val;
+	opt.hebfont = f[F13].val;
 	opt.duration = len_min[f[F5].val];
 	opt.alarm_default = alert_min[f[F6].val];
 	opt.alarms = f[F7].val;
 	opt.tzsupport = f[F9].val;
 	opt.refresh = refresh_min[f[F11].val];
 	opt.sync_open = f[F12].val;
-	opt.hebfont = f[F13].val;
+	opt.past_days = (short)(atoi(past) > 0 ? atoi(past) : 92);
+	opt.future_days = (short)(atoi(future) > 0 ? atoi(future) : 400);
 	if (f[F8].val == 1) {
 		const char *z = zone_pick(opt.home_tz);
 		if (z)
@@ -533,72 +614,29 @@ void dlg_settings(void)
 	}
 	if (!opt.tzsupport)
 		str_copy(opt.view_tz, opt.home_tz, sizeof(opt.view_tz));
-	store_save_settings();
-	after_change();
-}
-
-void dlg_connection(void)
-{
-	static char gate[64], port[8], past[8], future[8];
-	enum { H1, F1, F2, N1, H2, L3, F3, L4, F4, N2, H3, L5, F5, L6, F6, F7, BCAN, BOK, N };
-	FIELD f[N];
-	short r, row = 1;
-	int can_falcon = tls_available && get_cookie(0x5F435055L) >= 20;	/* _CPU: 68020 or better */
-	str_copy(gate, opt.gate, sizeof(gate));
-	snprintf(port, sizeof(port), "%u", opt.gateport);
-	snprintf(past, sizeof(past), "%d", opt.past_days);
-	snprintf(future, sizeof(future), "%d", opt.future_days);
-	put(&f[H1], FT_HEAD, 0, 0, row, 0, "Falcon mode");
-	row++;
-	put(&f[F1], FT_CHECK, can_falcon ? 0 : FF_DISABLED, 2, row, 46, "Secure connections on this Atari (TLS 1.2)");
-	f[F1].val = opt.falcon;
-	row++;
-	put(&f[F2], FT_CHECK, can_falcon ? 0 : FF_DISABLED, 2, row, 46, "Check certificates on the DSP56001");
-	f[F2].val = opt.dsp;
-	row++;
-	put(&f[N1], FT_LABEL, FF_LTR, 2, row, 0, can_falcon ? "Needs CACERT.PEM and ROOTS.DAT in the ECAL folder."
-							  : !tls_available ? "Not in the ST edition: use ECAL.ACC for it."
-							  : "Needs a 68030 (Falcon or TT).");
-	row += 2;
-	put(&f[H2], FT_HEAD, 0, 0, row, 0, "Raspberry Pi gateway (any Atari)");
-	row++;
-	put(&f[L3], FT_LABEL, 0, 2, row, 0, "Address:");
-	text(&f[F3], FF_LTR, 12, row, 22, gate, 60);
-	put(&f[L4], FT_LABEL, 0, 36, row, 0, "Port:");
-	text(&f[F4], FF_LTR, 42, row, 6, port, 6);
-	row++;
-	put(&f[N2], FT_LABEL, FF_LTR, 2, row, 0, "Set up with gateway/install.sh on the Pi.");
-	row += 2;
-	put(&f[H3], FT_HEAD, 0, 0, row, 0, "Keep on this Atari");
-	row++;
-	put(&f[L5], FT_LABEL, 0, 2, row, 0, "Days back:");
-	text(&f[F5], FF_LTR, 14, row, 5, past, 5);
-	put(&f[L6], FT_LABEL, 0, 22, row, 0, "Days ahead:");
-	text(&f[F6], FF_LTR, 35, row, 5, future, 5);
-	row++;
-	put(&f[F7], FT_CHECK, 0, 2, row, 40, "Write a log (ECAL.LOG)");
-	f[F7].val = opt.log;
-	row += 2;
-	put(&f[BCAN], FT_BUTTON, FF_CANCEL, 26, row, 10, "Cancel");
-	put(&f[BOK], FT_BUTTON, FF_DEFAULT, 38, row, 10, "OK");
-	r = run("Connection", f, N, 49, row + 1, F3);
-	if (r != BOK)
-		return;
 	str_copy(opt.gate, gate, sizeof(opt.gate));
 	opt.gateport = (unsigned short)(atoi(port) > 0 ? atoi(port) : 8180);
-	opt.past_days = (short)(atoi(past) > 0 ? atoi(past) : 92);
-	opt.future_days = (short)(atoi(future) > 0 ? atoi(future) : 400);
-	opt.dsp = f[F2].val;
-	opt.log = f[F7].val;
-	if (f[F1].val != opt.falcon)
-		falcon_mode_set(f[F1].val);
+	opt.dsp = f[C2].val;
+	opt.log = f[C7].val;
+	if (f[C1].val != opt.falcon)
+		falcon_mode_set(f[C1].val);
 	falcon_dsp_init();
 	http_close_all();
 	store_save_settings();
 	set_logging();
+	after_change();
 }
 
-/* ---------------- moving around ---------------- */
+void dlg_settings(void)
+{
+	settings(S_GENERAL);
+}
+
+/* Settings at its Connection section */
+void dlg_connection(void)
+{
+	settings(S_CONN);
+}
 
 void dlg_goto(void)
 {

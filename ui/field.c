@@ -26,8 +26,18 @@ void (*dlg_after)(void);	/* called when the last dialog closes (window frame) */
 #define FX(f) (box.x + pad + (f)->x * cw)
 #define FY(f) (box.y + pad + (f)->y * rh)
 
+/* the dialog being run, for what depends on its section */
+static DLG *cur_dlg;
+
+static int shown_now(const FIELD *f)
+{
+	return !cur_dlg || !cur_dlg->npages || !f->page || f->page == cur_dlg->page;
+}
+
 static int focusable(const FIELD *f)
 {
+	if (!shown_now(f))
+		return 0;
 	return (f->type == FT_TEXT || f->type == FT_PASS || f->type == FT_MULTI) && !(f->flags & FF_DISABLED);
 }
 
@@ -280,6 +290,66 @@ static void draw_field(DLG *d, short i)
 	}
 }
 
+/* ---- sections ---- */
+
+static void draw_all(DLG *d);
+
+static void section_rect(DLG *d, short k, GRECT *r)
+{
+	r->x = box.x + 5;
+	r->y = box.y + pad + (1 + 2 * k) * rh - 3;
+	r->w = d->side * cw + pad - 6;
+	r->h = ch + 6;
+}
+
+static short section_at(DLG *d, short mx, short my)
+{
+	short k;
+	for (k = 0; k < d->npages; k++) {
+		GRECT r;
+		section_rect(d, k, &r);
+		r.y -= rh / 2;		/* the space between the names counts too */
+		r.h += rh;
+		if (rect_hit(&r, mx, my))
+			return k + 1;
+	}
+	return 0;
+}
+
+/* the list of sections, the line beside it, and the chosen one's name
+   over a rule */
+static void draw_sections(DLG *d)
+{
+	short k, lx = box.x + pad + d->side * cw + cw / 2;
+	short hx = box.x + pad + (d->side + 2) * cw, hy = box.y + pad + rh;
+	for (k = 0; k < d->npages; k++) {
+		GRECT r;
+		const char *s = d->pages[k];
+		section_rect(d, k, &r);
+		fill(&r, k + 1 == d->page ? 1 : 0);
+		text_at(r.x + cw, r.y + 3, s, (long)strlen(s), d->side, TX_LTR | (k + 1 == d->page ? TX_INVERSE : 0));
+	}
+	line_col(lx, box.y + ch + 6, lx, box.y + box.h - 4, 1);
+	if (d->page >= 1 && d->page <= d->npages) {
+		const char *s = d->pages[d->page - 1];
+		text_at(hx, hy, s, (long)strlen(s), d->w - d->side - 2, TX_LTR | TX_BOLD);
+		line_col(hx, hy + ch + 3, box.x + box.w - pad, hy + ch + 3, 1);
+	}
+}
+
+static void set_page(DLG *d, short p)
+{
+	short i;
+	d->page = p;
+	d->focus = -1;
+	for (i = 0; i < d->n; i++)
+		if (focusable(&d->f[i])) {
+			d->focus = i;
+			break;
+		}
+	draw_all(d);
+}
+
 static void draw_all(DLG *d)
 {
 	GRECT t;
@@ -307,8 +377,11 @@ static void draw_all(DLG *d)
 		(line_rtl(title, (long)strlen(title)) ? 0 : TX_LTR));
 	if (hebrew_kbd)
 		text_at(t.x + t.w - 4 * cw, t.y + 1, "\xD3\xC3", 2, 2, TX_INVERSE);	/* "עב": Hebrew keyboard */
+	if (d->npages)
+		draw_sections(d);
 	for (i = 0; i < d->n; i++)
-		draw_field(d, i);
+		if (shown_now(&d->f[i]))
+			draw_field(d, i);
 	graf_mouse(M_ON, 0);
 }
 
@@ -487,7 +560,7 @@ static short field_at(DLG *d, short mx, short my)
 	for (i = d->n - 1; i >= 0; i--) {
 		FIELD *f = &d->f[i];
 		GRECT r;
-		if (f->type == FT_LABEL || f->type == FT_HEAD)
+		if (f->type == FT_LABEL || f->type == FT_HEAD || !shown_now(f))
 			continue;
 		field_rect(f, &r);
 		if (f->type == FT_CHECK) {
@@ -505,7 +578,8 @@ static short find_flag(DLG *d, short flag)
 {
 	short i;
 	for (i = 0; i < d->n; i++)
-		if (d->f[i].type == FT_BUTTON && (d->f[i].flags & flag) && !(d->f[i].flags & FF_DISABLED))
+		if (d->f[i].type == FT_BUTTON && (d->f[i].flags & flag) && !(d->f[i].flags & FF_DISABLED) &&
+		    shown_now(&d->f[i]))
 			return i;
 	return -1;
 }
@@ -521,6 +595,10 @@ short dlg_run(DLG *d)
 	AEVENT e;
 	GRECT outer = box;		/* the dialog under this one, if any */
 	short outer_rh = rh, outer_pad = pad;
+	DLG *outer_dlg = cur_dlg;
+	cur_dlg = d;
+	if (d->npages && (d->page < 1 || d->page > d->npages))
+		d->page = 1;
 	pad = cw + 2;
 	rh = ch + 6;
 	box.w = d->w * cw + 2 * pad;
@@ -573,6 +651,17 @@ short dlg_run(DLG *d)
 					press_effect(d, b);
 					result = b;
 				}
+			}
+		}
+		if ((e.which & MU_BUTTON) && d->npages) {
+			short k = section_at(d, e.mx, e.my);
+			if (k) {
+				if (k != d->page)
+					set_page(d, k);
+				e.which &= ~MU_BUTTON;
+				do {
+					graf_mkstate(&mx, &my, &mb, &ks);
+				} while (mb & 3);
 			}
 		}
 		if (e.which & MU_BUTTON) {
@@ -635,6 +724,7 @@ short dlg_run(DLG *d)
 	box = outer;
 	rh = outer_rh;
 	pad = outer_pad;
+	cur_dlg = outer_dlg;
 	if (--depth == 0 && dlg_after)
 		dlg_after();
 	return result;

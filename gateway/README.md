@@ -63,7 +63,7 @@ messages; add `-v` to the `ExecStart` line in
 
 ## In ECal
 
-≡ menu > **Connection**: Gateway address = the Pi's IP address (plain TOS
+≡ menu > **Settings** > **Connection**: Pi gateway = the Pi's IP address (plain TOS
 with STinG can't always look up names on the local network), port 8180.
 Then add your accounts as usual, with their real `https://` addresses:
 ecalgate does the rest.

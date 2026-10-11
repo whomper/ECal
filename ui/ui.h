@@ -116,6 +116,7 @@ typedef struct {
 	const char *const *items;	/* popup labels */
 	short nitems;
 	short cur, first;	/* cursor and scroll (text fields) */
+	short page;		/* in a dialog with sections: its section, 1...; 0 on all */
 } FIELD;
 typedef struct DLG DLG;
 struct DLG {
@@ -127,6 +128,11 @@ struct DLG {
 	/* called when a popup, check or color changes; may redraw */
 	void (*changed)(DLG *d, short i);
 	void *ud;
+	/* sections, as in EMail's Settings: their names in a list on the
+	   left (side characters wide), the chosen one's fields on the right
+	   under its name */
+	const char *const *pages;
+	short npages, page, side;
 };
 short dlg_run(DLG *d);		/* the button pressed (field index), -1 Esc */
 void  dlg_redraw_field(DLG *d, short i);

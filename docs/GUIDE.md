@@ -34,27 +34,40 @@ sets another amount, in kilobytes.
 
 **The clock.** ECal's "today" is the Atari's clock, so set it (an ST
 without a clock card starts each day at an old date; the Control Panel or
-a clock program at boot sets it). In Settings, tell ECal which time
+a clock program at boot sets it). In Settings > Time zones, tell ECal which time
 zone the clock is in.
 
-## Connecting
+## Settings
 
-Open **Connection** from the menu (the ≡ button at the right of the
-toolbar).
+The ≡ menu (the button at the right of the toolbar) > **Settings...**. As
+in EMail, the sections are listed on the left; click one for its
+settings. **OK** keeps the changes in all of them, **Cancel** none.
 
-- **Raspberry Pi gateway**: the Pi's address and port (8180). Set the Pi up
-  with `gateway/install.sh`; see [gateway/README.md](../gateway/README.md).
-  Any Atari can use it, and a Falcon can too, to save time.
-- **Falcon mode**: ECal makes the secure connections itself. Needs a
-  68030 (Falcon or TT), `ECAL.ACC`, and `CACERT.PEM` and `ROOTS.DAT` in
-  `C:\ECAL\`. **Check certificates on the DSP** lets the Falcon's
-  DSP56001 do the RSA arithmetic (much faster than the 68030).
-- A server on your home network that speaks plain `http://` (a Radicale or
-  Nextcloud without TLS) needs neither.
-- **Keep on this Atari**: how many days back and ahead ECal keeps
-  (92 and 400 to begin with). Fewer use less memory and sync faster.
-- **Write a log**: `ECAL.LOG` in `C:\ECAL\`, the conversation with
-  the servers (passwords left out) when something doesn't work.
+![Settings](settings.png)
+
+- **General**: the first day of the week (Sunday, Monday or Saturday),
+  the first hour the day and week views show, the 24-hour clock, Hebrew
+  dates next to the civil ones, and which character set your font has
+  Hebrew in.
+- **Events**: how long a new event lasts and the alert it starts with;
+  **Show alerts** turns all reminders on or off.
+- **Time zones**: see [Time zones](#time-zones).
+- **Refresh**: how often every calendar is brought up to date, and
+  whether opening the window does it. **Keep on this Atari**: how many
+  days back and ahead ECal keeps (92 and 400 to begin with); fewer use
+  less memory and sync faster.
+- **Connection**: how ECal reaches the servers:
+  - **Pi gateway**: the Pi's address and port (8180). Set the Pi up
+    with `gateway/install.sh`; see [gateway/README.md](../gateway/README.md).
+    Any Atari can use it, and a Falcon can too, to save time.
+  - **Falcon mode**: ECal makes the secure connections itself. Needs a
+    68030 (Falcon or TT), `ECAL.ACC`, and `CACERT.PEM` and `ROOTS.DAT` in
+    `C:\ECAL\`. **Check certificates on the DSP** lets the Falcon's
+    DSP56001 do the RSA arithmetic (much faster than the 68030).
+  - A server on your home network that speaks plain `http://` (a Radicale
+    or Nextcloud without TLS) needs neither.
+  - **Write a log**: `ECAL.LOG` in `C:\ECAL\`, the conversation with
+    the servers (passwords left out) when something doesn't work.
 
 ## Adding calendars
 
@@ -169,12 +182,12 @@ two years ahead.
 
 When an event's alert comes due, ECal beeps and shows it over
 whatever program is running, even with its window closed. **Show** opens
-the day. Settings > **Show alerts** turns them all off; each calendar has
+the day. Settings > Events > **Show alerts** turns them all off; each calendar has
 its own switch too (subscriptions start with theirs off).
 
 ## Time zones
 
-Settings:
+Settings > Time zones:
 
 - **Atari clock in**: the zone the Atari's clock is set to. ECal needs
   it to know what time it is everywhere else.
@@ -225,4 +238,4 @@ built. The last number goes up with every build.
   Falcon mode the clock must be right to check certificates.
 - An **!** next to an account in the sidebar: its last refresh failed; the
   calendar's info (double-click) shows why.
-- `ECAL.LOG` (Connection > Write a log) has the details.
+- `ECAL.LOG` (Settings > Connection > Write a log) has the details.

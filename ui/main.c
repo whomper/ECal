@@ -303,7 +303,7 @@ void cmd_import(int cal)
 void cmd_menu(short x, short y)
 {
 	enum { M_ADD, M_NEW, M_S1, M_GOTO, M_FIND, M_TODAY, M_S2, M_SIDE, M_HEB, M_KBD, M_S3,
-	       M_SET, M_CONN, M_KEYS, M_ABOUT, M_S4, M_QUIT, M_N };
+	       M_SET, M_KEYS, M_ABOUT, M_S4, M_QUIT, M_N };
 	const char *items[M_N];
 	short k, n = is_acc ? M_S4 : M_N;
 	items[M_ADD] = "  Add account or calendar...";
@@ -318,7 +318,6 @@ void cmd_menu(short x, short y)
 	items[M_KBD] = hebrew_kbd ? "\x08 Hebrew keyboard     F10" : "  Hebrew keyboard     F10";
 	items[M_S3] = "-";
 	items[M_SET] = "  Settings...";
-	items[M_CONN] = "  Connection...";
 	items[M_KEYS] = "  Keys...            Help";
 	items[M_ABOUT] = "  About ECal...";
 	items[M_S4] = "-";
@@ -343,7 +342,6 @@ void cmd_menu(short x, short y)
 		break;
 	case M_KBD: set_hebrew_kbd(!hebrew_kbd); break;
 	case M_SET: dlg_settings(); break;
-	case M_CONN: dlg_connection(); break;
 	case M_KEYS: dlg_keys(); break;
 	case M_ABOUT: dlg_about(); break;
 	case M_QUIT:
