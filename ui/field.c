@@ -57,7 +57,7 @@ static void field_rect(const FIELD *f, GRECT *r)
 static void shown(const FIELD *f, char *out, int size)
 {
 	int n = (int)strlen(f->buf), i;
-	if (f->type != FT_PASS) {
+	if (f->type != FT_PASS || (f->flags & FF_SHOWN)) {
 		str_copy(out, f->buf, size);
 		return;
 	}
@@ -190,6 +190,84 @@ static void draw_text_field(FIELD *f, int focus)
 	}
 }
 
+/* ---- the eye beside a password field, as in EMail: open while the
+   password is hidden, crossed out while it is shown ---- */
+
+static const char *const eye_art[16] = {
+	"................",
+	"................",
+	"................",
+	".....######.....",
+	"...##......##...",
+	"..#....##....#..",
+	".#....####....#.",
+	"#.....####.....#",
+	".#....####....#.",
+	"..#....##....#..",
+	"...##......##...",
+	".....######.....",
+	"................",
+	"................",
+	"................",
+	"................",
+};
+
+static void eye_rect(const FIELD *f, GRECT *r)
+{
+	r->x = FX(f) + (f->w + 1) * cw;
+	r->y = FY(f) + (ch - (ch >= 16 ? 16 : 8)) / 2;
+	r->w = 16;
+	r->h = ch >= 16 ? 16 : 8;
+}
+
+static void draw_eye(const FIELD *f)
+{
+	static unsigned short bits[16];
+	static const short colors[2] = { 1, 0 };
+	short rows = ch >= 16 ? 16 : 8, r, c, pxy[8];
+	MFDB src, dst;
+	GRECT e;
+	for (r = 0; r < rows; r++) {
+		const char *a = eye_art[rows == 16 ? r : r * 2 + 1];
+		unsigned short v = 0;
+		for (c = 0; c < 16; c++)
+			v = (unsigned short)((v << 1) | (a[c] == '#'));
+		if (f->flags & FF_SHOWN)	/* a stroke from bottom left to top right */
+			v |= (unsigned short)((0x8000 >> ((rows - 1 - r) * 16 / rows)) | (0x4000 >> ((rows - 1 - r) * 16 / rows)));
+		bits[r] = v;
+	}
+	eye_rect(f, &e);
+	memset(&src, 0, sizeof(src));
+	memset(&dst, 0, sizeof(dst));
+	src.fd_addr = bits;
+	src.fd_w = 16;
+	src.fd_h = rows;
+	src.fd_wdwidth = 1;
+	src.fd_nplanes = 1;
+	pxy[0] = 0;
+	pxy[1] = 0;
+	pxy[2] = 15;
+	pxy[3] = rows - 1;
+	pxy[4] = e.x;
+	pxy[5] = e.y;
+	pxy[6] = e.x + 15;
+	pxy[7] = e.y + rows - 1;
+	vrt_cpyfm(vdi_h, 1, pxy, &src, &dst, colors);
+}
+
+static int eye_hit(const FIELD *f, short mx, short my)
+{
+	GRECT e;
+	if (f->type != FT_PASS)
+		return 0;
+	eye_rect(f, &e);
+	e.x -= 2;
+	e.y -= 2;
+	e.w += 4;
+	e.h += 4;
+	return rect_hit(&e, mx, my);
+}
+
 static void draw_field(DLG *d, short i)
 {
 	FIELD *f = &d->f[i];
@@ -205,6 +283,8 @@ static void draw_field(DLG *d, short i)
 	case FT_PASS:
 	case FT_MULTI:
 		draw_text_field(f, d->focus == i);
+		if (f->type == FT_PASS)
+			draw_eye(f);
 		break;
 	case FT_BUTTON:
 		field_rect(f, &r);
@@ -562,6 +642,8 @@ static short field_at(DLG *d, short mx, short my)
 		GRECT r;
 		if (f->type == FT_LABEL || f->type == FT_HEAD || !shown_now(f))
 			continue;
+		if (eye_hit(f, mx, my))
+			return i;
 		field_rect(f, &r);
 		if (f->type == FT_CHECK) {
 			r.w = ((short)strlen(f->label) + 2) * cw + 4;
@@ -672,6 +754,12 @@ short dlg_run(DLG *d)
 				case FT_TEXT:
 				case FT_PASS:
 				case FT_MULTI:
+					if (eye_hit(f, e.mx, e.my)) {
+						/* show or hide the password; the dialog stays */
+						f->flags ^= FF_SHOWN;
+						dlg_redraw_field(d, hit);
+						break;
+					}
 					click_field(d, hit, e.mx, e.my);
 					break;
 				case FT_BUTTON:

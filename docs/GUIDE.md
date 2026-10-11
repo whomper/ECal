@@ -76,7 +76,8 @@ The ≡ menu > **Add account or calendar...**:
 - **iCloud**: your Apple ID and an **app-specific password**. Make one at
   [appleid.apple.com](https://appleid.apple.com) > Sign-In and Security >
   App-Specific Passwords; your normal password won't work. ECal finds
-  all your iCloud calendars, with their colours.
+  all your iCloud calendars, with their colours. The password shows as
+  `*****`; click the eye beside it to see what you typed, as in EMail.
 - **Other CalDAV account**: the server's address and your login, e.g.
   `https://caldav.fastmail.com/`, `https://cloud.example.org/remote.php/dav`
   (Nextcloud), `https://caldav.calendar.yahoo.com`. The address of one

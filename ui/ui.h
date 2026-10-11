@@ -106,6 +106,7 @@ enum { FT_LABEL, FT_TEXT, FT_PASS, FT_BUTTON, FT_CHECK, FT_POPUP, FT_MULTI, FT_H
 #define FF_DISABLED 4
 #define FF_LTR      8	/* text field for addresses, numbers: never right to left */
 #define FF_DANGER  16	/* the Delete button */
+#define FF_SHOWN   32	/* a password field shown in clear (its eye clicked) */
 typedef struct {
 	short type, flags;
 	short x, y, w, h;	/* in characters */
