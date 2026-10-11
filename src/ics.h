@@ -70,6 +70,8 @@ typedef struct {
 				   all-day events), -1: none */
 	unsigned char allday, floating, status;
 	unsigned char hasexc;	/* a series with exceptions: 1, 2 = some for all later ones too (calstore.c) */
+	unsigned char gone;	/* not shown: "Canceled:" in the title, or an invitation declined
+				   (read only; the event is written back as it was) */
 	short seq;
 	short cal;		/* the calendar it belongs to (calstore.c) */
 	short res;		/* its resource in that calendar */
@@ -142,4 +144,8 @@ void ics_new_uid(char *out, int size);
 /* text helpers, exposed for the tests */
 char *ics_unescape(const char *s, long n);	/* \n \, \; \\ -> text, UTF-8 -> Atari */
 void  ics_escape(SBUF *b, const char *atari);	/* Atari text -> escaped UTF-8 */
+/* the user's own address (an account's Apple ID): an invitation they
+   declined is not shown */
+extern char ics_me[100];
+
 #endif

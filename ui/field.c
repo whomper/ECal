@@ -182,7 +182,7 @@ static void draw_text_field(FIELD *f, int focus)
 		rtl = field_rtl(f, s + f->first, vis);
 		if (vis > 0)
 			text_at(FX(f), FY(f), s + f->first, vis, f->w,
-				(rtl ? TX_RIGHT : TX_LTR) | ((f->flags & FF_DISABLED) ? TX_LIGHT : 0));
+				(rtl ? TX_RIGHT : TX_LTR) | ((f->flags & FF_DISABLED) ? TX_DIM : 0));
 		if (focus) {
 			short cx = cursor_x(s + f->first, vis, f->cur - f->first, f->w, rtl);
 			line_col(FX(f) + cx, FY(f), FX(f) + cx, FY(f) + ch - 1, 1);
@@ -272,7 +272,7 @@ static void draw_field(DLG *d, short i)
 {
 	FIELD *f = &d->f[i];
 	GRECT r;
-	short dis = (f->flags & FF_DISABLED) ? TX_LIGHT : 0;
+	short dis = (f->flags & FF_DISABLED) ? TX_DIM : 0;
 	switch (f->type) {
 	case FT_LABEL:
 	case FT_HEAD:
@@ -680,6 +680,7 @@ short dlg_run(DLG *d)
 	GRECT outer = box;		/* the dialog under this one, if any */
 	short outer_rh = rh, outer_pad = pad;
 	DLG *outer_dlg = cur_dlg;
+	font_sys_push();
 	cur_dlg = d;
 	if (d->npages && (d->page < 1 || d->page > d->npages))
 		d->page = 1;
@@ -815,6 +816,7 @@ short dlg_run(DLG *d)
 	rh = outer_rh;
 	pad = outer_pad;
 	cur_dlg = outer_dlg;
+	font_sys_pop();
 	if (--depth == 0 && dlg_after)
 		dlg_after();
 	return result;

@@ -146,6 +146,7 @@ void dlg_about(void)
 	short bw = 10 * cw, bh = ch + 6, by;
 	AEVENT e;
 
+	font_sys_push();
 	snprintf(conn, sizeof(conn), "%s  \xF9  %s  \xF9  %s",
 		 strcmp(net_stack(), "none") ? net_stack() : "no network",
 		 opt.falcon ? (strcmp(falcon_dsp_state(), "DSP") ? "TLS on the 68030" : "TLS with the DSP")
@@ -224,4 +225,5 @@ void dlg_about(void)
 	wind_update(2);
 	wind_update(END_UPDATE);
 	form_dial(FMD_FINISH, dx, dy, dw + 3, dh + 3);
+	font_sys_pop();
 }

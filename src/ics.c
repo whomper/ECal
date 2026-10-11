@@ -598,6 +598,8 @@ static void finish_tz(ICSP *p)
 #define NAME_IS(lit) (name[0] == (lit)[0] && !strcmp(name, (lit)))
 #define VALUE_IS(lit) ((value[0] | 32) == ((lit)[0] | 32) && !strcasecmp(value, (lit)))
 
+char ics_me[100];
+
 static void logical_line(ICSP *p, char *s)
 {
 	char *name, *params, *value;
@@ -721,6 +723,8 @@ static void logical_line(ICSP *p, char *s)
 			n = 3000;
 		free(*f);
 		*f = ics_unescape(value, n);
+		if (f == &p->ev->summary && (!strncasecmp(value, "Canceled:", 9) || !strncasecmp(value, "Cancelled:", 10)))
+			p->ev->gone = 1;	/* an organizer's cancellation, Exchange style */
 	} else if (NAME_IS("URL")) {
 		free(p->ev->url);
 		p->ev->url = strdup(value);
@@ -756,6 +760,13 @@ static void logical_line(ICSP *p, char *s)
 				VALUE_IS("TENTATIVE") ? ST_TENTATIVE : ST_CONFIRMED;
 	} else if (NAME_IS("SEQUENCE")) {
 		p->ev->seq = (short)atoi(value);
+	} else if (NAME_IS("ATTENDEE") && ics_me[0]) {
+		/* this user, having declined: as on the Mac, not shown */
+		char ps[20];
+		const char *addr = !strncasecmp(value, "mailto:", 7) ? value + 7 : value;
+		param(params, "PARTSTAT", ps, sizeof(ps));
+		if (!strcasecmp(ps, "DECLINED") && !strcasecmp(addr, ics_me))
+			p->ev->gone = 1;
 	}
 }
 

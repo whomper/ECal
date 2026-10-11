@@ -189,6 +189,23 @@ END:VEVENT
 END:VCALENDAR
 ICS
 
+# a weekly series its organizer cancelled: not shown at all
+put home/cancelled.ics <<ICS >/dev/null
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//EN
+BEGIN:VEVENT
+UID:cancelled-1@test
+DTSTAMP:20261001T000000Z
+DTSTART:$(date -u -d "+1 day" +%Y%m%d)T120000Z
+DTEND:$(date -u -d "+1 day" +%Y%m%d)T130000Z
+RRULE:FREQ=WEEKLY
+STATUS:CANCELLED
+SUMMARY:Called-off series
+END:VEVENT
+END:VCALENDAR
+ICS
+
 echo "== account and first sync"
 "$CLI" "$D" caldav Radicale "$BASE/" alice wonderland || bad "caldav account"
 out=$("$CLI" "$D" calendars)
@@ -198,6 +215,7 @@ absent "the task list left out" "Tasks" "$out"
 out=$("$CLI" "$D" list 20261001 20261101)
 expect "weekly meeting in Hebrew, 10:00 Jerusalem" "20261004 10:00-11:00 [" "$out"
 expect "it repeats" "20261025 10:00-11:00" "$out"
+absent "a cancelled series isn't shown" "Called-off series" "$("$CLI" "$D" list $(date +%Y%m%d) $(date -d "+40 days" +%Y%m%d))"
 absent "a one-off event before today isn't copied" "Old dinner" "$("$CLI" "$D" list $(date -d "-30 days" +%Y%m%d) $(date -d "+30 days" +%Y%m%d))"
 expect "a UTC event shown in Israel time" "20261013 15:00-16:00 [Work] Design review" "$out"
 

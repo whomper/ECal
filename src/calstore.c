@@ -353,7 +353,7 @@ void store_save_settings(void)
 			kv(&b, "the server's mark for its contents, to see what changed", "CTAG", c->ctag);
 			kv(&b, "a subscription's version, to see whether it changed", "ETAG", c->etag);
 			kv(&b, "a subscription's last change, as the server says", "LASTMOD", c->lastmod);
-			kn(&b, "its colour: 0 red, 1 orange, 2 yellow, 3 green, 4 blue, 5 purple, 6 brown, 7 grey", "COLOR", c->color);
+			kn(&b, "its colour: 0 red, 1 orange, 2 yellow, 3 green, 4 blue, 5 purple, 6 brown, 7 grey, 8 pink, 9 teal, 10 navy, 11 dark green", "COLOR", c->color);
 			kn(&b, "shown in the views", "VISIBLE", c->visible);
 			kn(&b, "can't be changed on this Atari", "READONLY", c->readonly);
 			kn(&b, "its alerts show", "ALARMS", c->alarms);
@@ -494,8 +494,18 @@ static DAVAUTH auth_of(int a)
 static short color_of(const char *hex)
 {
 	static const unsigned char pal[NCOLORS][3] = {
-		{ 255, 59, 48 }, { 255, 149, 0 }, { 255, 204, 0 }, { 40, 205, 65 },
-		{ 0, 122, 255 }, { 175, 82, 222 }, { 162, 132, 94 }, { 142, 142, 147 }
+		{ 255, 40, 40 },
+		{ 255, 140, 0 },
+		{ 255, 215, 0 },
+		{ 40, 190, 60 },
+		{ 0, 110, 255 },
+		{ 150, 60, 220 },
+		{ 150, 100, 50 },
+		{ 140, 140, 140 },
+		{ 255, 100, 180 },
+		{ 0, 180, 190 },
+		{ 20, 30, 140 },
+		{ 0, 110, 40 },
 	};
 	long r, g, b, best = 0x7fffffffL;
 	short i, pick = 4;
@@ -688,6 +698,13 @@ static void mark_exceptions(CALENDAR *c)
 					c->ev[j]->hasexc |= c->ev[i]->range_future ? 3 : 1;
 }
 
+/* the account's own address, so that its declined invitations are known */
+static void set_me(CALENDAR *c)
+{
+	const char *u = accts[c->acct].user;
+	str_copy(ics_me, strchr(u, '@') ? u : "", sizeof(ics_me));
+}
+
 void cal_load(CALENDAR *c)
 {
 	char path[200], line[700];
@@ -696,6 +713,7 @@ void cal_load(CALENDAR *c)
 	static FR f;		/* 16 KB: not on the accessory's stack */
 	cal_free_events(c);
 	window(&from, &to);
+	set_me(c);
 	l.c = c;
 	l.res = -1;
 	if (accts[c->acct].kind == AK_SUBSCR) {
@@ -916,6 +934,7 @@ static int cache_change(CALENDAR *c, int drop, const char *href, const char *eta
 		l.c = c;
 		l.res = c->nres++;
 		window(&from, &to);
+		set_me(c);
 		ics_parse(raw, len, add_event, &l, from, to);
 	}
 	pf_close(h);
@@ -1227,6 +1246,8 @@ static void occ_add(EVENT *e, CTIME s, CTIME en, void *ud)
 {
 	OCCLIST *l = ud;
 	CTIME orig = e->recurid != CT_NONE ? e->recurid : ev_from_wall(e, s, view_zone());
+	if (l->limit && l->n >= l->limit)
+		return;
 	if (l->n >= l->max) {
 		OCC *n;
 		int max = l->max ? l->max * 2 : 64;
@@ -1269,6 +1290,13 @@ static int occ_skip(EVENT *m, CTIME orig, void *ud)
 	return 0;
 }
 
+/* by date only, all-day ones among the others (the Find list) */
+static int occ_cmp_date(const void *a, const void *b)
+{
+	const OCC *x = a, *y = b;
+	return x->start < y->start ? -1 : x->start > y->start;
+}
+
 static int occ_cmp(const void *a, const void *b)
 {
 	const OCC *x = a, *y = b;
@@ -1302,7 +1330,8 @@ void occ_collect(OCCLIST *l, CTIME from, CTIME to)
 			continue;
 		for (j = 0; j < c->nev; j++) {
 			EVENT *e = c->ev[j];
-			if (e->status == ST_CANCELLED && !e->rr)
+			/* cancelled (a whole series too), "Canceled:", declined */
+			if (e->status == ST_CANCELLED || e->gone)
 				continue;
 			ics_expand(e, from, to, vz, occ_add, occ_skip, l);
 		}
@@ -1316,26 +1345,32 @@ static int contains(const char *h, const char *n)
 	return h && str_istr(h, n);
 }
 
+/* Only the events that match are expanded: expanding every event over
+   three years and filtering after built a list of tens of thousands of
+   occurrences (every daily meeting), slow on a 68030 and enough to
+   exhaust memory */
 void occ_search(OCCLIST *l, const char *text, CTIME from, CTIME to)
 {
-	int i, w;
-	occ_collect(l, from, to);
-	for (i = w = 0; i < l->n; i++) {
-		EVENT *e = l->o[i].ev;
-		if (contains(e->summary, text) || contains(e->location, text) || contains(e->notes, text))
-			l->o[w++] = l->o[i];
-	}
-	l->n = w;
-	/* by date only, all-day ones among the others */
-	for (i = 1; i < l->n; i++) {
-		OCC t = l->o[i];
-		int k = i;
-		while (k > 0 && l->o[k - 1].start > t.start) {
-			l->o[k] = l->o[k - 1];
-			k--;
+	const TZONE *vz = view_zone();
+	int i, j;
+	l->n = 0;
+	l->from = from;
+	l->to = to;
+	l->limit = 3000;	/* the list shows 200; more is only memory */
+	for (i = 0; i < ncals; i++) {
+		CALENDAR *c = &cals[i];
+		if (!c->visible)
+			continue;
+		for (j = 0; j < c->nev; j++) {
+			EVENT *e = c->ev[j];
+			if (e->status == ST_CANCELLED || e->gone)
+				continue;
+			if (contains(e->summary, text) || contains(e->location, text) || contains(e->notes, text))
+				ics_expand(e, from, to, vz, occ_add, occ_skip, l);
 		}
-		l->o[k] = t;
 	}
+	if (l->n > 1)
+		qsort(l->o, l->n, sizeof(OCC), occ_cmp_date);
 }
 
 /* ---------------- changing events ---------------- */

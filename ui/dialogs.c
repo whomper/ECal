@@ -344,7 +344,8 @@ int dlg_account(int a)
 	return r;
 }
 
-void dlg_calendar(int ci)
+/* 1 if anything changed (the window is drawn again only then) */
+int dlg_calendar(int ci)
 {
 	static char name[64];
 	CALENDAR *c = &cals[ci];
@@ -384,7 +385,10 @@ void dlg_calendar(int ci)
 	put(&f[BOK], FT_BUTTON, FF_DEFAULT, 36, row, 10, "OK");
 	r = run("Calendar", f, N, 47, row + 1, renamable ? F1 : -1);
 	if (r != BOK)
-		return;
+		return 0;
+	if ((!renamable || !name[0] || !strcmp(name, c->name)) && c->color == f[F2].val &&
+	    c->alarms == f[F3].val)
+		return 0;		/* OK without a change: nothing to do */
 	if (renamable && name[0])
 		str_copy(c->name, name, sizeof(c->name));
 	c->color = f[F2].val;
@@ -392,7 +396,8 @@ void dlg_calendar(int ci)
 		c->alarms = (unsigned char)f[F3].val;
 		cal_load(c);		/* the alerts come from the data again */
 	}
-	store_save_settings();
+	settings_later();
+	return 1;
 }
 
 /* ---------------- settings ---------------- */
@@ -687,7 +692,8 @@ void dlg_find(void)
 		return;
 	busy(1);
 	memset(&l, 0, sizeof(l));
-	occ_search(&l, what, now - 366L * MIN_PER_DAY, now + 731L * MIN_PER_DAY);
+	/* from the first day kept on this Atari to two years ahead */
+	occ_search(&l, what, ct_day_start(now) - (CTIME)opt.past_days * MIN_PER_DAY, now + 731L * MIN_PER_DAY);
 	busy(0);
 	if (!l.n) {
 		occ_free(&l);

@@ -70,6 +70,13 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
   - **Write a log**: `ECAL.LOG` in `C:\ECAL\`, the conversation with
     the servers (passwords left out) when something doesn't work.
 
+**Font...** in the ≡ menu picks the font for the window, as in EMail: the
+system font in its two sizes, and with a GDOS (NVDI, SpeedoGDOS,
+FontGDOS) its monospaced fonts in any size they come in (proportional
+ones are listed but can't be chosen). Pick the Hebrew sample that reads
+correctly so ECal knows where the font keeps its Hebrew letters.
+Dialogs and menus stay in the system font.
+
 ## Adding calendars
 
 The ≡ menu > **Add account or calendar...**:
@@ -92,8 +99,8 @@ The ≡ menu > **Add account or calendar...**:
   to import an `.ics` file into it.
 
 The calendars appear on the left, under their accounts. Click one to show
-or hide it; double-click for its name, colour and whether its alerts
-show; right-click for more (show only this one, refresh, import,
+or hide it; double-click for its name, colour (twelve to choose from) and
+whether its alerts show; right-click for more (show only this one, refresh, import,
 unsubscribe). Right-click an account to refresh it, change its settings or
 delete it from the Atari (nothing is deleted on the server).
 
@@ -101,7 +108,9 @@ delete it from the Atari (nothing is deleted on the server).
 
 ![Week view](week.png)
 
-The toolbar: **‹ Today ›** move back, to today and forward; then the
+The toolbar: the first button hides the calendar list on the left, so
+the window is all calendar (click it again, or ^S, to bring it back);
+**‹ Today ›** move back, to today and forward; then the
 period's name (double-click it to go to a date); **Day Week Month Year**;
 **+** a new event; **Refresh** (with Shift: everything again, from
 scratch); **≡** the menu.
@@ -119,7 +128,9 @@ scratch); **≡** the menu.
 Today is in red everywhere. The info line under the title shows when
 ECal last updated, the selected event, or what it's doing.
 
-Click an event to select it, double-click to open it. Double-click an
+Rest the mouse on an event for a moment and a tooltip shows its title and
+when it starts and ends. Click an event to select it, double-click to
+open it. Double-click an
 empty day or hour for a new event there. Right-click an event to open,
 duplicate or delete it; right-click a day for a new event or to change
 the view.
@@ -181,6 +192,10 @@ Changing or deleting an occurrence of a repeating event asks whether it's
   whole series.
 - Changing the repeat itself applies from the chosen occurrence on.
 
+Cancelled events aren't shown: those the organiser cancelled, those
+whose title begins "Canceled:" or "Cancelled:" (as Outlook and Exchange
+send them), and invitations you declined.
+
 Events from iPhones, Macs, Outlook and Google with extra dates, excluded
 dates or rules, or "this and future" changes show as they should.
 
@@ -188,8 +203,8 @@ ECal keeps what it doesn't edit: invitations' attendees, other
 programs' settings, attachments, exceptions made on an iPhone all stay as
 they were when it saves an event.
 
-**Find** (^F) looks through titles, places and notes from a year back to
-two years ahead.
+**Find** (^F) looks through titles, places and notes, from as far back as
+ECal keeps to two years ahead.
 
 ## Reminders
 

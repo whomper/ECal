@@ -16,7 +16,7 @@
 
 enum { AK_CALDAV, AK_SUBSCR, AK_LOCAL };
 
-#define NCOLORS 8	/* red orange yellow green blue purple brown grey, as the Mac offers */
+#define NCOLORS 12	/* red orange yellow green blue purple brown grey pink teal navy dark green */
 
 typedef struct {
 	char *href, *etag;	/* where the server keeps it */
@@ -134,6 +134,7 @@ typedef struct {
 	OCC *o;
 	int n, max;
 	CTIME from, to;
+	int limit;		/* at most this many (0: no limit) */
 } OCCLIST;
 
 void occ_collect(OCCLIST *l, CTIME from, CTIME to);	/* sorted: all-day first, then by start */

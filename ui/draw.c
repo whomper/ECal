@@ -159,12 +159,23 @@ void pen_of(int cal, PEN *p)
 	pen_color((cal >= 0 && cal < ncals) ? cals[cal].color : 4, p);
 }
 
-/* the Mac's eight colours, in VDI's 0-1000 RGB */
+/* the calendars' twelve colours, in VDI's 0-1000 RGB: saturated, so
+   they stay bright on the screen's nearest colours */
 static const short mac_rgb[NCOLORS][3] = {
-	{ 1000, 230, 190 }, { 1000, 584, 0 }, { 1000, 800, 0 }, { 157, 804, 255 },
-	{ 0, 478, 1000 }, { 686, 322, 871 }, { 635, 518, 369 }, { 557, 557, 576 }
+	{ 1000, 156, 156 },
+	{ 1000, 549, 0 },
+	{ 1000, 843, 0 },
+	{ 156, 745, 235 },
+	{ 0, 431, 1000 },
+	{ 588, 235, 862 },
+	{ 588, 392, 196 },
+	{ 549, 549, 549 },
+	{ 1000, 392, 705 },
+	{ 0, 705, 745 },
+	{ 78, 117, 549 },
+	{ 0, 431, 156 },
 };
-static short c16[NCOLORS] = { 2, 10, 6, 3, 4, 7, 9, 8 };
+static short c16[NCOLORS] = { 2, 10, 6, 3, 4, 15, 14, 8, 7, 5, 12, 11 };
 static short pens_ready;
 
 /* The standard palettes differ (the ST's index 9 is dark grey, the
@@ -176,7 +187,7 @@ static void pens_init(void)
 	   others the nearest one still free, so no two calendar colours
 	   look the same (on 16 colours purple, brown and grey all came
 	   out the same grey) */
-	static const short order[NCOLORS] = { 0, 2, 3, 4, 5, 1, 6, 7 };
+	static const short order[NCOLORS] = { 0, 2, 3, 4, 5, 9, 8, 10, 11, 1, 6, 7 };
 	short j, i, n = ncolors > 256 || ncolors <= 0 ? 256 : ncolors, rgb[3];
 	unsigned char taken[256];
 	pens_ready = 1;
@@ -209,9 +220,12 @@ static void pens_init(void)
 
 void pen_color(short k, PEN *p)
 {
-	static const short c4[NCOLORS] = { 2, 2, 3, 3, 1, 1, 2, 1 };
-	static const short mono_int[NCOLORS] = { 2, 3, 2, 3, 2, 3, 3, 2 };
-	static const short mono_sty[NCOLORS] = { 2, 7, 1, 8, 3, 9, 12, 4 };
+	/* 4 colours (white, black, red, green) and mono: patterns tell them apart */
+	static const short c4[NCOLORS] = { 2, 2, 3, 3, 1, 1, 2, 1, 2, 3, 1, 3 };
+	static const short int4[NCOLORS] = { 2, 3, 2, 2, 3, 3, 3, 3, 2, 3, 2, 3 };
+	static const short sty4[NCOLORS] = { 2, 9, 3, 2, 7, 8, 1, 9, 6, 3, 4, 12 };
+	static const short mono_int[NCOLORS] = { 2, 3, 2, 3, 2, 3, 3, 2, 3, 2, 3, 2 };
+	static const short mono_sty[NCOLORS] = { 2, 7, 1, 8, 3, 9, 12, 4, 1, 6, 3, 5 };
 	if (k < 0 || k >= NCOLORS)
 		k = 4;
 	if (!pens_ready)
@@ -222,8 +236,8 @@ void pen_color(short k, PEN *p)
 		p->style = k == 2 ? 3 : 2;	/* yellow is pale: a little more */
 	} else if (ncolors >= 4) {
 		p->color = c4[k];
-		p->interior = (k == 4 || k == 5 || k == 7) ? 3 : 2;
-		p->style = (k == 4 || k == 5 || k == 7) ? (k == 4 ? 7 : k == 5 ? 8 : 9) : 2;
+		p->interior = int4[k];
+		p->style = sty4[k];
 	} else {
 		p->color = 1;
 		p->interior = mono_int[k];
@@ -311,7 +325,7 @@ void text_at(short x, short y, const char *s, long n, short cols, short flags)
 	}
 	set_wrmode(2);
 	set_text((flags & TX_INVERSE) ? 0 : color,
-		 ((flags & TX_BOLD) ? 1 : 0) | ((flags & TX_LIGHT) ? 2 : 0) | ((flags & TX_UNDER) ? 8 : 0));
+		 ((flags & TX_BOLD) ? 1 : 0) | ((flags & TX_DIM) ? 2 : 0) | ((flags & TX_UNDER) ? 8 : 0));
 	for (i = 0; i < n; i += 120) {
 		short k = n - i > 120 ? 120 : (short)(n - i);
 		v_gtext_n(vdi_h, x + i * cw, y, out + i, k);

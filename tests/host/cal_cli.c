@@ -216,6 +216,19 @@ int main(int argc, char **argv)
 		occ_free(&l);
 		return 0;
 	}
+	if (!strcmp(cmd, "find") && argc == 4) {
+		/* as the Find dialog: a year back to two years ahead */
+		OCCLIST l;
+		CTIME now = now_view();
+		int i;
+		memset(&l, 0, sizeof(l));
+		occ_search(&l, argv[3], now - 366L * MIN_PER_DAY, now + 731L * MIN_PER_DAY);
+		printf("%d found (%d slots)\n", l.n, l.max);
+		for (i = 0; i < l.n && i < 5; i++)
+			printf("  %s\n", l.o[i].ev->summary ? l.o[i].ev->summary : "");
+		occ_free(&l);
+		return 0;
+	}
 	if (!strcmp(cmd, "add") && argc >= 7) {
 		EVENT *e = ev_new();
 		int ci = atoi(argv[3]);
@@ -247,7 +260,7 @@ int main(int argc, char **argv)
 			return fail("no such event");
 		m = ev_master(e);
 		c = ev_dup(m ? m : e);
-		ev_set(&c->summary, to_atari(argv[4]));
+		{ char *t_ = to_atari(argv[4]); ev_set(&c->summary, t_); free(t_); }
 		if (!ev_save(c, c->cal, SAVE_ALL, CT_NONE))
 			return fail("rename");
 		ev_free(c);

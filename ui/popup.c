@@ -48,7 +48,7 @@ static void item(const char *const *lab, short i, short on)
 		l++;
 	}
 	text_at(px + 2 * cw, y + (ih - ch) / 2, l, strlen(l), (pw - 2 * cw) / cw,
-		TX_LTR | (on ? TX_INVERSE : 0) | (lab[i][0] == '~' ? TX_LIGHT : 0));
+		TX_LTR | (on ? TX_INVERSE : 0) | (lab[i][0] == '~' ? TX_DIM : 0));
 }
 
 static short next(const char *const *lab, short n, short from, short d)
@@ -82,6 +82,7 @@ short popup(short x, short y, const char *const *lab, short n)
 	GRECT shadow, body;
 	AEVENT e;
 
+	font_sys_push();
 	for (i = 0; i < n; i++) {
 		short l = (short)strlen(lab[i]) - (lab[i][0] == '~' || lab[i][0] == '\x08');
 		if (l > w)
@@ -187,5 +188,6 @@ short popup(short x, short y, const char *const *lab, short n)
 	while (mouse(&mx, &my))
 		evnt_timer_(10);
 	form_dial(FMD_FINISH, x, y, pw + 3, bh + 3);
+	font_sys_pop();
 	return res;
 }

@@ -260,8 +260,10 @@ static HDR *more_core(size_t units)
 	HDR *h;
 	if (heap_fixed)
 		return 0;
-	if (units < 8192)
-		units = 8192;		/* 64 KB at a time */
+	/* 512 KB at a time: every GEMDOS block takes one of the few memory
+	   descriptors TOS has, and running out of those crashes the machine */
+	if (units < 65536L)
+		units = 65536L;
 	bytes = units * sizeof(HDR);
 	h = Mxalloc(bytes, 3);
 	if ((long)h == -32 || (long)h <= 0)

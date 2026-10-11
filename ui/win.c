@@ -16,10 +16,10 @@ GRECT work, r_tool, r_side, r_view;
 
 static char title[80], info[140];
 
-enum { B_PREV, B_TODAY, B_NEXT, B_DAY, B_WEEK, B_MONTH, B_YEAR, B_NEW, B_REFRESH, B_MENU, NBUT };
+enum { B_SIDE, B_PREV, B_TODAY, B_NEXT, B_DAY, B_WEEK, B_MONTH, B_YEAR, B_NEW, B_REFRESH, B_MENU, NBUT };
 static GRECT but[NBUT];
 static const char *const blabel[NBUT] = {
-	"\x04", "Today", "\x03", "Day", "Week", "Month", "Year", "+", "Refresh", "\xF0"
+	" ", "\x04", "Today", "\x03", "Day", "Week", "Month", "Year", "+", "Refresh", "\xF0"
 };
 static GRECT r_title;
 
@@ -80,15 +80,16 @@ void win_layout(void)
 	r_view.y = work.y + th;
 	r_view.w = work.w - sw;
 	r_view.h = work.h - th;
-	/* buttons: back Today forward on the left, the views and the rest on the right */
+	/* buttons: the calendar list, back Today forward on the left, the
+	   views and the rest on the right */
 	x = work.x + 4;
-	for (i = B_PREV; i <= B_NEXT; i++) {
+	for (i = B_SIDE; i <= B_NEXT; i++) {
 		bw = ((short)strlen(blabel[i]) + 2) * cw;
 		but[i].x = x;
 		but[i].y = work.y + 3;
 		but[i].w = bw;
 		but[i].h = ch + 2;
-		x += bw + (i == B_NEXT ? cw : 2);
+		x += bw + (i == B_NEXT || i == B_SIDE ? cw : 2);
 	}
 	r_title.x = x;
 	r_title.y = work.y + 4;
@@ -143,6 +144,21 @@ static void draw_button(int i)
 	}
 	fill(&r, on ? 1 : 0);
 	frame(&r, 1);
+	if (i == B_SIDE) {
+		/* a window with its list on the left, the list filled while shown */
+		GRECT w = r, pane;
+		w.x += cw / 2;
+		w.y += 3;
+		w.w -= cw;
+		w.h -= 6;
+		frame(&w, 1);
+		pane = w;
+		pane.w = w.w / 3;
+		if (opt.sidebar)
+			fill(&pane, 1);
+		line_col(pane.x + pane.w, w.y, pane.x + pane.w, w.y + w.h - 1, 1);
+		return;
+	}
 	text_at(r.x + (r.w - n * cw) / 2, r.y + 1, l, n, n, TX_LTR | (on ? TX_INVERSE : 0) |
 		(i == B_TODAY ? TX_BOLD : 0));
 }
@@ -395,6 +411,12 @@ int win_mouse(short mx, short my, short button, short clicks, short kstate)
 			if (rect_hit(&but[i], mx, my))
 				break;
 		switch (i) {
+		case B_SIDE:
+			opt.sidebar = !opt.sidebar;
+			settings_later();
+			win_layout();
+			win_redraw(0);
+			break;
 		case B_PREV: views_step(-1); break;
 		case B_NEXT: views_step(1); break;
 		case B_TODAY: views_today(); break;

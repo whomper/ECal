@@ -24,10 +24,11 @@ extern short ncolors;		/* 2, 4, 16, 256 */
 #define TX_BOLD     1
 #define TX_INVERSE  2	/* white text */
 #define TX_RIGHT    4	/* right-to-left text against the right edge */
-#define TX_LIGHT    8
+#define TX_LIGHT    8	/* drawn as normal text now: grey was hard to read */
 #define TX_LTR     16	/* left-to-right even when it starts in Hebrew */
 #define TX_CENTER  32
 #define TX_UNDER   64
+#define TX_DIM    128	/* greyed: only for what can't be used (disabled controls) */
 void fill(GRECT *r, short color);
 void set_wrmode(short mode);	/* VDI writing mode, through draw.c's cache */
 void fill_pat(GRECT *r, short color, short interior, short style);
@@ -85,6 +86,7 @@ extern short cur_view;
 extern OCC sel_occ;		/* the selected occurrence (ev NULL: none) */
 extern short day_scroll;	/* first hour shown in day and week views */
 void views_scroll_to(short hour);	/* scroll there: the events move too */
+int  views_tip(short mx, short my, char *title, int tn, char *when, int wn);	/* the event under the mouse */
 void views_invalidate(void);	/* events changed: collect again */
 void views_draw(GRECT *clip);
 int  views_click(short mx, short my, short clicks, short kstate, short button);
@@ -153,13 +155,17 @@ int  editor_open(EVENT *e, CTIME occ_start, CTIME orig);	/* 1 if changed; orig: 
 void editor_new(long day, short hour_min, short allday);
 void dlg_add_account(void);
 int  dlg_account(int a);	/* 1 changed, -1 deleted */
-void dlg_calendar(int c);	/* name, colour, alarms of one calendar */
+int  dlg_calendar(int c);	/* name, colour, alarms of one calendar; 1 if changed */
 void dlg_settings(void);
 void dlg_connection(void);
 void dlg_goto(void);
 void dlg_find(void);
 void dlg_about(void);
 void dlg_keys(void);
+void font_apply(void);		/* opt.font_id/pt -> the VDI font, cw, ch */
+void font_menu(void);		/* the font selector (font.c) */
+void font_sys_push(void);	/* the system font, for a dialog or popup */
+void font_sys_pop(void);	/* back to the window's font */
 const char *zone_pick(const char *current);	/* a zone name, or NULL */
 
 /* ---- main.c ---- */

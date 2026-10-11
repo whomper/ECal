@@ -806,6 +806,27 @@ static void test_urls(void)
 	CHECK_STR(s, "QWxhZGRpbjpvcGVuIHNlc2FtZQ==");
 }
 
+/* cancelled the Exchange way, and an invitation this user declined */
+static void test_gone(void)
+{
+	static const char text[] =
+		"BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:a\r\nDTSTART:20261012T100000Z\r\nSUMMARY:Canceled: Budget\r\nEND:VEVENT\r\n"
+		"BEGIN:VEVENT\r\nUID:b\r\nDTSTART:20261012T100000Z\r\nSUMMARY:Lunch\r\n"
+		"ATTENDEE;CN=Me;PARTSTAT=DECLINED:mailto:Me@Example.com\r\nEND:VEVENT\r\n"
+		"BEGIN:VEVENT\r\nUID:c\r\nDTSTART:20261012T100000Z\r\nSUMMARY:Review\r\n"
+		"ATTENDEE;PARTSTAT=ACCEPTED:mailto:me@example.com\r\n"
+		"ATTENDEE;PARTSTAT=DECLINED:mailto:someone@example.com\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+	EVS s;
+	memset(&s, 0, sizeof(s));
+	str_copy(ics_me, "me@example.com", sizeof(ics_me));
+	CHECK_EQ(ics_parse(text, (long)strlen(text), keep, &s, CT_NONE, CT_NONE), 3);
+	CHECK(s.n == 3 && s.ev[0]->gone);		/* "Canceled:" */
+	CHECK(s.n == 3 && s.ev[1]->gone);		/* declined by me */
+	CHECK(s.n == 3 && !s.ev[2]->gone);	/* accepted by me, declined by another */
+	free_evs(&s);
+	ics_me[0] = 0;
+}
+
 static unsigned long sum_of(const SBUF *b)
 {
 	unsigned long t = 0;
@@ -853,6 +874,7 @@ int main(void)
 	test_xml();
 	test_urls();
 	test_inflate();
+	test_gone();
 	printf("%d checks, %d failed\n", checks, fails);
 	return fails != 0;
 }

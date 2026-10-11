@@ -187,7 +187,11 @@ static void cal_menu(short mx, short my, int c)
 			cals[i].visible = 1;
 		break;
 	}
-	case 3: dlg_calendar(c); break;
+	case 3:
+		/* nothing more to do unless something changed */
+		if (dlg_calendar(c))
+			after_change();
+		return;
 	case 4:
 		busy(1);
 		if (sync_calendar(&cals[c], 1) < 0)
@@ -303,8 +307,8 @@ int side_click(short mx, short my, short clicks, short button)
 			return 1;
 		}
 		if (clicks == 2) {
-			dlg_calendar(s->cal);
-			after_change();
+			if (dlg_calendar(s->cal))
+				after_change();
 			return 1;
 		}
 		/* the tick first, then the calendar's events; the disk last */

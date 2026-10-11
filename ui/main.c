@@ -343,7 +343,7 @@ void cmd_import(int cal)
 void cmd_menu(short x, short y)
 {
 	enum { M_ADD, M_NEW, M_S1, M_GOTO, M_FIND, M_TODAY, M_S2, M_SIDE, M_HEB, M_KBD, M_S5,
-	       M_OFFL, M_FALC, M_LOG, M_S3, M_SET, M_KEYS, M_ABOUT, M_S4, M_QUIT, M_N };
+	       M_OFFL, M_FALC, M_LOG, M_S3, M_SET, M_FONT, M_KEYS, M_ABOUT, M_S4, M_QUIT, M_N };
 	const char *items[M_N];
 	short k, n = is_acc ? M_S4 : M_N;
 	items[M_ADD] = "  Add account or calendar...";
@@ -363,6 +363,7 @@ void cmd_menu(short x, short y)
 	items[M_LOG] = opt.log ? "\x08 Write a log" : "  Write a log";
 	items[M_S3] = "-";
 	items[M_SET] = "  Settings...";
+	items[M_FONT] = "  Font...";
 	items[M_KEYS] = "  Keys...            Help";
 	items[M_ABOUT] = "  About ECal...";
 	items[M_S4] = "-";
@@ -405,6 +406,7 @@ void cmd_menu(short x, short y)
 		store_save_settings();
 		break;
 	case M_SET: dlg_settings(); break;
+	case M_FONT: font_menu(); break;
 	case M_KEYS: dlg_keys(); break;
 	case M_ABOUT: dlg_about(); break;
 	case M_QUIT:
@@ -493,6 +495,7 @@ static void load_settings(void)
 	if (store_plain_passwords && !store_lost_passwords)
 		store_save_settings();
 	hebrew_kbd = opt.hebrew;
+	font_apply();
 	settings_ready = 1;
 }
 
@@ -551,16 +554,81 @@ static void wait_release(void)
    and the right button act at once */
 static short click_count(short mx, short my, short button)
 {
-	AEVENT e;
-	short m[8];
+	unsigned long t0 = pf_ms();
+	short x, y, b, k, released = 0;
 	if ((button & 2) || win_instant(mx, my) || side_instant(mx, my))
 		return 1;
-	wait_release();
-	if (evnt_multi_(MU_BUTTON | MU_TIMER, 1, 1, 1, 280, m, &e) & MU_BUTTON) {
-		if (e.mx - mx < 6 && mx - e.mx < 6 && e.my - my < 6 && my - e.my < 6)
-			return 2;
+	/* the button itself, watched every few milliseconds: waiting for
+	   GEM's next click event missed a quick second click that was over
+	   before we asked for it */
+	while (pf_ms() - t0 < 300UL) {
+		graf_mkstate(&x, &y, &b, &k);
+		if (!(b & 1))
+			released = 1;
+		else if (released)
+			return (x - mx < 6 && mx - x < 6 && y - my < 6 && my - y < 6) ? 2 : 1;
+		evnt_timer_(5);
 	}
 	return 1;
+}
+
+/* the tooltip over an event: shown when the mouse rests on one, gone
+   when it moves, a key is pressed or the button clicked */
+static short tip_on, tip_tried, hover_x = -1, hover_y = -1;
+static unsigned long hover_at;
+static GRECT tip_r;
+
+static void tip_hide(void)
+{
+	if (!tip_on)
+		return;
+	tip_on = 0;
+	win_redraw(&tip_r);
+}
+
+static void tip_show(void)
+{
+	char title[80], when[60];
+	short t, dd, n1, n2, n;
+	GRECT r;
+	tip_tried = 1;
+	if (win_h <= 0 || wind_find(hover_x, hover_y) != win_h)
+		return;
+	wind_get(0, WF_TOP, &t, &dd, &dd, &dd);
+	if (t != win_h || !views_tip(hover_x, hover_y, title, sizeof(title), when, sizeof(when)))
+		return;
+	n1 = (short)strlen(title);
+	n2 = (short)strlen(when);
+	if (n1 > 40)
+		n1 = 40;
+	n = n1 > n2 ? n1 : n2;
+	r.w = (n + 2) * cw;
+	r.h = 2 * ch + 6;
+	r.x = hover_x + cw;
+	r.y = hover_y + ch + 2;
+	/* inside the window: to the left or above the mouse at the edges */
+	if (r.x + r.w > work.x + work.w)
+		r.x = hover_x - r.w - cw / 2;
+	if (r.x < work.x)
+		r.x = work.x;
+	if (r.y + r.h > work.y + work.h)
+		r.y = hover_y - r.h - 2;
+	if (r.y < work.y)
+		r.y = work.y;
+	tip_r = r;
+	tip_r.w++;
+	tip_r.h++;
+	wind_update(BEG_UPDATE);
+	graf_mouse(M_OFF, 0);
+	clip_on(&work);
+	fill(&r, 0);
+	frame(&r, 1);
+	text_at(r.x + cw, r.y + 3, title, n1, n1, TX_BOLD | (line_rtl(title, n1) ? TX_RIGHT : 0));
+	text_at(r.x + cw, r.y + 3 + ch, when, n2, n2, TX_LTR);
+	clip_off();
+	graf_mouse(M_ON, 0);
+	wind_update(END_UPDATE);
+	tip_on = 1;
 }
 
 int main(void)
@@ -594,15 +662,30 @@ int main(void)
 	else
 		open_window();
 
-	evnt_set_m1(1, 0, 0, 1, 1);
 	while (!quit_now) {
-		short flags = MU_MESAG | MU_TIMER, which;
+		short flags = MU_MESAG | MU_TIMER, which, hovering;
+		unsigned long wait = sync_pending ? 150 : 1000;
 		if (win_h > 0)
-			flags |= MU_KEYBD | MU_BUTTON;
+			flags |= MU_KEYBD | MU_BUTTON | MU_M1;
+		/* the mouse moving away from where it was last seen */
+		evnt_set_m1(1, hover_x, hover_y, 1, 1);
+		hovering = win_h > 0 && !tip_tried && hover_x >= 0;
+		if (hovering && wait > 100)
+			wait = 100;
 		/* a click comes at once; where a double click means something,
 		   click_count() waits for the second one before anything is done */
 		/* a refresh waiting: shortly, once the redraws are done */
-		which = evnt_multi_(flags, 0x101, 3, 0, sync_pending ? 150 : 1000, msg, &ev);
+		which = evnt_multi_(flags, 0x101, 3, 0, wait, msg, &ev);
+		if (which & (MU_M1 | MU_KEYBD | MU_BUTTON | MU_MESAG)) {
+			short k;
+			if (which & MU_M1)
+				graf_mkstate(&hover_x, &hover_y, &k, &k);
+			hover_at = pf_ms();
+			tip_tried = (which & (MU_KEYBD | MU_BUTTON)) != 0;
+			tip_hide();
+		} else if (hovering && pf_ms() - hover_at >= 700UL) {
+			tip_show();
+		}
 		if (which & MU_MESAG) {
 			switch (msg[0]) {
 			case AC_OPEN:

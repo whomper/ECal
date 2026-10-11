@@ -491,7 +491,7 @@ static void event_box(const ITEM *it, GRECT *clip, int bar)
 		ct_split(o->end, &b);
 		if (lines < 1)
 			lines = 1;
-		text_at(tx, ty, title, (long)strlen(title), cols_, fl | TX_BOLD | TX_RIGHT);
+		text_at(tx, ty, title, (long)strlen(title), cols_, fl | TX_RIGHT);
 		k++;
 		if (k < lines) {
 			char t2[16];
@@ -758,16 +758,18 @@ static void draw_days(GRECT *clip)
 		else
 			snprintf(s, sizeof(s), "%d", d.day);
 		n = (short)strlen(s);
-		if (day == t) {
+		if (day == t || day == cur_day) {
+			/* today red, the selected day black, white letters: as in
+			   the small month on the left */
 			GRECT b;
 			b.x = x + 2;
 			b.y = r_view.y + 2;
 			b.w = (n + 1) * cw;
 			b.h = ch + 1;
-			fill(&b, red_color());
-			text_at(x + 2 + cw / 2, r_view.y + 2, s, n, n, TX_INVERSE | TX_BOLD | TX_LTR);
+			fill(&b, day == t ? red_color() : 1);
+			text_at(x + 2 + cw / 2, r_view.y + 2, s, n, n, TX_INVERSE | TX_LTR);
 		} else {
-			text_at(x + 2 + cw / 2, r_view.y + 2, s, n, cell_w / cw - 1, TX_LTR | (day == cur_day ? TX_BOLD : 0));
+			text_at(x + 2 + cw / 2, r_view.y + 2, s, n, cell_w / cw - 1, TX_LTR);
 		}
 		if (opt.hebdates) {
 			HDATE hd;
@@ -852,13 +854,13 @@ static void year_font(int level)
 	base = ysave_ch >= 16 ? 0 : 1;		/* ST medium's system font is already 8x8 */
 	if (base + level > 2)
 		level = 2 - base;
-	vst_height(vdi_h, heights[base + level], &c, &h);
 	if (level) {
+		vst_font(vdi_h, 1);
+		vst_height(vdi_h, heights[base + level], &c, &h);
 		cw = c;
 		ch = h;
 	} else {
-		cw = ysave_cw;
-		ch = ysave_ch;
+		font_apply();		/* back to the chosen font */
 	}
 	yfont = (short)level;
 }
@@ -1062,6 +1064,43 @@ static int item_at(short mx, short my)
 			return i;
 		}
 	return -1;
+}
+
+/* what a tooltip shows for the event under the mouse: its title and its
+   time; 0 when there is none */
+int views_tip(short mx, short my, char *title, int tn, char *when, int wn)
+{
+	int it;
+	OCC *o;
+	DT a, b;
+	char t1[16], t2[16];
+	if (!rect_hit(&r_view, mx, my) || cur_view == V_YEAR)
+		return 0;
+	layout();
+	it = item_at(mx, my);
+	if (it < 0 || items[it].kind != IT_EVENT)
+		return 0;
+	o = &occ.o[items[it].occ];
+	str_copy(title, o->ev->summary ? o->ev->summary : "New Event", tn);
+	ct_split(o->start, &a);
+	ct_split(o->end, &b);
+	if (o->ev->allday) {
+		if (o->end - o->start <= MIN_PER_DAY)
+			snprintf(when, wn, "all day, %d %s", a.day, month_short[a.mon - 1]);
+		else {
+			ct_split(o->end - MIN_PER_DAY, &b);
+			snprintf(when, wn, "%d %s - %d %s", a.day, month_short[a.mon - 1], b.day, month_short[b.mon - 1]);
+		}
+	} else {
+		fmt_time(a.hour, a.min, opt.h24, t1, sizeof(t1));
+		fmt_time(b.hour, b.min, opt.h24, t2, sizeof(t2));
+		if (ct_days(o->start) == ct_days(o->end) || (b.hour == 0 && b.min == 0 && o->end - o->start <= MIN_PER_DAY))
+			snprintf(when, wn, "%s - %s", t1, t2);
+		else
+			snprintf(when, wn, "%d %s %s - %d %s %s", a.day, month_short[a.mon - 1], t1,
+				 b.day, month_short[b.mon - 1], t2);
+	}
+	return 1;
 }
 
 static long year_day_at(short mx, short my, short *minute)
