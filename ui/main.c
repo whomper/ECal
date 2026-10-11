@@ -468,10 +468,12 @@ static void acc_heap(void)
 		heap_add(p, (size_t)want);
 }
 
-static void load_data(void)
+/* the settings, at the first opening: quick, so the window can open at once */
+static int settings_ready;
+static int sync_pending;	/* the first refresh, once the window is drawn */
+
+static void load_settings(void)
 {
-	char p[200];
-	busy(1);
 	store_init(workdir);
 	path_join(conn_cacert, sizeof(conn_cacert), workdir, "CACERT.PEM");
 	path_join(tls_roots_cache, sizeof(tls_roots_cache), workdir, "ROOTS.DAT");
@@ -483,7 +485,6 @@ static void load_data(void)
 	cal_status = status;
 	tls_note = status;
 	falcon_dsp_init();
-	cal_load_all();
 	cur_view = opt.view >= V_DAY && opt.view <= V_YEAR ? opt.view : V_MONTH;
 	cur_day = ct_days(now_view());
 	shown_today = cur_day;
@@ -492,27 +493,43 @@ static void load_data(void)
 	if (store_plain_passwords && !store_lost_passwords)
 		store_save_settings();
 	hebrew_kbd = opt.hebrew;
-	if (store_lost_passwords)
-		alert(1, "[1][ECAL.KEY is missing or new: type the passwords again (right-click an account).][ OK ]");
-	busy(0);
-	data_ready = 1;
-	(void)p;
+	settings_ready = 1;
 }
 
+/* the calendars from the copies on disk, with the window already open */
+static void load_calendars(void)
+{
+	busy(1);
+	status("Reading your calendars...");
+	cal_load_all();
+	views_invalidate();
+	busy(0);
+	data_ready = 1;
+	if (store_lost_passwords)
+		alert(1, "[1][ECAL.KEY is missing or new: type the passwords again (right-click an account).][ OK ]");
+}
+
+/* First the window, then today from the copies on disk, and only then,
+   from the event loop once everything is drawn, the refresh */
 static void open_window(void)
 {
 	int first = win_h <= 0;
-	if (!data_ready)
-		load_data();
+	if (!settings_ready)
+		load_settings();
 	win_open();
 	if (win_h <= 0 || !first)
 		return;
+	if (!data_ready) {
+		win_redraw(0);		/* the window, before the disk is read */
+		load_calendars();
+	}
+	after_change();			/* today's events, from what is kept here */
 	updated_status();
 	if (!naccts) {
 		alert(1, "[1][Welcome to ECal!||Let's add your iCloud or other calendar.][ OK ]");
 		dlg_add_account();
 	} else if (opt.sync_open && !opt.offline) {
-		refresh(0, 0);		/* as EMail's first check: problems in an alert */
+		sync_pending = 1;	/* as EMail's first check: problems in an alert */
 	}
 }
 
@@ -584,7 +601,8 @@ int main(void)
 			flags |= MU_KEYBD | MU_BUTTON;
 		/* a click comes at once; where a double click means something,
 		   click_count() waits for the second one before anything is done */
-		which = evnt_multi_(flags, 0x101, 3, 0, 1000, msg, &ev);
+		/* a refresh waiting: shortly, once the redraws are done */
+		which = evnt_multi_(flags, 0x101, 3, 0, sync_pending ? 150 : 1000, msg, &ev);
 		if (which & MU_MESAG) {
 			switch (msg[0]) {
 			case AC_OPEN:
@@ -630,6 +648,10 @@ int main(void)
 		}
 		if ((which & MU_TIMER) && settings_dirty && pf_ms() - settings_at >= 3000UL)
 			settings_flush();
+		if ((which & MU_TIMER) && sync_pending && win_h > 0) {
+			sync_pending = 0;
+			refresh(0, 0);
+		}
 		if ((which & MU_TIMER) && data_ready) {
 			unsigned long now = pf_ms();
 			long t = ct_days(now_view());
