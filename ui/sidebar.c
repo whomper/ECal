@@ -171,7 +171,7 @@ static void cal_menu(short mx, short my, int c)
 		items[n] = kind == AK_SUBSCR ? "  Unsubscribe..." : "  Delete calendar...";
 		act[n++] = 6;
 	}
-	k = popup(mx, my, items, n);
+	k = win_popup(mx, my, items, n);
 	if (k < 0)
 		return;
 	switch (act[k]) {
@@ -218,7 +218,7 @@ static void acct_menu(short mx, short my, int a)
 	static const char *const local_items[] = { "  New calendar...", "-", "  Delete account..." };
 	short k;
 	if (accts[a].kind == AK_LOCAL) {
-		k = popup(mx, my, local_items, 3);
+		k = win_popup(mx, my, local_items, 3);
 		if (k == 0) {
 			char name[40] = "";
 			if (dlg_ask("New calendar", "Name:", name, 30) && name[0]) {
@@ -232,7 +232,7 @@ static void acct_menu(short mx, short my, int a)
 			return;
 		}
 	} else {
-		k = popup(mx, my, items, 4);
+		k = win_popup(mx, my, items, 4);
 	}
 	switch (k) {
 	case 0:

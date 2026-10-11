@@ -73,6 +73,8 @@ static short mouse(short *mx, short *my)
 	return mb & 3;
 }
 
+GRECT popup_area;
+
 short popup(short x, short y, const char *const *lab, short n)
 {
 	short i, w = 0, sel = -1, res = -1, held, moved = 0, bh;
@@ -98,6 +100,10 @@ short popup(short x, short y, const char *const *lab, short n)
 		y = desk_y;
 	px = x;
 	py = y;
+	popup_area.x = x;
+	popup_area.y = y;
+	popup_area.w = pw + 3;
+	popup_area.h = bh + 3;
 
 	wind_update(BEG_UPDATE);
 	wind_update(3);			/* BEG_MCTRL: we own the mouse */

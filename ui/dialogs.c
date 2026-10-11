@@ -413,6 +413,8 @@ void dlg_settings(void)
 	FIELD f[N];
 	static char hz[44], vz[44];
 	short r, row = 1, i;
+	/* a blank row between the groups, where there's room (not in ST high) */
+	short gap = desk_h >= 21 * (ch + 6) + 2 * (cw + 2) ? 2 : 1;
 	str_copy(hz, opt.home_tz, sizeof(hz));
 	str_copy(vz, opt.view_tz, sizeof(vz));
 	put(&f[L1], FT_LABEL, 0, 0, row, 0, "Week starts on:");
@@ -432,7 +434,7 @@ void dlg_settings(void)
 	row++;
 	put(&f[F4], FT_CHECK, 0, 18, row, 30, "Show Hebrew dates");
 	f[F4].val = opt.hebdates;
-	row += 2;
+	row += gap;
 	put(&f[L5], FT_LABEL, 0, 0, row, 0, "New events last:");
 	put(&f[F5], FT_POPUP, 0, 18, row, 16, 0);
 	f[F5].items = len_items;
@@ -452,7 +454,7 @@ void dlg_settings(void)
 	row++;
 	put(&f[F7], FT_CHECK, 0, 18, row, 30, "Show alerts");
 	f[F7].val = opt.alarms;
-	row += 2;
+	row += gap;
 	put(&f[L8], FT_LABEL, 0, 0, row, 0, "Atari clock in:");
 	put(&f[F8], FT_POPUP, 0, 18, row, 30, 0);
 	{
@@ -479,7 +481,7 @@ void dlg_settings(void)
 		f[F10].items = vz_items;
 		f[F10].nitems = 2;
 	}
-	row += 2;
+	row += gap;
 	put(&f[L11], FT_LABEL, 0, 0, row, 0, "Refresh all:");
 	put(&f[F11], FT_POPUP, 0, 18, row, 22, 0);
 	f[F11].items = refresh_items;
@@ -497,7 +499,7 @@ void dlg_settings(void)
 	f[F13].items = heb_items;
 	f[F13].nitems = 3;
 	f[F13].val = opt.hebfont;
-	row += 2;
+	row += gap;
 	put(&f[BCAN], FT_BUTTON, FF_CANCEL, 26, row, 10, "Cancel");
 	put(&f[BOK], FT_BUTTON, FF_DEFAULT, 38, row, 10, "OK");
 	for (;;) {
@@ -708,7 +710,8 @@ void dlg_about(void)
 	else
 		snprintf(l2, sizeof(l2), "No gateway set: only plain http:// servers");
 	snprintf(l3, sizeof(l3), "Network: %s.  %s", net_stack(), is_acc ? "Running as a desk accessory." : "Running as a program.");
-	snprintf(l4, sizeof(l4), "%d events in %d calendars, %d accounts", nev, ncals, naccts);
+	snprintf(l4, sizeof(l4), "%d event%s in %d calendar%s, %d account%s", nev, nev == 1 ? "" : "s",
+		 ncals, ncals == 1 ? "" : "s", naccts, naccts == 1 ? "" : "s");
 	snprintf(l5, sizeof(l5), "Times in %s, %s", tz_city(view_zone()), opt.tzsupport ? "time zone support on" : "the Atari's zone");
 	snprintf(l0, sizeof(l0), "ECal %s for the Atari ST, STE, TT and Falcon", cal_version);
 	put(&f[i++], FT_HEAD, 0, 0, 1, 0, l0);

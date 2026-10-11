@@ -323,7 +323,7 @@ void cmd_menu(short x, short y)
 	items[M_ABOUT] = "  About ECal...";
 	items[M_S4] = "-";
 	items[M_QUIT] = "  Quit                ^Q";
-	k = popup(x, y, items, n);
+	k = win_popup(x, y, items, n);
 	switch (k) {
 	case M_ADD: dlg_add_account(); break;
 	case M_NEW: cmd_new_event(); break;

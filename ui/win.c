@@ -204,6 +204,13 @@ void win_redraw(GRECT *area)
 	win_sliders();
 }
 
+short win_popup(short x, short y, const char *const *labels, short n)
+{
+	short k = popup(x, y, labels, n);
+	win_redraw(&popup_area);
+	return k;
+}
+
 /* where the window goes so its work area starts on a 16-pixel boundary:
    VDI draws byte-aligned text and fills faster */
 static short snap_x(short x)

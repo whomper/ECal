@@ -1134,7 +1134,7 @@ static void context_menu(short mx, short my, int it, long day, short minute)
 	if (it >= 0 && items[it].kind == IT_EVENT) {
 		select_item(it);
 		win_redraw(&r_view);
-		k = popup(mx, my, ev_items, cal_writable(&cals[sel_occ.ev->cal]) ? 4 : 1);
+		k = win_popup(mx, my, ev_items, cal_writable(&cals[sel_occ.ev->cal]) ? 4 : 1);
 		if (k == 0)
 			open_selected();
 		else if (k == 1) {
@@ -1163,7 +1163,7 @@ static void context_menu(short mx, short my, int it, long day, short minute)
 	}
 	if (day < 0)
 		return;
-	k = popup(mx, my, day_items, 6);
+	k = win_popup(mx, my, day_items, 6);
 	switch (k) {
 	case 0: editor_new(day, minute >= 0 ? minute : -1, 0); break;
 	case 1: editor_new(day, -1, 1); break;
