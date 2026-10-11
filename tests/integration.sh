@@ -4,6 +4,8 @@
 #
 #   tests/integration.sh             plain HTTP, straight to the server
 #   GATEWAY=1 tests/integration.sh   through the Pi gateway (ecalgate.py)
+#   GZIP=1 tests/integration.sh      through a proxy that answers like iCloud
+#                                    (HTTP/1.1 kept open, gzip); with FALCON=1 too
 #   FALCON=1 tests/integration.sh    Falcon mode: TLS in ECal itself,
 #                                    the server's certificate checked
 #                                    against a test CA
@@ -47,10 +49,23 @@ if [ -n "${FALCON:-}" ]; then
   SSL=(--server-ssl --server-certificate "$W/srv.pem" --server-key "$W/srv.key")
   export CACERT=$W/ca.pem
 fi
-python3 -m radicale --server-hosts "127.0.0.1:$PORT" --storage-filesystem-folder "$W/store" \
-  --auth-type htpasswd --auth-htpasswd-filename "$W/users" --auth-htpasswd-encryption plain \
-  "${SSL[@]}" > "$W/radicale.log" 2>&1 &
-PIDS+=($!)
+if [ -n "${GZIP:-}" ]; then
+  # Radicale behind gzproxy.py, which answers like iCloud: HTTP/1.1 kept
+  # open, compressed with gzip (and does the TLS in Falcon mode)
+  python3 -m radicale --server-hosts "127.0.0.1:$((PORT + 3))" --storage-filesystem-folder "$W/store" \
+    --auth-type htpasswd --auth-htpasswd-filename "$W/users" --auth-htpasswd-encryption plain \
+    > "$W/radicale.log" 2>&1 &
+  PIDS+=($!)
+  PX=()
+  [ -n "${FALCON:-}" ] && PX=(--tls "$W/srv.pem" "$W/srv.key")
+  python3 tests/host/gzproxy.py "$PORT" "$((PORT + 3))" "${PX[@]}" 2> "$W/gzproxy.log" &
+  PIDS+=($!)
+else
+  python3 -m radicale --server-hosts "127.0.0.1:$PORT" --storage-filesystem-folder "$W/store" \
+    --auth-type htpasswd --auth-htpasswd-filename "$W/users" --auth-htpasswd-encryption plain \
+    "${SSL[@]}" > "$W/radicale.log" 2>&1 &
+  PIDS+=($!)
+fi
 BASE="$SCHEME://localhost:$PORT"
 CURL=(curl -s -u alice:wonderland)
 [ -n "${FALCON:-}" ] && CURL+=(--cacert "$W/ca.pem")
@@ -159,6 +174,21 @@ fi
 "$CLI" "$D" zone Asia/Jerusalem
 export CAL_LOG=$W/ECAL.LOG
 
+# a one-off event before today: not copied (nothing from the past is)
+put home/past.ics <<ICS >/dev/null
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//EN
+BEGIN:VEVENT
+UID:past-1@test
+DTSTAMP:20261001T000000Z
+DTSTART:$(date -u -d "-6 days" +%Y%m%d)T100000Z
+DTEND:$(date -u -d "-6 days" +%Y%m%d)T110000Z
+SUMMARY:Old dinner
+END:VEVENT
+END:VCALENDAR
+ICS
+
 echo "== account and first sync"
 "$CLI" "$D" caldav Radicale "$BASE/" alice wonderland || bad "caldav account"
 out=$("$CLI" "$D" calendars)
@@ -168,6 +198,7 @@ absent "the task list left out" "Tasks" "$out"
 out=$("$CLI" "$D" list 20261001 20261101)
 expect "weekly meeting in Hebrew, 10:00 Jerusalem" "20261004 10:00-11:00 [" "$out"
 expect "it repeats" "20261025 10:00-11:00" "$out"
+absent "a one-off event before today isn't copied" "Old dinner" "$("$CLI" "$D" list $(date -d "-30 days" +%Y%m%d) $(date -d "+30 days" +%Y%m%d))"
 expect "a UTC event shown in Israel time" "20261013 15:00-16:00 [Work] Design review" "$out"
 
 echo "== nothing changed: nothing fetched"
@@ -323,6 +354,13 @@ expect "shown from the local calendar" "[Atari] Sukkot test day" "$out"
 
 if [ -n "${FALCON:-}" ]; then
   expect "the log shows TLS" "secure: TLS 1.2" "$(cat "$CAL_LOG")"
+  # Radicale closes after every answer: the next connection resumes
+  [ -z "${GZIP:-}" ] && expect "a later connection resumed the TLS session" ", resumed" "$(cat "$CAL_LOG")"
+fi
+if [ -n "${GZIP:-}" ]; then
+  expect "answers came compressed and were unpacked" "unpacked in" "$(cat "$CAL_LOG")"
+  if grep "bytes" "$CAL_LOG" | grep -v "new connection" | grep -q " in "; then ok "connections kept open between requests"
+  else bad "every request opened a new connection"; fi
 fi
 if grep -qi "authorization: basic" "$CAL_LOG" 2>/dev/null; then bad "the log shows the password"; else ok "no password in the log"; fi
 

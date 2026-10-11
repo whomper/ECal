@@ -52,7 +52,11 @@ static int start_tls(CONN *c, const char *host, char *err, int errlen)
 		snprintf(msg, sizeof(msg), "%d root certificates read in %lu ms", n, pf_ms() - t0);
 		conn_log("TLS", " -- ", msg, strlen(msg));
 	}
-	t = tls_start(c->h, host, !wants_ecdsa(host), &retry, err, errlen);
+	{
+		unsigned long t0 = pf_ms();
+		t = tls_start(c->h, host, !wants_ecdsa(host), &retry, err, errlen);
+		c->tls_ms = pf_ms() - t0;
+	}
 	if (!t) {
 		conn_log(c->name, " !! ", err, strlen(err));
 		if (retry) {
@@ -62,7 +66,7 @@ static int start_tls(CONN *c, const char *host, char *err, int errlen)
 		return 0;
 	}
 	c->tls = t;
-	snprintf(msg, sizeof(msg), "secure: %s", tls_describe(t));
+	snprintf(msg, sizeof(msg), "secure: %s (%lu ms)", tls_describe(t), c->tls_ms);
 	conn_log(c->name, " -- ", msg, strlen(msg));
 	return 1;
 }
@@ -114,8 +118,17 @@ static void log_add(const char *s, long n)
 
 void conn_log(const char *who, const char *dir, const char *text, long n)
 {
+	static unsigned long t0;
+	unsigned long ms;
+	char stamp[16];
 	if (!conn_logfile[0])
 		return;
+	/* minutes:seconds.milliseconds since the first line: where the time goes */
+	if (!t0)
+		t0 = pf_ms() ? pf_ms() : 1;
+	ms = pf_ms() - t0;
+	snprintf(stamp, sizeof(stamp), "%3lu:%02lu.%03lu ", ms / 60000UL, ms / 1000UL % 60, ms % 1000UL);
+	log_add(stamp, strlen(stamp));
 	log_add(who, strlen(who));
 	log_add(dir, strlen(dir));
 	if (n > 400) {

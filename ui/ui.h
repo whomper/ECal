@@ -83,6 +83,7 @@ extern long cur_day;		/* the selected day (days since 1970, view zone) */
 extern short cur_view;
 extern OCC sel_occ;		/* the selected occurrence (ev NULL: none) */
 extern short day_scroll;	/* first hour shown in day and week views */
+void views_scroll_to(short hour);	/* scroll there: the events move too */
 void views_invalidate(void);	/* events changed: collect again */
 void views_draw(GRECT *clip);
 int  views_click(short mx, short my, short clicks, short kstate, short button);

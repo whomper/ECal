@@ -54,7 +54,8 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
 - **Time zones**: see [Time zones](#time-zones).
 - **Refresh**: how often every calendar is brought up to date, and
   whether opening the window does it. **Keep on this Atari**: how many
-  days back and ahead ECal keeps (92 and 400 to begin with); fewer use
+  days back and ahead ECal keeps. It starts with 0 and 400: nothing from
+  before today is copied, and repeating events show from today on. Fewer use
   less memory and sync faster.
 - **Connection**: how ECal reaches the servers:
   - **Pi gateway**: the Pi's address and port (8180). Set the Pi up

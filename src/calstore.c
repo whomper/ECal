@@ -123,7 +123,7 @@ static void defaults(void)
 	opt.alarm_default = -1;
 	opt.font_id = 1;
 	opt.sidebar = 1;
-	opt.past_days = 92;
+	opt.past_days = 0;	/* from today: past events aren't copied */
 	opt.future_days = 400;
 	opt.duration = 60;
 	opt.sync_open = 1;
@@ -238,6 +238,10 @@ void store_init(const char *dir)
 		line = nl ? nl + 1 : 0;
 	}
 	free(text);
+	/* 92 days back was the first default: what a file still says from
+	   then moves to the new one (past events aren't copied) */
+	if (opt.past_days == 92)
+		opt.past_days = 0;
 	str_copy(http_cfg.gate, opt.gate, sizeof(http_cfg.gate));
 	http_cfg.gateport = opt.gateport;
 	http_cfg.falcon = opt.falcon;

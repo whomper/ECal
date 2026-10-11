@@ -29,6 +29,7 @@ typedef struct {
 	short occ;		/* index in occ */
 	long day;		/* IT_MORE: the day it stands for */
 	short cont;		/* a bar continued from the row before */
+	short timed;		/* a box in the day/week time grid (not an all-day bar) */
 } ITEM;
 #define MAXITEMS 400
 static ITEM items[MAXITEMS];
@@ -52,6 +53,12 @@ static long today(void)
 static long week_start(long d)
 {
 	return d - (wday_of(d) - opt.weekstart + 7) % 7;
+}
+
+void views_scroll_to(short hour)
+{
+	day_scroll = hour;
+	laid_out = 0;		/* the event boxes were placed for the old hour */
 }
 
 void views_invalidate(void)
@@ -150,6 +157,7 @@ static int add_item(GRECT *r, short kind, short oi, long day, short cont)
 	items[nitems].occ = oi;
 	items[nitems].day = day;
 	items[nitems].cont = cont;
+	items[nitems].timed = 0;
 	nitems++;
 	return 1;
 }
@@ -342,7 +350,8 @@ static void layout_column(long day, GRECT *col)
 		box.h = (short)((e - s) * hour_h / 60) - 1;
 		if (box.h < ch / 2)
 			box.h = ch / 2;
-		add_item(&box, IT_EVENT, idx[i], day, 0);
+		if (add_item(&box, IT_EVENT, idx[i], day, 0))
+			items[nitems - 1].timed = 1;
 	}
 }
 
@@ -518,11 +527,11 @@ static void draw_items(GRECT *clip, int bars)
 			if (!bars && cur_view != V_MONTH) {
 				/* grid boxes stay inside the time grid */
 				GRECT g = grid;
-				int is_bar = items[i].r.y < grid.y;
-				if (!is_bar && !rect_and(&c, &g))
+				/* scrolled above or below: cut at the grid's edges */
+				if (items[i].timed && !rect_and(&c, &g))
 					continue;
 			}
-			event_box(&items[i], &c, items[i].r.y < grid.y || cur_view == V_MONTH);
+			event_box(&items[i], &c, !items[i].timed);
 		}
 	}
 	(void)bars;
@@ -1043,7 +1052,8 @@ static int item_at(short mx, short my)
 	int i;
 	for (i = nitems - 1; i >= 0; i--)
 		if (rect_hit(&items[i].r, mx, my)) {
-			if (cur_view != V_MONTH && items[i].r.y >= grid.y && my < grid.y)
+			/* a box scrolled out of the time grid isn't there to click */
+			if (items[i].timed && (my < grid.y || my >= grid.y + grid.h))
 				continue;
 			return i;
 		}

@@ -39,6 +39,8 @@ struct TLS {
 	br_x509_minimal_context xc;
 	int sock;
 	char desc[80];
+	int offered, resumed;		/* a kept session offered; taken up */
+	unsigned char offered_id[32];
 	unsigned char iobuf[BR_SSL_BUFSIZE_MONO];
 };
 
@@ -505,6 +507,43 @@ static void get_seed(unsigned char out[48])
 
 /* ---------------- the connection ---------------- */
 
+/* the last sessions, by server: a new connection to the same server
+   resumes one (TLS session ID) and skips the key exchange and the
+   certificate checks, seconds of arithmetic on a 68030 */
+#define NSESS 4
+static struct {
+	char host[64];
+	br_ssl_session_parameters sp;
+} sess[NSESS];
+static int sess_next;
+
+static br_ssl_session_parameters *sess_of(const char *host)
+{
+	int i;
+	for (i = 0; i < NSESS; i++)
+		if (sess[i].host[0] && !strcmp(sess[i].host, host))
+			return &sess[i].sp;
+	return 0;
+}
+
+static void sess_keep(const char *host, const br_ssl_session_parameters *sp)
+{
+	br_ssl_session_parameters *old = sess_of(host);
+	if (!sp->session_id_len)
+		return;			/* the server doesn't offer resumption */
+	if (!old) {
+		str_copy(sess[sess_next].host, host, sizeof(sess[0].host));
+		old = &sess[sess_next].sp;
+		sess_next = (sess_next + 1) % NSESS;
+	}
+	*old = *sp;
+}
+
+void tls_forget_sessions(void)
+{
+	memset(sess, 0, sizeof(sess));
+}
+
 static const uint16_t suites_rsa[] = {
 	BR_TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
 	BR_TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
@@ -650,6 +689,11 @@ TLS *tls_start(int sock, const char *host, int rsa_only, int *retry_ecdsa, char 
 	}
 	/* the fastest code for a 32-bit CPU without fast 64-bit products */
 	br_ssl_engine_set_ec(&t->cc.eng, &br_ec_all_m31);
+	/* AES with tables: half the instructions of the constant-time code
+	   on a 68030 (205 a byte for AES-256-GCM against 394), and nobody
+	   times an Atari's cache */
+	br_ssl_engine_set_aes_ctr(&t->cc.eng, &br_aes_big_ctr_vtable);
+	br_ssl_engine_set_aes_cbc(&t->cc.eng, &br_aes_big_cbcenc_vtable, &br_aes_big_cbcdec_vtable);
 	br_ssl_engine_set_rsavrfy(&t->cc.eng, rsa_vrfy);
 	br_ssl_client_set_rsapub(&t->cc, rsa_public);
 	br_x509_minimal_set_rsa(&t->xc, rsa_vrfy);
@@ -659,7 +703,15 @@ TLS *tls_start(int sock, const char *host, int rsa_only, int *retry_ecdsa, char 
 	get_seed(seed);
 	br_ssl_engine_inject_entropy(&t->cc.eng, seed, sizeof(seed));
 	memset(seed, 0, sizeof(seed));
-	if (!br_ssl_client_reset(&t->cc, host, 0)) {
+	{
+		br_ssl_session_parameters *old = sess_of(host);
+		if (old)
+			br_ssl_engine_set_session_parameters(&t->cc.eng, old);
+		t->offered = old != 0;
+		if (old)
+			memcpy(t->offered_id, old->session_id, sizeof(t->offered_id));
+	}
+	if (!br_ssl_client_reset(&t->cc, host, t->offered)) {
 		explain(br_ssl_engine_last_error(&t->cc.eng), host, err, errlen);
 		free(t);
 		return 0;
@@ -683,6 +735,8 @@ TLS *tls_start(int sock, const char *host, int rsa_only, int *retry_ecdsa, char 
 		const char *kx, *ciph;
 		unsigned s;
 		br_ssl_engine_get_session_parameters(&t->cc.eng, &sp);
+		t->resumed = t->offered && !memcmp(sp.session_id, t->offered_id, sizeof(t->offered_id));
+		sess_keep(host, &sp);
 		s = sp.cipher_suite;
 		kx = (s == BR_TLS_RSA_WITH_AES_128_GCM_SHA256 || s == BR_TLS_RSA_WITH_AES_128_CBC_SHA256 ||
 		      s == BR_TLS_RSA_WITH_AES_128_CBC_SHA) ? "RSA" :
@@ -692,7 +746,7 @@ TLS *tls_start(int sock, const char *host, int rsa_only, int *retry_ecdsa, char 
 		       (s == BR_TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 || s == BR_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384) ? "AES-256-GCM" :
 		       (s == BR_TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 || s == BR_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 ||
 			s == BR_TLS_RSA_WITH_AES_128_GCM_SHA256) ? "AES-128-GCM" : "AES-128-CBC";
-		snprintf(t->desc, sizeof(t->desc), "TLS 1.2, %s, %s", kx, ciph);
+		snprintf(t->desc, sizeof(t->desc), "TLS 1.2, %s, %s%s", kx, ciph, t->resumed ? ", resumed" : "");
 	}
 	return t;
 }

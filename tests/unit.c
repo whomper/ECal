@@ -12,6 +12,8 @@
 #include "http.h"
 #include "charset.h"
 #include "util.h"
+#include "inflate.h"
+#include "inflate_vec.h"	/* made with Python's gzip and zlib */
 
 static int fails, checks;
 
@@ -804,6 +806,40 @@ static void test_urls(void)
 	CHECK_STR(s, "QWxhZGRpbjpvcGVuIHNlc2FtZQ==");
 }
 
+static unsigned long sum_of(const SBUF *b)
+{
+	unsigned long t = 0;
+	long i;
+	for (i = 0; i < b->len; i++)
+		t += (unsigned char)b->s[i];
+	return t;
+}
+
+/* gzip as servers send it (level 9), zlib's "deflate" (level 1), a
+   stored block, and damaged data */
+static void test_inflate(void)
+{
+	SBUF o;
+	unsigned char bad[sizeof(gz_v)];
+	sb_init(&o);
+	CHECK(inflate_gzip(gz_v, sizeof(gz_v), &o));
+	CHECK(o.len == text_len && sum_of(&o) == text_sum);
+	CHECK(o.len > 0 && !strncmp(o.s, "BEGIN:VCALENDAR", 15) && o.s[o.len] == 0);
+	sb_reset(&o);
+	CHECK(inflate_zlib(zl_v, sizeof(zl_v), &o));
+	CHECK(o.len == text_len && sum_of(&o) == text_sum);
+	sb_reset(&o);
+	CHECK(inflate_gzip(st_v, sizeof(st_v), &o));
+	CHECK(o.len == 17 && !strcmp(o.s, "stored block test"));
+	sb_reset(&o);
+	memcpy(bad, gz_v, sizeof(bad));
+	CHECK(!inflate_gzip(bad, sizeof(bad) / 2, &o));	/* cut short */
+	sb_reset(&o);
+	bad[0] = 0;
+	CHECK(!inflate_gzip(bad, sizeof(bad), &o));		/* not gzip */
+	sb_free(&o);
+}
+
 int main(void)
 {
 	test_dates();
@@ -816,6 +852,7 @@ int main(void)
 	test_learned_zone();
 	test_xml();
 	test_urls();
+	test_inflate();
 	printf("%d checks, %d failed\n", checks, fails);
 	return fails != 0;
 }

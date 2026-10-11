@@ -54,6 +54,7 @@ int sb_add(SBUF *b, const char *s, long n)
 	return 1;
 }
 
+int sb_room(SBUF *b, long n) { return grow(b, n); }
 int sb_adds(SBUF *b, const char *s) { return sb_add(b, s, strlen(s)); }
 int sb_addc(SBUF *b, char c) { return sb_add(b, &c, 1); }
 

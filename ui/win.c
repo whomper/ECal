@@ -343,7 +343,7 @@ void win_message(short *msg)
 			if (ns < 0)
 				ns = 0;
 			if (ns != day_scroll) {
-				day_scroll = ns;
+				views_scroll_to(ns);
 				win_redraw(&r_view);
 			}
 		} else if (msg[4] <= 3) {
@@ -355,7 +355,7 @@ void win_message(short *msg)
 			long vis = views_hours_visible();
 			short ns = vis >= 24 ? 0 : (short)((long)msg[4] * (24 - vis) / 1000);
 			if (ns != day_scroll) {
-				day_scroll = ns;
+				views_scroll_to(ns);
 				win_redraw(&r_view);
 			}
 		}

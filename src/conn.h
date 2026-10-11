@@ -21,6 +21,7 @@ typedef struct {
 	int dead;		/* known to be gone: close without a goodbye */
 	char err[160];
 	const char *name;		/* "IMAP", "POP3", "SMTP" for the log */
+	unsigned long tls_ms;		/* how long the TLS handshake took */
 } CONN;
 
 /* sec: SEC_TLS starts TLS at once; otherwise plain (the protocol calls

@@ -598,8 +598,9 @@ static void settings(short first)
 	opt.tzsupport = f[F9].val;
 	opt.refresh = refresh_min[f[F11].val];
 	opt.sync_open = f[F12].val;
-	opt.past_days = (short)(atoi(past) > 0 ? atoi(past) : 92);
-	opt.future_days = (short)(atoi(future) > 0 ? atoi(future) : 400);
+	/* 0 days back: from today; at most ten years either way */
+	opt.past_days = (short)(atoi(past) < 0 ? 0 : atoi(past) > 3650 ? 3650 : atoi(past));
+	opt.future_days = (short)(atoi(future) < 7 ? 400 : atoi(future) > 3650 ? 3650 : atoi(future));
 	if (f[F8].val == 1) {
 		const char *z = zone_pick(opt.home_tz);
 		if (z)

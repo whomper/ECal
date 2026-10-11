@@ -12,6 +12,7 @@
 #include <stddef.h>
 
 typedef struct TLS TLS;
+void tls_forget_sessions(void);	/* settings changed: start afresh */
 
 /* 0 in the ST edition, which has no TLS of its own (tls_none.c) */
 extern const int tls_available;

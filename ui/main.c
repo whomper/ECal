@@ -460,18 +460,6 @@ static void wait_release(void)
 	}
 }
 
-static short double_click(short mx, short my)
-{
-	static unsigned long last;
-	static short lx, ly;
-	unsigned long now = pf_ms();
-	short n = (now - last < 400 && mx - lx < 4 && lx - mx < 4 && my - ly < 4 && ly - my < 4) ? 2 : 1;
-	last = n == 2 ? 0 : now;
-	lx = mx;
-	ly = my;
-	return n;
-}
-
 int main(void)
 {
 	short work_out[57], msg[8], d;
@@ -508,7 +496,9 @@ int main(void)
 		short flags = MU_MESAG | MU_TIMER, which;
 		if (win_h > 0)
 			flags |= MU_KEYBD | MU_BUTTON;
-		which = evnt_multi_(flags, 0x101, 3, 0, 1000, msg, &ev);
+		/* GEM counts the clicks (as in EMail and our dialogs): timing them
+		   here missed double clicks whenever the first one's redraw was slow */
+		which = evnt_multi_(flags, 0x102, 3, 0, 1000, msg, &ev);
 		if (which & MU_MESAG) {
 			switch (msg[0]) {
 			case AC_OPEN:
@@ -546,7 +536,7 @@ int main(void)
 				if (h != t)
 					wind_set(h, WF_TOP, 0, 0, 0, 0);
 				else
-					win_mouse(ev.mx, ev.my, ev.mbutton, double_click(ev.mx, ev.my), ev.kstate);
+					win_mouse(ev.mx, ev.my, ev.mbutton, ev.breturn >= 2 ? 2 : 1, ev.kstate);
 			}
 			wait_release();
 		}

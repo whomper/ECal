@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include "http.h"
+#include "inflate.h"
 #include "conn.h"
 #include "charset.h"
 #include "plat.h"
@@ -247,6 +248,7 @@ static CONN *get_conn(const URL *u, int gw, int *reused, char *err, int errlen)
 
 typedef struct {
 	int chunked, close_after, keep_alive;
+	int packed;			/* Content-Encoding: 1 gzip, 2 deflate */
 	long clen;			/* -1 unknown */
 	char auth[300];			/* WWW-Authenticate */
 } RHDR;
@@ -266,6 +268,8 @@ static void header_line(const char *l, HTTPRESP *rs, RHDR *h)
 		h->clen = atol(v);
 	else if (IS("Transfer-Encoding") && str_istr(v, "chunked"))
 		h->chunked = 1;
+	else if (IS("Content-Encoding"))
+		h->packed = str_istr(v, "gzip") ? 1 : str_istr(v, "deflate") ? 2 : 0;
 	else if (IS("Connection") && str_istr(v, "close"))
 		h->close_after = 1;
 	else if (IS("Connection") && str_istr(v, "keep-alive"))
@@ -335,6 +339,8 @@ static int exchange(const HTTPREQ *rq, const URL *u, const char *auth, HTTPRESP 
 	int gw = via_gateway(u), reused, ok = 0, got_status = 0, http10 = 0;
 	BODY b;
 	char hostport[120];
+	unsigned long t0 = pf_ms();
+	long body_start = 0, unpacked = -1;
 	c = get_conn(u, gw, &reused, err, errlen);
 	if (!c)
 		return 0;
@@ -348,7 +354,11 @@ static int exchange(const HTTPREQ *rq, const URL *u, const char *auth, HTTPRESP 
 		sb_printf(&req, "%s %s://%s%s HTTP/1.1\r\n", rq->method, u->tls ? "https" : "http", hostport, u->path);
 	else
 		sb_printf(&req, "%s %s HTTP/1.1\r\n", rq->method, u->path);
-	sb_printf(&req, "Host: %s\r\nUser-Agent: AtariCalendar/%s\r\nAccept-Encoding: identity\r\n", hostport, cal_version);
+	/* straight to the server, the answer comes compressed: unpacking costs
+	   the 68030 a fraction of decrypting the bytes it saves. Through the
+	   gateway the Pi unpacks it, and a download to a file stays as it is */
+	sb_printf(&req, "Host: %s\r\nUser-Agent: ECal/%s (Atari ST/TT/Falcon)\r\nAccept-Encoding: %s\r\n", hostport,
+		  cal_version, !gw && !rq->sink ? "gzip, deflate" : "identity");
 	conn_log("HTTP", " >> ", req.s, req.len - 2);
 	if (auth && *auth)
 		sb_printf(&req, "Authorization: %s\r\n", auth);
@@ -400,6 +410,7 @@ static int exchange(const HTTPREQ *rq, const URL *u, const char *auth, HTTPRESP 
 	memset(&b, 0, sizeof(b));
 	b.rq = rq;
 	b.body = body;
+	body_start = body ? body->len : 0;
 	b.max = rq->maxbody ? rq->maxbody : 1048576L;
 	b.to_sink = rq->sink && rs->status >= 200 && rs->status < 300;
 	if (!b.to_sink && rq->sink)
@@ -441,6 +452,32 @@ static int exchange(const HTTPREQ *rq, const URL *u, const char *auth, HTTPRESP 
 		}
 		h->close_after = 1;
 		ok = 1;
+	}
+	if (ok && h->packed && !b.to_sink && body && body->len > body_start) {
+		SBUF plain;
+		int good;
+		sb_init(&plain);
+		good = h->packed == 1 ? inflate_gzip((const unsigned char *)body->s + body_start, body->len - body_start, &plain)
+				      : inflate_zlib((const unsigned char *)body->s + body_start, body->len - body_start, &plain);
+		if (!good) {
+			sb_free(&plain);
+			str_copy(err, "the server's compressed answer is damaged", errlen);
+			ok = 0;
+		} else {
+			body->len = body_start;
+			ok = sb_add(body, plain.s ? plain.s : "", plain.len);
+			unpacked = plain.len;
+			sb_free(&plain);
+		}
+	}
+	{
+		char msg[120];
+		char how[40] = "";
+		if (unpacked >= 0)
+			snprintf(how, sizeof(how), ", %ld unpacked", unpacked);
+		snprintf(msg, sizeof(msg), "%d, %ld bytes%s in %lu ms%s", rs->status, rs->length, how, pf_ms() - t0,
+			 reused ? "" : " (new connection)");
+		conn_log("HTTP", " -- ", msg, strlen(msg));
 	}
 	if (h->close_after)
 		http_close_all();

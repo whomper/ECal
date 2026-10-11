@@ -172,14 +172,24 @@ static short pens_ready;
    of our colours, the nearest one the screen really has. */
 static void pens_init(void)
 {
-	short k, i, n = ncolors > 256 || ncolors <= 0 ? 256 : ncolors, rgb[3];
+	/* the most distinctive first: they get their nearest match, and the
+	   others the nearest one still free, so no two calendar colours
+	   look the same (on 16 colours purple, brown and grey all came
+	   out the same grey) */
+	static const short order[NCOLORS] = { 0, 2, 3, 4, 5, 1, 6, 7 };
+	short j, i, n = ncolors > 256 || ncolors <= 0 ? 256 : ncolors, rgb[3];
+	unsigned char taken[256];
 	pens_ready = 1;
 	if (ncolors < 16)
 		return;
-	for (k = 0; k < NCOLORS; k++) {
+	memset(taken, 0, sizeof(taken));
+	for (j = 0; j < NCOLORS; j++) {
+		short k = order[j], pick = -1;
 		long best = 0x7fffffffL;
 		for (i = 2; i < n; i++) {
 			long dr, dg, db, dist;
+			if (taken[i])
+				continue;
 			vq_color(vdi_h, i, rgb);
 			dr = rgb[0] - mac_rgb[k][0];
 			dg = rgb[1] - mac_rgb[k][1];
@@ -187,8 +197,12 @@ static void pens_init(void)
 			dist = dr * dr * 3 + dg * dg * 4 + db * db * 2;
 			if (dist < best) {
 				best = dist;
-				c16[k] = i;
+				pick = i;
 			}
+		}
+		if (pick >= 0) {
+			c16[k] = pick;
+			taken[pick] = 1;
 		}
 	}
 }
