@@ -483,7 +483,7 @@ int acct_discover(int a)
 /* a buffered reader that knows where it is */
 typedef struct {
 	int h;
-	char buf[2048];
+	char buf[16384];	/* big reads: each GEMDOS call costs, on a floppy most */
 	int pos, len;
 	long off;		/* file offset of buf[pos] */
 } FR;
@@ -581,7 +581,7 @@ void cal_load(CALENDAR *c)
 	char path[200], line[700];
 	CTIME from, to;
 	LOADCTX l;
-	FR f;
+	static FR f;		/* 16 KB: not on the accessory's stack */
 	cal_free_events(c);
 	window(&from, &to);
 	l.c = c;

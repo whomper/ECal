@@ -184,9 +184,12 @@ const TZONE *tz_index(int n)
 	return n >= 0 && n < NZONES ? &zones[n] : 0;
 }
 
+static void memo_clear(void);
+
 const TZONE *tz_learn(const TZONE *z)
 {
 	int i;
+	memo_clear();		/* a slot may be reused for another zone */
 	for (i = 0; i < nlearned; i++)
 		if (!strcmp(learned[i].name, z->name)) {
 			learned[i] = *z;
@@ -244,11 +247,43 @@ const TZONE *tz_find_builtin(const char *name)
 	return 0;
 }
 
+/* the last names asked for: every event of a calendar names the same
+   zone or two, and the search below compares against ~100 names */
+#define NMEMO 4
+static struct {
+	char name[48];
+	const TZONE *z;
+} memo[NMEMO];
+static int memo_next;
+
+static void memo_clear(void)
+{
+	memset(memo, 0, sizeof(memo));
+}
+
+static const TZONE *tz_search(const char *name);
+
 const TZONE *tz_find(const char *name)
 {
+	const TZONE *z;
 	int i;
 	if (!name || !*name)
 		return 0;
+	for (i = 0; i < NMEMO; i++)
+		if (memo[i].z && !strcmp(memo[i].name, name))
+			return memo[i].z;
+	z = tz_search(name);
+	if (z && strlen(name) < sizeof(memo[0].name)) {
+		str_copy(memo[memo_next].name, name, sizeof(memo[0].name));
+		memo[memo_next].z = z;
+		memo_next = (memo_next + 1) % NMEMO;
+	}
+	return z;
+}
+
+static const TZONE *tz_search(const char *name)
+{
+	int i;
 	/* some clients quote the name or prefix it with a vendor path */
 	if (*name == '/') {
 		const char *p = strstr(name, "/zoneinfo/");

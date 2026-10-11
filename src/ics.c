@@ -215,6 +215,7 @@ struct ICSP {
 	SBUF line;
 	int skip;			/* depth inside components we ignore */
 	int in_event, in_alarm, in_tz, in_sub;
+	int tz_known;			/* the VTIMEZONE being read is one we have */
 	EVENT *ev;
 	TVAL start, end, recur;
 	int have_start, have_end, have_recur, have_dur;
@@ -592,17 +593,22 @@ static void finish_tz(ICSP *p)
 	tz_learn(&z);
 }
 
+/* the first letter first: on a 68000 a call per property name and
+   comparison adds up over thousands of lines at start-up */
+#define NAME_IS(lit) (name[0] == (lit)[0] && !strcmp(name, (lit)))
+#define VALUE_IS(lit) ((value[0] | 32) == ((lit)[0] | 32) && !strcasecmp(value, (lit)))
+
 static void logical_line(ICSP *p, char *s)
 {
 	char *name, *params, *value;
 	if (!*s || !split_line(s, &name, &params, &value))
 		return;
-	if (!strcmp(name, "BEGIN")) {
+	if (NAME_IS("BEGIN")) {
 		if (p->skip) {
 			p->skip++;
-		} else if (!strcasecmp(value, "VCALENDAR")) {
+		} else if (VALUE_IS("VCALENDAR")) {
 			/* nothing to do */
-		} else if (!strcasecmp(value, "VEVENT") && !p->in_event && !p->in_tz) {
+		} else if (VALUE_IS("VEVENT") && !p->in_event && !p->in_tz) {
 			p->in_event = 1;
 			p->ev = ev_new();
 			p->have_start = p->have_end = p->have_recur = p->have_dur = 0;
@@ -612,28 +618,31 @@ static void logical_line(ICSP *p, char *s)
 			sb_reset(&p->exd);
 			sb_reset(&p->rd);
 			sb_reset(&p->exr);
-		} else if (!strcasecmp(value, "VALARM") && p->in_event && !p->in_alarm) {
+		} else if (VALUE_IS("VALARM") && p->in_event && !p->in_alarm) {
 			p->in_alarm = 1;
-		} else if (!strcasecmp(value, "VTIMEZONE") && !p->in_event) {
+		} else if (VALUE_IS("VTIMEZONE") && !p->in_event) {
 			p->in_tz = 1;
+			p->tz_known = 0;
 			p->tzname[0] = 0;
 			p->have_std = p->have_dl = 0;
+		} else if (p->in_tz && !p->in_sub && p->tz_known) {
+			p->skip = 1;
 		} else if (p->in_tz && !p->in_sub &&
-			   (!strcasecmp(value, "STANDARD") || !strcasecmp(value, "DAYLIGHT"))) {
+			   (VALUE_IS("STANDARD") || VALUE_IS("DAYLIGHT"))) {
 			p->in_sub = 1;
-			p->sub_dl = !strcasecmp(value, "DAYLIGHT");
+			p->sub_dl = VALUE_IS("DAYLIGHT");
 			memset(&p->sub, 0, sizeof(p->sub));
 		} else {
 			p->skip = 1;
 		}
 		return;
 	}
-	if (!strcmp(name, "END")) {
+	if (NAME_IS("END")) {
 		if (p->skip) {
 			p->skip--;
-		} else if (p->in_alarm && !strcasecmp(value, "VALARM")) {
+		} else if (p->in_alarm && VALUE_IS("VALARM")) {
 			p->in_alarm = 0;
-		} else if (p->in_event && !strcasecmp(value, "VEVENT")) {
+		} else if (p->in_event && VALUE_IS("VEVENT")) {
 			p->in_event = 0;
 			if (p->cb)
 				finish_event(p);
@@ -641,7 +650,7 @@ static void logical_line(ICSP *p, char *s)
 				ev_free(p->ev);
 				p->ev = 0;
 			}
-		} else if (p->in_sub && (!strcasecmp(value, "STANDARD") || !strcasecmp(value, "DAYLIGHT"))) {
+		} else if (p->in_sub && (VALUE_IS("STANDARD") || VALUE_IS("DAYLIGHT"))) {
 			TZSUB *d = p->sub_dl ? &p->dl : &p->std;
 			int *have = p->sub_dl ? &p->have_dl : &p->have_std;
 			p->in_sub = 0;
@@ -650,43 +659,48 @@ static void logical_line(ICSP *p, char *s)
 				*d = p->sub;
 				*have = 1;
 			}
-		} else if (p->in_tz && !strcasecmp(value, "VTIMEZONE")) {
+		} else if (p->in_tz && VALUE_IS("VTIMEZONE")) {
 			p->in_tz = 0;
-			finish_tz(p);
+			if (!p->tz_known)
+				finish_tz(p);
 		}
 		return;
 	}
 	if (p->skip)
 		return;
 	if (p->in_sub) {
-		if (!strcmp(name, "TZOFFSETTO"))
+		if (NAME_IS("TZOFFSETTO"))
 			p->sub.off_to = (short)parse_off(value);
-		else if (!strcmp(name, "TZOFFSETFROM"))
+		else if (NAME_IS("TZOFFSETFROM"))
 			p->sub.off_from = (short)parse_off(value);
-		else if (!strcmp(name, "DTSTART"))
+		else if (NAME_IS("DTSTART"))
 			ct_parse(value, &p->sub.start);
-		else if (!strcmp(name, "RRULE"))
+		else if (NAME_IS("RRULE"))
 			sub_rule(&p->sub, value);
 		return;
 	}
 	if (p->in_tz) {
-		if (!strcmp(name, "TZID"))
+		if (NAME_IS("TZID")) {
 			str_copy(p->tzname, value, sizeof(p->tzname));
+			/* iCloud repeats the zone in every event: once known, the
+			   rest of the block is skipped instead of learned again */
+			p->tz_known = tz_find(value) != 0;
+		}
 		return;
 	}
 	if (p->in_alarm) {
-		if (!strcmp(name, "TRIGGER") && !p->trigger[0]) {
+		if (NAME_IS("TRIGGER") && !p->trigger[0]) {
 			char rel[16];
 			param(params, "RELATED", rel, sizeof(rel));
 			if (strcasecmp(rel, "END"))
 				str_copy(p->trigger, value, sizeof(p->trigger));
-		} else if (!strcmp(name, "ACTION") && !strcasecmp(value, "NONE")) {
+		} else if (NAME_IS("ACTION") && VALUE_IS("NONE")) {
 			p->alarm_none = 1;
 		}
 		return;
 	}
 	if (!p->in_event) {
-		if (!strcmp(name, "X-WR-CALNAME")) {
+		if (NAME_IS("X-WR-CALNAME")) {
 			char *t = ics_unescape(value, (long)strlen(value));
 			if (t) {
 				str_copy(ics_calname, t, sizeof(ics_calname));
@@ -697,36 +711,36 @@ static void logical_line(ICSP *p, char *s)
 	}
 	if (!p->ev)
 		return;
-	if (!strcmp(name, "UID")) {
+	if (NAME_IS("UID")) {
 		free(p->ev->uid);
 		p->ev->uid = strdup(value);
-	} else if (!strcmp(name, "SUMMARY") || !strcmp(name, "LOCATION") || !strcmp(name, "DESCRIPTION")) {
+	} else if (NAME_IS("SUMMARY") || NAME_IS("LOCATION") || NAME_IS("DESCRIPTION")) {
 		char **f = name[0] == 'S' ? &p->ev->summary : name[0] == 'L' ? &p->ev->location : &p->ev->notes;
 		long n = (long)strlen(value);
 		if (f == &p->ev->notes && n > 3000)
 			n = 3000;
 		free(*f);
 		*f = ics_unescape(value, n);
-	} else if (!strcmp(name, "URL")) {
+	} else if (NAME_IS("URL")) {
 		free(p->ev->url);
 		p->ev->url = strdup(value);
-	} else if (!strcmp(name, "DTSTART")) {
+	} else if (NAME_IS("DTSTART")) {
 		tval(&p->start, params, value);
 		p->have_start = 1;
-	} else if (!strcmp(name, "DTEND")) {
+	} else if (NAME_IS("DTEND")) {
 		tval(&p->end, params, value);
 		p->have_end = 1;
-	} else if (!strcmp(name, "DURATION")) {
+	} else if (NAME_IS("DURATION")) {
 		p->have_dur = ics_duration(value, &p->dur);
-	} else if (!strcmp(name, "RECURRENCE-ID")) {
+	} else if (NAME_IS("RECURRENCE-ID")) {
 		char range[20];
 		tval(&p->recur, params, value);
 		p->have_recur = 1;
 		param(params, "RANGE", range, sizeof(range));
 		p->range_future = !strcasecmp(range, "THISANDFUTURE");
-	} else if (!strcmp(name, "RRULE")) {
+	} else if (NAME_IS("RRULE")) {
 		str_copy(p->rrule, value, sizeof(p->rrule));
-	} else if (!strcmp(name, "EXDATE") || !strcmp(name, "RDATE")) {
+	} else if (NAME_IS("EXDATE") || NAME_IS("RDATE")) {
 		char z[40];
 		SBUF *b = name[0] == 'E' ? &p->exd : &p->rd;
 		param(params, "TZID", z, sizeof(z));
@@ -734,13 +748,13 @@ static void logical_line(ICSP *p, char *s)
 		sb_addc(b, '\t');
 		sb_adds(b, value);
 		sb_addc(b, '\n');
-	} else if (!strcmp(name, "EXRULE")) {
+	} else if (NAME_IS("EXRULE")) {
 		sb_adds(&p->exr, value);
 		sb_addc(&p->exr, '\n');
-	} else if (!strcmp(name, "STATUS")) {
-		p->ev->status = !strcasecmp(value, "CANCELLED") ? ST_CANCELLED :
-				!strcasecmp(value, "TENTATIVE") ? ST_TENTATIVE : ST_CONFIRMED;
-	} else if (!strcmp(name, "SEQUENCE")) {
+	} else if (NAME_IS("STATUS")) {
+		p->ev->status = VALUE_IS("CANCELLED") ? ST_CANCELLED :
+				VALUE_IS("TENTATIVE") ? ST_TENTATIVE : ST_CONFIRMED;
+	} else if (NAME_IS("SEQUENCE")) {
 		p->ev->seq = (short)atoi(value);
 	}
 }
