@@ -133,10 +133,20 @@ static void draw_toolbar(GRECT *clip)
 	for (i = 0; i < NBUT; i++)
 		draw_button(i);
 	views_title(t, sizeof(t));
-	if ((short)strlen(t) > r_title.w / cw && cur_view == V_DAY) {
-		DT d;
-		ct_split(cur_day * MIN_PER_DAY, &d);
-		snprintf(t, sizeof(t), "%s %d %s %d", wday_short[d.wday], d.day, month_short[d.mon - 1], d.year);
+	if ((short)strlen(t) > r_title.w / cw && (cur_view == V_DAY || cur_view == V_WEEK)) {
+		/* the short form when the toolbar is narrow */
+		DT d, e;
+		long first = cur_day;
+		if (cur_view == V_WEEK)
+			first -= (wday_of(cur_day) - opt.weekstart + 7) % 7;
+		ct_split(first * MIN_PER_DAY, &d);
+		ct_split((first + 6) * MIN_PER_DAY, &e);
+		if (cur_view == V_DAY)
+			snprintf(t, sizeof(t), "%s %d %s %d", wday_short[d.wday], d.day, month_short[d.mon - 1], d.year);
+		else if (d.mon == e.mon)
+			snprintf(t, sizeof(t), "%d-%d %s %d", d.day, e.day, month_short[d.mon - 1], e.year);
+		else
+			snprintf(t, sizeof(t), "%d %s-%d %s", d.day, month_short[d.mon - 1], e.day, month_short[e.mon - 1]);
 	}
 	text_at(r_title.x, r_title.y, t, (long)strlen(t), r_title.w / cw, TX_BOLD | TX_LTR);
 	hline(work.x, work.x + work.w - 1, work.y + r_tool.h - 1);
@@ -222,7 +232,14 @@ void win_open(void)
 		w = desk_w - 2 * (x - desk_x);
 		h = desk_h - 2 * (y - desk_y);
 	}
-	wind_open(win_h, snap_x(x), y, w, h);
+	{
+		/* snapped right, it must still end on the screen */
+		short sx = snap_x(x);
+		if (sx + w > desk_x + desk_w)
+			w = desk_x + desk_w - sx;
+		x = sx;
+	}
+	wind_open(win_h, x, y, w, h);
 	win_layout();
 	win_sliders();
 }
@@ -288,7 +305,10 @@ void win_message(short *msg)
 	case WM_SIZED:
 	case WM_MOVED: {
 		short w = msg[6] < 40 * cw ? 40 * cw : msg[6], h = msg[7] < 14 * ch ? 14 * ch : msg[7];
-		wind_set(win_h, WF_CURRXYWH, snap_x(msg[4]), msg[5], w, h);
+		short sx = snap_x(msg[4]);
+		if (sx + w > desk_x + desk_w)
+			w = desk_x + desk_w - sx;
+		wind_set(win_h, WF_CURRXYWH, sx, msg[5], w, h);
 		win_layout();
 		if (msg[0] == WM_SIZED)
 			win_redraw(0);
