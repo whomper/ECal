@@ -3,7 +3,7 @@
  * CalDAV servers and subscriptions, occurrences for the views, and
  * saving changes.
  *
- * Each calendar has a cache file in CACHE\ next to CALENDAR.INF:
+ * Each calendar has a cache file in CACHE\ next to ECAL.INF:
  *   CALnnnnn.DAT  CalDAV and On My Atari: every event's iCalendar text
  *                 as the server sent it, with its href and etag
  *   CALnnnnn.ICS  subscriptions: the feed as downloaded
@@ -199,10 +199,10 @@ void store_init(const char *dir)
 	CALENDAR *c = 0;
 	defaults();
 	str_copy(opt.workdir, dir, sizeof(opt.workdir));
-	path_join(inf_path, sizeof(inf_path), dir, "CALENDAR.INF");
+	path_join(inf_path, sizeof(inf_path), dir, "ECAL.INF");
 	path_join(cache_dir, sizeof(cache_dir), dir, "CACHE");
 	pf_mkdir(cache_dir);
-	path_join(key, sizeof(key), dir, "CALENDAR.KEY");
+	path_join(key, sizeof(key), dir, "ECAL.KEY");
 	secret_init(key);
 	text = pf_load(inf_path, &len);
 	if (!text)
@@ -249,7 +249,7 @@ void store_save_settings(void)
 	int i, j;
 	char enc[200];
 	sb_init(&b);
-	sb_adds(&b, "; Calendar for the Atari - settings\r\n");
+	sb_adds(&b, "; ECal for the Atari - settings\r\n");
 #define S(name) sb_printf(&b, #name "=%s\r\n", opt.name);
 #define I(name) sb_printf(&b, #name "=%d\r\n", opt.name);
 	S(home_tz) S(view_tz) S(gate)
@@ -603,7 +603,7 @@ void cal_load(CALENDAR *c)
 		long len;
 		RESOURCE *r;
 		if (line[0] == 'C' && line[1] == ' ')
-			continue;		/* the ctag lives in CALENDAR.INF */
+			continue;		/* the ctag lives in ECAL.INF */
 		if (line[0] != 'R' || line[1] != ' ')
 			break;
 		tab1 = strchr(line + 2, '\t');

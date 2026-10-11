@@ -1,7 +1,7 @@
 #!/bin/bash
 # Set up a Raspberry Pi (or any Debian/Ubuntu/Raspberry Pi OS computer)
-# as Calendar's gateway: the Atari sends its calendar requests to the Pi
-# in plain HTTP on your home network, and calgate.py makes the HTTPS
+# as ECal's gateway: the Atari sends its calendar requests to the Pi
+# in plain HTTP on your home network, and ecalgate.py makes the HTTPS
 # connections to iCloud and the other calendar servers.
 #
 #   sudo ./install.sh                         anyone on the home network may use it
@@ -21,10 +21,10 @@ while [ $# -gt 0 ]; do
     --port) PORT=${2:?--port needs a number}; shift 2 ;;
     --allow-local) ARGS+=(--allow-local); shift ;;
     --remove)
-      systemctl disable --now calgate.service 2>/dev/null || true
-      rm -f /etc/systemd/system/calgate.service /usr/local/bin/calgate.py
+      systemctl disable --now ecalgate.service 2>/dev/null || true
+      rm -f /etc/systemd/system/ecalgate.service /usr/local/bin/ecalgate.py
       systemctl daemon-reload
-      echo "calgate removed."
+      echo "ecalgate removed."
       exit 0 ;;
     *) echo "usage: install.sh [--allow ATARI_IP] [--port N] [--allow-local] [--remove]" >&2; exit 2 ;;
   esac
@@ -42,18 +42,18 @@ fi
 [ -f /etc/ssl/certs/ca-certificates.crt ] || apt-get install -y -qq ca-certificates
 
 HERE=$(cd "$(dirname "$0")" && pwd)
-install -m 755 "$HERE/calgate.py" /usr/local/bin/calgate.py
-id calgate >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin calgate
+install -m 755 "$HERE/ecalgate.py" /usr/local/bin/ecalgate.py
+id ecalgate >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin ecalgate
 
-cat > /etc/systemd/system/calgate.service <<UNIT
+cat > /etc/systemd/system/ecalgate.service <<UNIT
 [Unit]
-Description=Calendar gateway for the Atari (HTTPS for CalDAV and subscriptions)
+Description=ECal gateway for the Atari (HTTPS for CalDAV and subscriptions)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-User=calgate
-ExecStart=/usr/bin/python3 /usr/local/bin/calgate.py --port $PORT ${ARGS[*]:-}
+User=ecalgate
+ExecStart=/usr/bin/python3 /usr/local/bin/ecalgate.py --port $PORT ${ARGS[*]:-}
 Restart=always
 RestartSec=5
 NoNewPrivileges=yes
@@ -66,8 +66,8 @@ WantedBy=multi-user.target
 UNIT
 
 systemctl daemon-reload
-systemctl enable calgate.service >/dev/null
-systemctl restart calgate.service
+systemctl enable ecalgate.service >/dev/null
+systemctl restart ecalgate.service
 
 if command -v ufw >/dev/null && ufw status | grep -q "Status: active"; then
   if [ -n "$ALLOW_IP" ]; then
@@ -81,14 +81,14 @@ fi
 sleep 1
 IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 IP=${IP:-PI-ADDRESS}
-if systemctl is-active --quiet calgate.service; then
+if systemctl is-active --quiet ecalgate.service; then
   echo
-  echo "calgate is running. In Calendar on the Atari, Options > Connection:"
+  echo "ecalgate is running. In ECal on the Atari, Options > Connection:"
   echo "   Gateway:  $IP"
   echo "   Port:     $PORT"
   echo
   echo "Check it from any browser on your network: http://$IP:$PORT/"
 else
-  echo "calgate didn't start; see: journalctl -u calgate" >&2
+  echo "ecalgate didn't start; see: journalctl -u ecalgate" >&2
   exit 1
 fi

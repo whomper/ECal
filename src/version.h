@@ -1,5 +1,5 @@
 /*
- * version.h - Calendar's version: CAL_VERSION is set by hand for each
+ * version.h - ECal's version: CAL_VERSION is set by hand for each
  * release; the build number after it counts every build (BUILD, advanced
  * by tools/bump.py from the Makefile), e.g. "1.1.17".
  */

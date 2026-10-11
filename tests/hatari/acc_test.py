@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Calendar as a desk accessory in Hatari: CALENDAR.ACC in the boot
-drive's root, its files in C:\\CALENDAR\\. Boots to the desktop, opens the
-Desk menu, chooses Calendar, and takes screenshots; then closes the window
+"""ECal as a desk accessory in Hatari: ECAL.ACC in the boot
+drive's root, its files in C:\\ECAL\\. Boots to the desktop, opens the
+Desk menu, chooses ECal, and takes screenshots; then closes the window
 and opens it again, as one does with an accessory.
 
-    tests/hatari/acc_test.py WORKDIR etos512us.img [--machine falcon|st] [--acc CALST.ACC]
+    tests/hatari/acc_test.py WORKDIR etos512us.img [--machine falcon|st] [--acc ECALST.ACC]
 """
 import argparse
 import os
@@ -24,14 +24,14 @@ def main():
     ap.add_argument("work")
     ap.add_argument("tos")
     ap.add_argument("--machine", default="falcon")
-    ap.add_argument("--acc", default="CALENDAR.ACC")
+    ap.add_argument("--acc", default="ECAL.ACC")
     ap.add_argument("--mono", action="store_true")
     a = ap.parse_args()
     hd = os.path.join(a.work, "hd")
     shutil.rmtree(a.work, ignore_errors=True)
-    os.makedirs(os.path.join(hd, "CALENDAR"))
-    shutil.copy(os.path.join(ROOT, a.acc), os.path.join(hd, "CALENDAR.ACC"))
-    ui_tour.seed(os.path.join(hd, "CALENDAR"))
+    os.makedirs(os.path.join(hd, "ECAL"))
+    shutil.copy(os.path.join(ROOT, a.acc), os.path.join(hd, "ECAL.ACC"))
+    ui_tour.seed(os.path.join(hd, "ECAL"))
     extra = ["--memsize", "14" if a.machine == "falcon" else "4"]
     if a.mono:
         extra += ["--monitor", "mono"]

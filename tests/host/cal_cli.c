@@ -1,7 +1,7 @@
 /*
  * cal_cli.c - the calendar core on Linux, for the integration tests and
  * for trying servers before the Atari does: the same calstore.c, sync,
- * CalDAV, HTTP and TLS code as CALENDAR.ACC.
+ * CalDAV, HTTP and TLS code as ECAL.ACC.
  *
  *   cal-cli DIR caldav NAME URL USER PASS    add a CalDAV account and sync it
  *   cal-cli DIR subscribe URL [NAME]          add a subscription and fetch it

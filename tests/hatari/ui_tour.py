@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Calendar in Hatari: seed a calendar with cal-cli (the same core as the
-Atari program), boot an emulated Atari with CALENDAR.PRG and take
+"""ECal in Hatari: seed a calendar with cal-cli (the same core as the
+Atari program), boot an emulated Atari with ECAL.PRG and take
 screenshots of the month, week, day and year views, the event dialog
 with Hebrew typed on the Israeli keyboard, and the menu.
 
@@ -44,15 +44,15 @@ def seed(hd):
     cli("add", "2", "יום הולדת לדנה", tomorrow + "T0000", "0", "FREQ=YEARLY")
     cli("add", "0", "Atari club", in3 + "T1900", "120", "FREQ=MONTHLY")
     cli("add", "1", "Standup", today + "T0915", "15", "FREQ=DAILY;COUNT=20")
-    # the files as the Atari keeps them: CALENDAR.INF and CACHE\ next to the program
-    shutil.copy(os.path.join(d, "CALENDAR.INF"), os.path.join(hd, "CALENDAR.INF"))
-    shutil.copy(os.path.join(d, "CALENDAR.KEY"), os.path.join(hd, "CALENDAR.KEY"))
+    # the files as the Atari keeps them: ECAL.INF and CACHE\ next to the program
+    shutil.copy(os.path.join(d, "ECAL.INF"), os.path.join(hd, "ECAL.INF"))
+    shutil.copy(os.path.join(d, "ECAL.KEY"), os.path.join(hd, "ECAL.KEY"))
     os.makedirs(os.path.join(hd, "CACHE"), exist_ok=True)
     for f in os.listdir(os.path.join(d, "CACHE")):
         shutil.copy(os.path.join(d, "CACHE", f), os.path.join(hd, "CACHE", f.upper()))
     shutil.rmtree(d)
     # no refreshing at start: there is no network here
-    with open(os.path.join(hd, "CALENDAR.INF"), "a") as f:
+    with open(os.path.join(hd, "ECAL.INF"), "a") as f:
         f.write("sync_open=0\r\n")
 
 
@@ -61,12 +61,12 @@ def main():
     ap.add_argument("work")
     ap.add_argument("tos")
     ap.add_argument("--machine", default="falcon")
-    ap.add_argument("--prg", default="CALENDAR.PRG")
+    ap.add_argument("--prg", default="ECAL.PRG")
     a = ap.parse_args()
     hd = os.path.join(a.work, "hd")
     shutil.rmtree(a.work, ignore_errors=True)
     os.makedirs(hd)
-    shutil.copy(os.path.join(ROOT, a.prg), os.path.join(hd, "CALENDAR.PRG"))
+    shutil.copy(os.path.join(ROOT, a.prg), os.path.join(hd, "ECAL.PRG"))
     seed(hd)
     extra = ["--memsize", "4"] if a.machine != "falcon" else ["--memsize", "14"]
     if a.machine == "st":

@@ -473,7 +473,7 @@ static int custom_rule(RRULE *r, long startday)
 		if (strcmp(c.rule, c.shown)) {
 			/* the text was typed (or the fields can't express the rule) */
 			if (!rrule_parse(c.rule, &nr)) {
-				alert(1, "[1][That isn't a rule Calendar understands. It starts with FREQ= (e.g. FREQ=MONTHLY;BYDAY=-1FR).][ OK ]");
+				alert(1, "[1][That isn't a rule ECal understands. It starts with FREQ= (e.g. FREQ=MONTHLY;BYDAY=-1FR).][ OK ]");
 				continue;
 			}
 		} else {

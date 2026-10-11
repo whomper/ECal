@@ -1,5 +1,5 @@
 /*
- * win.c - Calendar's window: the toolbar on top (back, Today, forward,
+ * win.c - ECal's window: the toolbar on top (back, Today, forward,
  * the period's name, Day/Week/Month/Year, new event, refresh, menu),
  * the calendar list on the left, the view on the right, the status in
  * the info line.
@@ -24,7 +24,7 @@ static GRECT r_title;
 
 void win_title(void)
 {
-	snprintf(title, sizeof(title), " Calendar ");
+	snprintf(title, sizeof(title), " ECal ");
 	if (win_h > 0)
 		wind_set_str(win_h, WF_NAME, title);
 }

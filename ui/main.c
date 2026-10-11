@@ -3,11 +3,11 @@
  * event loop, reminders, refreshing, and the commands behind the
  * toolbar's menu.
  *
- * As an accessory (CALENDAR.ACC in the boot drive's root) it waits in
- * the Desk menu: choosing "Calendar" opens the window over whatever
+ * As an accessory (ECAL.ACC in the boot drive's root) it waits in
+ * the Desk menu: choosing "ECal" opens the window over whatever
  * program is running. Reminders pop up even while the window is closed.
- * Its files live in X:\CALENDAR\ on the boot drive. As a program
- * (CALENDAR.PRG) it keeps them next to itself and ends when the window
+ * Its files live in X:\ECAL\ on the boot drive. As a program
+ * (ECAL.PRG) it keeps them next to itself and ends when the window
  * closes.
  */
 #include <string.h>
@@ -55,7 +55,7 @@ void set_logging(void)
 {
 	conn_log_flush();
 	if (opt.log)
-		path_join(conn_logfile, sizeof(conn_logfile), workdir, "CALENDAR.LOG");
+		path_join(conn_logfile, sizeof(conn_logfile), workdir, "ECAL.LOG");
 	else
 		conn_logfile[0] = 0;
 }
@@ -99,7 +99,7 @@ int falcon_mode_set(int on)
 {
 	if (on) {
 		if (!tls_available) {
-			alert(1, "[3][This is the ST edition: Falcon mode is in CALENDAR.ACC.][ OK ]");
+			alert(1, "[3][This is the ST edition: Falcon mode is in ECAL.ACC.][ OK ]");
 			return 0;
 		}
 		if (get_cookie(0x5F435055L) < 20) {	/* _CPU */
@@ -107,7 +107,7 @@ int falcon_mode_set(int on)
 			return 0;
 		}
 		if (!pf_exists(conn_cacert)) {
-			alert(1, "[3][Falcon mode needs the root certificates: put CACERT.PEM and ROOTS.DAT in the CALENDAR folder.][ OK ]");
+			alert(1, "[3][Falcon mode needs the root certificates: put CACERT.PEM and ROOTS.DAT in the ECAL folder.][ OK ]");
 			return 0;
 		}
 	}
@@ -320,7 +320,7 @@ void cmd_menu(short x, short y)
 	items[M_SET] = "  Settings...";
 	items[M_CONN] = "  Connection...";
 	items[M_KEYS] = "  Keys...            Help";
-	items[M_ABOUT] = "  About Calendar...";
+	items[M_ABOUT] = "  About ECal...";
 	items[M_S4] = "-";
 	items[M_QUIT] = "  Quit                ^Q";
 	k = popup(x, y, items, n);
@@ -355,13 +355,13 @@ void cmd_menu(short x, short y)
 
 /* ---------------- start-up ---------------- */
 
-/* where our files are: next to the program, or X:\CALENDAR on the boot drive */
+/* where our files are: next to the program, or X:\ECAL on the boot drive */
 static void find_workdir(void)
 {
 	char path[160];
 	short drv = (short)Dgetdrv();
 	if (is_acc) {
-		snprintf(workdir, sizeof(workdir), "%c:\\CALENDAR", 'A' + drv);
+		snprintf(workdir, sizeof(workdir), "%c:\\ECAL", 'A' + drv);
 		pf_mkdir(workdir);
 		return;
 	}
@@ -373,7 +373,7 @@ static void find_workdir(void)
 }
 
 /* an accessory takes its memory once, now: later it would belong to
-   whichever program is in front. HEAPKB=n in CALENDAR.INF overrides */
+   whichever program is in front. HEAPKB=n in ECAL.INF overrides */
 static void acc_heap(void)
 {
 	static char buf[2048];
@@ -381,7 +381,7 @@ static void acc_heap(void)
 	long avail = (long)Malloc(-1L), want, h, n;
 	void *p;
 	want = tls_available && get_cookie(0x5F435055L) >= 30 ? 1536L * 1024 : 256L * 1024;
-	snprintf(inf, sizeof(inf), "%s\\CALENDAR.INF", workdir);
+	snprintf(inf, sizeof(inf), "%s\\ECAL.INF", workdir);
 	h = Fopen(inf, 0);
 	if (h >= 0) {
 		n = Fread((short)h, sizeof(buf) - 1, buf);
@@ -428,7 +428,7 @@ static void load_data(void)
 	shown_today = cur_day;
 	day_scroll = opt.daystart;
 	if (store_lost_passwords)
-		alert(1, "[1][CALENDAR.KEY is missing or new: type the passwords again (right-click an account).][ OK ]");
+		alert(1, "[1][ECAL.KEY is missing or new: type the passwords again (right-click an account).][ OK ]");
 	busy(0);
 	data_ready = 1;
 	(void)p;
@@ -444,7 +444,7 @@ static void open_window(void)
 		return;
 	updated_status();
 	if (!naccts) {
-		alert(1, "[1][Welcome to Calendar!||Let's add your iCloud or other calendar.][ OK ]");
+		alert(1, "[1][Welcome to ECal!||Let's add your iCloud or other calendar.][ OK ]");
 		dlg_add_account();
 	} else if (opt.sync_open) {
 		refresh(0, 1);
@@ -484,7 +484,7 @@ int main(void)
 	if (ap_id < 0)
 		return 1;
 	if (is_acc)
-		menu_id = menu_register(ap_id, "  Calendar");
+		menu_id = menu_register(ap_id, "  ECal");
 	vdi_h = graf_handle(&gl_wchar, &gl_hchar, &d, &d);
 	cw = gl_wchar;
 	ch = gl_hchar;

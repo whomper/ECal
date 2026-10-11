@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Calendar on an emulated Atari, through the Pi gateway, against a real
+"""ECal on an emulated Atari, through the Pi gateway, against a real
 CalDAV server: the way an ST uses it.
 
-Radicale (CalDAV) and gateway/calgate.py run on this computer. Hatari has
+Radicale (CalDAV) and gateway/ecalgate.py run on this computer. Hatari has
 no network card, so FAKESTNG.PRG in C:\\AUTO carries the Atari's TCP
 connections over the emulated serial port to serial_bridge.py (from
 EMail). The accessory syncs, shows the server's Hebrew event, and an
 event added on the Atari must arrive on the server.
 
-    TZ=Asia/Jerusalem tests/hatari/net_test.py WORKDIR etos512us.img [--acc CALENDAR.ACC --machine falcon]
+    TZ=Asia/Jerusalem tests/hatari/net_test.py WORKDIR etos512us.img [--acc ECAL.ACC --machine falcon]
 """
 import argparse
 import base64
@@ -47,18 +47,18 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("work")
     ap.add_argument("tos")
-    ap.add_argument("--acc", default="CALST.ACC")
+    ap.add_argument("--acc", default="ECALST.ACC")
     ap.add_argument("--machine", default="st")
     ap.add_argument("--falcon-mode", action="store_true",
                     help="TLS on the Falcon itself (RSA on the DSP), no gateway")
     a = ap.parse_args()
     if a.falcon_mode:
-        a.machine, a.acc = "falcon", "CALENDAR.ACC"
+        a.machine, a.acc = "falcon", "ECAL.ACC"
     work = os.path.abspath(a.work)
     shutil.rmtree(work, ignore_errors=True)
     hd = os.path.join(work, "hd")
     os.makedirs(os.path.join(hd, "AUTO"))
-    os.makedirs(os.path.join(hd, "CALENDAR"))
+    os.makedirs(os.path.join(hd, "ECAL"))
     os.makedirs(os.path.join(work, "srv"))
     with open(os.path.join(work, "srv", "users"), "w") as f:
         f.write("alice:wonderland\n")
@@ -86,9 +86,9 @@ def main():
                                    "--auth-type", "htpasswd", "--auth-htpasswd-filename",
                                    os.path.join(work, "srv", "users"), "--auth-htpasswd-encryption", "plain"],
                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
-    procs.append(subprocess.Popen([sys.executable, os.path.join(ROOT, "gateway", "calgate.py"), "--port", str(GW),
+    procs.append(subprocess.Popen([sys.executable, os.path.join(ROOT, "gateway", "ecalgate.py"), "--port", str(GW),
                                    "--bind", "127.0.0.1", "--allow-local", "-v"],
-                                  stderr=open(os.path.join(work, "calgate.log"), "w")))
+                                  stderr=open(os.path.join(work, "ecalgate.log"), "w")))
     for _ in range(50):
         try:
             http("GET", "/")
@@ -105,18 +105,18 @@ def main():
          "DTEND;TZID=Asia/Jerusalem:20200105T120000\r\nRRULE:FREQ=WEEKLY\r\nSUMMARY:\u05de\u05e8\u05d5\u05d1\u05d4 \u05d4\u05e9\u05e8\u05ea\r\n"
          "END:VEVENT\r\nEND:VCALENDAR\r\n").encode(), "text/calendar")
 
-    shutil.copy(os.path.join(ROOT, a.acc), os.path.join(hd, "CALENDAR.ACC"))
+    shutil.copy(os.path.join(ROOT, a.acc), os.path.join(hd, "ECAL.ACC"))
     shutil.copy(os.path.join(ROOT, "tools", "fakesting", "FAKESTNG.PRG"), os.path.join(hd, "AUTO"))
     if a.falcon_mode:
-        # the Mozilla roots Calendar ships, plus the test certificate, decoded here
-        with open(os.path.join(hd, "CALENDAR", "CACERT.PEM"), "wb") as f:
+        # the Mozilla roots ECal ships, plus the test certificate, decoded here
+        with open(os.path.join(hd, "ECAL", "CACERT.PEM"), "wb") as f:
             f.write(open(os.path.join(ROOT, "CACERT.PEM"), "rb").read() + open(cert, "rb").read())
-        subprocess.run([os.path.join(ROOT, "build", "mkroots"), os.path.join(hd, "CALENDAR", "CACERT.PEM"),
-                        os.path.join(hd, "CALENDAR", "ROOTS.DAT")], check=True, capture_output=True)
+        subprocess.run([os.path.join(ROOT, "build", "mkroots"), os.path.join(hd, "ECAL", "CACERT.PEM"),
+                        os.path.join(hd, "ECAL", "ROOTS.DAT")], check=True, capture_output=True)
         conn = "falcon=1\r\ndsp=1\r\n"
     else:
         conn = "gate=127.0.0.1\r\ngateport=%d\r\n" % GW
-    with open(os.path.join(hd, "CALENDAR", "CALENDAR.INF"), "w", newline="") as f:
+    with open(os.path.join(hd, "ECAL", "ECAL.INF"), "w", newline="") as f:
         f.write("home_tz=Asia/Jerusalem\r\nview_tz=Asia/Jerusalem\r\n%s"
                 "sync_open=1\r\nlog=1\r\n[account]\r\nname=Server\r\nkind=0\r\n"
                 "url=%s://127.0.0.1:%d/\r\nuser=alice\r\npass=wonderland\r\n" % (conn, SCHEME, RAD))
@@ -140,7 +140,7 @@ def main():
         time.sleep(150 if a.falcon_mode else 60)   # the first sync, over a serial line (and TLS)
         r.shot("n1-synced")
         cache = ""
-        for root, _, files in os.walk(os.path.join(hd, "CALENDAR")):
+        for root, _, files in os.walk(os.path.join(hd, "ECAL")):
             for fn in files:
                 if fn.endswith(".DAT"):
                     cache += open(os.path.join(root, fn), "rb").read().decode("utf-8", "replace")
@@ -157,13 +157,13 @@ def main():
         check("the Atari's event is on the server", "SUMMARY:From the Atari" in srv)
         check("with its zone", "TZID=Asia/Jerusalem" in srv)
         if a.falcon_mode:
-            log = open(os.path.join(hd, "CALENDAR", "CALENDAR.LOG"), "rb").read().decode("latin-1")
+            log = open(os.path.join(hd, "ECAL", "ECAL.LOG"), "rb").read().decode("latin-1")
             check("Falcon mode: TLS on the Atari", "secure: TLS 1.2" in log)
             check("the signature checked on the DSP", "signature on the DSP" in log)
-            check("no gateway used", "PUT" not in open(os.path.join(work, "calgate.log")).read())
+            check("no gateway used", "PUT" not in open(os.path.join(work, "ecalgate.log")).read())
         else:
-            log = open(os.path.join(work, "calgate.log")).read()
-            check("it went through calgate", "PUT http://127.0.0.1:%d/alice/home/" % RAD in log)
+            log = open(os.path.join(work, "ecalgate.log")).read()
+            check("it went through ecalgate", "PUT http://127.0.0.1:%d/alice/home/" % RAD in log)
     finally:
         r.stop()
         for p in procs:

@@ -2,7 +2,7 @@
  * http.h - HTTP/1.1 for CalDAV and calendar subscriptions.
  *
  * Two ways out, like EMail's:
- *  - through the Raspberry Pi gateway (calgate.py): every request goes
+ *  - through the Raspberry Pi gateway (ecalgate.py): every request goes
  *    to the Pi in plain HTTP, in proxy form ("GET https://host/path"),
  *    and the Pi makes the HTTPS connection. Any Atari can do this.
  *  - Falcon mode: TLS 1.2 on the Atari itself (tls.c, RSA on the DSP).

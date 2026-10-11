@@ -1,11 +1,11 @@
 /*
- * field.c - dialogs drawn by Calendar itself.
+ * field.c - dialogs drawn by ECal itself.
  *
  * GEM's own text fields show text left to right only, so a Hebrew title
  * would come out backwards. Here every text field keeps its text in
  * logical order and shows it through the bidi algorithm (bidi.c), with
  * the cursor where a reader expects it; F10 switches to the Israeli
- * keyboard as everywhere else in Calendar and EMail. The rest is
+ * keyboard as everywhere else in ECal and EMail. The rest is
  * ordinary: buttons, tick boxes, pop-up menus, a row of colours, a
  * notes box of several lines.
  */

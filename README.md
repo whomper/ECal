@@ -1,4 +1,4 @@
-# Calendar
+# ECal
 
 A calendar for the Atari ST, STE, TT and Falcon, written in C for GEM.
 It runs as a **desk accessory**, so it opens from the Desk menu over
@@ -48,19 +48,19 @@ time zones, and Hebrew.
 ## How it reaches the servers
 
 Calendar servers want HTTPS. Like [EMail](https://github.com/whomper/EMAIL),
-Calendar gets there one of two ways:
+ECal gets there one of two ways:
 
 ```
-ST, STE, any Atari:  Atari (CALST.ACC) --plain HTTP, home LAN--> Raspberry Pi (calgate.py) --HTTPS--> iCloud
-Falcon, TT:          Falcon (CALENDAR.ACC, TLS 1.2, RSA on the DSP) ---------------------HTTPS--> iCloud
+ST, STE, any Atari:  Atari (ECALST.ACC) --plain HTTP, home LAN--> Raspberry Pi (ecalgate.py) --HTTPS--> iCloud
+Falcon, TT:          Falcon (ECAL.ACC, TLS 1.2, RSA on the DSP) ---------------------HTTPS--> iCloud
 ```
 
-- **Through the Pi.** `gateway/calgate.py` on a Raspberry Pi takes the
+- **Through the Pi.** `gateway/ecalgate.py` on a Raspberry Pi takes the
   Atari's requests and makes the HTTPS connections. It also does what an
   8 MHz machine finds hard: it unpacks compressed answers, keeps
   connections to the servers open, and cuts multi-megabyte subscription
   feeds down to the months you keep. See [gateway/README.md](gateway/README.md).
-- **Falcon mode.** On a Falcon (or a TT), Calendar does TLS 1.2 itself
+- **Falcon mode.** On a Falcon (or a TT), ECal does TLS 1.2 itself
   with [BearSSL](https://bearssl.org/), and the DSP56001 checks the servers'
   RSA signatures (about 0.1 s each), as in EMail.
 
@@ -68,20 +68,20 @@ Falcon, TT:          Falcon (CALENDAR.ACC, TLS 1.2, RSA on the DSP) ------------
 
 | File           | For                                                               |
 |----------------|-------------------------------------------------------------------|
-| `CALENDAR.ACC` | Falcon and TT: the accessory with Falcon mode (TLS, DSP); also works through the Pi |
-| `CALST.ACC`    | ST and STE: the same accessory without TLS (150 KB smaller), through the Pi |
-| `CALENDAR.PRG` | the same as CALENDAR.ACC, to start from the desktop instead       |
+| `ECAL.ACC`     | Falcon and TT: the accessory with Falcon mode (TLS, DSP); also works through the Pi |
+| `ECALST.ACC`   | ST and STE: the same accessory without TLS (150 KB smaller), through the Pi |
+| `ECAL.PRG`     | the same as ECAL.ACC, to start from the desktop instead       |
 | `CACERT.PEM`, `ROOTS.DAT` | the root certificates for Falcon mode                  |
 
 ## Getting started
 
-1. Copy `CALENDAR.ACC` (Falcon/TT) or `CALST.ACC` (ST/STE, renamed to
-   `CALENDAR.ACC` or not) into the root of your boot drive, e.g. `C:\`.
-   For Falcon mode, make a folder `C:\CALENDAR` and put `CACERT.PEM` and
-   `ROOTS.DAT` in it. (Calendar keeps its own files there too.)
+1. Copy `ECAL.ACC` (Falcon/TT) or `ECALST.ACC` (ST/STE, renamed to
+   `ECAL.ACC` or not) into the root of your boot drive, e.g. `C:\`.
+   For Falcon mode, make a folder `C:\ECAL` and put `CACERT.PEM` and
+   `ROOTS.DAT` in it. (ECal keeps its own files there too.)
 2. For an ST, set up the gateway on a Raspberry Pi:
    `sudo gateway/install.sh` (see [gateway/README.md](gateway/README.md)).
-3. Reboot, choose **Calendar** in the Desk menu, and add your iCloud
+3. Reboot, choose **ECal** in the Desk menu, and add your iCloud
    account with an [app-specific password](https://support.apple.com/en-us/102654).
 
 The [user guide](docs/GUIDE.md) describes the rest.
@@ -92,7 +92,7 @@ The [user guide](docs/GUIDE.md) describes the rest.
 
 ```
 sudo apt install gcc-m68k-linux-gnu      # Debian/Ubuntu
-make                                     # CALENDAR.ACC, CALENDAR.PRG, CALST.ACC
+make                                     # ECAL.ACC, ECAL.PRG, ECALST.ACC
 ```
 
 The program is freestanding (`atari/`, no MiNTLib); `tools/elf2tos.py`
@@ -103,7 +103,7 @@ Everything is 68000 code except BearSSL, which is built for the 68030.
 **Version numbers.** Every build gets the next number: `make` adds one to
 the number in `BUILD` whenever anything is recompiled and puts
 `1.1.N` (with the date) into the program (`tools/bump.py`). The About box
-shows it, and it's in the User-Agent Calendar sends. Commit `BUILD` with
+shows it, and it's in the User-Agent ECal sends. Commit `BUILD` with
 the changes.
 
 ## Source
@@ -120,7 +120,7 @@ ui/       the GEM program: window, views, sidebar, event editor, dialogs,
           and field.c, dialogs whose text fields take Hebrew
 atari/    TOS runtime from EMail (start-up for accessories added), STinG, DSP
 dsp/      the DSP56001 RSA program (from EMail)
-gateway/  calgate.py, the Raspberry Pi gateway, and its installer
+gateway/  ecalgate.py, the Raspberry Pi gateway, and its installer
 tests/    unit tests, CalDAV integration tests, Hatari tests
 ```
 
@@ -133,7 +133,7 @@ make test                    # the core: dates, Hebrew dates, zones, iCalendar, 
 make itest                   # cal-cli against a real CalDAV server (Radicale): sync,
 GATEWAY=1 make itest         # add, rename, move one occurrence, delete one or the
 FALCON=1 make itest          # rest, changes from elsewhere, subscriptions, import;
-                             # direct, through calgate, and with Calendar's own TLS
+                             # direct, through ecalgate, and with ECal's own TLS
                              # (pip install radicale)
 ```
 
@@ -143,10 +143,11 @@ FALCON=1 make itest          # rest, changes from elsewhere, subscriptions, impo
 
 ```
 tests/hatari/acc_test.py WORK etos512us.img                # as a desk accessory, Falcon
-tests/hatari/edit_test.py WORK etos512us.img --machine st --acc CALST.ACC
-                                                           # add, Hebrew title, find, delete,
+tests/hatari/edit_test.py WORK etos512us.img               # add, Hebrew title, find, delete,
                                                            # one occurrence, custom repeats
-tests/hatari/net_test.py WORK etos512us.img                # an ST syncing through calgate
+tests/hatari/edit_test.py WORK etos512us.img --machine st --acc ECALST.ACC
+                                                           # the same on an ST, up to delete
+tests/hatari/net_test.py WORK etos512us.img                # an ST syncing through ecalgate
 tests/hatari/net_test.py WORK etos512us.img --falcon-mode  # TLS on the Falcon, RSA on the DSP
 tests/hatari/ui_tour.py WORK etos512us.img                 # screenshots of every view
 ```

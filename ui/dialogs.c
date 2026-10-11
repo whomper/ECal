@@ -124,7 +124,7 @@ static int edit_caldav(ACCOUNT *a, int is_new, int icloud)
 	put(&f[N2], FT_LABEL, FF_LTR, 0, row + 1, 0, icloud ? "appleid.apple.com > Sign-In and Security >"
 						        : "or the address of one calendar. Google wants OAuth, which");
 	put(&f[N3], FT_LABEL, FF_LTR, 0, row + 2, 0, icloud ? "App-Specific Passwords, and type it here."
-						        : "Calendar can't do: subscribe to its secret iCal address.");
+						        : "ECal can't do: subscribe to its secret iCal address.");
 	row += 4;
 	put(&f[BDEL], FT_BUTTON, is_new ? FF_DISABLED : FF_DANGER, 0, row, 10, "Delete");
 	put(&f[BCAN], FT_BUTTON, FF_CANCEL, 34, row, 10, "Cancel");
@@ -554,8 +554,8 @@ void dlg_connection(void)
 	put(&f[F2], FT_CHECK, can_falcon ? 0 : FF_DISABLED, 2, row, 46, "Check certificates on the DSP56001");
 	f[F2].val = opt.dsp;
 	row++;
-	put(&f[N1], FT_LABEL, FF_LTR, 2, row, 0, can_falcon ? "Needs CACERT.PEM and ROOTS.DAT in the CALENDAR folder."
-							  : !tls_available ? "Not in the ST edition: use CALENDAR.ACC for it."
+	put(&f[N1], FT_LABEL, FF_LTR, 2, row, 0, can_falcon ? "Needs CACERT.PEM and ROOTS.DAT in the ECAL folder."
+							  : !tls_available ? "Not in the ST edition: use ECAL.ACC for it."
 							  : "Needs a 68030 (Falcon or TT).");
 	row += 2;
 	put(&f[H2], FT_HEAD, 0, 0, row, 0, "Raspberry Pi gateway (any Atari)");
@@ -574,7 +574,7 @@ void dlg_connection(void)
 	put(&f[L6], FT_LABEL, 0, 22, row, 0, "Days ahead:");
 	text(&f[F6], FF_LTR, 35, row, 5, future, 5);
 	row++;
-	put(&f[F7], FT_CHECK, 0, 2, row, 40, "Write a log (CALENDAR.LOG)");
+	put(&f[F7], FT_CHECK, 0, 2, row, 40, "Write a log (ECAL.LOG)");
 	f[F7].val = opt.log;
 	row += 2;
 	put(&f[BCAN], FT_BUTTON, FF_CANCEL, 26, row, 10, "Cancel");
@@ -710,7 +710,7 @@ void dlg_about(void)
 	snprintf(l3, sizeof(l3), "Network: %s.  %s", net_stack(), is_acc ? "Running as a desk accessory." : "Running as a program.");
 	snprintf(l4, sizeof(l4), "%d events in %d calendars, %d accounts", nev, ncals, naccts);
 	snprintf(l5, sizeof(l5), "Times in %s, %s", tz_city(view_zone()), opt.tzsupport ? "time zone support on" : "the Atari's zone");
-	snprintf(l0, sizeof(l0), "Calendar %s for the Atari ST, STE, TT and Falcon", cal_version);
+	snprintf(l0, sizeof(l0), "ECal %s for the Atari ST, STE, TT and Falcon", cal_version);
 	put(&f[i++], FT_HEAD, 0, 0, 1, 0, l0);
 	put(&f[i++], FT_LABEL, FF_LTR, 0, 2, 0, "iCloud and CalDAV calendars, subscriptions, Hebrew");
 	put(&f[i++], FT_LABEL, FF_LTR, 0, 4, 0, l2);
@@ -720,7 +720,7 @@ void dlg_about(void)
 	snprintf(l6, sizeof(l6), "%ld KB free. Build %d, %s", free_mem / 1024, cal_build, cal_built);
 	put(&f[i++], FT_LABEL, FF_LTR, 0, 8, 0, l6);
 	put(&f[i++], FT_LABEL, FF_LTR, 0, 10, 0, "Runtime, TLS (BearSSL) and Hebrew text from EMail;");
-	put(&f[i++], FT_LABEL, FF_LTR, 0, 11, 0, "github.com/whomper/CALENDAR");
+	put(&f[i++], FT_LABEL, FF_LTR, 0, 11, 0, "github.com/whomper/ECal");
 	put(&f[i++], FT_BUTTON, FF_DEFAULT | FF_CANCEL, 42, 13, 10, "OK");
-	run("About Calendar", f, i, 53, 14, -1);
+	run("About ECal", f, i, 53, 14, -1);
 }

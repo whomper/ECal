@@ -1,6 +1,6 @@
 /*
  * calstore.h - accounts, calendars and their events, the settings in
- * CALENDAR.INF, the copies kept on disk, and keeping them in step with
+ * ECAL.INF, the copies kept on disk, and keeping them in step with
  * the servers.
  *
  * Three kinds of account, as on the Mac:

@@ -13,7 +13,7 @@
 #include "tz.h"
 #include "util.h"
 
-/* the frequencies; the first four keep their old numbers (CALENDAR.INF
+/* the frequencies; the first four keep their old numbers (ECAL.INF
    and the editor use them) */
 enum { F_NONE, F_DAILY, F_WEEKLY, F_MONTHLY, F_YEARLY, F_HOURLY, F_MINUTELY, F_SECONDLY };
 enum { RS_GREGORIAN, RS_HEBREW };		/* RSCALE (RFC 7529) */

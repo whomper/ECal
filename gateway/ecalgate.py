@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""calgate - the Raspberry Pi gateway for Calendar on the Atari.
+"""ecalgate - the Raspberry Pi gateway for ECal on the Atari.
 
 Calendar servers (iCloud, Google, Fastmail...) and published calendars
-want HTTPS, which an 8 MHz ST can't do. So Calendar sends its requests
+want HTTPS, which an 8 MHz ST can't do. So ECal sends its requests
 to the Pi in plain HTTP on your home network, in proxy form:
 
     PROPFIND https://caldav.icloud.com/ HTTP/1.1
 
-and calgate makes the HTTPS request, checks the server's certificate and
+and ecalgate makes the HTTPS request, checks the server's certificate and
 hands the answer back. On the way it does what a small Atari would find
 hard:
 
@@ -24,7 +24,7 @@ hard:
 Only standard Python 3 is needed (Raspberry Pi OS has it). gateway/install.sh
 sets it up as a service. Falcon mode doesn't use it: the Falcon does TLS itself.
 
-    calgate.py [--port 8180] [--allow 192.168.1.50] [--allow-local] [-v]
+    ecalgate.py [--port 8180] [--allow 192.168.1.50] [--allow-local] [-v]
 """
 
 import argparse
@@ -223,7 +223,7 @@ UP = Upstream()
 
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
-    server_version = "calgate/" + VERSION
+    server_version = "ecalgate/" + VERSION
 
     def log_message(self, fmt, *args):
         if Config.verbose:
@@ -260,26 +260,26 @@ class Handler(BaseHTTPRequestHandler):
 
     def proxy(self):
         if not self.client_ok():
-            self.reply(403, "calgate: this address may not use the gateway\n")
+            self.reply(403, "ecalgate: this address may not use the gateway\n")
             return
         length = int(self.headers.get("Content-Length") or 0)
         body = self.rfile.read(length) if length else None
         if self.path.startswith("/"):
-            self.reply(200, "calgate %s is running. Point Calendar's gateway setting here.\n" % VERSION)
+            self.reply(200, "ecalgate %s is running. Point ECal's gateway setting here.\n" % VERSION)
             return
         u = urlsplit(self.path)
         if u.scheme not in ("http", "https") or not u.hostname:
-            self.reply(400, "calgate: expected a request like GET https://host/path\n")
+            self.reply(400, "ecalgate: expected a request like GET https://host/path\n")
             return
         port = u.port or (443 if u.scheme == "https" else 80)
         if not Config.allow_local and not _proxy(u.scheme):
             try:
                 addrs = {a[4][0] for a in socket.getaddrinfo(u.hostname, port, proto=socket.IPPROTO_TCP)}
             except OSError:
-                self.reply(502, "calgate: can't find %s\n" % u.hostname)
+                self.reply(502, "ecalgate: can't find %s\n" % u.hostname)
                 return
             if any(is_private(a) for a in addrs):
-                self.reply(403, "calgate: won't connect to the local network (%s)\n" % u.hostname)
+                self.reply(403, "ecalgate: won't connect to the local network (%s)\n" % u.hostname)
                 return
         path = u.path or "/"
         if u.query:
@@ -297,18 +297,18 @@ class Handler(BaseHTTPRequestHandler):
                 break
             except ssl.SSLCertVerificationError as e:
                 UP.drop(u.scheme, u.hostname, port)
-                self.reply(502, "calgate: %s has an untrusted certificate (%s)\n" % (u.hostname, e.verify_message))
+                self.reply(502, "ecalgate: %s has an untrusted certificate (%s)\n" % (u.hostname, e.verify_message))
                 return
             except (http.client.RemoteDisconnected, BrokenPipeError, ConnectionResetError,
                     http.client.CannotSendRequest, http.client.ResponseNotReady):
                 UP.drop(u.scheme, u.hostname, port)    # a kept connection went stale
                 if attempt == 2:
-                    self.reply(502, "calgate: %s closed the connection\n" % u.hostname)
+                    self.reply(502, "ecalgate: %s closed the connection\n" % u.hostname)
                     return
             except (OSError, http.client.HTTPException) as e:
                 UP.drop(u.scheme, u.hostname, port)
                 self.reply(504 if isinstance(e, socket.timeout) else 502,
-                           "calgate: can't reach %s (%s)\n" % (u.hostname, e))
+                           "ecalgate: can't reach %s (%s)\n" % (u.hostname, e))
                 return
         enc = (resp.getheader("Content-Encoding") or "").lower()
         try:
@@ -320,7 +320,7 @@ class Handler(BaseHTTPRequestHandler):
                 except zlib.error:
                     data = zlib.decompress(data, -zlib.MAX_WBITS)
         except (OSError, zlib.error):
-            self.reply(502, "calgate: %s sent a broken compressed answer\n" % u.hostname)
+            self.reply(502, "ecalgate: %s sent a broken compressed answer\n" % u.hostname)
             return
         ctype = resp.getheader("Content-Type") or ""
         before = len(data)
@@ -342,7 +342,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="HTTPS gateway for Calendar on the Atari")
+    ap = argparse.ArgumentParser(description="HTTPS gateway for ECal on the Atari")
     ap.add_argument("--port", type=int, default=8180)
     ap.add_argument("--bind", default="0.0.0.0")
     ap.add_argument("--allow", action="append", default=[],
@@ -358,7 +358,7 @@ def main(argv=None):
     Config.insecure = a.insecure
     srv = ThreadingHTTPServer((a.bind, a.port), Handler)
     srv.daemon_threads = True
-    sys.stderr.write("calgate %s listening on %s:%d\n" % (VERSION, a.bind, a.port))
+    sys.stderr.write("ecalgate %s listening on %s:%d\n" % (VERSION, a.bind, a.port))
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

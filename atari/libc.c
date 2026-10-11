@@ -1,5 +1,5 @@
 /*
- * libc.c - the subset of the C library Calendar uses on the Atari:
+ * libc.c - the subset of the C library ECal uses on the Atari:
  * strings, a heap on top of GEMDOS Malloc/Mxalloc, number parsing,
  * qsort and a small vsnprintf. On the host build the system libc is
  * used instead, so the mail core is the same code on both.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Advance the build number and write version.c: run by the Makefile
 whenever any part of the program was compiled again, so every build of
-CALENDAR.ACC / CALST.ACC has its own number (shown in About, sent as the
+ECAL.ACC / ECALST.ACC has its own number (shown in About, sent as the
 User-Agent, written into events' PRODID).
 
     bump.py BUILD-FILE VERSION.H OUT.c
@@ -24,4 +24,4 @@ open(out, "w").write(
     'const char cal_version[] = "%s";\n'
     "const int cal_build = %d;\n"
     'const char cal_built[] = "%s";\n' % (version, n, time.strftime("%Y-%m-%d")))
-print("Calendar", version)
+print("ECal", version)

@@ -1,5 +1,5 @@
 /*
- * draw.c - drawing for Calendar's window: rectangles, lines, the colour
+ * draw.c - drawing for ECal's window: rectangles, lines, the colour
  * (or pattern) of each calendar, and text. Text is kept in logical
  * order; lines with Hebrew go through bidi_visual() and, when the
  * paragraph is right-to-left, can be aligned to the right edge (from

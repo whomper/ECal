@@ -1,4 +1,4 @@
-"""Drive Calendar in the Hatari emulator: an X display (Xvfb), Hatari's
+"""Drive ECal in the Hatari emulator: an X display (Xvfb), Hatari's
 command FIFO for keys and screenshots, xdotool for the mouse.
 Adapted from Claude ST's recording rig (whomper/atari_claude).
 """
@@ -25,7 +25,7 @@ K = dict(RETURN=0x1c, ESC=0x01, TAB=0x0f, BACKSPACE=0x0e, DELETE=0x53, UP=0x48, 
 
 class Rig:
     def __init__(self, work, tos, machine="falcon", display=":99", serial=None, extra=(),
-                 auto="C:\\CALENDAR.PRG"):
+                 auto="C:\\ECAL.PRG"):
         self.work, self.tos, self.display = work, tos, display
         self.env = dict(os.environ, DISPLAY=display, SDL_AUDIODRIVER="dummy")
         self.fifo = os.path.join(work, "cmd.fifo")
@@ -101,6 +101,21 @@ class Rig:
                 return dst
             time.sleep(0.1)
         raise RuntimeError("no screenshot")
+
+    def wait(self, secs, limit=30):
+        """Sleep, then go on sleeping until the screen stops changing: an
+        8 MHz ST with TOS's own VDI can take seconds to repaint a window."""
+        time.sleep(secs)
+        last, end = None, time.time() + limit
+        while time.time() < end:
+            path = self.shot("_settle", wait=0.1)
+            with open(path, "rb") as f:
+                now = f.read()
+            os.remove(path)
+            if now == last:
+                return
+            last = now
+            time.sleep(0.5)
 
     # ---- mouse ----
     def xdo(self, *args):

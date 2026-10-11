@@ -1,6 +1,6 @@
-# Calendar - a calendar desk accessory for the Atari ST/STE/TT/Falcon, in C.
+# ECal - a calendar desk accessory for the Atari ST/STE/TT/Falcon, in C.
 #
-#   make            builds CALENDAR.ACC (the desk accessory) and CALENDAR.PRG
+#   make            builds ECAL.ACC (the desk accessory) and ECAL.PRG
 #                   (the same program, to start from the desktop) with a stock
 #                   m68k ELF cross compiler (Debian/Ubuntu: apt install
 #                   gcc-m68k-linux-gnu). No MiNTLib: the program is freestanding
@@ -44,7 +44,7 @@ OBJS0   := $(OBJDIR)/crt0.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o \
 OBJS    := $(OBJS0) $(OBJDIR)/version.o
 HDRS    := $(wildcard src/*.h atari/*.h atari/include/*.h ui/*.h dsp/*.h)
 
-all: CALENDAR.ACC CALENDAR.PRG CALST.ACC ROOTS.DAT
+all: ECAL.ACC ECAL.PRG ECALST.ACC ROOTS.DAT
 
 # the ST edition: no TLS of its own (it uses the Pi gateway), 150 KB
 # smaller; only BearSSL's MD5 (for Digest logins), as 68000 code
@@ -53,10 +53,10 @@ STOBJS  := $(OBJDIR)/crt0.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o \
            $(addprefix $(OBJDIR)/,$(addsuffix .o,$(filter-out tls,$(CORE)) $(ATARI) $(UI) tls_none)) \
            $(addprefix $(OBJDIR)/st/,$(addsuffix .o,$(notdir $(STBSSL)))) $(OBJDIR)/version.o
 
-CALST.ACC: $(OBJDIR)/calst.elf tools/elf2tos.py
+ECALST.ACC: $(OBJDIR)/ecalst.elf tools/elf2tos.py
 	PRGFLAGS=7 python3 tools/elf2tos.py $< $@
 
-$(OBJDIR)/calst.elf: $(STOBJS) atari/link.ld
+$(OBJDIR)/ecalst.elf: $(STOBJS) atari/link.ld
 	$(CC) $(LDFLAGS) -o $@ $(STOBJS) -lgcc
 
 $(OBJDIR)/st/%.o: $(BSSL)/src/hash/%.c
@@ -68,9 +68,9 @@ $(OBJDIR)/st/%.o: $(BSSL)/src/codec/%.c
 
 # one program, two names: it sees at start-up whether TOS loaded it as
 # an accessory or started it as an application
-CALENDAR.ACC: $(OBJDIR)/cal.elf tools/elf2tos.py
+ECAL.ACC: $(OBJDIR)/cal.elf tools/elf2tos.py
 	PRGFLAGS=7 python3 tools/elf2tos.py $< $@
-CALENDAR.PRG: CALENDAR.ACC
+ECAL.PRG: ECAL.ACC
 	cp $< $@
 
 $(OBJDIR)/cal.elf: $(OBJS) $(OBJDIR)/libbearssl.a atari/link.ld
@@ -143,6 +143,6 @@ itest: $(OBJDIR)/cal-cli
 	tests/integration.sh
 
 clean:
-	rm -rf $(OBJDIR) CALENDAR.ACC CALENDAR.PRG CALST.ACC
+	rm -rf $(OBJDIR) ECAL.ACC ECAL.PRG ECALST.ACC
 
 .PHONY: all test itest clean

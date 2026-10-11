@@ -1,5 +1,5 @@
 /*
- * tls_none.c - the ST edition (CALST.ACC) has no TLS of its own: an ST
+ * tls_none.c - the ST edition (ECALST.ACC) has no TLS of its own: an ST
  * is too slow for it, and saving BearSSL's 150 KB leaves room for the
  * calendars. It reaches secure servers through the Raspberry Pi gateway.
  */
@@ -16,7 +16,7 @@ int (*tls_rsa_accel)(unsigned char *x, size_t xlen, const unsigned char *n, size
 		     const unsigned char *e, size_t elen);
 
 static const char why[] = "this is the ST edition: secure connections go through the Raspberry Pi gateway "
-			  "(Falcon mode is in CALENDAR.ACC)";
+			  "(Falcon mode is in ECAL.ACC)";
 
 int tls_load_anchors(const char *path, char *err, int errlen)
 {

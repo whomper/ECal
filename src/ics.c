@@ -1180,7 +1180,7 @@ char *ics_build(const EVENT *e, const char *orig, long origlen, long *outlen)
 		out_str(&o, "VERSION:2.0");
 		{
 			char prodid[60];
-			snprintf(prodid, sizeof(prodid), "PRODID:-//Atari Calendar %s//EN", cal_version);
+			snprintf(prodid, sizeof(prodid), "PRODID:-//Atari ECal %s//EN", cal_version);
 			out_str(&o, prodid);
 		}
 		out_str(&o, "CALSCALE:GREGORIAN");

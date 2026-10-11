@@ -1,10 +1,10 @@
 #!/bin/bash
-# Calendar's core against a real CalDAV server (Radicale) and a published
+# ECal's core against a real CalDAV server (Radicale) and a published
 # feed, with cal-cli (the same calstore/CalDAV/HTTP/TLS code as the Atari):
 #
 #   tests/integration.sh             plain HTTP, straight to the server
-#   GATEWAY=1 tests/integration.sh   through the Pi gateway (calgate.py)
-#   FALCON=1 tests/integration.sh    Falcon mode: TLS in Calendar itself,
+#   GATEWAY=1 tests/integration.sh   through the Pi gateway (ecalgate.py)
+#   FALCON=1 tests/integration.sh    Falcon mode: TLS in ECal itself,
 #                                    the server's certificate checked
 #                                    against a test CA
 #
@@ -37,7 +37,7 @@ SCHEME=http
 SSL=()
 if [ -n "${FALCON:-}" ]; then
   SCHEME=https
-  openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj "/CN=Calendar Test CA" \
+  openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj "/CN=ECal Test CA" \
     -keyout "$W/ca.key" -out "$W/ca.pem" -addext "basicConstraints=critical,CA:true" \
     -addext "keyUsage=critical,keyCertSign,cRLSign" 2>/dev/null
   openssl req -newkey rsa:2048 -nodes -subj "/CN=localhost" -keyout "$W/srv.key" -out "$W/srv.csr" 2>/dev/null
@@ -76,7 +76,7 @@ mk tasks <<XML
 XML
 
 put() { "${CURL[@]}" -X PUT "$BASE/alice/$1" -H "Content-Type: text/calendar" --data-binary @- -o /dev/null -w "%{http_code}"; }
-# a weekly meeting in Hebrew, made by "an iPhone", with an attendee Calendar doesn't edit
+# a weekly meeting in Hebrew, made by "an iPhone", with an attendee ECal doesn't edit
 put home/weekly.ics <<ICS >/dev/null
 BEGIN:VCALENDAR
 VERSION:2.0
@@ -146,7 +146,7 @@ PIDS+=($!)
 
 D=$W/atari
 if [ -n "${GATEWAY:-}" ]; then
-  python3 gateway/calgate.py --port "$GWPORT" --bind 127.0.0.1 --allow-local > "$W/gw.log" 2>&1 &
+  python3 gateway/ecalgate.py --port "$GWPORT" --bind 127.0.0.1 --allow-local > "$W/gw.log" 2>&1 &
   PIDS+=($!)
   sleep 0.5
   "$CLI" "$D" gateway 127.0.0.1 "$GWPORT"
@@ -154,10 +154,10 @@ if [ -n "${GATEWAY:-}" ]; then
 fi
 if [ -n "${FALCON:-}" ]; then
   "$CLI" "$D" falcon 1
-  echo "(Falcon mode: TLS in Calendar)"
+  echo "(Falcon mode: TLS in ECal)"
 fi
 "$CLI" "$D" zone Asia/Jerusalem
-export CAL_LOG=$W/CALENDAR.LOG
+export CAL_LOG=$W/ECAL.LOG
 
 echo "== account and first sync"
 "$CLI" "$D" caldav Radicale "$BASE/" alice wonderland || bad "caldav account"

@@ -1,40 +1,40 @@
-# Calendar - user guide
+# ECal - user guide
 
 ## Installing
 
-Calendar is a desk accessory: TOS loads it at boot from the root of the
+ECal is a desk accessory: TOS loads it at boot from the root of the
 boot drive, and it waits in the Desk menu until you choose it.
 
 | Your Atari        | Copy to `C:\`    | Connects                        |
 |-------------------|------------------|---------------------------------|
-| Falcon, TT        | `CALENDAR.ACC`   | by itself (Falcon mode) or through the Pi |
-| ST, STE, Mega ST  | `CALST.ACC`      | through the Raspberry Pi gateway |
+| Falcon, TT        | `ECAL.ACC`       | by itself (Falcon mode) or through the Pi |
+| ST, STE, Mega ST  | `ECALST.ACC`     | through the Raspberry Pi gateway |
 
-Calendar keeps its settings and the copies of your calendars in the folder
-`CALENDAR` on the boot drive (`C:\CALENDAR\`), made the first time it runs:
+ECal keeps its settings and the copies of your calendars in the folder
+`ECAL` on the boot drive (`C:\ECAL\`), made the first time it runs:
 
 ```
-C:\CALENDAR.ACC
-C:\CALENDAR\CALENDAR.INF    settings, accounts, calendars
-C:\CALENDAR\CALENDAR.KEY    the key the passwords in CALENDAR.INF are encrypted with
-C:\CALENDAR\CACHE\          a copy of every calendar
-C:\CALENDAR\CACERT.PEM      Falcon mode: root certificates (copy them here)
-C:\CALENDAR\ROOTS.DAT       Falcon mode: the same, decoded ahead of time
+C:\ECAL.ACC
+C:\ECAL\ECAL.INF        settings, accounts, calendars
+C:\ECAL\ECAL.KEY        the key the passwords in ECAL.INF are encrypted with
+C:\ECAL\CACHE\          a copy of every calendar
+C:\ECAL\CACERT.PEM      Falcon mode: root certificates (copy them here)
+C:\ECAL\ROOTS.DAT       Falcon mode: the same, decoded ahead of time
 ```
 
-`CALENDAR.PRG` is the same program, to start from the desktop or a
+`ECAL.PRG` is the same program, to start from the desktop or a
 shell; started that way it keeps its files in its own folder and ends when
 its window closes.
 
 **Memory.** The accessory takes its working memory once, at boot (an
 accessory can't safely take more later): 1.5 MB on a Falcon or TT,
 256 KB on an ST, never more than half of what's free. A 1 MB ST runs it;
-with big calendars, 2 MB or more is better. `heapkb=` in CALENDAR.INF
+with big calendars, 2 MB or more is better. `heapkb=` in ECAL.INF
 sets another amount, in kilobytes.
 
-**The clock.** Calendar's "today" is the Atari's clock, so set it (an ST
+**The clock.** ECal's "today" is the Atari's clock, so set it (an ST
 without a clock card starts each day at an old date; the Control Panel or
-a clock program at boot sets it). In Settings, tell Calendar which time
+a clock program at boot sets it). In Settings, tell ECal which time
 zone the clock is in.
 
 ## Connecting
@@ -45,15 +45,15 @@ toolbar).
 - **Raspberry Pi gateway**: the Pi's address and port (8180). Set the Pi up
   with `gateway/install.sh`; see [gateway/README.md](../gateway/README.md).
   Any Atari can use it, and a Falcon can too, to save time.
-- **Falcon mode**: Calendar makes the secure connections itself. Needs a
-  68030 (Falcon or TT), `CALENDAR.ACC`, and `CACERT.PEM` and `ROOTS.DAT` in
-  `C:\CALENDAR\`. **Check certificates on the DSP** lets the Falcon's
+- **Falcon mode**: ECal makes the secure connections itself. Needs a
+  68030 (Falcon or TT), `ECAL.ACC`, and `CACERT.PEM` and `ROOTS.DAT` in
+  `C:\ECAL\`. **Check certificates on the DSP** lets the Falcon's
   DSP56001 do the RSA arithmetic (much faster than the 68030).
 - A server on your home network that speaks plain `http://` (a Radicale or
   Nextcloud without TLS) needs neither.
-- **Keep on this Atari**: how many days back and ahead Calendar keeps
+- **Keep on this Atari**: how many days back and ahead ECal keeps
   (92 and 400 to begin with). Fewer use less memory and sync faster.
-- **Write a log**: `CALENDAR.LOG` in `C:\CALENDAR\`, the conversation with
+- **Write a log**: `ECAL.LOG` in `C:\ECAL\`, the conversation with
   the servers (passwords left out) when something doesn't work.
 
 ## Adding calendars
@@ -62,7 +62,7 @@ The ≡ menu > **Add account or calendar...**:
 
 - **iCloud**: your Apple ID and an **app-specific password**. Make one at
   [appleid.apple.com](https://appleid.apple.com) > Sign-In and Security >
-  App-Specific Passwords; your normal password won't work. Calendar finds
+  App-Specific Passwords; your normal password won't work. ECal finds
   all your iCloud calendars, with their colours.
 - **Other CalDAV account**: the server's address and your login, e.g.
   `https://caldav.fastmail.com/`, `https://cloud.example.org/remote.php/dav`
@@ -70,7 +70,7 @@ The ≡ menu > **Add account or calendar...**:
   calendar works too.
 - **Subscribe to a published calendar**: a `webcal://` or `https://`
   address of an `.ics` file: public holidays, a sports team, a school, or a
-  Google calendar (Google's CalDAV needs an OAuth sign-in Calendar can't do,
+  Google calendar (Google's CalDAV needs an OAuth sign-in ECal can't do,
   but every Google calendar has a "Secret address in iCal format" in its
   settings). Subscriptions are read-only and refresh on their own schedule.
 - **On My Atari**: a calendar kept only on this computer. Right-click it
@@ -102,7 +102,7 @@ scratch); **≡** the menu.
   for that month, double-click a day for the day.
 
 Today is in red everywhere. The info line under the title shows when
-Calendar last updated, the selected event, or what it's doing.
+ECal last updated, the selected event, or what it's doing.
 
 Click an event to select it, double-click to open it. Double-click an
 empty day or hour for a new event there. Right-click an event to open,
@@ -158,7 +158,7 @@ Changing or deleting an occurrence of a repeating event asks whether it's
 Events from iPhones, Macs, Outlook and Google with extra dates, excluded
 dates or rules, or "this and future" changes show as they should.
 
-Calendar keeps what it doesn't edit: invitations' attendees, other
+ECal keeps what it doesn't edit: invitations' attendees, other
 programs' settings, attachments, exceptions made on an iPhone all stay as
 they were when it saves an event.
 
@@ -167,7 +167,7 @@ two years ahead.
 
 ## Reminders
 
-When an event's alert comes due, Calendar beeps and shows it over
+When an event's alert comes due, ECal beeps and shows it over
 whatever program is running, even with its window closed. **Show** opens
 the day. Settings > **Show alerts** turns them all off; each calendar has
 its own switch too (subscriptions start with theirs off).
@@ -176,13 +176,13 @@ its own switch too (subscriptions start with theirs off).
 
 Settings:
 
-- **Atari clock in**: the zone the Atari's clock is set to. Calendar needs
+- **Atari clock in**: the zone the Atari's clock is set to. ECal needs
   it to know what time it is everywhere else.
 - **Time zone support**: each event shows and edits its own zone, and
   **Show times in** lets you see the calendar as it looks from somewhere
   else, e.g. before a trip. Off, everything is shown in the clock's zone.
 
-Calendar knows the summer time rules of about 90 zones (Israel's, Europe's,
+ECal knows the summer time rules of about 90 zones (Israel's, Europe's,
 the US and Canada's, Australia's and New Zealand's, Chile, Egypt, Lebanon,
 Cuba...) and learns others from the calendar data (Outlook's zones, for
 instance).
@@ -210,13 +210,13 @@ instance).
 
 ## Which version
 
-The ≡ menu > **About Calendar** shows the version, e.g. `1.1.6`, and when it was
+The ≡ menu > **About ECal** shows the version, e.g. `1.1.6`, and when it was
 built. The last number goes up with every build.
 
 ## When something goes wrong
 
 - **"needs a secure connection"**: set up the Pi gateway, or Falcon mode.
-- **"Can't reach the gateway"**: is the Pi on, and is `calgate` running?
+- **"Can't reach the gateway"**: is the Pi on, and is `ecalgate` running?
   Open `http://PI-ADDRESS:8180/` in any browser: it should answer. Use the
   Pi's IP address, not its name.
 - **"refused the user name or password"**: iCloud wants an app-specific
@@ -225,4 +225,4 @@ built. The last number goes up with every build.
   Falcon mode the clock must be right to check certificates.
 - An **!** next to an account in the sidebar: its last refresh failed; the
   calendar's info (double-click) shows why.
-- `CALENDAR.LOG` (Connection > Write a log) has the details.
+- `ECAL.LOG` (Connection > Write a log) has the details.

@@ -1,4 +1,4 @@
-"""Tests for calgate: the feed trimming, and the proxy against a local server."""
+"""Tests for ecalgate: the feed trimming, and the proxy against a local server."""
 
 import gzip
 import http.client
@@ -9,7 +9,7 @@ import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(__file__))
-import calgate  # noqa: E402
+import ecalgate  # noqa: E402
 
 FEED = "\r\n".join([
     "BEGIN:VCALENDAR", "VERSION:2.0", "X-WR-CALNAME:Holidays",
@@ -29,7 +29,7 @@ FEED = "\r\n".join([
 
 class TrimTest(unittest.TestCase):
     def test_window(self):
-        out = calgate.trim_ics(FEED, "20260901-20271231")
+        out = ecalgate.trim_ics(FEED, "20260901-20271231")
         self.assertIn("UID:in", out)
         self.assertIn("UID:rep", out)
         self.assertIn("TRIGGER:-PT5M", out)
@@ -41,14 +41,14 @@ class TrimTest(unittest.TestCase):
         self.assertTrue(out.endswith("END:VCALENDAR\r\n"))
 
     def test_no_window(self):
-        self.assertEqual(calgate.trim_ics(FEED, ""), FEED)
-        self.assertEqual(calgate.trim_ics(FEED, "nonsense"), FEED)
+        self.assertEqual(ecalgate.trim_ics(FEED, ""), FEED)
+        self.assertEqual(ecalgate.trim_ics(FEED, "nonsense"), FEED)
 
     def test_edges(self):
         # two days to spare on each side
-        out = calgate.trim_ics(FEED, "20261014-20261020")
+        out = ecalgate.trim_ics(FEED, "20261014-20261020")
         self.assertIn("UID:in", out)
-        out = calgate.trim_ics(FEED, "20261016-20261020")
+        out = ecalgate.trim_ics(FEED, "20261016-20261020")
         self.assertNotIn("UID:in", out)
 
 
@@ -99,8 +99,8 @@ class ProxyTest(unittest.TestCase):
     def setUpClass(cls):
         cls.up = ThreadingHTTPServer(("127.0.0.1", 0), Upstream)
         threading.Thread(target=cls.up.serve_forever, daemon=True).start()
-        calgate.Config.allow_local = True
-        cls.gw = ThreadingHTTPServer(("127.0.0.1", 0), calgate.Handler)
+        ecalgate.Config.allow_local = True
+        cls.gw = ThreadingHTTPServer(("127.0.0.1", 0), ecalgate.Handler)
         threading.Thread(target=cls.gw.serve_forever, daemon=True).start()
         cls.base = "http://127.0.0.1:%d" % cls.up.server_address[1]
 
@@ -110,7 +110,7 @@ class ProxyTest(unittest.TestCase):
         cls.gw.shutdown()
         cls.up.server_close()
         cls.gw.server_close()
-        calgate.Config.allow_local = False
+        ecalgate.Config.allow_local = False
 
     def conn(self):
         c = http.client.HTTPConnection("127.0.0.1", self.gw.server_address[1], timeout=10)
@@ -166,14 +166,14 @@ class ProxyTest(unittest.TestCase):
         c = self.conn()
         c.request("GET", "/")
         r = c.getresponse()
-        self.assertIn(b"calgate", r.read())
+        self.assertIn(b"ecalgate", r.read())
         c.request("GET", "ftp://x/y")
         r = c.getresponse()
         r.read()
         self.assertEqual(r.status, 400)
 
     def test_local_network_refused_by_default(self):
-        calgate.Config.allow_local = False
+        ecalgate.Config.allow_local = False
         try:
             c = self.conn()
             c.request("GET", self.base + "/feed.ics")
@@ -181,7 +181,7 @@ class ProxyTest(unittest.TestCase):
             r.read()
             self.assertEqual(r.status, 403)
         finally:
-            calgate.Config.allow_local = True
+            ecalgate.Config.allow_local = True
 
 
 if __name__ == "__main__":

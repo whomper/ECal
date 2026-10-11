@@ -1,5 +1,5 @@
 /*
- * ui.h - Calendar's GEM interface: one window with a toolbar, the
+ * ui.h - ECal's GEM interface: one window with a toolbar, the
  * calendar list on the left and the day, week, month or year on the
  * right, much like the Mac's Calendar; dialogs drawn by field.c so that
  * every text field takes Hebrew.

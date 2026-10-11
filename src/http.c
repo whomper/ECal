@@ -233,7 +233,7 @@ static CONN *get_conn(const URL *u, int gw, int *reused, char *err, int errlen)
 		if (gw) {
 			char e2[200];
 			str_copy(e2, err, sizeof(e2));
-			snprintf(err, errlen, "Can't reach the gateway at %s:%u (%s). Is calgate running on the Pi?",
+			snprintf(err, errlen, "Can't reach the gateway at %s:%u (%s). Is ecalgate running on the Pi?",
 				 host, port, e2);
 		}
 		return 0;

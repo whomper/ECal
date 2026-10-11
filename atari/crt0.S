@@ -1,4 +1,4 @@
-| Calendar TOS start-up, for a desk accessory and an application alike
+| ECal TOS start-up, for a desk accessory and an application alike
 | (from EMail and Claude ST, whomper/atari_claude).
 |
 | TOS starts an accessory with a0 = its basepage, and has already given

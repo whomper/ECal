@@ -11,7 +11,7 @@
  * in the wall time of the event's own zone, so a weekly meeting stays at
  * 10:00 when the clocks change.
  *
- * Times are minutes in the rest of Calendar; seconds (BYSECOND,
+ * Times are minutes in the rest of ECal; seconds (BYSECOND,
  * FREQ=SECONDLY) take part in the rule and then fold into their minute.
  */
 #include <stdlib.h>
