@@ -36,7 +36,7 @@ HBSSLOBJ = $(patsubst $(BSSL)/src/%.c,$(OBJDIR)/hbssl/%.o,$(BSSLSRC))
 
 CORE    := util charset conn tls bidi secret futil ctime tz ics rrule xml inflate http caldav calstore
 ATARI   := libc tos plat_tos net_tos sting gem dsprsa
-UI      := main win draw popup dsp views sidebar editor dialogs field
+UI      := main win draw popup dsp views sidebar editor dialogs field about
 
 OBJDIR  := build
 OBJS0   := $(OBJDIR)/crt0.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o \
@@ -100,10 +100,11 @@ $(OBJDIR)/nf.o: atari/nf.S | $(OBJDIR)
 $(OBJDIR):
 	mkdir -p $@
 
-# every build gets the next build number: version.c is written again
+# every build counts the version up (VERSION, major.minor as in EMail):
+# version.c is written again
 # whenever anything in either edition was compiled again
 $(OBJDIR)/version.c: $(OBJS0) $(filter-out $(OBJDIR)/version.o,$(STOBJS)) src/version.h tools/bump.py
-	python3 tools/bump.py BUILD src/version.h $@
+	python3 tools/bump.py VERSION $@
 $(OBJDIR)/version.o: $(OBJDIR)/version.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 

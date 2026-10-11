@@ -29,7 +29,7 @@ its window closes.
 **Memory.** The accessory takes its working memory once, at boot (an
 accessory can't safely take more later): 1.5 MB on a Falcon or TT,
 256 KB on an ST, never more than half of what's free. A 1 MB ST runs it;
-with big calendars, 2 MB or more is better. `heapkb=` in ECAL.INF
+with big calendars, 2 MB or more is better. `HEAPKB=` in ECAL.INF
 sets another amount, in kilobytes.
 
 **The clock.** ECal's "today" is the Atari's clock, so set it (an ST
@@ -47,8 +47,8 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
 
 - **General**: the first day of the week (Sunday, Monday or Saturday),
   the first hour the day and week views show, the 24-hour clock, Hebrew
-  dates next to the civil ones, and which character set your font has
-  Hebrew in.
+  dates next to the civil ones, which character set your font has
+  Hebrew in, and whether ECal starts with the Hebrew keyboard.
 - **Events**: how long a new event lasts and the alert it starts with;
   **Show alerts** turns all reminders on or off.
 - **Time zones**: see [Time zones](#time-zones).
@@ -127,6 +127,17 @@ the view.
 **Hebrew dates** (≡ > Hebrew dates) show next to each day: the day of the
 Hebrew month in each cell, the month's name on its first day, the full
 date in day and week views.
+
+As in EMail's Options menu, the ≡ menu has three ticks:
+
+- **Work offline**: no connections at all; the calendars stay as they
+  are on the Atari, and Refresh says ECal is offline. The info line says
+  "Working offline".
+- **Falcon mode (TLS)**: the same as the tick in Settings > Connection.
+- **Write a log**: ECAL.LOG, the conversation with the servers.
+
+While the Hebrew keyboard is on, the info line ends with "Hebrew keyboard
+(F10)".
 
 ## Events
 
@@ -225,8 +236,16 @@ instance).
 
 ## Which version
 
-The ≡ menu > **About ECal** shows the version, e.g. `1.1.6`, and when it was
-built. The last number goes up with every build.
+The ≡ menu > **About ECal** shows the version, e.g. `Version 1.25`, and
+how ECal is connected. The number after the dot goes up with every build.
+
+## ECAL.INF
+
+The settings file explains itself, like EMail's: a note before each
+setting, `1` for on and `0` for off. It can be edited with any text
+editor while ECal isn't running (keys in any case, a note after a value
+with ` ;`). A password typed in there in plain text is encrypted with
+ECAL.KEY the next time ECal starts.
 
 ## When something goes wrong
 

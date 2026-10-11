@@ -41,6 +41,7 @@ time zones, and Hebrew.
   the Israeli keyboard (F10) in every field, like EMail; Hebrew calendar
   names; Hebrew dates (י״ב תשרי תשפ״ז) next to the civil ones
 - Keeps a copy of everything on disk: opens at once and works offline
+  (the menu > Work offline, as in EMail)
 - Runs on TOS 1.04 to 4.x, EmuTOS, MagiC and MiNT, with STinG or MiNTnet,
   in ST high, ST medium, TT and Falcon resolutions; with NVDI the views
   draw several times faster than with TOS's own VDI
@@ -100,11 +101,11 @@ writes the TOS executable. One binary is both the accessory and the
 program: the start-up code (`atari/crt0.S`) sees which way TOS started it.
 Everything is 68000 code except BearSSL, which is built for the 68030.
 
-**Version numbers.** Every build gets the next number: `make` adds one to
-the number in `BUILD` whenever anything is recompiled and puts
-`1.1.N` (with the date) into the program (`tools/bump.py`). The About box
-shows it, and it's in the User-Agent ECal sends. Commit `BUILD` with
-the changes.
+**Version numbers.** As in EMail, `VERSION` holds major.minor (e.g.
+1.25) and every build counts the minor number up: `make` does it
+whenever anything was compiled again (`tools/bump.py`). The About box
+shows it, and it's in the User-Agent ECal sends. Commit `VERSION` with
+the program.
 
 ## Source
 

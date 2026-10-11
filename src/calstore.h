@@ -70,6 +70,9 @@ typedef struct {
 	short duration;		/* default length of a new event, minutes */
 	short refresh;		/* minutes between automatic refreshes of all; 0 = by hand */
 	short sync_open;	/* refresh when the window opens */
+	short offline;		/* Work offline: no connections */
+	short hebrew;		/* start with the Hebrew keyboard */
+	short heapkb;		/* the accessory's memory, KB (read at boot by main.c); 0: chosen */
 	char workdir[160];
 } OPT;
 
@@ -88,6 +91,7 @@ extern int ncals;
 extern char cal_err[200];		/* what went wrong last */
 extern void (*cal_status)(const char *msg);	/* progress for the status line */
 extern int store_lost_passwords;
+extern int store_plain_passwords;
 
 /* start-up: settings and the cached calendars from dir */
 void store_init(const char *dir);

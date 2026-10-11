@@ -15,7 +15,7 @@
 #include "bearssl.h"
 #include "version.h"
 
-HTTPCFG http_cfg = { 0, "", 8180 };
+HTTPCFG http_cfg = { .gateport = 8180 };
 
 static CONN *kept;
 static char kept_key[140];
@@ -218,9 +218,13 @@ static CONN *get_conn(const URL *u, int gw, int *reused, char *err, int errlen)
 	unsigned short port = gw ? http_cfg.gateport : u->port;
 	int sec = (!gw && u->tls) ? SEC_TLS : SEC_PLAIN;
 	*reused = 0;
+	if (http_cfg.offline) {
+		str_copy(err, "ECal is working offline: switch it off in the menu to connect", errlen);
+		return 0;
+	}
 	if (!gw && u->tls && !http_cfg.falcon) {
 		snprintf(err, errlen, "%s needs a secure connection: set up the Raspberry Pi "
-			 "gateway in Options, or turn on Falcon mode", u->host);
+			 "gateway in Settings > Connection, or turn on Falcon mode", u->host);
 		return 0;
 	}
 	snprintf(key, sizeof(key), "%s:%u:%d", host, port, sec);

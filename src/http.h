@@ -29,6 +29,7 @@ void url_resolve(const char *base, const char *ref, char *out, int size);
 
 typedef struct {
 	int falcon;			/* 1: TLS here; 0: through the gateway */
+	int offline;			/* Work offline: no connections at all */
 	char gate[64];			/* the Pi: host name or address, "" = none */
 	unsigned short gateport;	/* 8180 by default */
 } HTTPCFG;

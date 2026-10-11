@@ -31,6 +31,7 @@ int ncals;
 char cal_err[200];
 void (*cal_status)(const char *msg);
 int store_lost_passwords;
+int store_plain_passwords;		/* ECAL.INF has a password not yet encrypted */
 
 static char inf_path[200], cache_dir[200];
 
@@ -131,13 +132,13 @@ static void defaults(void)
 
 static void set_opt(const char *k, const char *v)
 {
-#define S(name) if (!strcmp(k, #name)) { str_copy(opt.name, v, sizeof(opt.name)); return; }
-#define I(name) if (!strcmp(k, #name)) { opt.name = (short)atoi(v); return; }
+#define S(name) if (!strcasecmp(k, #name)) { str_copy(opt.name, v, sizeof(opt.name)); return; }
+#define I(name) if (!strcasecmp(k, #name)) { opt.name = (short)atoi(v); return; }
 	S(home_tz) S(view_tz) S(gate)
 	I(tzsupport) I(falcon) I(dsp) I(weekstart) I(h24) I(hebdates) I(view) I(daystart)
 	I(alarms) I(alarm_default) I(log) I(font_id) I(font_pt) I(hebfont) I(win_x) I(win_y)
-	I(win_w) I(win_h) I(sidebar) I(past_days) I(future_days) I(duration) I(refresh) I(sync_open)
-	if (!strcmp(k, "gateport")) {
+	I(win_w) I(win_h) I(sidebar) I(past_days) I(future_days) I(duration) I(refresh) I(sync_open) I(offline) I(hebrew) I(heapkb)
+	if (!strcasecmp(k, "gateport")) {
 		opt.gateport = (unsigned short)atoi(v);
 		return;
 	}
@@ -147,17 +148,19 @@ static void set_opt(const char *k, const char *v)
 
 static void set_acct(ACCOUNT *a, const char *k, const char *v)
 {
-	if (!strcmp(k, "name"))
+	if (!strcasecmp(k, "name"))
 		str_copy(a->name, v, sizeof(a->name));
-	else if (!strcmp(k, "kind"))
+	else if (!strcasecmp(k, "kind"))
 		a->kind = (short)atoi(v);
-	else if (!strcmp(k, "url"))
+	else if (!strcasecmp(k, "url"))
 		str_copy(a->url, v, sizeof(a->url));
-	else if (!strcmp(k, "user"))
+	else if (!strcasecmp(k, "user"))
 		str_copy(a->user, v, sizeof(a->user));
-	else if (!strcmp(k, "refresh"))
+	else if (!strcasecmp(k, "refresh"))
 		a->refresh = (short)atoi(v);
-	else if (!strcmp(k, "pass")) {
+	else if (!strcasecmp(k, "pass")) {
+		if (*v && strncmp(v, SECRET_TAG, strlen(SECRET_TAG)))
+			store_plain_passwords = 1;	/* typed in by hand: encrypted at start-up */
 		if (!secret_decode(v, a->pass, sizeof(a->pass))) {
 			a->pass[0] = 0;
 			store_lost_passwords = 1;
@@ -167,27 +170,27 @@ static void set_acct(ACCOUNT *a, const char *k, const char *v)
 
 static void set_cal(CALENDAR *c, const char *k, const char *v)
 {
-	if (!strcmp(k, "id"))
+	if (!strcasecmp(k, "id"))
 		c->id = (short)atoi(v);
-	else if (!strcmp(k, "name"))
+	else if (!strcasecmp(k, "name"))
 		str_copy(c->name, v, sizeof(c->name));
-	else if (!strcmp(k, "url"))
+	else if (!strcasecmp(k, "url"))
 		str_copy(c->url, v, sizeof(c->url));
-	else if (!strcmp(k, "ctag"))
+	else if (!strcasecmp(k, "ctag"))
 		str_copy(c->ctag, v, sizeof(c->ctag));
-	else if (!strcmp(k, "etag"))
+	else if (!strcasecmp(k, "etag"))
 		str_copy(c->etag, v, sizeof(c->etag));
-	else if (!strcmp(k, "lastmod"))
+	else if (!strcasecmp(k, "lastmod"))
 		str_copy(c->lastmod, v, sizeof(c->lastmod));
-	else if (!strcmp(k, "color"))
+	else if (!strcasecmp(k, "color"))
 		c->color = (short)(atoi(v) % NCOLORS);
-	else if (!strcmp(k, "visible"))
+	else if (!strcasecmp(k, "visible"))
 		c->visible = (unsigned char)atoi(v);
-	else if (!strcmp(k, "readonly"))
+	else if (!strcasecmp(k, "readonly"))
 		c->readonly = (unsigned char)atoi(v);
-	else if (!strcmp(k, "alarms"))
+	else if (!strcasecmp(k, "alarms"))
 		c->alarms = (unsigned char)atoi(v);
-	else if (!strcmp(k, "synced"))
+	else if (!strcasecmp(k, "synced"))
 		c->synced = atol(v);
 }
 
@@ -213,12 +216,15 @@ void store_init(const char *dir)
 			*nl = 0;
 		if (nl && nl > line && nl[-1] == '\r')
 			nl[-1] = 0;
-		if (!strcmp(line, "[account]")) {
+		if (!strcasecmp(line, "[options]")) {
+			a = 0;
+			c = 0;
+		} else if (!strcasecmp(line, "[account]")) {
 			a = naccts < MAXACCT ? &accts[naccts++] : 0;
 			if (a)
 				memset(a, 0, sizeof(*a));
 			c = 0;
-		} else if (!strcmp(line, "[calendar]")) {
+		} else if (!strcasecmp(line, "[calendar]")) {
 			c = (a && ncals < MAXCAL) ? &cals[ncals++] : 0;
 			if (c) {
 				memset(c, 0, sizeof(*c));
@@ -232,8 +238,17 @@ void store_init(const char *dir)
 				set_cal(c, line, eq + 1);
 			else if (a)
 				set_acct(a, line, eq + 1);
-			else
-				set_opt(line, eq + 1);
+			else {
+				/* a note after a setting: "7  ; a week" (not in names,
+				   addresses or passwords, which may hold a ';') */
+				char *v = eq + 1, *sc = strchr(v, ';');
+				if (sc && sc > v && (sc[-1] == ' ' || sc[-1] == '\t')) {
+					while (sc > v && (sc[-1] == ' ' || sc[-1] == '\t'))
+						sc--;
+					*sc = 0;
+				}
+				set_opt(line, v);
+			}
 		}
 		line = nl ? nl + 1 : 0;
 	}
@@ -245,6 +260,28 @@ void store_init(const char *dir)
 	str_copy(http_cfg.gate, opt.gate, sizeof(http_cfg.gate));
 	http_cfg.gateport = opt.gateport;
 	http_cfg.falcon = opt.falcon;
+	http_cfg.offline = opt.offline;
+}
+
+/* each setting with a note, so the file explains itself (as EMail's) */
+static void note(SBUF *b, const char *text)
+{
+	if (*text)
+		sb_printf(b, "; %s\r\n", text);
+}
+
+/* KEY=value with its note and a blank line after, for accounts and calendars */
+static void kv(SBUF *b, const char *text, const char *key, const char *value)
+{
+	note(b, text);
+	sb_printf(b, "%s=%s\r\n\r\n", key, value);
+}
+
+static void kn(SBUF *b, const char *text, const char *key, long value)
+{
+	char v[16];
+	snprintf(v, sizeof(v), "%ld", value);
+	kv(b, text, key, v);
 }
 
 void store_save_settings(void)
@@ -253,32 +290,74 @@ void store_save_settings(void)
 	int i, j;
 	char enc[200];
 	sb_init(&b);
-	sb_adds(&b, "; ECal for the Atari - settings\r\n");
-#define S(name) sb_printf(&b, #name "=%s\r\n", opt.name);
-#define I(name) sb_printf(&b, #name "=%d\r\n", opt.name);
-	S(home_tz) S(view_tz) S(gate)
-	I(tzsupport) I(falcon) I(dsp) I(weekstart) I(h24) I(hebdates) I(view) I(daystart)
-	I(alarms) I(alarm_default) I(log) I(font_id) I(font_pt) I(hebfont) I(win_x) I(win_y)
-	I(win_w) I(win_h) I(sidebar) I(past_days) I(future_days) I(duration) I(refresh) I(sync_open)
-	sb_printf(&b, "gateport=%u\r\n", opt.gateport);
+	sb_adds(&b, "; ECal settings, written by ECAL.ACC / ECAL.PRG. Lines starting with ; are notes.\r\n"
+		    "; Most of these are set in the menu > Settings; see docs/GUIDE.md.\r\n"
+		    "; 1 means on, 0 means off. Keys may be in any case.\r\n\r\n[OPTIONS]\r\n");
+#define S(key, name, text) note(&b, text); sb_printf(&b, key "=%s\r\n\r\n", opt.name);
+#define I(key, name, text) note(&b, text); sb_printf(&b, key "=%d\r\n\r\n", opt.name);
+	/* first: the accessory reads it at boot from the start of the file */
+	I("HEAPKB", heapkb, "memory the accessory takes at boot, in KB; 0: 1.5 MB on a Falcon/TT, 256 KB on an ST")
+	S("HOME_TZ", home_tz, "the time zone the Atari's clock is set to (Settings > Time zones)")
+	S("VIEW_TZ", view_tz, "the zone times are shown in, with time zone support on")
+	I("TZSUPPORT", tzsupport, "time zone support: each event shows and edits its own zone")
+	I("FALCON", falcon, "Falcon mode: TLS on this Atari (Falcon, TT); 0: through the Pi gateway")
+	I("DSP", dsp, "check certificates on the Falcon's DSP56001")
+	S("GATE", gate, "the Raspberry Pi gateway's address (Settings > Connection)")
+	sb_printf(&b, "; the gateway's port\r\nGATEPORT=%u\r\n\r\n", opt.gateport);
+	I("OFFLINE", offline, "work offline: no connections at all (the menu > Work offline)")
+	I("LOG", log, "write the conversation with the servers to ECAL.LOG (passwords left out)")
+	I("PAST_DAYS", past_days, "days back kept on this Atari; 0: from today, past events aren't copied")
+	I("FUTURE_DAYS", future_days, "days ahead kept on this Atari")
+	I("REFRESH", refresh, "minutes between refreshes of all calendars; 0: only by hand")
+	I("SYNC_OPEN", sync_open, "refresh when the window opens")
+	I("WEEKSTART", weekstart, "first day of the week: 0 Sunday, 1 Monday, 6 Saturday")
+	I("DAYSTART", daystart, "first hour shown in the day and week views")
+	I("H24", h24, "24-hour clock")
+	I("HEBDATES", hebdates, "Hebrew dates next to the civil ones")
+	I("HEBFONT", hebfont, "where the font has the Hebrew letters: 0 Atari, 1 ISO-8859-8, 2 DOS 862")
+	I("HEBREW", hebrew, "start with the Hebrew keyboard (F10 switches)")
+	I("DURATION", duration, "minutes a new event lasts")
+	I("ALARM_DEFAULT", alarm_default, "a new event's alert, minutes before; -1 none")
+	I("ALARMS", alarms, "show alerts")
+	I("VIEW", view, "the view: 0 day, 1 week, 2 month, 3 year")
+	I("SIDEBAR", sidebar, "show the calendar list")
+	I("FONT_ID", font_id, "the font, as a GDOS id; 1: the system font")
+	I("FONT_PT", font_pt, "the font's size in points; 0: the system font's")
+	I("WIN_X", win_x, "the window's left edge, in pixels")
+	I("WIN_Y", win_y, "the window's top edge, in pixels")
+	I("WIN_W", win_w, "the window's width, in pixels")
+	I("WIN_H", win_h, "the window's height, in pixels")
 #undef S
 #undef I
 	for (i = 0; i < naccts; i++) {
 		ACCOUNT *a = &accts[i];
-		sb_printf(&b, "[account]\r\nname=%s\r\nkind=%d\r\nurl=%s\r\nuser=%s\r\nrefresh=%d\r\n",
-			  a->name, a->kind, a->url, a->user, a->refresh);
+		sb_adds(&b, "[ACCOUNT]\r\n");
+		kv(&b, "the account's name in the calendar list", "NAME", a->name);
+		kn(&b, "0 CalDAV (iCloud, Fastmail...), 1 a subscription, 2 On My Atari", "KIND", a->kind);
+		kv(&b, "the server's address, or the subscription's", "URL", a->url);
+		kv(&b, "the user name (iCloud: the Apple ID)", "USER", a->user);
+		kn(&b, "minutes between refreshes of this account; 0: with the others", "REFRESH", a->refresh);
 		if (a->pass[0]) {
 			secret_encode(a->pass, enc, sizeof(enc));
-			sb_printf(&b, "pass=%s\r\n", enc);
+			kv(&b, "the password, encrypted with ECAL.KEY (type a new one in plain text: it is encrypted at start-up)",
+			   "PASS", enc);
 		}
 		for (j = 0; j < ncals; j++) {
 			CALENDAR *c = &cals[j];
 			if (c->acct != i)
 				continue;
-			sb_printf(&b, "[calendar]\r\nid=%d\r\nname=%s\r\nurl=%s\r\nctag=%s\r\netag=%s\r\n"
-				  "lastmod=%s\r\ncolor=%d\r\nvisible=%d\r\nreadonly=%d\r\nalarms=%d\r\nsynced=%ld\r\n",
-				  c->id, c->name, c->url, c->ctag, c->etag, c->lastmod, c->color,
-				  c->visible, c->readonly, c->alarms, (long)c->synced);
+			sb_adds(&b, "[CALENDAR]\r\n");
+			kn(&b, "its cache file in CACHE: CALnnnnn.DAT or .ICS", "ID", c->id);
+			kv(&b, "the calendar's name", "NAME", c->name);
+			kv(&b, "where the server keeps it", "URL", c->url);
+			kv(&b, "the server's mark for its contents, to see what changed", "CTAG", c->ctag);
+			kv(&b, "a subscription's version, to see whether it changed", "ETAG", c->etag);
+			kv(&b, "a subscription's last change, as the server says", "LASTMOD", c->lastmod);
+			kn(&b, "its colour: 0 red, 1 orange, 2 yellow, 3 green, 4 blue, 5 purple, 6 brown, 7 grey", "COLOR", c->color);
+			kn(&b, "shown in the views", "VISIBLE", c->visible);
+			kn(&b, "can't be changed on this Atari", "READONLY", c->readonly);
+			kn(&b, "its alerts show", "ALARMS", c->alarms);
+			kn(&b, "last brought up to date (minutes since 1970, UTC); 0: never", "SYNCED", (long)c->synced);
 		}
 	}
 	pf_save(inf_path, b.s, b.len);
@@ -286,6 +365,7 @@ void store_save_settings(void)
 	str_copy(http_cfg.gate, opt.gate, sizeof(http_cfg.gate));
 	http_cfg.gateport = opt.gateport;
 	http_cfg.falcon = opt.falcon;
+	http_cfg.offline = opt.offline;
 }
 
 /* ---------------- accounts and calendars ---------------- */

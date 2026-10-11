@@ -591,6 +591,8 @@ static int edit_key(DLG *d, FIELD *f, short kstate, short key)
 	default:
 		if (a < 32 && a != '\n')
 			return 0;
+		if ((f->flags & FF_DIGITS) && (a < '0' || a > '9'))
+			return 1;	/* a number field: taken, and ignored */
 		if (n >= f->max - 1)
 			return 1;	/* full */
 		if (f->type == FT_PASS && a >= 0x80)

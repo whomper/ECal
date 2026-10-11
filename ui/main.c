@@ -34,10 +34,18 @@ static long shown_today = -1;
 
 /* ---------------- small things ---------------- */
 
+/* the info line; while the Hebrew keyboard is on it says so at the end,
+   whatever else it shows (EMail's editor line does the same) */
 void status(const char *msg)
 {
-	if (win_h > 0)
-		win_status(msg);
+	char s[200];
+	if (win_h <= 0)
+		return;
+	if (hebrew_kbd) {
+		snprintf(s, sizeof(s), "%s%sHebrew keyboard (F10)", msg, *msg ? "   " : "");
+		msg = s;
+	}
+	win_status(msg);
 }
 
 void busy(int on)
@@ -80,10 +88,13 @@ unsigned char key_char(short kstate, short key)
 	return ascii;
 }
 
+static void updated_status(void);
+
 void set_hebrew_kbd(short on)
 {
 	hebrew_kbd = on;
-	status(on ? "Hebrew keyboard (F10 to switch back)" : "");
+	if (data_ready)
+		updated_status();
 }
 
 void after_change(void)
@@ -127,7 +138,10 @@ static void updated_status(void)
 	CTIME now = now_utc();
 	ct_split(tz_to_local(view_zone(), now), &d);
 	tz_label(view_zone(), now, lab, sizeof(lab));
-	snprintf(s, sizeof(s), "Updated %02d:%02d   %s %s", d.hour, d.min, tz_city(view_zone()), lab);
+	if (opt.offline)
+		snprintf(s, sizeof(s), "Working offline   %s %s", tz_city(view_zone()), lab);
+	else
+		snprintf(s, sizeof(s), "Updated %02d:%02d   %s %s", d.hour, d.min, tz_city(view_zone()), lab);
 	status(s);
 }
 
@@ -136,6 +150,11 @@ static void refresh(int force, int quiet)
 	int r;
 	if (!naccts)
 		return;
+	if (opt.offline) {
+		if (!quiet)
+			alert(1, "[1][ECal is working offline.|Switch it off in the menu (the button at the right of the toolbar) to refresh.][ OK ]");
+		return;
+	}
 	busy(1);
 	status("Updating...");
 	r = sync_all(force);
@@ -161,7 +180,7 @@ static void auto_refresh(void)
 {
 	unsigned long now = pf_ms();
 	int i, due = 0;
-	if (!naccts)
+	if (!naccts || opt.offline)
 		return;
 	if (opt.refresh > 0 && now - last_refresh > (unsigned long)opt.refresh * 60000UL)
 		due = 1;
@@ -302,8 +321,8 @@ void cmd_import(int cal)
 
 void cmd_menu(short x, short y)
 {
-	enum { M_ADD, M_NEW, M_S1, M_GOTO, M_FIND, M_TODAY, M_S2, M_SIDE, M_HEB, M_KBD, M_S3,
-	       M_SET, M_KEYS, M_ABOUT, M_S4, M_QUIT, M_N };
+	enum { M_ADD, M_NEW, M_S1, M_GOTO, M_FIND, M_TODAY, M_S2, M_SIDE, M_HEB, M_KBD, M_S5,
+	       M_OFFL, M_FALC, M_LOG, M_S3, M_SET, M_KEYS, M_ABOUT, M_S4, M_QUIT, M_N };
 	const char *items[M_N];
 	short k, n = is_acc ? M_S4 : M_N;
 	items[M_ADD] = "  Add account or calendar...";
@@ -316,6 +335,11 @@ void cmd_menu(short x, short y)
 	items[M_SIDE] = opt.sidebar ? "\x08 Calendar list       ^S" : "  Calendar list       ^S";
 	items[M_HEB] = opt.hebdates ? "\x08 Hebrew dates" : "  Hebrew dates";
 	items[M_KBD] = hebrew_kbd ? "\x08 Hebrew keyboard     F10" : "  Hebrew keyboard     F10";
+	items[M_S5] = "-";
+	/* as EMail's Options menu */
+	items[M_OFFL] = opt.offline ? "\x08 Work offline" : "  Work offline";
+	items[M_FALC] = opt.falcon ? "\x08 Falcon mode (TLS)" : "  Falcon mode (TLS)";
+	items[M_LOG] = opt.log ? "\x08 Write a log" : "  Write a log";
 	items[M_S3] = "-";
 	items[M_SET] = "  Settings...";
 	items[M_KEYS] = "  Keys...            Help";
@@ -341,6 +365,24 @@ void cmd_menu(short x, short y)
 		after_change();
 		break;
 	case M_KBD: set_hebrew_kbd(!hebrew_kbd); break;
+	case M_OFFL:
+		opt.offline = !opt.offline;
+		if (opt.offline)
+			http_close_all();
+		store_save_settings();
+		updated_status();
+		break;
+	case M_FALC:
+		if (falcon_mode_set(!opt.falcon)) {
+			http_close_all();
+			store_save_settings();
+		}
+		break;
+	case M_LOG:
+		opt.log = !opt.log;
+		set_logging();
+		store_save_settings();
+		break;
 	case M_SET: dlg_settings(); break;
 	case M_KEYS: dlg_keys(); break;
 	case M_ABOUT: dlg_about(); break;
@@ -387,7 +429,7 @@ static void acc_heap(void)
 		if (n > 0) {
 			char *k;
 			buf[n] = 0;
-			k = strstr(buf, "heapkb=");
+			k = (char *)str_istr(buf, "heapkb=");
 			if (k && atol(k + 7) >= 64)
 				want = atol(k + 7) * 1024;
 		}
@@ -425,6 +467,10 @@ static void load_data(void)
 	cur_day = ct_days(now_view());
 	shown_today = cur_day;
 	day_scroll = opt.daystart;
+	/* passwords typed into ECAL.INF by hand: encrypt them right away */
+	if (store_plain_passwords && !store_lost_passwords)
+		store_save_settings();
+	hebrew_kbd = opt.hebrew;
 	if (store_lost_passwords)
 		alert(1, "[1][ECAL.KEY is missing or new: type the passwords again (right-click an account).][ OK ]");
 	busy(0);
@@ -444,8 +490,8 @@ static void open_window(void)
 	if (!naccts) {
 		alert(1, "[1][Welcome to ECal!||Let's add your iCloud or other calendar.][ OK ]");
 		dlg_add_account();
-	} else if (opt.sync_open) {
-		refresh(0, 1);
+	} else if (opt.sync_open && !opt.offline) {
+		refresh(0, 0);		/* as EMail's first check: problems in an alert */
 	}
 }
 

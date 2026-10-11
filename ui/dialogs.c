@@ -425,7 +425,7 @@ static void in(FIELD *f, short page)
 
 static void settings(short first)
 {
-	enum { L1, F1, L2, F2, F3, F4, L13, F13,
+	enum { L1, F1, L2, F2, F3, F4, L13, F13, F14,
 	       L5, F5, L6, F6, F7,
 	       L8, F8, F9, L10, F10,
 	       L11, F11, F12, H3, L15, F15, L16, F16,
@@ -470,7 +470,10 @@ static void settings(short first)
 	f[F13].items = heb_items;
 	f[F13].nitems = 3;
 	f[F13].val = opt.hebfont;
-	for (i = L1; i <= F13; i++)
+	row++;
+	put(&f[F14], FT_CHECK, 0, VX, row, 32, "Start with the Hebrew keyboard");
+	f[F14].val = opt.hebrew;
+	for (i = L1; i <= F14; i++)
 		in(&f[i], S_GENERAL);
 
 	/* Events */
@@ -536,19 +539,19 @@ static void settings(short first)
 	put(&f[H3], FT_LABEL, 0, CX, row, 0, "Keep on this Atari:");
 	row++;
 	put(&f[L15], FT_LABEL, 0, CX + 2, row, 0, "Days back");
-	text(&f[F15], FF_LTR, VX, row, 5, past, 5);
+	text(&f[F15], FF_LTR | FF_DIGITS, VX, row, 5, past, 5);
 	row++;
 	put(&f[L16], FT_LABEL, 0, CX + 2, row, 0, "Days ahead");
-	text(&f[F16], FF_LTR, VX, row, 5, future, 5);
+	text(&f[F16], FF_LTR | FF_DIGITS, VX, row, 5, future, 5);
 	for (i = L11; i <= F16; i++)
 		in(&f[i], S_REFRESH);
 
 	/* Connection */
 	row = 3;
-	put(&f[C1], FT_CHECK, can_falcon ? 0 : FF_DISABLED, CX, row, 44, "Falcon mode: TLS on this Atari");
+	put(&f[C1], FT_CHECK, 0, CX, row, 44, "Falcon mode: TLS on this Atari");
 	f[C1].val = opt.falcon;
 	row++;
-	put(&f[C2], FT_CHECK, can_falcon ? 0 : FF_DISABLED, CX + 3, row, 40, "Check certificates on the DSP");
+	put(&f[C2], FT_CHECK, 0, CX + 3, row, 40, "Check certificates on the DSP");
 	f[C2].val = opt.dsp;
 	row++;
 	put(&f[N1], FT_LABEL, FF_LTR, CX + 3, row, 0, can_falcon ? "Needs CACERT.PEM, ROOTS.DAT in ECAL"
@@ -558,7 +561,7 @@ static void settings(short first)
 	put(&f[L3], FT_LABEL, 0, CX, row, 0, "Pi gateway:");
 	text(&f[C3], FF_LTR, CX + 12, row, 20, gate, 60);
 	put(&f[L4], FT_LABEL, 0, CX + 34, row, 0, "Port:");
-	text(&f[C4], FF_LTR, CX + 40, row, 6, port, 6);
+	text(&f[C4], FF_LTR | FF_DIGITS, CX + 40, row, 6, port, 6);
 	row++;
 	put(&f[N2], FT_LABEL, FF_LTR, CX + 12, row, 0, "gateway/install.sh on the Pi");
 	row++;
@@ -592,6 +595,8 @@ static void settings(short first)
 	opt.h24 = f[F3].val;
 	opt.hebdates = f[F4].val;
 	opt.hebfont = f[F13].val;
+	opt.hebrew = f[F14].val;
+	set_hebrew_kbd(opt.hebrew);
 	opt.duration = len_min[f[F5].val];
 	opt.alarm_default = alert_min[f[F6].val];
 	opt.alarms = f[F7].val;
@@ -731,38 +736,4 @@ void dlg_keys(void)
 		put(&f[i], FT_LABEL, FF_LTR, 0, i + 1, 0, lines[i]);
 	put(&f[9], FT_BUTTON, FF_DEFAULT | FF_CANCEL, 38, 11, 10, "OK");
 	run("Keys", f, 10, 49, 12, -1);
-}
-
-void dlg_about(void)
-{
-	FIELD f[12];
-	char l0[80], l2[80], l3[80], l4[80], l5[80], l6[60];
-	short i = 0;
-	long free_mem = (long)Malloc(-1L);
-	int nev = 0, c;
-	for (c = 0; c < ncals; c++)
-		nev += cals[c].nev;
-	if (opt.falcon)
-		snprintf(l2, sizeof(l2), "Falcon mode: TLS 1.2 here, RSA on the %s", falcon_dsp_state());
-	else if (opt.gate[0])
-		snprintf(l2, sizeof(l2), "Through the gateway at %s:%u", opt.gate, opt.gateport);
-	else
-		snprintf(l2, sizeof(l2), "No gateway set: only plain http:// servers");
-	snprintf(l3, sizeof(l3), "Network: %s.  %s", net_stack(), is_acc ? "Running as a desk accessory." : "Running as a program.");
-	snprintf(l4, sizeof(l4), "%d event%s in %d calendar%s, %d account%s", nev, nev == 1 ? "" : "s",
-		 ncals, ncals == 1 ? "" : "s", naccts, naccts == 1 ? "" : "s");
-	snprintf(l5, sizeof(l5), "Times in %s, %s", tz_city(view_zone()), opt.tzsupport ? "time zone support on" : "the Atari's zone");
-	snprintf(l0, sizeof(l0), "ECal %s for the Atari ST, STE, TT and Falcon", cal_version);
-	put(&f[i++], FT_HEAD, 0, 0, 1, 0, l0);
-	put(&f[i++], FT_LABEL, FF_LTR, 0, 2, 0, "iCloud and CalDAV calendars, subscriptions, Hebrew");
-	put(&f[i++], FT_LABEL, FF_LTR, 0, 4, 0, l2);
-	put(&f[i++], FT_LABEL, FF_LTR, 0, 5, 0, l3);
-	put(&f[i++], FT_LABEL, FF_LTR, 0, 6, 0, l4);
-	put(&f[i++], FT_LABEL, FF_LTR, 0, 7, 0, l5);
-	snprintf(l6, sizeof(l6), "%ld KB free. Build %d, %s", free_mem / 1024, cal_build, cal_built);
-	put(&f[i++], FT_LABEL, FF_LTR, 0, 8, 0, l6);
-	put(&f[i++], FT_LABEL, FF_LTR, 0, 10, 0, "Runtime, TLS (BearSSL) and Hebrew text from EMail;");
-	put(&f[i++], FT_LABEL, FF_LTR, 0, 11, 0, "github.com/whomper/ECal");
-	put(&f[i++], FT_BUTTON, FF_DEFAULT | FF_CANCEL, 42, 13, 10, "OK");
-	run("About ECal", f, i, 53, 14, -1);
 }

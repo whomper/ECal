@@ -233,7 +233,7 @@ void win_open(void)
 	win_h = wind_create(KIND, desk_x, desk_y, desk_w, desk_h);
 	if (win_h <= 0) {
 		win_h = -1;
-		alert(1, "[3][No window left for Calendar:|close one and try again.][ OK ]");
+		alert(1, "[3][No window left for ECal:|close one and try again.][ OK ]");
 		return;
 	}
 	win_title();
@@ -412,7 +412,7 @@ int win_key(short kstate, short key)
 				quit_now = 1;
 			return 1;
 		case 0x14: views_today(); return 1;		/* ^T */
-		case 0x1f: opt.sidebar = !opt.sidebar; win_layout(); win_redraw(0); return 1;	/* ^S */
+		case 0x1f: opt.sidebar = !opt.sidebar; store_save_settings(); win_layout(); win_redraw(0); return 1;	/* ^S */
 		}
 	}
 	if (!(kstate & (K_CTRL | K_ALT))) {

@@ -1,27 +1,21 @@
 #!/usr/bin/env python3
-"""Advance the build number and write version.c: run by the Makefile
-whenever any part of the program was compiled again, so every build of
-ECAL.ACC / ECALST.ACC has its own number (shown in About, sent as the
-User-Agent, written into events' PRODID).
+"""Count the version up and write version.c, as EMail does: VERSION holds
+major.minor (e.g. 1.25), and every build of the program adds one to the
+minor number. Run by the Makefile whenever any part of the program was
+compiled again; the version shows in About and the User-Agent and goes
+into events' PRODID. Commit VERSION with the program.
 
-    bump.py BUILD-FILE VERSION.H OUT.c
+    bump.py VERSION-FILE OUT.c
 """
-import re
 import sys
-import time
 
-build_file, header, out = sys.argv[1:4]
+vfile, out = sys.argv[1:3]
 try:
-    n = int(open(build_file).read().strip() or 0)
-except FileNotFoundError:
-    n = 0
-n += 1
-open(build_file, "w").write("%d\n" % n)
-major = re.search(r'#define CAL_VERSION "([^"]+)"', open(header).read()).group(1)
-version = "%s.%d" % (major, n)
-open(out, "w").write(
-    "/* written by tools/bump.py: do not edit */\n"
-    'const char cal_version[] = "%s";\n'
-    "const int cal_build = %d;\n"
-    'const char cal_built[] = "%s";\n' % (version, n, time.strftime("%Y-%m-%d")))
+    major, minor = open(vfile).read().strip().split(".")[:2]
+except (FileNotFoundError, ValueError):
+    major, minor = "1", "0"
+version = "%s.%d" % (major, int(minor) + 1)
+open(vfile, "w").write(version + "\n")
+open(out, "w").write("/* written by tools/bump.py: do not edit */\n"
+                     'const char cal_version[] = "%s";\n' % version)
 print("ECal", version)
