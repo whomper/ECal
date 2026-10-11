@@ -8,11 +8,11 @@
 #include "ics.h"
 #include "charset.h"
 #include "plat.h"
+#include "version.h"
 
 CTIME ics_now_utc;
 char ics_calname[64];
 
-static const char *const wd2[7] = { "SU", "MO", "TU", "WE", "TH", "FR", "SA" };
 
 /* ---------------- events ---------------- */
 
@@ -38,6 +38,9 @@ void ev_free(EVENT *e)
 	free(e->url);
 	free(e->rr);
 	free(e->exdate);
+	free(e->rdate);
+	free(e->rdate_end);
+	free(e->exrule);
 	free(e);
 }
 
@@ -62,12 +65,37 @@ EVENT *ev_dup(const EVENT *s)
 		if (e->rr)
 			*e->rr = *s->rr;
 	}
+	e->exdate = e->rdate = e->rdate_end = 0;
+	e->exrule = 0;
 	if (s->nexdate) {
 		e->exdate = malloc(s->nexdate * sizeof(CTIME));
 		if (e->exdate)
 			memcpy(e->exdate, s->exdate, s->nexdate * sizeof(CTIME));
 		else
 			e->nexdate = 0;
+	}
+	if (s->nrdate) {
+		e->rdate = malloc(s->nrdate * sizeof(CTIME));
+		e->rdate_end = malloc(s->nrdate * sizeof(CTIME));
+		if (e->rdate && e->rdate_end) {
+			memcpy(e->rdate, s->rdate, s->nrdate * sizeof(CTIME));
+			if (s->rdate_end)
+				memcpy(e->rdate_end, s->rdate_end, s->nrdate * sizeof(CTIME));
+			else {
+				int i;
+				for (i = 0; i < s->nrdate; i++)
+					e->rdate_end[i] = CT_NONE;
+			}
+		} else {
+			e->nrdate = 0;
+		}
+	}
+	if (s->nexrule) {
+		e->exrule = malloc(s->nexrule * sizeof(RRULE));
+		if (e->exrule)
+			memcpy(e->exrule, s->exrule, s->nexrule * sizeof(RRULE));
+		else
+			e->nexrule = 0;
 	}
 	return e;
 }
@@ -162,214 +190,6 @@ int ics_duration(const char *s, long *minutes)
 	return any;
 }
 
-static int wday_code(const char *s)
-{
-	int i;
-	for (i = 0; i < 7; i++)
-		if (toupper((unsigned char)s[0]) == wd2[i][0] && toupper((unsigned char)s[1]) == wd2[i][1])
-			return i;
-	return -1;
-}
-
-static void by_wday(short v, int *ord, int *wd)
-{
-	*wd = ((v % 8) + 8) % 8;
-	*ord = (v - *wd) / 8;
-}
-
-int rrule_parse(const char *s, RRULE *r)
-{
-	char key[16], val[200];
-	memset(r, 0, sizeof(*r));
-	r->interval = 1;
-	r->until = CT_NONE;
-	r->wkst = 1;
-	while (*s) {
-		int k = 0, v = 0;
-		while (*s && *s != '=' && *s != ';' && k < 15)
-			key[k++] = (char)toupper((unsigned char)*s++);
-		key[k] = 0;
-		if (*s == '=')
-			s++;
-		while (*s && *s != ';' && v < 199)
-			val[v++] = *s++;
-		val[v] = 0;
-		while (*s && *s != ';')
-			s++;
-		if (*s == ';')
-			s++;
-		if (!strcmp(key, "FREQ")) {
-			if (!strcasecmp(val, "DAILY")) r->freq = F_DAILY;
-			else if (!strcasecmp(val, "WEEKLY")) r->freq = F_WEEKLY;
-			else if (!strcasecmp(val, "MONTHLY")) r->freq = F_MONTHLY;
-			else if (!strcasecmp(val, "YEARLY")) r->freq = F_YEARLY;
-			else return 0;		/* hourly and finer: not for a calendar view */
-		} else if (!strcmp(key, "INTERVAL")) {
-			r->interval = (short)atoi(val);
-			if (r->interval < 1)
-				r->interval = 1;
-		} else if (!strcmp(key, "COUNT")) {
-			r->count = atol(val);
-		} else if (!strcmp(key, "UNTIL")) {
-			r->until_kind = (unsigned char)ct_parse(val, &r->until);
-			if (!r->until_kind)
-				r->until = CT_NONE;
-		} else if (!strcmp(key, "WKST")) {
-			int w = wday_code(val);
-			if (w >= 0)
-				r->wkst = (unsigned char)w;
-		} else if (!strcmp(key, "BYDAY")) {
-			char *p = val;
-			while (*p && r->nbyday < RR_MAXBY) {
-				int sign = 1, ord = 0, w;
-				if (*p == '+' || *p == '-')
-					sign = *p++ == '-' ? -1 : 1;
-				while (*p >= '0' && *p <= '9')
-					ord = ord * 10 + (*p++ - '0');
-				w = wday_code(p);
-				if (w >= 0 && ord <= 53)
-					r->byday[r->nbyday++] = (short)(sign * ord * 8 + w);
-				while (*p && *p != ',')
-					p++;
-				if (*p == ',')
-					p++;
-			}
-		} else if (!strcmp(key, "BYMONTHDAY") || !strcmp(key, "BYSETPOS")) {
-			int setpos = key[2] == 'S';
-			char *p = val;
-			while (*p) {
-				int d = atoi(p);
-				if (d && d >= -31 && d <= 31) {
-					if (setpos && r->nbysetpos < 4)
-						r->bysetpos[r->nbysetpos++] = (signed char)d;
-					else if (!setpos && r->nbymd < RR_MAXBY)
-						r->bymd[r->nbymd++] = (signed char)d;
-				}
-				while (*p && *p != ',')
-					p++;
-				if (*p == ',')
-					p++;
-			}
-		} else if (!strcmp(key, "BYMONTH")) {
-			char *p = val;
-			while (*p) {
-				int m = atoi(p);
-				if (m >= 1 && m <= 12)
-					r->bymonth |= (unsigned short)(1 << (m - 1));
-				while (*p && *p != ',')
-					p++;
-				if (*p == ',')
-					p++;
-			}
-		}
-	}
-	return r->freq != F_NONE;
-}
-
-void rrule_format(const RRULE *r, const TZONE *tz, int allday, char *out, int size)
-{
-	static const char *const fq[] = { "", "DAILY", "WEEKLY", "MONTHLY", "YEARLY" };
-	SBUF b;
-	int i;
-	sb_init(&b);
-	sb_printf(&b, "FREQ=%s", fq[r->freq]);
-	if (r->interval > 1)
-		sb_printf(&b, ";INTERVAL=%d", r->interval);
-	if (r->count)
-		sb_printf(&b, ";COUNT=%ld", r->count);
-	else if (r->until != CT_NONE) {
-		char t[24];
-		if (allday)
-			ct_format_ics(r->until, 1, t, sizeof(t));
-		else if (tz)
-			ct_format_ics(tz_to_utc(tz, r->until), 3, t, sizeof(t));
-		else
-			ct_format_ics(r->until, 2, t, sizeof(t));
-		sb_printf(&b, ";UNTIL=%s", t);
-	}
-	if (r->nbyday) {
-		sb_adds(&b, ";BYDAY=");
-		for (i = 0; i < r->nbyday; i++) {
-			int ord, w;
-			by_wday(r->byday[i], &ord, &w);
-			if (ord)
-				sb_printf(&b, "%s%d%s", i ? "," : "", ord, wd2[w]);
-			else
-				sb_printf(&b, "%s%s", i ? "," : "", wd2[w]);
-		}
-	}
-	if (r->nbymd) {
-		sb_adds(&b, ";BYMONTHDAY=");
-		for (i = 0; i < r->nbymd; i++)
-			sb_printf(&b, "%s%d", i ? "," : "", r->bymd[i]);
-	}
-	if (r->bymonth) {
-		int first = 1;
-		sb_adds(&b, ";BYMONTH=");
-		for (i = 0; i < 12; i++)
-			if (r->bymonth & (1 << i)) {
-				sb_printf(&b, "%s%d", first ? "" : ",", i + 1);
-				first = 0;
-			}
-	}
-	if (r->nbysetpos) {
-		sb_adds(&b, ";BYSETPOS=");
-		for (i = 0; i < r->nbysetpos; i++)
-			sb_printf(&b, "%s%d", i ? "," : "", r->bysetpos[i]);
-	}
-	if (r->wkst != 1 && r->freq == F_WEEKLY)
-		sb_printf(&b, ";WKST=%s", wd2[r->wkst]);
-	str_copy(out, b.s ? b.s : "", size);
-	sb_free(&b);
-}
-
-void rrule_describe(const RRULE *r, char *out, int size)
-{
-	static const char *const unit[] = { "", "day", "week", "month", "year" };
-	static const char *const ordn[] = { "last", "", "first", "second", "third", "fourth", "fifth" };
-	SBUF b;
-	int i;
-	sb_init(&b);
-	if (r->interval > 1)
-		sb_printf(&b, "Every %d %ss", r->interval, unit[r->freq]);
-	else
-		sb_printf(&b, "Every %s", unit[r->freq]);
-	if (r->nbyday) {
-		sb_adds(&b, " on ");
-		for (i = 0; i < r->nbyday; i++) {
-			int ord, w;
-			by_wday(r->byday[i], &ord, &w);
-			if (i)
-				sb_adds(&b, i == r->nbyday - 1 ? " and " : ", ");
-			if (ord >= -1 && ord <= 5 && ord)
-				sb_printf(&b, "the %s ", ordn[ord + 1]);
-			sb_adds(&b, wday_names[w]);
-		}
-	} else if (r->nbymd) {
-		sb_adds(&b, " on day ");
-		for (i = 0; i < r->nbymd; i++)
-			sb_printf(&b, "%s%d", i ? ", " : "", r->bymd[i]);
-	}
-	if (r->bymonth && r->freq == F_YEARLY) {
-		int first = 1;
-		sb_adds(&b, " in ");
-		for (i = 0; i < 12; i++)
-			if (r->bymonth & (1 << i)) {
-				sb_printf(&b, "%s%s", first ? "" : ", ", month_names[i]);
-				first = 0;
-			}
-	}
-	if (r->count)
-		sb_printf(&b, ", %ld times", r->count);
-	else if (r->until != CT_NONE) {
-		DT d;
-		ct_split(r->until, &d);
-		sb_printf(&b, ", until %d %s %d", d.day, month_short[d.mon - 1], d.year);
-	}
-	str_copy(out, b.s ? b.s : "", size);
-	sb_free(&b);
-}
-
 /* ---------------- the parser ---------------- */
 
 #define LINE_MAX_LEN 8192
@@ -401,6 +221,9 @@ struct ICSP {
 	long dur;
 	char rrule[300];
 	SBUF exd;			/* "tzid\tvalues\n" for each EXDATE */
+	SBUF rd;			/* the same for RDATE */
+	SBUF exr;			/* EXRULE values, one per line */
+	int range_future;		/* RECURRENCE-ID;RANGE=THISANDFUTURE */
 	char trigger[40];
 	int alarm_none;
 	/* VTIMEZONE */
@@ -421,6 +244,8 @@ ICSP *ics_begin(ICS_CB cb, void *ud, CTIME from, CTIME to)
 	p->to = to;
 	sb_init(&p->line);
 	sb_init(&p->exd);
+	sb_init(&p->rd);
+	sb_init(&p->exr);
 	ics_calname[0] = 0;
 	return p;
 }
@@ -533,6 +358,92 @@ static int resolve(const TVAL *t, CTIME *out, const TZONE **tz, int *floating)
 	return 2;
 }
 
+/* UNTIL in the event's own wall time, inclusive */
+static void fix_until(const EVENT *e, RRULE *r)
+{
+	if (r->until == CT_NONE)
+		return;
+	if (r->until_kind == 1)
+		r->until = r->until + (e->allday ? 0 : MIN_PER_DAY - 1);
+	else if (r->until_kind == 3 && e->tz && !e->allday)
+		r->until = tz_to_local(e->tz, r->until);
+}
+
+/* EXDATE or RDATE lines ("zone\tvalue,value...\n") -> times in the
+   event's representation; ends: for RDATE periods ("start/end" or
+   "start/duration"), else CT_NONE. Returns how many */
+static int date_list(EVENT *e, SBUF *b, CTIME **out, CTIME **ends)
+{
+	char *s = b->s;
+	int max = 0, n = 0;
+	*out = 0;
+	if (ends)
+		*ends = 0;
+	if (!b->len)
+		return 0;
+	while (*s) {
+		char *nl = strchr(s, '\n'), *tab = strchr(s, '\t'), *v;
+		if (!nl)
+			break;
+		*nl = 0;
+		if (tab && tab < nl) {
+			*tab = 0;
+			for (v = tab + 1; *v;) {
+				TVAL t;
+				char *c = strchr(v, ','), *slash;
+				CTIME x, end = CT_NONE;
+				if (c)
+					*c = 0;
+				slash = strchr(v, '/');
+				if (slash)
+					*slash = 0;
+				memset(&t, 0, sizeof(t));
+				str_copy(t.tzid, s, sizeof(t.tzid));
+				str_copy(t.value, v, sizeof(t.value));
+				t.date = strlen(v) == 8;
+				if (!t.tzid[0] && e->tz && !e->allday && !strchr(v, 'Z'))
+					str_copy(t.tzid, e->tz->name, sizeof(t.tzid));
+				if (resolve(&t, &x, 0, 0)) {
+					if (slash) {
+						long dur;
+						TVAL te = t;
+						str_copy(te.value, slash + 1, sizeof(te.value));
+						if (slash[1] == 'P' || slash[1] == '+' || slash[1] == '-') {
+							if (ics_duration(slash + 1, &dur))
+								end = x + dur;
+						} else if (!resolve(&te, &end, 0, 0)) {
+							end = CT_NONE;
+						}
+					}
+					if (n >= max) {
+						CTIME *nv, *ne = 0;
+						max = max ? max * 2 : 8;
+						nv = realloc(*out, max * sizeof(CTIME));
+						if (!nv)
+							break;
+						*out = nv;
+						if (ends) {
+							ne = realloc(*ends, max * sizeof(CTIME));
+							if (!ne)
+								break;
+							*ends = ne;
+						}
+					}
+					(*out)[n] = x;
+					if (ends)
+						(*ends)[n] = end;
+					n++;
+				}
+				if (!c)
+					break;
+				v = c + 1;
+			}
+		}
+		s = nl + 1;
+	}
+	return n;
+}
+
 static void finish_event(ICSP *p)
 {
 	EVENT *e = p->ev;
@@ -571,58 +482,29 @@ static void finish_event(ICSP *p)
 	if (p->rrule[0] && e->recurid == CT_NONE) {
 		RRULE r;
 		if (rrule_parse(p->rrule, &r) && (e->rr = malloc(sizeof(RRULE)))) {
-			/* UNTIL in the event's own wall time, inclusive */
-			if (r.until != CT_NONE) {
-				if (r.until_kind == 1)
-					r.until = r.until + (e->allday ? 0 : MIN_PER_DAY - 1);
-				else if (r.until_kind == 3 && e->tz && !e->allday)
-					r.until = tz_to_local(e->tz, r.until);
-			}
+			fix_until(e, &r);
 			*e->rr = r;
 		}
 	}
-	if (p->exd.len) {
-		/* each line: zone, tab, comma-separated values */
-		char *s = p->exd.s;
-		int max = 0;
-		while (*s) {
-			char *nl = strchr(s, '\n'), *tab = strchr(s, '\t'), *v;
+	e->nexdate = (short)date_list(e, &p->exd, &e->exdate, 0);
+	e->nrdate = (short)date_list(e, &p->rd, &e->rdate, &e->rdate_end);
+	if (p->exr.len) {
+		char *line = p->exr.s;
+		while (*line) {
+			char *nl = strchr(line, '\n');
+			RRULE r, *n;
 			if (!nl)
 				break;
 			*nl = 0;
-			if (tab && tab < nl) {
-				*tab = 0;
-				for (v = tab + 1; *v;) {
-					TVAL t;
-					char *c = strchr(v, ',');
-					CTIME x;
-					if (c)
-						*c = 0;
-					memset(&t, 0, sizeof(t));
-					str_copy(t.tzid, s, sizeof(t.tzid));
-					str_copy(t.value, v, sizeof(t.value));
-					t.date = strlen(v) == 8;
-					if (!t.tzid[0] && e->tz && !e->allday && !strchr(v, 'Z'))
-						str_copy(t.tzid, e->tz->name, sizeof(t.tzid));
-					if (resolve(&t, &x, 0, 0)) {
-						if (e->nexdate >= max) {
-							CTIME *n;
-							max = max ? max * 2 : 8;
-							n = realloc(e->exdate, max * sizeof(CTIME));
-							if (!n)
-								break;
-							e->exdate = n;
-						}
-						e->exdate[e->nexdate++] = x;
-					}
-					if (!c)
-						break;
-					v = c + 1;
-				}
+			if (rrule_parse(line, &r) && (n = realloc(e->exrule, (e->nexrule + 1) * sizeof(RRULE)))) {
+				fix_until(e, &r);
+				e->exrule = n;
+				e->exrule[e->nexrule++] = r;
 			}
-			s = nl + 1;
+			line = nl + 1;
 		}
 	}
+	e->range_future = (unsigned char)(e->recurid != CT_NONE && p->range_future);
 	if (p->trigger[0] && !p->alarm_none) {
 		long m;
 		/* before the start, or (all-day events) during the day */
@@ -664,7 +546,7 @@ static void sub_rule(TZSUB *s, const char *rr)
 	s->ch.utc = 0;
 	if (!r.nbyday)
 		return;
-	by_wday(r.byday[0], &ord, &w);
+	rr_byday(r.byday[0], &ord, &w);
 	s->ch.wday = (unsigned char)w;
 	if (ord < 0)
 		s->ch.day = 0;
@@ -726,7 +608,10 @@ static void logical_line(ICSP *p, char *s)
 			p->have_start = p->have_end = p->have_recur = p->have_dur = 0;
 			p->rrule[0] = p->trigger[0] = 0;
 			p->alarm_none = 0;
+			p->range_future = 0;
 			sb_reset(&p->exd);
+			sb_reset(&p->rd);
+			sb_reset(&p->exr);
 		} else if (!strcasecmp(value, "VALARM") && p->in_event && !p->in_alarm) {
 			p->in_alarm = 1;
 		} else if (!strcasecmp(value, "VTIMEZONE") && !p->in_event) {
@@ -834,17 +719,24 @@ static void logical_line(ICSP *p, char *s)
 	} else if (!strcmp(name, "DURATION")) {
 		p->have_dur = ics_duration(value, &p->dur);
 	} else if (!strcmp(name, "RECURRENCE-ID")) {
+		char range[20];
 		tval(&p->recur, params, value);
 		p->have_recur = 1;
+		param(params, "RANGE", range, sizeof(range));
+		p->range_future = !strcasecmp(range, "THISANDFUTURE");
 	} else if (!strcmp(name, "RRULE")) {
 		str_copy(p->rrule, value, sizeof(p->rrule));
-	} else if (!strcmp(name, "EXDATE")) {
+	} else if (!strcmp(name, "EXDATE") || !strcmp(name, "RDATE")) {
 		char z[40];
+		SBUF *b = name[0] == 'E' ? &p->exd : &p->rd;
 		param(params, "TZID", z, sizeof(z));
-		sb_adds(&p->exd, z);
-		sb_addc(&p->exd, '\t');
-		sb_adds(&p->exd, value);
-		sb_addc(&p->exd, '\n');
+		sb_adds(b, z);
+		sb_addc(b, '\t');
+		sb_adds(b, value);
+		sb_addc(b, '\n');
+	} else if (!strcmp(name, "EXRULE")) {
+		sb_adds(&p->exr, value);
+		sb_addc(&p->exr, '\n');
 	} else if (!strcmp(name, "STATUS")) {
 		p->ev->status = !strcasecmp(value, "CANCELLED") ? ST_CANCELLED :
 				!strcasecmp(value, "TENTATIVE") ? ST_TENTATIVE : ST_CONFIRMED;
@@ -885,6 +777,8 @@ int ics_end(ICSP *p)
 	n = p->count;
 	sb_free(&p->line);
 	sb_free(&p->exd);
+	sb_free(&p->rd);
+	sb_free(&p->exr);
 	free(p);
 	return n;
 }
@@ -946,281 +840,6 @@ int ics_parse_file(const char *path, ICS_CB cb, void *ud, CTIME from, CTIME to)
 	sb_free(&part);
 	pf_close(h);
 	return ics_end(p);
-}
-
-/* ---------------- expanding ---------------- */
-
-CTIME ev_wall(const EVENT *e, CTIME t, const TZONE *view)
-{
-	if (e->allday || e->floating || !e->tz)
-		return t;
-	return tz_to_local(view, t);
-}
-
-CTIME ev_from_wall(const EVENT *e, CTIME wall, const TZONE *view)
-{
-	if (e->allday || e->floating || !e->tz)
-		return wall;
-	return tz_to_utc(view, wall);
-}
-
-typedef struct {
-	EVENT *e;
-	const TZONE *ez;	/* zone the series repeats in; NULL: wall times */
-	const TZONE *view;
-	CTIME from, to, dur;
-	OCC_CB add;
-	SKIP_CB skip;
-	void *ud;
-} XP;
-
-/* one occurrence at wall time c (in the event's zone); 1 when past the
-   end of the range */
-static int emit(XP *x, CTIME c)
-{
-	EVENT *e = x->e;
-	CTIME rep = x->ez ? tz_to_utc(x->ez, c) : c, vs, ve;
-	int i;
-	if (x->ez) {
-		vs = tz_to_local(x->view, rep);
-		ve = tz_to_local(x->view, rep + x->dur);
-	} else {
-		vs = rep;
-		ve = rep + x->dur;
-	}
-	if (vs >= x->to)
-		return 1;
-	for (i = 0; i < e->nexdate; i++)
-		if (e->exdate[i] == rep || (e->allday && ct_days(e->exdate[i]) == ct_days(rep)))
-			return 0;
-	if (x->skip && x->skip(e, rep, x->ud))
-		return 0;
-	if (ve > x->from || (ve == vs && vs >= x->from))
-		x->add(e, vs, ve, x->ud);
-	return 0;
-}
-
-static int in_byday(const RRULE *r, int wd)
-{
-	int i, ord, w;
-	for (i = 0; i < r->nbyday; i++) {
-		by_wday(r->byday[i], &ord, &w);
-		if (w == wd)
-			return 1;
-	}
-	return 0;
-}
-
-/* the days of month m of year y the rule picks: bit d-1 for day d */
-static unsigned long month_mask(const RRULE *r, int y, int m, int d0day)
-{
-	int dim = days_in_month(y, m), i;
-	unsigned long md = 0, bd = 0;
-	if (r->nbymd) {
-		for (i = 0; i < r->nbymd; i++) {
-			int d = r->bymd[i] > 0 ? r->bymd[i] : dim + r->bymd[i] + 1;
-			if (d >= 1 && d <= dim)
-				md |= 1UL << (d - 1);
-		}
-	}
-	if (r->nbyday) {
-		long first = days_from_civil(y, m, 1);
-		int w1 = wday_of(first);
-		for (i = 0; i < r->nbyday; i++) {
-			int ord, w, d;
-			by_wday(r->byday[i], &ord, &w);
-			d = 1 + (w - w1 + 7) % 7;	/* the first such weekday */
-			if (!ord) {
-				for (; d <= dim; d += 7)
-					bd |= 1UL << (d - 1);
-			} else if (ord > 0) {
-				d += (ord - 1) * 7;
-				if (d <= dim)
-					bd |= 1UL << (d - 1);
-			} else {
-				while (d + 7 <= dim)
-					d += 7;
-				d += (ord + 1) * 7;
-				if (d >= 1)
-					bd |= 1UL << (d - 1);
-			}
-		}
-	}
-	if (r->nbymd && r->nbyday)
-		return md & bd;
-	if (r->nbymd)
-		return md;
-	if (r->nbyday)
-		return bd;
-	return d0day <= dim ? 1UL << (d0day - 1) : 0;
-}
-
-static int add_month_days(long *out, int n, int max, const RRULE *r, int y, int m, int d0day)
-{
-	unsigned long mask = month_mask(r, y, m, d0day);
-	int d;
-	long base;
-	if (!mask)
-		return n;
-	base = days_from_civil(y, m, 1);
-	for (d = 0; d < 31 && n < max; d++)
-		if (mask & (1UL << d))
-			out[n++] = base + d;
-	return n;
-}
-
-/* BYSETPOS on the sorted candidates of one period */
-static int setpos(const RRULE *r, long *c, int n)
-{
-	long keep[4];
-	int k = 0, i, j;
-	if (!r->nbysetpos || !n)
-		return n;
-	for (i = 0; i < r->nbysetpos; i++) {
-		int pos = r->bysetpos[i], at = pos > 0 ? pos - 1 : n + pos;
-		if (at >= 0 && at < n)
-			keep[k++] = c[at];
-	}
-	/* sort the few kept ones, drop doubles */
-	for (i = 1; i < k; i++)
-		for (j = i; j > 0 && keep[j - 1] > keep[j]; j--) {
-			long t = keep[j];
-			keep[j] = keep[j - 1];
-			keep[j - 1] = t;
-		}
-	n = 0;
-	for (i = 0; i < k; i++)
-		if (!n || c[n - 1] != keep[i])
-			c[n++] = keep[i];
-	return n;
-}
-
-#define CMAX 372
-
-void ics_expand(EVENT *e, CTIME from, CTIME to, const TZONE *view,
-		OCC_CB add, SKIP_CB skip, void *ud)
-{
-	XP x;
-	const RRULE *r = e->rr;
-	CTIME w0, tod, until;
-	long d0, p, pstart = 0, seen = 0, ws0, cand[CMAX];
-	int y0, m0, dd0, started = 0, iter;
-	x.e = e;
-	x.ez = (e->allday || e->floating) ? 0 : e->tz;
-	x.view = view;
-	x.from = from;
-	x.to = to;
-	x.dur = e->end - e->start;
-	x.add = add;
-	x.skip = skip;
-	x.ud = ud;
-	if (e->status == ST_CANCELLED && !r)
-		return;
-	w0 = x.ez ? tz_to_local(x.ez, e->start) : e->start;
-	if (!r) {
-		emit(&x, w0);
-		return;
-	}
-	d0 = ct_days(w0);
-	tod = w0 - d0 * MIN_PER_DAY;
-	civil_from_days(d0, &y0, &m0, &dd0);
-	ws0 = d0 - (wday_of(d0) - r->wkst + 7) % 7;
-	until = r->until;
-
-	/* without a COUNT, jump close to the range instead of walking
-	   there from the first occurrence */
-	if (!r->count) {
-		long target = ct_days(from) - 2 - d0, iv = r->interval;
-		if (target > 0) {
-			switch (r->freq) {
-			case F_DAILY: pstart = target / iv; break;
-			case F_WEEKLY: pstart = (target + d0 - ws0) / (7 * iv); break;
-			case F_MONTHLY: pstart = (target / 31) / iv; break;
-			case F_YEARLY: pstart = (target / 366) / iv; break;
-			}
-			if (pstart > 0) {
-				pstart--;
-				started = 1;
-			} else {
-				pstart = 0;
-			}
-		}
-	}
-	for (p = pstart, iter = 0; iter < 6000; p++, iter++) {
-		int n = 0, i;
-		long base;
-		switch (r->freq) {
-		case F_DAILY:
-			base = d0 + p * r->interval;
-			{
-				int y, m, d;
-				civil_from_days(base, &y, &m, &d);
-				if ((!r->bymonth || (r->bymonth & (1 << (m - 1)))) &&
-				    (!r->nbyday || in_byday(r, wday_of(base))) &&
-				    (!r->nbymd || (month_mask(r, y, m, d) & (1UL << (d - 1)))))
-					cand[n++] = base;
-			}
-			break;
-		case F_WEEKLY:
-			base = ws0 + p * 7 * r->interval;
-			for (i = 0; i < 7; i++) {
-				long d = base + i;
-				int y, m, dd;
-				if (r->nbyday ? !in_byday(r, wday_of(d)) : wday_of(d) != wday_of(d0))
-					continue;
-				civil_from_days(d, &y, &m, &dd);
-				if (r->bymonth && !(r->bymonth & (1 << (m - 1))))
-					continue;
-				cand[n++] = d;
-			}
-			break;
-		case F_MONTHLY: {
-			long mi = (long)y0 * 12 + (m0 - 1) + p * r->interval;
-			int y = (int)(mi / 12), m = (int)(mi % 12) + 1;
-			base = days_from_civil(y, m, 1);
-			if (!r->bymonth || (r->bymonth & (1 << (m - 1))))
-				n = add_month_days(cand, 0, CMAX, r, y, m, dd0);
-			break;
-		}
-		case F_YEARLY: {
-			int y = y0 + (int)(p * r->interval), m;
-			base = days_from_civil(y, 1, 1);
-			for (m = 1; m <= 12; m++) {
-				if (r->bymonth ? !(r->bymonth & (1 << (m - 1))) : m != m0)
-					continue;
-				n = add_month_days(cand, n, CMAX, r, y, m, dd0);
-			}
-			break;
-		}
-		default:
-			return;
-		}
-		n = setpos(r, cand, n);
-		for (i = 0; i < n; i++) {
-			CTIME c = cand[i] * MIN_PER_DAY + tod;
-			if (c < w0)
-				continue;
-			if (!started) {
-				started = 1;
-				if (c != w0) {	/* the first start counts even off the rule */
-					seen++;
-					if (emit(&x, w0))
-						return;
-				}
-			}
-			if (until != CT_NONE && c > until)
-				return;
-			if (r->count && ++seen > r->count)
-				return;
-			if (emit(&x, c))
-				return;
-		}
-		/* well past the range (an empty period can't stop us above) */
-		if (base * MIN_PER_DAY > to + 2 * MIN_PER_DAY && base > d0)
-			return;
-		if (until != CT_NONE && base * MIN_PER_DAY > until + 31 * MIN_PER_DAY)
-			return;
-	}
 }
 
 /* ---------------- writing ---------------- */
@@ -1316,7 +935,7 @@ static void out_event(SBUF *o, const EVENT *e)
 	out_time(o, "DTSTART", e, e->start);
 	out_time(o, "DTEND", e, e->end);
 	if (e->recurid != CT_NONE)
-		out_time(o, "RECURRENCE-ID", e, e->recurid);
+		out_time(o, e->range_future ? "RECURRENCE-ID;RANGE=THISANDFUTURE" : "RECURRENCE-ID", e, e->recurid);
 	if (e->rr && e->recurid == CT_NONE) {
 		char rr[200];
 		rrule_format(e->rr, e->floating ? 0 : e->tz, e->allday, rr, sizeof(rr));
@@ -1325,6 +944,24 @@ static void out_event(SBUF *o, const EVENT *e)
 	}
 	for (i = 0; i < e->nexdate && e->recurid == CT_NONE; i++)
 		out_time(o, "EXDATE", e, e->exdate[i]);
+	for (i = 0; i < e->nrdate && e->recurid == CT_NONE; i++) {
+		if (e->rdate_end && e->rdate_end[i] != CT_NONE) {
+			char a[24], b[24];
+			int kind = e->floating || !e->tz ? 2 : 3;	/* zoned times are kept in UTC */
+			ct_format_ics(e->rdate[i], kind, a, sizeof(a));
+			ct_format_ics(e->rdate_end[i], kind, b, sizeof(b));
+			snprintf(line, sizeof(line), "RDATE;VALUE=PERIOD:%s/%s", a, b);
+			out_str(o, line);
+		} else {
+			out_time(o, "RDATE", e, e->rdate[i]);
+		}
+	}
+	for (i = 0; i < e->nexrule && e->recurid == CT_NONE; i++) {
+		char rr[300];
+		rrule_format(&e->exrule[i], e->floating ? 0 : e->tz, e->allday, rr, sizeof(rr));
+		snprintf(line, sizeof(line), "EXRULE:%s", rr);
+		out_str(o, line);
+	}
 	if (e->status == ST_TENTATIVE)
 		out_str(o, "STATUS:TENTATIVE");
 	else if (e->status == ST_CANCELLED)
@@ -1494,7 +1131,8 @@ static void build_line(char *line, void *ud)
 					    !prop_is(s, "SEQUENCE") && !prop_is(s, "SUMMARY") && !prop_is(s, "LOCATION") &&
 					    !prop_is(s, "DESCRIPTION") && !prop_is(s, "URL") && !prop_is(s, "DTSTART") &&
 					    !prop_is(s, "DTEND") && !prop_is(s, "DURATION") && !prop_is(s, "RRULE") &&
-					    !prop_is(s, "EXDATE") && !prop_is(s, "STATUS") && !prop_is(s, "CREATED"))
+					    !prop_is(s, "EXDATE") && !prop_is(s, "STATUS") && !prop_is(s, "CREATED") &&
+					    !prop_is(s, "RDATE") && !prop_is(s, "EXRULE"))
 						sb_adds(&keep, s);
 					if (!strncasecmp(s, "END:VALARM", 10))
 						in_alarm = 0;
@@ -1540,7 +1178,11 @@ char *ics_build(const EVENT *e, const char *orig, long origlen, long *outlen)
 	if (!orig || !origlen) {
 		out_str(&o, "BEGIN:VCALENDAR");
 		out_str(&o, "VERSION:2.0");
-		out_str(&o, "PRODID:-//Atari Calendar//EN");
+		{
+			char prodid[60];
+			snprintf(prodid, sizeof(prodid), "PRODID:-//Atari Calendar %s//EN", cal_version);
+			out_str(&o, prodid);
+		}
 		out_str(&o, "CALSCALE:GREGORIAN");
 		out_tz(&o, e);
 		out_event(&o, e);

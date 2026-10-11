@@ -20,6 +20,8 @@
 static GRECT box;		/* the dialog on screen */
 static short rh;		/* pixels per row */
 static short pad;
+static short depth;		/* dialogs open (one can open another: Custom repeat) */
+void (*dlg_after)(void);	/* called when the last dialog closes (window frame) */
 
 #define FX(f) (box.x + pad + (f)->x * cw)
 #define FY(f) (box.y + pad + (f)->y * rh)
@@ -508,10 +510,17 @@ static short find_flag(DLG *d, short flag)
 	return -1;
 }
 
+void dlg_redraw(DLG *d)
+{
+	draw_all(d);
+}
+
 short dlg_run(DLG *d)
 {
 	short result = -2, i, mx, my, mb, ks, m[8];
 	AEVENT e;
+	GRECT outer = box;		/* the dialog under this one, if any */
+	short outer_rh = rh, outer_pad = pad;
 	pad = cw + 2;
 	rh = ch + 6;
 	box.w = d->w * cw + 2 * pad;
@@ -534,6 +543,7 @@ short dlg_run(DLG *d)
 		d->focus = next_focus(d, -1, 1);
 	if (d->focus >= 0 && !focusable(&d->f[d->focus]))
 		d->focus = -1;
+	depth++;
 	wind_update(BEG_UPDATE);
 	wind_update(3);		/* BEG_MCTRL: the dialog owns the mouse */
 	form_dial(FMD_START, box.x, box.y, box.w + 2, box.h + 2);
@@ -621,6 +631,12 @@ short dlg_run(DLG *d)
 	form_dial(FMD_FINISH, box.x, box.y, box.w + 2, box.h + 2);
 	wind_update(2);
 	wind_update(END_UPDATE);
+	/* back to the dialog underneath: its place, and the caller repaints it */
+	box = outer;
+	rh = outer_rh;
+	pad = outer_pad;
+	if (--depth == 0 && dlg_after)
+		dlg_after();
 	return result;
 }
 

@@ -28,6 +28,7 @@ sets it up as a service. Falcon mode doesn't use it: the Falcon does TLS itself.
 """
 
 import argparse
+import datetime
 import gzip
 import http.client
 import ipaddress
@@ -37,7 +38,6 @@ import socket
 import ssl
 import sys
 import threading
-import time
 import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
@@ -104,8 +104,8 @@ def _keep_event(props, lo, hi):
 
 
 def _shift(day, days):
-    t = time.strptime(str(day), "%Y%m%d")
-    return int(time.strftime("%Y%m%d", time.gmtime(time.mktime(t) + days * 86400)))
+    d = datetime.date(day // 10000, day // 100 % 100, day % 100) + datetime.timedelta(days=days)
+    return d.year * 10000 + d.month * 100 + d.day
 
 
 def trim_ics(text, window):

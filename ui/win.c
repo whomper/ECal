@@ -29,6 +29,16 @@ void win_title(void)
 		wind_set_str(win_h, WF_NAME, title);
 }
 
+/* after a dialog: the AES doesn't always draw the window's frame again
+   where a dialog stood over it */
+void win_frame_refresh(void)
+{
+	if (win_h > 0) {
+		wind_set_str(win_h, WF_NAME, title);
+		wind_set_str(win_h, WF_INFO, info);
+	}
+}
+
 void win_status(const char *s)
 {
 	snprintf(info, sizeof(info), " %s", s);

@@ -199,7 +199,69 @@ out=$("$CLI" "$D" list 20261018 20261019)
 expect "shown at the new time" "20261018 14:00-15:00" "$out"
 absent "not at the old time" "20261018 10:00" "$out"
 
+echo "== changing the same occurrence again: one exception, not two"
+"$CLI" "$D" move-one "ישיבת צוות שבועית" 20261018T1400 20261018T1600 || bad "move the moved one"
+srv=$("${CURL[@]}" "$BASE/alice/home/weekly.ics")
+n=$(grep -c "RECURRENCE-ID" <<<"$srv" || true)
+if [ "$n" = 1 ]; then ok "still one exception on the server"; else bad "$n exceptions on the server"; fi
+expect "it starts at 16:00" "DTSTART;TZID=Asia/Jerusalem:20261018T160000" "$srv"
+out=$("$CLI" "$D" list 20261018 20261019)
+expect "shown at 16:00" "20261018 16:00-17:00" "$out"
+absent "not at 14:00 any more" "20261018 14:00" "$out"
+
+echo "== a server's change to this and all future occurrences"
+put home/future.ics <<ICS >/dev/null
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:test
+BEGIN:VEVENT
+UID:future@test
+DTSTAMP:20261001T000000Z
+DTSTART;TZID=Asia/Jerusalem:20261005T080000
+DTEND;TZID=Asia/Jerusalem:20261005T083000
+RRULE:FREQ=WEEKLY;COUNT=6
+SUMMARY:Gym
+END:VEVENT
+BEGIN:VEVENT
+UID:future@test
+DTSTAMP:20261001T000000Z
+RECURRENCE-ID;RANGE=THISANDFUTURE;TZID=Asia/Jerusalem:20261019T080000
+DTSTART;TZID=Asia/Jerusalem:20261019T070000
+DTEND;TZID=Asia/Jerusalem:20261019T074500
+SUMMARY:Gym (earlier)
+END:VEVENT
+END:VCALENDAR
+ICS
+put work/lastday.ics <<ICS >/dev/null
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:test
+BEGIN:VEVENT
+UID:lastday@test
+DTSTAMP:20261001T000000Z
+DTSTART;TZID=Asia/Jerusalem:20261030T170000
+DTEND;TZID=Asia/Jerusalem:20261030T180000
+RRULE:FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1;COUNT=3
+SUMMARY:Month-end report
+END:VEVENT
+END:VCALENDAR
+ICS
+"$CLI" "$D" sync >/dev/null
+out=$("$CLI" "$D" list 20261005 20261110)
+expect "before the change: 8:00" "20261012 08:00-08:30 [בית] Gym" "$out"
+expect "from the change on: 7:00, longer, new title" "20261019 07:00-07:45 [בית] Gym (earlier)" "$out"
+expect "...and the weeks after it too" "20261102 07:00-07:45 [בית] Gym (earlier)" "$out"
+absent "no old 8:00 after the change" "20261026 08:00" "$out"
+out=$("$CLI" "$D" list 20261001 20270101)
+expect "last weekday of October" "20261030 17:00-18:00 [Work] Month-end report" "$out"
+expect "last weekday of November (the 30th, a Monday)" "20261130 17:00-18:00 [Work] Month-end report" "$out"
+expect "last weekday of December" "20261231 17:00-18:00 [Work] Month-end report" "$out"
+
 echo "== deleting one occurrence, then the rest of the series"
+"$CLI" "$D" delete "ישיבת צוות שבועית" this 20261018T1600 || bad "delete the moved one"
+srv=$("${CURL[@]}" "$BASE/alice/home/weekly.ics")
+expect "the moved one becomes an EXDATE" "EXDATE;TZID=Asia/Jerusalem:20261018T100000" "$srv"
+absent "and its exception goes" "RECURRENCE-ID" "$srv"
 "$CLI" "$D" delete "ישיבת צוות שבועית" this 20261011T1000 || bad "delete this"
 srv=$("${CURL[@]}" "$BASE/alice/home/weekly.ics")
 expect "an EXDATE on the server" "EXDATE;TZID=Asia/Jerusalem:20261011T100000" "$srv"
@@ -207,9 +269,10 @@ out=$("$CLI" "$D" list 20261001 20261101)
 absent "11 October gone" "20261011 10:00" "$out"
 expect "4 October still there" "20261004 10:00" "$out"
 "$CLI" "$D" delete "ישיבת צוות שבועית" future 20261101T1000 || bad "delete future"
-out=$("$CLI" "$D" list 20261025 20261201)
+out=$("$CLI" "$D" list 20261025 20261026)
 expect "25 October still there" "20261025 10:00" "$out"
-absent "November gone" "202611" "$out"
+out=$("$CLI" "$D" list 20261101 20261201)
+absent "November gone" "ישיבת צוות" "$out"
 
 echo "== a change made elsewhere comes in"
 put work/review.ics <<ICS >/dev/null

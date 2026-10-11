@@ -695,7 +695,7 @@ void dlg_keys(void)
 void dlg_about(void)
 {
 	FIELD f[12];
-	char l2[80], l3[80], l4[80], l5[80], l6[40];
+	char l0[80], l2[80], l3[80], l4[80], l5[80], l6[60];
 	short i = 0;
 	long free_mem = (long)Malloc(-1L);
 	int nev = 0, c;
@@ -710,13 +710,14 @@ void dlg_about(void)
 	snprintf(l3, sizeof(l3), "Network: %s.  %s", net_stack(), is_acc ? "Running as a desk accessory." : "Running as a program.");
 	snprintf(l4, sizeof(l4), "%d events in %d calendars, %d accounts", nev, ncals, naccts);
 	snprintf(l5, sizeof(l5), "Times in %s, %s", tz_city(view_zone()), opt.tzsupport ? "time zone support on" : "the Atari's zone");
-	put(&f[i++], FT_HEAD, 0, 0, 1, 0, "Calendar " CAL_VERSION " for the Atari ST, STE, TT and Falcon");
+	snprintf(l0, sizeof(l0), "Calendar %s for the Atari ST, STE, TT and Falcon", cal_version);
+	put(&f[i++], FT_HEAD, 0, 0, 1, 0, l0);
 	put(&f[i++], FT_LABEL, FF_LTR, 0, 2, 0, "iCloud and CalDAV calendars, subscriptions, Hebrew");
 	put(&f[i++], FT_LABEL, FF_LTR, 0, 4, 0, l2);
 	put(&f[i++], FT_LABEL, FF_LTR, 0, 5, 0, l3);
 	put(&f[i++], FT_LABEL, FF_LTR, 0, 6, 0, l4);
 	put(&f[i++], FT_LABEL, FF_LTR, 0, 7, 0, l5);
-	snprintf(l6, sizeof(l6), "%ld KB free", free_mem / 1024);
+	snprintf(l6, sizeof(l6), "%ld KB free. Build %d, %s", free_mem / 1024, cal_build, cal_built);
 	put(&f[i++], FT_LABEL, FF_LTR, 0, 8, 0, l6);
 	put(&f[i++], FT_LABEL, FF_LTR, 0, 10, 0, "Runtime, TLS (BearSSL) and Hebrew text from EMail;");
 	put(&f[i++], FT_LABEL, FF_LTR, 0, 11, 0, "github.com/whomper/CALENDAR");

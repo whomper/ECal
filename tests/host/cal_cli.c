@@ -101,7 +101,7 @@ static EVENT *find(const char *title_utf8, CTIME occ_view, CTIME *occ_rep)
 			continue;
 		found = e;
 		if (occ_rep)
-			*occ_rep = ev_from_wall(e, l.o[i].start, view_zone());
+			*occ_rep = l.o[i].orig;
 		break;
 	}
 	occ_free(&l);

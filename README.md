@@ -21,9 +21,17 @@ time zones, and Hebrew.
   "+3 more" when a day is full
 - **Today**: today's date in red everywhere, a red line at the current time,
   a Today button, and the view moves on at midnight
-- **Repeating events**: daily, weekly, monthly ("the last Friday"),
-  yearly, every weekday (Sunday to Thursday in Israel), with an end date or
-  a count; changing one occurrence or all future ones asks, as on the Mac
+- **Repeating events**: every kind of repeat iCalendar has (RFC 5545:
+  yearly to every second, any BYDAY/BYMONTHDAY/BYYEARDAY/BYWEEKNO/BYMONTH/
+  BYHOUR/BYMINUTE/BYSECOND, BYSETPOS, WKST, extra dates (RDATE), excluded
+  dates and rules (EXDATE, EXRULE)), plus Hebrew-calendar repeats
+  (RFC 7529 `RSCALE=HEBREW`, "every year on 12 Tishri"). The Repeat menu
+  has the usual ones; **Custom...** builds any rule ("the last Friday of
+  every month", "the second Monday of March and September"), or type it
+- **One occurrence or the series**: move, change or delete just one
+  occurrence of a repeating event, or this and all future ones, as on the
+  Mac; changes made on an iPhone to one occurrence or to "this and future"
+  show as they should
 - **Reminders** that pop up over any program, even with the window closed
 - **Time zones**: events keep their zone; with time zone support on, see
   your calendar as it looks from another city. Summer time rules for Israel
@@ -34,7 +42,8 @@ time zones, and Hebrew.
   names; Hebrew dates (י״ב תשרי תשפ״ז) next to the civil ones
 - Keeps a copy of everything on disk: opens at once and works offline
 - Runs on TOS 1.04 to 4.x, EmuTOS, MagiC and MiNT, with STinG or MiNTnet,
-  in ST high, ST medium, TT and Falcon resolutions
+  in ST high, ST medium, TT and Falcon resolutions; with NVDI the views
+  draw several times faster than with TOS's own VDI
 
 ## How it reaches the servers
 
@@ -91,12 +100,19 @@ writes the TOS executable. One binary is both the accessory and the
 program: the start-up code (`atari/crt0.S`) sees which way TOS started it.
 Everything is 68000 code except BearSSL, which is built for the 68030.
 
+**Version numbers.** Every build gets the next number: `make` adds one to
+the number in `BUILD` whenever anything is recompiled and puts
+`1.1.N` (with the date) into the program (`tools/bump.py`). The About box
+shows it, and it's in the User-Agent Calendar sends. Commit `BUILD` with
+the changes.
+
 ## Source
 
 ```
 src/      the calendar core, also built on Linux for the tests:
           ctime.c  dates and the Hebrew calendar      tz.c      time zones
-          ics.c    iCalendar, repeating events        xml.c     WebDAV answers
+          ics.c    iCalendar                          rrule.c   repeat rules
+          xml.c    WebDAV answers
           http.c   HTTP/1.1, via the Pi or with TLS   caldav.c  CalDAV
           calstore.c  accounts, caches, sync, saving changes
           (charset, bidi, conn, tls, secret: from EMail)
@@ -112,7 +128,8 @@ tests/    unit tests, CalDAV integration tests, Hatari tests
 
 ```
 make test                    # the core: dates, Hebrew dates, zones, iCalendar, repeats,
-                             # XML, URLs (168 checks); and the gateway (8 tests)
+                             # repeat rules with all of RFC 5545's examples, XML, URLs
+                             # (218 checks); and the gateway (8 tests)
 make itest                   # cal-cli against a real CalDAV server (Radicale): sync,
 GATEWAY=1 make itest         # add, rename, move one occurrence, delete one or the
 FALCON=1 make itest          # rest, changes from elsewhere, subscriptions, import;
@@ -127,7 +144,8 @@ FALCON=1 make itest          # rest, changes from elsewhere, subscriptions, impo
 ```
 tests/hatari/acc_test.py WORK etos512us.img                # as a desk accessory, Falcon
 tests/hatari/edit_test.py WORK etos512us.img --machine st --acc CALST.ACC
-                                                           # add, Hebrew title, find, delete
+                                                           # add, Hebrew title, find, delete,
+                                                           # one occurrence, custom repeats
 tests/hatari/net_test.py WORK etos512us.img                # an ST syncing through calgate
 tests/hatari/net_test.py WORK etos512us.img --falcon-mode  # TLS on the Falcon, RSA on the DSP
 tests/hatari/ui_tour.py WORK etos512us.img                 # screenshots of every view

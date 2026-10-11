@@ -12,6 +12,7 @@
 #include "charset.h"
 #include "plat.h"
 #include "bearssl.h"
+#include "version.h"
 
 HTTPCFG http_cfg = { 0, "", 8180 };
 
@@ -347,7 +348,7 @@ static int exchange(const HTTPREQ *rq, const URL *u, const char *auth, HTTPRESP 
 		sb_printf(&req, "%s %s://%s%s HTTP/1.1\r\n", rq->method, u->tls ? "https" : "http", hostport, u->path);
 	else
 		sb_printf(&req, "%s %s HTTP/1.1\r\n", rq->method, u->path);
-	sb_printf(&req, "Host: %s\r\nUser-Agent: AtariCalendar/1.0\r\nAccept-Encoding: identity\r\n", hostport);
+	sb_printf(&req, "Host: %s\r\nUser-Agent: AtariCalendar/%s\r\nAccept-Encoding: identity\r\n", hostport, cal_version);
 	conn_log("HTTP", " >> ", req.s, req.len - 2);
 	if (auth && *auth)
 		sb_printf(&req, "Authorization: %s\r\n", auth);

@@ -569,7 +569,7 @@ static void mark_exceptions(CALENDAR *c)
 			for (j = 0; j < c->nev; j++)
 				if (c->ev[j]->rr && c->ev[j]->recurid == CT_NONE && c->ev[j]->uid &&
 				    c->ev[i]->uid && !strcmp(c->ev[j]->uid, c->ev[i]->uid))
-					c->ev[j]->hasexc = 1;
+					c->ev[j]->hasexc |= c->ev[i]->range_future ? 3 : 1;
 }
 
 void cal_load(CALENDAR *c)
@@ -1014,9 +1014,26 @@ int sync_all(int force)
 
 /* ---------------- occurrences ---------------- */
 
+/* an exception with RANGE=THISANDFUTURE that covers the occurrence of
+   series m starting at orig: the latest one at or before it */
+static EVENT *future_exception(EVENT *m, CTIME orig)
+{
+	CALENDAR *c = &cals[m->cal];
+	EVENT *best = 0;
+	int i;
+	for (i = 0; i < c->nev; i++) {
+		EVENT *x = c->ev[i];
+		if (x->range_future && x->recurid != CT_NONE && x->recurid <= orig && x->uid && m->uid &&
+		    !strcmp(x->uid, m->uid) && (!best || x->recurid > best->recurid))
+			best = x;
+	}
+	return best;
+}
+
 static void occ_add(EVENT *e, CTIME s, CTIME en, void *ud)
 {
 	OCCLIST *l = ud;
+	CTIME orig = e->recurid != CT_NONE ? e->recurid : ev_from_wall(e, s, view_zone());
 	if (l->n >= l->max) {
 		OCC *n;
 		int max = l->max ? l->max * 2 : 64;
@@ -1026,9 +1043,21 @@ static void occ_add(EVENT *e, CTIME s, CTIME en, void *ud)
 		l->o = n;
 		l->max = max;
 	}
+	if ((e->hasexc & 2) && e->recurid == CT_NONE) {
+		/* a change to "this and all future" occurrences: they move
+		   and look like that exception */
+		EVENT *x = future_exception(e, orig);
+		if (x) {
+			CTIME shift = x->start - x->recurid;
+			s += shift;
+			en = s + (x->end - x->start);
+			e = x;
+		}
+	}
 	l->o[l->n].ev = e;
 	l->o[l->n].start = s;
 	l->o[l->n].end = en;
+	l->o[l->n].orig = orig;
 	l->n++;
 }
 

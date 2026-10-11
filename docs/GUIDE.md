@@ -127,16 +127,36 @@ date in day and week views.
 - **Zone** (with time zone support on): the event's time zone; "Floating"
   for events that happen at the same clock time anywhere.
 - **Repeat**: every day, weekday (Sunday to Thursday when the week starts
-  on Sunday, Monday to Friday otherwise), week, two weeks, month, year;
-  events from other programs with other rules ("the last Friday of every
-  month") keep them. **End repeat**: never, on a date, or after a number of
-  times.
+  on Sunday, Monday to Friday otherwise), week, two weeks, month, year,
+  **every year on the Hebrew date** (birthdays, yahrzeits: 12 Tishri every
+  year, whatever the civil date), or **Custom...**. The line
+  under it says in words what the repeat is ("Every month on the last
+  Friday"). **End repeat**: never, on a date, or after a number of times.
+- **Custom...**: how often (every *n* days, weeks, months, years, hours,
+  minutes), which weekdays, "on the [first/second/third/fourth/last]
+  [day/weekday/weekend day/Sunday...]" of the month or year, days of the
+  month (`1,15,-1` for the 1st, the 15th and the last), months, hours and
+  minutes. At the bottom is the rule itself in iCalendar's words
+  (`FREQ=MONTHLY;BYDAY=-1FR`), which you can also type into: anything
+  RFC 5545 allows works there (`FREQ=YEARLY;BYMONTH=3;BYDAY=TH`,
+  `FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1`,
+  `FREQ=YEARLY;BYWEEKNO=20;BYDAY=MO`...).
 - **Alert**: when to remind you. All-day events have "on the day (9:00)"
   and "1 day before (9:00)".
 
-Changing or deleting one occurrence of a repeating event asks whether it's
-**only this one** or **this and all future ones**, as on the Mac. Changing
-the repeat rule itself applies from the chosen occurrence on.
+Changing or deleting an occurrence of a repeating event asks whether it's
+**only this one** or **this and all future ones**, as on the Mac:
+
+- **Only this one**: that occurrence becomes an exception with its own
+  time, title, place or notes; the rest of the series stays. Moved again
+  later, it stays one exception. Deleted, it's left out of the series.
+- **All future ones**: the series ends before this occurrence and a new
+  one starts here with the changes. On the first occurrence, that's the
+  whole series.
+- Changing the repeat itself applies from the chosen occurrence on.
+
+Events from iPhones, Macs, Outlook and Google with extra dates, excluded
+dates or rules, or "this and future" changes show as they should.
 
 Calendar keeps what it doesn't edit: invitations' attendees, other
 programs' settings, attachments, exceptions made on an iPhone all stay as
@@ -187,6 +207,11 @@ instance).
 | ^W, ^Q              | close the window                        |
 | F10                 | Hebrew keyboard                         |
 | Help                | the keys                                |
+
+## Which version
+
+The ≡ menu > **About Calendar** shows the version, e.g. `1.1.6`, and when it was
+built. The last number goes up with every build.
 
 ## When something goes wrong
 

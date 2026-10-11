@@ -257,7 +257,7 @@ void cmd_delete_selected(void)
 		return;
 	}
 	m = ev_master(e);
-	occ = ev_from_wall(e, sel_occ.start, view_zone());
+	occ = sel_occ.orig;	/* the start the series gave it, even if it was moved */
 	if (m && m->rr) {
 		short b = alert(1, "[2][Delete only this occurrence of|\"%s\",|or this and all future ones?][Only this|All future|Cancel]",
 				e->summary ? e->summary : "");
@@ -499,6 +499,7 @@ int main(void)
 	vst_alignment(vdi_h, 0, 5);
 	wind_get(0, WF_WORKXYWH, &desk_x, &desk_y, &desk_w, &desk_h);
 	find_workdir();
+	dlg_after = win_frame_refresh;
 	if (is_acc)
 		acc_heap();
 	else

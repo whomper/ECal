@@ -118,8 +118,10 @@ int  sync_calendar(CALENDAR *c, int force);
 
 /* ---- occurrences in a range (view wall time) ---- */
 typedef struct {
-	EVENT *ev;
+	EVENT *ev;		/* the event, or the exception standing in for this occurrence */
 	CTIME start, end;	/* wall time in the view zone */
+	CTIME orig;		/* the start the series gave it (the event's representation):
+				   what "only this one" changes and deletes are about */
 } OCC;
 
 typedef struct {

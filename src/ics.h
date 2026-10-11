@@ -13,23 +13,39 @@
 #include "tz.h"
 #include "util.h"
 
-enum { F_NONE, F_DAILY, F_WEEKLY, F_MONTHLY, F_YEARLY };
+/* the frequencies; the first four keep their old numbers (CALENDAR.INF
+   and the editor use them) */
+enum { F_NONE, F_DAILY, F_WEEKLY, F_MONTHLY, F_YEARLY, F_HOURLY, F_MINUTELY, F_SECONDLY };
+enum { RS_GREGORIAN, RS_HEBREW };		/* RSCALE (RFC 7529) */
+enum { SKIP_OMIT, SKIP_BACKWARD, SKIP_FORWARD };
 
-#define RR_MAXBY 16
+#define RR_MAXBY 32
 
+/* a recurrence rule (RFC 5545 RRULE, with RFC 7529's RSCALE and SKIP).
+   Lists hold what the rule names; masks are bit n for value n */
 typedef struct {
 	unsigned char freq;
-	unsigned char wkst;		/* 0 Sunday, 1 Monday */
+	unsigned char wkst;		/* 0 Sunday, 1 Monday ... */
 	short interval;
 	long count;			/* 0: no limit */
 	CTIME until;			/* CT_NONE, or the last start, in the event's wall time */
 	unsigned char until_kind;	/* as read: 1 date, 2 wall clock, 3 UTC (rrule_parse) */
-	unsigned char nbyday, nbymd, nbysetpos;
+	unsigned char rscale, skip;
+	unsigned char nbyday, nbymd, nbysetpos, nbyyd, nbywn;
 	short byday[RR_MAXBY];		/* ordinal * 8 + weekday; ordinal 0 = every */
 	signed char bymd[RR_MAXBY];	/* days of the month, negative from the end */
-	signed char bysetpos[4];
+	short byyd[RR_MAXBY];		/* days of the year, -366..366 */
+	signed char bywn[RR_MAXBY];	/* weeks of the year, -53..53 */
+	short bysetpos[RR_MAXBY];	/* positions in each period's set */
 	unsigned short bymonth;		/* bit m-1 for month m; 0 = any */
+	unsigned short bymonth_leap;	/* RSCALE: bit m-1 for "mL", the leap month */
+	unsigned long byhour;		/* bit h; 0 = any */
+	unsigned long byminute[2];	/* bits 0-59 */
+	unsigned long bysecond[2];	/* bits 0-60 */
 } RRULE;
+
+/* ordinal and weekday of a BYDAY entry */
+void rr_byday(short v, int *ord, int *wd);
 
 enum { ST_CONFIRMED, ST_TENTATIVE, ST_CANCELLED };
 
@@ -44,10 +60,16 @@ typedef struct {
 	RRULE *rr;		/* NULL: happens once */
 	CTIME *exdate;		/* starts left out of the series (same kind as start) */
 	short nexdate;
+	CTIME *rdate;		/* starts added to it (RDATE), same kind as start */
+	CTIME *rdate_end;	/* their ends when given as periods, else CT_NONE */
+	short nrdate;
+	RRULE *exrule;		/* rules of starts left out (EXRULE, from RFC 2445) */
+	short nexrule;
+	unsigned char range_future;	/* an exception for this and all later occurrences */
 	short alarm;		/* minutes before the start (negative: after it, for
 				   all-day events), -1: none */
 	unsigned char allday, floating, status;
-	unsigned char hasexc;	/* a series with exceptions (set by calstore.c) */
+	unsigned char hasexc;	/* a series with exceptions: 1, 2 = some for all later ones too (calstore.c) */
 	short seq;
 	short cal;		/* the calendar it belongs to (calstore.c) */
 	short res;		/* its resource in that calendar */

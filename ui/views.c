@@ -1121,7 +1121,7 @@ static void open_selected(void)
 	EVENT *e = sel_occ.ev;
 	if (!e)
 		return;
-	if (editor_open(e, sel_occ.start, 0, 0, 0))
+	if (editor_open(e, sel_occ.start, sel_occ.orig))
 		after_change();
 }
 

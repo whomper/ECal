@@ -34,13 +34,14 @@ BSSLCF  := -m68030 -O2 -fomit-frame-pointer -ffreestanding -fno-builtin -fno-pic
 BSSLOBJ  = $(patsubst $(BSSL)/src/%.c,$(OBJDIR)/bssl/%.o,$(BSSLSRC))
 HBSSLOBJ = $(patsubst $(BSSL)/src/%.c,$(OBJDIR)/hbssl/%.o,$(BSSLSRC))
 
-CORE    := util charset conn tls bidi secret futil ctime tz ics xml http caldav calstore
+CORE    := util charset conn tls bidi secret futil ctime tz ics rrule xml http caldav calstore
 ATARI   := libc tos plat_tos net_tos sting gem dsprsa
 UI      := main win draw popup dsp views sidebar editor dialogs field
 
 OBJDIR  := build
-OBJS    := $(OBJDIR)/crt0.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o \
+OBJS0   := $(OBJDIR)/crt0.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o \
            $(addprefix $(OBJDIR)/,$(addsuffix .o,$(CORE) $(ATARI) $(UI)))
+OBJS    := $(OBJS0) $(OBJDIR)/version.o
 HDRS    := $(wildcard src/*.h atari/*.h atari/include/*.h ui/*.h dsp/*.h)
 
 all: CALENDAR.ACC CALENDAR.PRG CALST.ACC ROOTS.DAT
@@ -50,7 +51,7 @@ all: CALENDAR.ACC CALENDAR.PRG CALST.ACC ROOTS.DAT
 STBSSL  := hash/md5 codec/dec32le codec/enc32le
 STOBJS  := $(OBJDIR)/crt0.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o \
            $(addprefix $(OBJDIR)/,$(addsuffix .o,$(filter-out tls,$(CORE)) $(ATARI) $(UI) tls_none)) \
-           $(addprefix $(OBJDIR)/st/,$(addsuffix .o,$(notdir $(STBSSL))))
+           $(addprefix $(OBJDIR)/st/,$(addsuffix .o,$(notdir $(STBSSL)))) $(OBJDIR)/version.o
 
 CALST.ACC: $(OBJDIR)/calst.elf tools/elf2tos.py
 	PRGFLAGS=7 python3 tools/elf2tos.py $< $@
@@ -99,11 +100,18 @@ $(OBJDIR)/nf.o: atari/nf.S | $(OBJDIR)
 $(OBJDIR):
 	mkdir -p $@
 
+# every build gets the next build number: version.c is written again
+# whenever anything in either edition was compiled again
+$(OBJDIR)/version.c: $(OBJS0) $(filter-out $(OBJDIR)/version.o,$(STOBJS)) src/version.h tools/bump.py
+	python3 tools/bump.py BUILD src/version.h $@
+$(OBJDIR)/version.o: $(OBJDIR)/version.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
 # ---- host build: the same calendar core, for tests and cal-cli ----
 HOSTCC     ?= cc
 HOSTCFLAGS := -O1 -g -Wall -Wextra -Wno-unused-parameter -Wno-sign-compare \
               -Wno-format-truncation -Isrc -fsanitize=address,undefined
-HOSTSRC    := $(addprefix src/,$(addsuffix .c,$(CORE))) tests/host/plat_posix.c
+HOSTSRC    := $(addprefix src/,$(addsuffix .c,$(CORE))) tests/host/plat_posix.c tests/host/version_host.c
 HOSTLIB    := $(OBJDIR)/libbearssl-host.a
 
 $(OBJDIR)/hbssl/%.o: $(BSSL)/src/%.c

@@ -64,6 +64,7 @@ void win_close(void);
 void win_redraw(GRECT *area);	/* NULL: everything */
 void win_message(short *msg);
 void win_status(const char *s);	/* the info line */
+void win_frame_refresh(void);	/* title and info line again */
 int  win_mouse(short mx, short my, short button, short clicks, short kstate);
 int  win_key(short kstate, short key);
 void win_layout(void);		/* after a size or font change */
@@ -125,13 +126,15 @@ struct DLG {
 };
 short dlg_run(DLG *d);		/* the button pressed (field index), -1 Esc */
 void  dlg_redraw_field(DLG *d, short i);
+void  dlg_redraw(DLG *d);		/* all of it (after a dialog opened from it) */
+extern void (*dlg_after)(void);	/* when the last dialog closes */
 short alert(short def, const char *fmt, ...);
 /* a list to pick from (a calendar, a zone): index or -1 */
 short dlg_pick(const char *title, const char *const *items, short n, short sel);
 int   dlg_ask(const char *title, const char *label, char *buf, short len);
 
 /* ---- the dialogs (dialogs.c, editor.c) ---- */
-int  editor_open(EVENT *e, CTIME occ_start, long day, short hour, short minutes);	/* 1 if changed */
+int  editor_open(EVENT *e, CTIME occ_start, CTIME orig);	/* 1 if changed; orig: OCC.orig */
 void editor_new(long day, short hour_min, short allday);
 void dlg_add_account(void);
 int  dlg_account(int a);	/* 1 changed, -1 deleted */
