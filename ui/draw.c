@@ -82,6 +82,26 @@ int rect_and(GRECT *a, const GRECT *b)
 	return a->w > 0 && a->h > 0;
 }
 
+/* Bitmaps the VDI copies to the screen must be in ST RAM: a blitter
+   can't reach TT/Fast RAM, where the program itself is loaded when there
+   is some. One small block, taken at start-up (an accessory can't take
+   memory later); ST RAM is all there is when Mxalloc is missing. */
+static unsigned short st_fallback[512];
+static unsigned short *st_buf;
+
+void st_ram_init(void)
+{
+	void *p = Mxalloc(sizeof(st_fallback), 0);
+	st_buf = (long)p > 0 ? p : st_fallback;
+}
+
+void *st_ram(long n)
+{
+	if (!st_buf)
+		st_ram_init();
+	return n <= (long)sizeof(st_fallback) ? st_buf : 0;
+}
+
 void fill_pat(GRECT *r, short color, short interior, short style)
 {
 	short pxy[4];

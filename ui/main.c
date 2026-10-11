@@ -20,6 +20,7 @@
 #include "../src/plat.h"
 #include "../src/util.h"
 #include "../src/bidi.h"
+#include "../src/version.h"
 
 short vdi_h, cw, ch, scr_w, scr_h, desk_x, desk_y, desk_w, desk_h, planes;
 short gl_wchar, gl_hchar, ap_id, is_acc, ncolors, hebrew_kbd, quit_now;
@@ -441,9 +442,18 @@ static void acc_heap(void)
 {
 	static char buf[2048];
 	char inf[200];
-	long avail = (long)Malloc(-1L), want, h, n;
+	long avail = (long)Malloc(-1L), alt = (long)Mxalloc(-1L, 1), want, h, n;
 	void *p;
 	want = tls_available && get_cookie(0x5F435055L) >= 30 ? 1536L * 1024 : 256L * 1024;
+	/* TT/Fast RAM (a TT, an accelerated Falcon): the heap goes there, and
+	   there is room for more */
+	if (alt == -32 || alt < 0)
+		alt = 0;
+	if (alt >= 256L * 1024) {
+		avail = alt;
+		if (want < 4096L * 1024)
+			want = 4096L * 1024;
+	}
 	snprintf(inf, sizeof(inf), "%s\\ECAL.INF", workdir);
 	h = Fopen(inf, 0);
 	if (h >= 0) {
@@ -463,7 +473,14 @@ static void acc_heap(void)
 		want = avail - 32L * 1024;
 	if (want < 32L * 1024)
 		return;
-	p = Mxalloc(want, 3);
+	p = Mxalloc(want, alt ? 1 : 3);
+	if (alt && (long)p <= 0) {
+		/* no luck in TT RAM after all: ST RAM, at its own size */
+		long st = (long)Malloc(-1L) / 2;
+		if (want > st)
+			want = st;
+		p = 0;
+	}
 	if ((long)p == -32 || (long)p <= 0)
 		p = Malloc(want);
 	if ((long)p > 0)
@@ -496,6 +513,18 @@ static void load_settings(void)
 		store_save_settings();
 	hebrew_kbd = opt.hebrew;
 	font_apply();
+	{
+		/* where TOS put us: TT/Fast RAM starts at 16 MB */
+		char m[100];
+		void *h = malloc(16);
+		snprintf(m, sizeof(m), "ECal %s: program at %08lx (%s RAM), memory at %08lx (%s RAM)",
+			 cal_version, (unsigned long)load_settings,
+			 (unsigned long)load_settings >= 0x01000000UL ? "TT" : "ST",
+			 (unsigned long)h, (unsigned long)h >= 0x01000000UL ? "TT" : "ST");
+		free(h);
+		conn_log("ECal", "--", m, (long)strlen(m));
+		conn_log_flush();
+	}
 	settings_ready = 1;
 }
 
@@ -656,6 +685,7 @@ int main(void)
 	vst_alignment(vdi_h, 0, 5);
 	wind_get(0, WF_WORKXYWH, &desk_x, &desk_y, &desk_w, &desk_h);
 	find_workdir();
+	st_ram_init();
 	dlg_after = win_frame_refresh;
 	if (is_acc)
 		acc_heap();

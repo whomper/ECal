@@ -45,6 +45,8 @@ short line_rtl(const char *s, long n);
 void heb_font_map(char *s, long n, short where);
 int  rect_hit(const GRECT *r, short x, short y);
 int  rect_and(GRECT *a, const GRECT *b);	/* a = a & b; 0 if empty */
+void st_ram_init(void);		/* at start-up */
+void *st_ram(long n);		/* 1 KB of ST RAM for a bitmap to blit (one at a time) */
 
 /* colours of a calendar on this screen: a pen and a fill pattern */
 typedef struct {

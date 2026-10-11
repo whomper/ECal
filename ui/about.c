@@ -5,6 +5,7 @@
  */
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "ui.h"
 #include "icon.h"
 #include "icon16.h"
@@ -64,7 +65,8 @@ static void draw_icon(short x, short y, short sx, short sy)
 		}
 	memset(&src, 0, sizeof(src));
 	memset(&dst, 0, sizeof(dst));
-	src.fd_addr = icon_big;
+	src.fd_addr = st_ram(sizeof(icon_big));
+	memcpy(src.fd_addr, icon_big, sizeof(icon_big));
 	src.fd_w = w;
 	src.fd_h = h;
 	src.fd_wdwidth = wpl;
@@ -138,7 +140,7 @@ static void wait_up(void)
 
 void dlg_about(void)
 {
-	char conn[80], v[40];
+	char conn[100], v[40];
 	short sx = 2, sy = gl_hchar >= 16 ? 2 : 1;
 	short ih = ICON_H * sy, lh = ch + (ch >= 16 ? 2 : 1);
 	short m[8], y, done = 0, i;
@@ -152,6 +154,15 @@ void dlg_about(void)
 		 opt.falcon ? (strcmp(falcon_dsp_state(), "DSP") ? "TLS on the 68030" : "TLS with the DSP")
 			    : opt.gate[0] ? "through the gateway" : "no gateway set",
 		 opt.offline ? "offline" : "ready");
+	{
+		/* TT/Fast RAM starts at 16 MB: where TOS loaded the program and
+		   where its memory came from */
+		void *m = malloc(16);
+		int code = (unsigned long)dlg_about >= 0x01000000UL, heap = (unsigned long)m >= 0x01000000UL;
+		free(m);
+		if (code || heap)
+			strcat(conn, code && heap ? "  \xF9  TT RAM" : "  \xF9  TT RAM in part");
+	}
 
 	dw = 50 * cw;
 	if (dw > desk_w - 2 * cw)

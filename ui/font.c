@@ -7,9 +7,9 @@
  * it, what kind of font it is, and a sample. The system font comes in
  * two sizes; with a GDOS (NVDI, SpeedoGDOS, FontGDOS...) its fonts are
  * listed too. ECal lays text out in character cells, so it needs a
- * monospaced font: a proportional one is shown light and can't be
- * chosen. Fonts are only looked at when picked, so the selector opens
- * at once even with hundreds of fonts installed.
+ * monospaced font: only those are listed. Whether a font is monospaced
+ * is looked at once, the first time the selector opens; their sizes
+ * when a font is picked.
  *
  * The dialog also says where the font keeps its Hebrew letters: the
  * Atari character set (TOS, EmuTOS) or the ISO-8859-8 or DOS places,
@@ -95,7 +95,18 @@ void font_sys_pop(void)
 
 /* ---------------- the fonts ---------------- */
 
-/* names only: quick, whatever the number of fonts */
+/* a font whose i, W and m are as wide as each other */
+static int is_mono(short id)
+{
+	short w, h;
+	if (vst_font(vdi_h, id) != id)
+		return 0;
+	vst_point(vdi_h, 10, &w, &h);
+	return vqt_width(vdi_h, 'i') == vqt_width(vdi_h, 'W') &&
+	       vqt_width(vdi_h, 'i') == vqt_width(vdi_h, 'm');
+}
+
+/* the monospaced fonts: the only ones ECal can use */
 static void list_families(void)
 {
 	short i, k;
@@ -106,11 +117,9 @@ static void list_families(void)
 	fam[0].mono = 1;
 	strcpy(fam[0].name, "System font");
 	nfam = 1;
-	if (gdos_fonts < 0) {
-		busy(1);
+	busy(1);
+	if (gdos_fonts < 0)
 		gdos_fonts = vq_gdos() ? vst_load_fonts(vdi_h, 0) : 0;
-		busy(0);
-	}
 	for (i = 2; i <= gdos_fonts + 1 && nfam < MAXFAM; i++) {
 		FAM *f = &fam[nfam];
 		short n;
@@ -125,9 +134,13 @@ static void list_families(void)
 		for (n = 31; n >= 0 && (f->name[n] == ' ' || !f->name[n]); n--)
 			f->name[n] = 0;
 		f->format = vqt_font_format(vdi_h, i);
-		f->mono = -1;
+		if (!is_mono(f->id))
+			continue;
+		f->mono = 1;
 		nfam++;
 	}
+	use_sys();
+	busy(0);
 }
 
 /* the sizes of a family, and whether it is monospaced */

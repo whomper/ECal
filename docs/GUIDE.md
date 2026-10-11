@@ -32,6 +32,13 @@ accessory can't safely take more later): 1.5 MB on a Falcon or TT,
 with big calendars, 2 MB or more is better. `HEAPKB=` in ECAL.INF
 sets another amount, in kilobytes.
 
+**TT RAM.** On a TT, or a Falcon with an accelerator's Fast RAM, TOS
+loads ECal into TT RAM, and its memory comes from there too, leaving ST
+RAM to the programs that need it. The accessory then takes 4 MB (still
+at most half of what's free). The About box says "TT RAM" when ECal runs
+there, and with **Write a log** on, the log's first line says where the
+program and its memory are.
+
 **The clock.** ECal's "today" is the Atari's clock, so set it (an ST
 without a clock card starts each day at an old date; the Control Panel or
 a clock program at boot sets it). In Settings > Time zones, tell ECal which time
