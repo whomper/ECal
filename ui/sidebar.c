@@ -62,23 +62,43 @@ static void draw_mini(void)
 	text_at(mini.x, mini.y, s, (long)strlen(s), 21, TX_BOLD | TX_LTR | TX_CENTER);
 	for (k = 0; k < 7; k++)
 		text_at(mini.x + k * 3 * cw, mini.y + ch + 2, wday_short[(k + opt.weekstart) % 7], 2, 2, TX_LTR | TX_LIGHT);
-	for (k = 0; k < 42; k++) {
-		long day = mini_first + k;
-		int yy, mm, dd;
-		short x = mini.x + (k % 7) * 3 * cw, yp = mini.y + (k / 7 + 2) * ch + 4;
-		char n[4];
-		civil_from_days(day, &yy, &mm, &dd);
-		snprintf(n, sizeof(n), "%2d", dd);
-		if (day == t || day == cur_day) {
-			GRECT b;
-			b.x = x - 1;
-			b.y = yp;
-			b.w = 2 * cw + 2;
-			b.h = ch;
-			fill(&b, day == t ? red_color() : 1);
-			text_at(x, yp, n, 2, 2, TX_INVERSE | TX_LTR | (day == t ? TX_BOLD : 0));
-		} else {
-			text_at(x, yp, n, 2, 2, TX_LTR | (mm != m ? TX_LIGHT : 0));
+	{
+		/* runs of same-looking days in one piece of text (see views.c) */
+		char run[24];
+		short rl = 0, rx = 0, ry = 0, rflags = -1;
+		for (k = 0; k <= 42; k++) {
+			long day = mini_first + k;
+			int yy, mm, dd;
+			short x = mini.x + (k % 7) * 3 * cw, yp = mini.y + (k / 7 + 2) * ch + 4, flags = 0;
+			if (k < 42) {
+				civil_from_days(day, &yy, &mm, &dd);
+				if (day == t || day == cur_day) {
+					GRECT b;
+					b.x = x - 1;
+					b.y = yp;
+					b.w = 2 * cw + 2;
+					b.h = ch;
+					fill(&b, day == t ? red_color() : 1);
+					flags = TX_INVERSE | (day == t ? TX_BOLD : 0);
+				} else {
+					flags = mm != m ? TX_LIGHT : 0;
+				}
+			}
+			if (rl && (k == 42 || flags != rflags || k % 7 == 0 || (rflags & TX_INVERSE))) {
+				text_at(rx, ry, run, rl, rl, TX_LTR | rflags);
+				rl = 0;
+			}
+			if (k == 42)
+				break;
+			if (!rl) {
+				rx = x;
+				ry = yp;
+				rflags = flags;
+			} else {
+				run[rl++] = ' ';
+			}
+			run[rl++] = (char)(dd >= 10 ? '0' + dd / 10 : ' ');
+			run[rl++] = (char)('0' + dd % 10);
 		}
 	}
 }

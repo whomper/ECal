@@ -41,9 +41,12 @@ static GRECT grid;		/* month cells / day-week time grid */
 static short head_h, allday_h, gutter, hour_h, cell_w, cell_h;
 static GRECT detail;		/* day view: the selected event's details */
 
+/* today, worked out once per drawing (see views_draw) */
+static long today_cache = -1;
+
 static long today(void)
 {
-	return ct_days(now_view());
+	return today_cache >= 0 ? today_cache : ct_days(now_view());
 }
 
 static long week_start(long d)
@@ -440,7 +443,9 @@ static void event_box(const ITEM *it, GRECT *clip, int bar)
 		fill(&r, p.color == 6 || p.color == 14 || p.color == 8 ? 1 : p.color);
 		fl = TX_INVERSE;
 	} else {
-		fill(&r, 0);
+		/* bars in the month and all-day rows sit on white already */
+		if (!bar)
+			fill(&r, 0);
 		fill_pat(&r, p.color, p.interior, p.style);
 	}
 	strip = r;
@@ -596,10 +601,18 @@ static void draw_month(GRECT *clip)
 				n = (short)strlen(hs);
 				text_at(cell.x + cell.w - (n + 1) * cw, cell.y + 1, hs, n, n, TX_LIGHT);
 			}
-			line_col(cell.x, cell.y + cell.h - 1, cell.x + cell.w - 1, cell.y + cell.h - 1, grey_color());
-			if (c < 6)
-				line_col(cell.x + cell.w - 1, cell.y, cell.x + cell.w - 1, cell.y + cell.h - 1, grey_color());
 		}
+	/* the grid: whole lines rather than four sides per cell (each VDI
+	   call costs an 8 MHz ST milliseconds) */
+	clip_on(clip);
+	for (r = 1; r <= rows; r++) {
+		short y = (r == rows ? grid.y + grid.h : grid.y + r * cell_h) - 1;
+		line_col(grid.x, y, grid.x + grid.w - 1, y, grey_color());
+	}
+	for (c = 1; c < 7; c++) {
+		short x = grid.x + c * cell_w - 1;
+		line_col(x, grid.y, x, grid.y + grid.h - 1, grey_color());
+	}
 	draw_items(clip, 1);
 }
 
@@ -807,9 +820,56 @@ static void draw_days(GRECT *clip)
 }
 
 /* the year: twelve small months; days with events in bold */
+/* the year: twelve small months. When they don't fit in the system font
+   (a 640x400 screen holds only six), the small 8x8 (or 6x6) font draws
+   them, as Atari programs always did */
+static short yfont, ysave_cw, ysave_ch;
+
+/* level 0: the system font; 1, 2: the next smaller ones (8x8, 6x6) */
+static void year_font(int level)
+{
+	static const short heights[3] = { 13, 6, 4 };
+	short c, h, base;
+	if (!yfont && !level)
+		return;
+	if (!yfont) {
+		ysave_cw = cw;
+		ysave_ch = ch;
+	}
+	base = ysave_ch >= 16 ? 0 : 1;		/* ST medium's system font is already 8x8 */
+	if (base + level > 2)
+		level = 2 - base;
+	vst_height(vdi_h, heights[base + level], &c, &h);
+	if (level) {
+		cw = c;
+		ch = h;
+	} else {
+		cw = ysave_cw;
+		ch = ysave_ch;
+	}
+	yfont = (short)level;
+}
+
+static int year_fits(short pc)
+{
+	short rows = (12 + pc - 1) / pc;
+	return r_view.w >= pc * 22 * cw && r_view.h >= rows * (8 * ch + ch / 2 + 2);
+}
+
+/* pick columns (and font) for the year; leaves the font chosen in force */
 static void year_geom(short *mw, short *mh, short *pc)
 {
-	*pc = r_view.w >= 4 * 23 * cw ? 4 : r_view.w >= 3 * 23 * cw ? 3 : 2;
+	int level;
+	for (level = 0; level < 3; level++) {
+		year_font(level);
+		for (*pc = 4; *pc >= 2; (*pc)--)
+			if (year_fits(*pc))
+				break;
+		if (*pc >= 2)
+			break;
+	}
+	if (*pc < 2)
+		*pc = 2;
 	*mw = r_view.w / *pc;
 	*mh = r_view.h / ((12 + *pc - 1) / *pc);
 }
@@ -838,31 +898,45 @@ static void draw_year(GRECT *clip)
 		text_at(ox, oy, month_names[m], (long)strlen(month_names[m]), 20,
 			TX_BOLD | TX_LTR | (m + 1 == m0 ? TX_UNDER : 0));
 		for (k = 0; k < 7; k++)
-			text_at(ox + k * 3 * cw, oy + ch + 2, wday_short[(k + opt.weekstart) % 7], 2, 2, TX_LTR | TX_LIGHT);
-		for (k = 0; k < dim; k++) {
-			short col = (off + k) % 7, row = (off + k) / 7;
-			char n[4];
-			short x = ox + col * 3 * cw, y = oy + (row + 2) * ch + 4;
-			d = first + k;
-			snprintf(n, sizeof(n), "%2d", k + 1);
-			if (d == t) {
-				GRECT b;
-				b.x = x - 1;
-				b.y = y;
-				b.w = 2 * cw + 2;
-				b.h = ch;
-				fill(&b, red_color());
-				text_at(x, y, n, 2, 2, TX_INVERSE | TX_BOLD | TX_LTR);
-			} else if (d == cur_day) {
-				GRECT b;
-				b.x = x - 1;
-				b.y = y;
-				b.w = 2 * cw + 2;
-				b.h = ch;
-				fill(&b, 1);
-				text_at(x, y, n, 2, 2, TX_INVERSE | TX_LTR);
-			} else {
-				text_at(x, y, n, 2, 2, TX_LTR | (busy_[d - jan1] ? TX_BOLD | TX_UNDER : TX_LIGHT));
+			text_at(ox + k * 3 * cw, oy + ch + 2, wday_short[(k + opt.weekstart) % 7], 2, 2, TX_LTR | (yfont ? 0 : TX_LIGHT));
+		/* a week row at a time, consecutive days of the same look in one
+		   piece of text: on an 8 MHz ST each text call costs milliseconds */
+		{
+			char run[24];
+			short rl = 0, rx = 0, ry = 0, rflags = -1;
+			for (k = 0; k <= dim; k++) {
+				short col = (off + k) % 7, row = (off + k) / 7, flags = 0;
+				short x = ox + col * 3 * cw, y = oy + (row + 2) * ch + 4;
+				d = first + k;
+				if (k < dim) {
+					if (d == t || d == cur_day) {
+						GRECT b;
+						b.x = x - 1;
+						b.y = y;
+						b.w = 2 * cw + 2;
+						b.h = ch;
+						fill(&b, d == t ? red_color() : 1);
+						flags = TX_INVERSE | (d == t ? TX_BOLD : 0);
+					} else {
+						/* the small fonts are too small for light and underlined text */
+						flags = busy_[d - jan1] ? (yfont ? TX_BOLD : TX_BOLD | TX_UNDER) : (yfont ? 0 : TX_LIGHT);
+					}
+				}
+				if (rl && (k == dim || flags != rflags || col == 0 || (rflags & TX_INVERSE))) {
+					text_at(rx, ry, run, rl, rl, TX_LTR | rflags);
+					rl = 0;
+				}
+				if (k == dim)
+					break;
+				if (!rl) {
+					rx = x;
+					ry = y;
+					rflags = flags;
+				} else {
+					run[rl++] = ' ';
+				}
+				run[rl++] = (char)((k + 1) >= 10 ? '0' + (k + 1) / 10 : ' ');
+				run[rl++] = (char)('0' + (k + 1) % 10);
 			}
 		}
 	}
@@ -873,14 +947,16 @@ void views_draw(GRECT *clip)
 	GRECT r = r_view;
 	if (!rect_and(&r, clip))
 		return;
+	today_cache = ct_days(now_view());
 	layout();
 	clip_on(&r);
 	fill(&r, 0);
 	switch (cur_view) {
 	case V_MONTH: draw_month(&r); break;
-	case V_YEAR: draw_year(&r); break;
+	case V_YEAR: draw_year(&r); year_font(0); break;
 	default: draw_days(&r); break;
 	}
+	today_cache = -1;
 }
 
 /* ---------------- titles and moving around ---------------- */
@@ -974,6 +1050,32 @@ static int item_at(short mx, short my)
 	return -1;
 }
 
+static long year_day_at(short mx, short my, short *minute)
+{
+	short mw, mh, pc, m, col, row;
+	int y0, m0, d0;
+	long first;
+	year_geom(&mw, &mh, &pc);
+	m = ((my - r_view.y) / mh) * pc + (mx - r_view.x) / mw;
+	if (m < 0 || m > 11)
+		return -1;
+	civil_from_days(cur_day, &y0, &m0, &d0);
+	first = days_from_civil(y0, m + 1, 1);
+	col = (mx - (r_view.x + (m % pc) * mw + (mw - 21 * cw) / 2)) / (3 * cw);
+	row = (my - (r_view.y + (m / pc) * mh + ch / 2) - 4) / ch - 2;
+	if (row < 0 || col < 0 || col > 6) {
+		if (minute)
+			*minute = -2;	/* the month's name: show that month */
+		return first;
+	}
+	{
+		long d = first - (wday_of(first) - opt.weekstart + 7) % 7 + row * 7 + col;
+		if (d < first || d >= first + days_in_month(y0, m + 1))
+			return -1;
+		return d;
+	}
+}
+
 static long day_at(short mx, short my, short *minute)
 {
 	if (minute)
@@ -985,28 +1087,9 @@ static long day_at(short mx, short my, short *minute)
 		return first_day + r * 7 + c;
 	}
 	if (cur_view == V_YEAR) {
-		short mw, mh, pc, m, col, row;
-		int y0, m0, d0;
-		long first;
-		year_geom(&mw, &mh, &pc);
-		m = ((my - r_view.y) / mh) * pc + (mx - r_view.x) / mw;
-		if (m < 0 || m > 11)
-			return -1;
-		civil_from_days(cur_day, &y0, &m0, &d0);
-		first = days_from_civil(y0, m + 1, 1);
-		col = (mx - (r_view.x + (m % pc) * mw + (mw - 21 * cw) / 2)) / (3 * cw);
-		row = (my - (r_view.y + (m / pc) * mh + ch / 2) - 4) / ch - 2;
-		if (row < 0 || col < 0 || col > 6) {
-			if (minute)
-				*minute = -2;	/* the month's name: show that month */
-			return first;
-		}
-		{
-			long d = first - (wday_of(first) - opt.weekstart + 7) % 7 + row * 7 + col;
-			if (d < first || d >= first + days_in_month(y0, m + 1))
-				return -1;
-			return d;
-		}
+		long d = year_day_at(mx, my, minute);
+		year_font(0);
+		return d;
 	}
 	/* day, week */
 	{

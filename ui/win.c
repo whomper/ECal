@@ -14,7 +14,6 @@ GRECT work, r_tool, r_side, r_view;
 #define KIND (NAME | CLOSER | FULLER | MOVER | SIZER | INFO | UPARROW | DNARROW | VSLIDE)
 
 static char title[80], info[140];
-static unsigned long t0_draw;
 
 enum { B_PREV, B_TODAY, B_NEXT, B_DAY, B_WEEK, B_MONTH, B_YEAR, B_NEW, B_REFRESH, B_MENU, NBUT };
 static GRECT but[NBUT];
@@ -173,7 +172,6 @@ void win_redraw(GRECT *area)
 		wind_update(END_UPDATE);
 		return;
 	}
-	{ extern unsigned long pf_ms(void); t0_draw = pf_ms(); }
 	wind_get(win_h, WF_FIRSTXYWH, &box.x, &box.y, &box.w, &box.h);
 	while (box.w && box.h) {
 		GRECT d = box;
@@ -184,8 +182,18 @@ void win_redraw(GRECT *area)
 	graf_mouse(M_ON, 0);
 	wind_update(END_UPDATE);
 	win_sliders();
-	{ extern unsigned long pf_ms(void); extern void pf_debug(const char *); char b[60];
-	  snprintf(b, sizeof(b), "TIMING redraw %lu ms", pf_ms() - t0_draw); pf_debug(b); if (area == 0) win_status(b); }
+}
+
+/* where the window goes so its work area starts on a 16-pixel boundary:
+   VDI draws byte-aligned text and fills faster */
+static short snap_x(short x)
+{
+	short wx, wy, ww, wh;
+	wind_calc(WC_WORK, KIND, x, 100, 400, 200, &wx, &wy, &ww, &wh);
+	x -= (wx & 15);
+	if (x < desk_x)
+		x += 16;
+	return x;
 }
 
 void win_open(void)
@@ -214,7 +222,7 @@ void win_open(void)
 		w = desk_w - 2 * (x - desk_x);
 		h = desk_h - 2 * (y - desk_y);
 	}
-	wind_open(win_h, x, y, w, h);
+	wind_open(win_h, snap_x(x), y, w, h);
 	win_layout();
 	win_sliders();
 }
@@ -280,7 +288,7 @@ void win_message(short *msg)
 	case WM_SIZED:
 	case WM_MOVED: {
 		short w = msg[6] < 40 * cw ? 40 * cw : msg[6], h = msg[7] < 14 * ch ? 14 * ch : msg[7];
-		wind_set(win_h, WF_CURRXYWH, msg[4], msg[5], w, h);
+		wind_set(win_h, WF_CURRXYWH, snap_x(msg[4]), msg[5], w, h);
 		win_layout();
 		if (msg[0] == WM_SIZED)
 			win_redraw(0);

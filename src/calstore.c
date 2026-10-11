@@ -55,16 +55,35 @@ static void status_clear(void)
 
 /* ---------------- time ---------------- */
 
+/* looked up by name once, then again only when the setting changes: a
+   name search over all the zones is slow on an 8 MHz ST and the views
+   ask for the zone for every day they draw */
 const TZONE *home_zone(void)
 {
-	const TZONE *z = tz_find(opt.home_tz);
-	return z ? z : tz_utc();
+	static char name[40];
+	static const TZONE *z;
+	if (!z || strcmp(name, opt.home_tz)) {
+		z = tz_find(opt.home_tz);
+		str_copy(name, opt.home_tz, sizeof(name));
+		if (!z)
+			z = tz_utc();
+	}
+	return z;
 }
 
 const TZONE *view_zone(void)
 {
-	const TZONE *z = opt.tzsupport ? tz_find(opt.view_tz) : 0;
-	return z ? z : home_zone();
+	static char name[40];
+	static const TZONE *z;
+	if (!opt.tzsupport)
+		return home_zone();
+	if (!z || strcmp(name, opt.view_tz)) {
+		z = tz_find(opt.view_tz);
+		str_copy(name, opt.view_tz, sizeof(name));
+		if (!z)
+			z = home_zone();
+	}
+	return z;
 }
 
 CTIME now_utc(void)
