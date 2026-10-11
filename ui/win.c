@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "ui.h"
+#include "../src/bidi.h"
 
 short win_h = -1;
 GRECT work, r_tool, r_side, r_view;
@@ -39,9 +40,23 @@ void win_frame_refresh(void)
 	}
 }
 
+/* GEM draws the info line left to right as it is given: Hebrew in it
+   (an event's title) goes in visual order, and into the font's letters */
 void win_status(const char *s)
 {
-	snprintf(info, sizeof(info), " %s", s);
+	char logical[sizeof(info)];
+	short n;
+	snprintf(logical, sizeof(logical), " %s", s);
+	n = (short)strlen(logical);
+	if (n > BIDI_MAX)
+		n = BIDI_MAX;
+	if (bidi_has_rtl(logical, n)) {
+		bidi_visual(logical, n, 0, info);
+		info[n] = 0;
+		heb_font_map(info, n, opt.hebfont);
+	} else {
+		str_copy(info, logical, sizeof(info));
+	}
 	if (win_h > 0)
 		wind_set_str(win_h, WF_INFO, info);
 }
@@ -272,8 +287,14 @@ static void remember_place(void)
 		opt.win_y = y;
 		opt.win_w = w;
 		opt.win_h = h;
-		store_save_settings();
+		settings_later();
 	}
+}
+
+/* a toolbar button: acts on the first click (the title alone takes a double) */
+int win_instant(short mx, short my)
+{
+	return rect_hit(&r_tool, mx, my) && !rect_hit(&r_title, mx, my);
 }
 
 void win_close(void)
@@ -281,6 +302,7 @@ void win_close(void)
 	if (win_h <= 0)
 		return;
 	remember_place();
+	settings_flush();		/* what was waiting to be written */
 	wind_close(win_h);
 	wind_delete(win_h);
 	win_h = -1;
@@ -412,7 +434,7 @@ int win_key(short kstate, short key)
 				quit_now = 1;
 			return 1;
 		case 0x14: views_today(); return 1;		/* ^T */
-		case 0x1f: opt.sidebar = !opt.sidebar; store_save_settings(); win_layout(); win_redraw(0); return 1;	/* ^S */
+		case 0x1f: opt.sidebar = !opt.sidebar; settings_later(); win_layout(); win_redraw(0); return 1;	/* ^S */
 		}
 	}
 	if (!(kstate & (K_CTRL | K_ALT))) {

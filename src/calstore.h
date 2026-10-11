@@ -21,6 +21,7 @@ enum { AK_CALDAV, AK_SUBSCR, AK_LOCAL };
 typedef struct {
 	char *href, *etag;	/* where the server keeps it */
 	long off, len;		/* its iCalendar text in the cache file */
+	short dead;		/* replaced or deleted by a record further on in the file */
 } RESOURCE;
 
 typedef struct {
@@ -37,6 +38,7 @@ typedef struct {
 	int nev, maxev;
 	RESOURCE *res;
 	int nres, maxres;
+	int ndead;		/* superseded records in the cache file (rewritten when many) */
 } CALENDAR;
 
 typedef struct {

@@ -34,6 +34,27 @@ static long shown_today = -1;
 
 /* ---------------- small things ---------------- */
 
+/* settings changed by a click (a calendar shown or hidden, the window
+   moved) are written a few seconds later, when nothing else happens: the
+   click shows at once instead of waiting for the disk. Closing the window
+   or quitting writes them at once */
+static int settings_dirty;
+static unsigned long settings_at;
+
+void settings_later(void)
+{
+	settings_dirty = 1;
+	settings_at = pf_ms();
+}
+
+void settings_flush(void)
+{
+	if (settings_dirty) {
+		settings_dirty = 0;
+		store_save_settings();
+	}
+}
+
 /* the info line; while the Hebrew keyboard is on it says so at the end,
    whatever else it shows (EMail's editor line does the same) */
 void status(const char *msg)
@@ -355,13 +376,13 @@ void cmd_menu(short x, short y)
 	case M_TODAY: views_today(); break;
 	case M_SIDE:
 		opt.sidebar = !opt.sidebar;
-		store_save_settings();
+		settings_later();
 		win_layout();
 		win_redraw(0);
 		break;
 	case M_HEB:
 		opt.hebdates = !opt.hebdates;
-		store_save_settings();
+		settings_later();
 		after_change();
 		break;
 	case M_KBD: set_hebrew_kbd(!hebrew_kbd); break;
@@ -506,6 +527,25 @@ static void wait_release(void)
 	}
 }
 
+/* one click or two. GEM's own count holds every click back until the
+   double-click time has passed; here only clicks that can be doubles
+   wait (events, days, calendar names), and they wait before any work is
+   done, so the second click isn't missed. The tick boxes, the toolbar
+   and the right button act at once */
+static short click_count(short mx, short my, short button)
+{
+	AEVENT e;
+	short m[8];
+	if ((button & 2) || win_instant(mx, my) || side_instant(mx, my))
+		return 1;
+	wait_release();
+	if (evnt_multi_(MU_BUTTON | MU_TIMER, 1, 1, 1, 280, m, &e) & MU_BUTTON) {
+		if (e.mx - mx < 6 && mx - e.mx < 6 && e.my - my < 6 && my - e.my < 6)
+			return 2;
+	}
+	return 1;
+}
+
 int main(void)
 {
 	short work_out[57], msg[8], d;
@@ -542,9 +582,9 @@ int main(void)
 		short flags = MU_MESAG | MU_TIMER, which;
 		if (win_h > 0)
 			flags |= MU_KEYBD | MU_BUTTON;
-		/* GEM counts the clicks (as in EMail and our dialogs): timing them
-		   here missed double clicks whenever the first one's redraw was slow */
-		which = evnt_multi_(flags, 0x102, 3, 0, 1000, msg, &ev);
+		/* a click comes at once; where a double click means something,
+		   click_count() waits for the second one before anything is done */
+		which = evnt_multi_(flags, 0x101, 3, 0, 1000, msg, &ev);
 		if (which & MU_MESAG) {
 			switch (msg[0]) {
 			case AC_OPEN:
@@ -553,8 +593,10 @@ int main(void)
 				break;
 			case AC_CLOSE:
 				/* the program in front ended: the AES took our window */
-				if (msg[3] == menu_id)
+				if (msg[3] == menu_id) {
 					win_h = -1;
+					settings_flush();
+				}
 				break;
 			case AP_TERM:
 				if (is_acc)
@@ -582,10 +624,12 @@ int main(void)
 				if (h != t)
 					wind_set(h, WF_TOP, 0, 0, 0, 0);
 				else
-					win_mouse(ev.mx, ev.my, ev.mbutton, ev.breturn >= 2 ? 2 : 1, ev.kstate);
+					win_mouse(ev.mx, ev.my, ev.mbutton, click_count(ev.mx, ev.my, ev.mbutton), ev.kstate);
 			}
 			wait_release();
 		}
+		if ((which & MU_TIMER) && settings_dirty && pf_ms() - settings_at >= 3000UL)
+			settings_flush();
 		if ((which & MU_TIMER) && data_ready) {
 			unsigned long now = pf_ms();
 			long t = ct_days(now_view());

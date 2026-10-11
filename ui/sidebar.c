@@ -258,6 +258,19 @@ static void acct_menu(short mx, short my, int a)
 	}
 }
 
+/* over a calendar's tick box: a click there has no double meaning */
+int side_instant(short mx, short my)
+{
+	short i;
+	if (!rect_hit(&r_side, mx, my) || mx >= r_side.x + 3 * cw)
+		return 0;
+	side_layout();
+	for (i = 0; i < nrows; i++)
+		if (srow[i].cal >= 0 && my >= srow[i].y && my < srow[i].y + row_h)
+			return 1;
+	return 0;
+}
+
 int side_click(short mx, short my, short clicks, short button)
 {
 	short i;
@@ -294,12 +307,21 @@ int side_click(short mx, short my, short clicks, short button)
 			after_change();
 			return 1;
 		}
+		/* the tick first, then the calendar's events; the disk last */
 		cals[s->cal].visible = !cals[s->cal].visible;
+		{
+			GRECT row;
+			row.x = r_side.x;
+			row.y = s->y;
+			row.w = r_side.w;
+			row.h = row_h;
+			win_redraw(&row);
+		}
 		if (sel_occ.ev && sel_occ.ev->cal == s->cal)
 			views_select_none();
-		store_save_settings();
 		views_invalidate();
-		win_redraw(0);
+		win_redraw(&r_view);
+		settings_later();
 		return 1;
 	}
 	return 1;

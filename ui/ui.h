@@ -68,7 +68,8 @@ void win_close(void);
 void win_redraw(GRECT *area);	/* NULL: everything */
 void win_message(short *msg);
 void win_status(const char *s);	/* the info line */
-void win_frame_refresh(void);	/* title and info line again */
+void win_frame_refresh(void);
+int  win_instant(short mx, short my);	/* a toolbar button: no double click to wait for */
 int  win_mouse(short mx, short my, short button, short clicks, short kstate);
 int  win_key(short kstate, short key);
 void win_layout(void);		/* after a size or font change */
@@ -99,6 +100,7 @@ int  occ_find_again(void);	/* after a reload, find the selected one again */
 /* ---- the sidebar (sidebar.c) ---- */
 void side_draw(GRECT *clip);
 int  side_click(short mx, short my, short clicks, short button);
+int  side_instant(short mx, short my);	/* over a tick box: no double click to wait for */
 
 /* ---- dialogs drawn by us (field.c) ---- */
 enum { FT_LABEL, FT_TEXT, FT_PASS, FT_BUTTON, FT_CHECK, FT_POPUP, FT_MULTI, FT_HEAD, FT_COLOR };
@@ -171,6 +173,8 @@ void cmd_import(int cal);
 void after_change(void);		/* events changed: redraw all */
 extern short hebrew_kbd;
 void set_hebrew_kbd(short on);
+void settings_later(void);	/* save the settings in a few seconds (main.c) */
+void settings_flush(void);	/* now, if anything is waiting */
 unsigned char key_char(short kstate, short key);	/* honours the Hebrew layout */
 void falcon_dsp_init(void);		/* dsp.c */
 const char *falcon_dsp_state(void);

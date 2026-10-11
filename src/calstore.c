@@ -404,6 +404,7 @@ static void cal_free_events(CALENDAR *c)
 	free(c->res);
 	c->res = 0;
 	c->nres = c->maxres = 0;
+	c->ndead = 0;
 }
 
 void cal_delete(int i)
@@ -645,9 +646,40 @@ static int add_event(EVENT *e, void *ud)
 	return 1;
 }
 
+/* the events that came from resource r leave memory (it was replaced) */
+static void drop_res_events(CALENDAR *c, int r)
+{
+	int i, n = 0;
+	for (i = 0; i < c->nev; i++) {
+		if (c->ev[i]->res == r)
+			ev_free(c->ev[i]);
+		else
+			c->ev[n++] = c->ev[i];
+	}
+	c->nev = n;
+}
+
+static int live_res(CALENDAR *c, const char *href)
+{
+	int i;
+	for (i = 0; i < c->nres; i++)
+		if (!c->res[i].dead && !strcmp(c->res[i].href, href))
+			return i;
+	return -1;
+}
+
+static void kill_res(CALENDAR *c, int r)
+{
+	c->res[r].dead = 1;
+	c->ndead++;
+	drop_res_events(c, r);
+}
+
 static void mark_exceptions(CALENDAR *c)
 {
 	int i, j;
+	for (i = 0; i < c->nev; i++)
+		c->ev[i]->hasexc = 0;
 	for (i = 0; i < c->nev; i++)
 		if (c->ev[i]->recurid != CT_NONE)
 			for (j = 0; j < c->nev; j++)
@@ -688,6 +720,13 @@ void cal_load(CALENDAR *c)
 		RESOURCE *r;
 		if (line[0] == 'C' && line[1] == ' ')
 			continue;		/* the ctag lives in ECAL.INF */
+		if (line[0] == 'X' && line[1] == ' ') {
+			/* an event deleted since the file was written */
+			int old = live_res(c, line + 2);
+			if (old >= 0)
+				kill_res(c, old);
+			continue;
+		}
 		if (line[0] != 'R' || line[1] != ' ')
 			break;
 		tab1 = strchr(line + 2, '\t');
@@ -696,6 +735,12 @@ void cal_load(CALENDAR *c)
 			break;
 		*tab1 = *tab2 = 0;
 		len = atol(tab2 + 1);
+		{
+			/* a newer copy of an event, appended when it was changed */
+			int old = live_res(c, tab1 + 1);
+			if (old >= 0)
+				kill_res(c, old);
+		}
 		if (c->nres >= c->maxres) {
 			RESOURCE *n;
 			int max = c->maxres ? c->maxres * 2 : 64;
@@ -710,6 +755,7 @@ void cal_load(CALENDAR *c)
 		r->href = strdup(tab1 + 1);
 		r->off = f.off;
 		r->len = len;
+		r->dead = 0;
 		l.res = c->nres++;
 		raw = len < 65536L ? malloc(len + 1) : 0;
 		if (raw) {
@@ -801,21 +847,84 @@ static int cw_close(CW *w)
 	return 1;
 }
 
-/* the cache with resource `drop` left out and one resource added */
-static int cache_change(CALENDAR *c, int drop, const char *href, const char *etag, const char *raw, long len)
+/* the whole cache written again, without the superseded copies */
+static int cache_rewrite(CALENDAR *c, int drop, const char *href, const char *etag, const char *raw, long len)
 {
 	CW w;
 	int i;
 	if (!cw_open(&w, c))
 		return 0;
 	for (i = 0; i < c->nres; i++)
-		if (i != drop && !(href && !strcmp(c->res[i].href, href)))
+		if (i != drop && !c->res[i].dead && !(href && !strcmp(c->res[i].href, href)))
 			cw_copy(&w, &c->res[i]);
 	if (href)
 		cw_add(&w, href, etag, raw, len);
 	if (!cw_close(&w))
 		return 0;
 	cal_load(c);
+	return 1;
+}
+
+/* One event changed (or gone): the new copy is added to the end of the
+   cache file, and only that event is read again. Writing the whole file
+   and reading every event back took seconds on a 68030 for a change of
+   one letter. When superseded copies pile up the file is written anew. */
+static int cache_change(CALENDAR *c, int drop, const char *href, const char *etag, const char *raw, long len)
+{
+	char path[200], head[700];
+	long size;
+	int h, n, ok = 1;
+	cache_path(c, "DAT", path, sizeof(path));
+	size = pf_size(path);
+	if (size <= 0 || c->ndead >= 32)
+		return cache_rewrite(c, drop, href, etag, raw, len);
+	h = pf_open(path, PF_APPEND);
+	if (h < 0)
+		return cache_rewrite(c, drop, href, etag, raw, len);
+	/* the old copy goes */
+	if (drop >= 0 && !c->res[drop].dead && (!href || strcmp(c->res[drop].href, href))) {
+		n = snprintf(head, sizeof(head), "X %s\n", c->res[drop].href);
+		ok = pf_write(h, head, n) == n;
+		size += n;
+		kill_res(c, drop);
+	}
+	if (ok && href) {
+		int old = live_res(c, href);
+		RESOURCE *r;
+		LOADCTX l;
+		CTIME from, to;
+		if (old >= 0)
+			kill_res(c, old);
+		if (c->nres >= c->maxres) {
+			int max = c->maxres ? c->maxres * 2 : 64;
+			RESOURCE *nr = realloc(c->res, max * sizeof(RESOURCE));
+			if (!nr) {
+				pf_close(h);
+				return cache_rewrite(c, -1, href, etag, raw, len);
+			}
+			c->res = nr;
+			c->maxres = max;
+		}
+		n = snprintf(head, sizeof(head), "R %s\t%s\t%ld\n", etag ? etag : "", href, len);
+		ok = pf_write(h, head, n) == n && pf_write(h, raw, len) == len && pf_write(h, "\n", 1) == 1;
+		r = &c->res[c->nres];
+		r->etag = strdup(etag ? etag : "");
+		r->href = strdup(href);
+		r->off = size + n;
+		r->len = len;
+		r->dead = 0;
+		l.c = c;
+		l.res = c->nres++;
+		window(&from, &to);
+		ics_parse(raw, len, add_event, &l, from, to);
+	}
+	pf_close(h);
+	if (!ok) {
+		/* the disk refused the end of the file: write it all again */
+		cal_load(c);
+		return cache_rewrite(c, -1, 0, 0, 0, 0);
+	}
+	mark_exceptions(c);
 	return 1;
 }
 
@@ -881,7 +990,7 @@ static int sync_caldav(CALENDAR *c, int force)
 	for (i = 0; i < n; i++) {
 		int found = -1;
 		for (j = 0; j < c->nres; j++)
-			if (!strcmp(c->res[j].href, items[i].href)) {
+			if (!c->res[j].dead && !strcmp(c->res[j].href, items[i].href)) {
 				found = j;
 				break;
 			}
@@ -901,7 +1010,7 @@ static int sync_caldav(CALENDAR *c, int force)
 			cw_copy(&w, &c->res[j]);
 			nkept++;
 		}
-	if (!nneed && nkept == c->nres) {
+	if (!nneed && nkept == c->nres - c->ndead) {
 		/* the ctag moved (our own changes, say) but nothing is new */
 		if (w.old >= 0)
 			pf_close(w.old);
