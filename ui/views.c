@@ -451,18 +451,22 @@ static void event_box(const ITEM *it, GRECT *clip, int bar)
 	if (sel) {
 		fill(&r, p.color == 6 || p.color == 14 || p.color == 8 ? 1 : p.color);
 		fl = TX_INVERSE;
-	} else {
-		/* bars in the month and all-day rows sit on white already */
-		if (!bar)
-			fill(&r, 0);
+	} else if (is_long(o)) {
+		/* all-day and multi-day bars keep their tint, as on the Mac */
+		fill(&r, 0);
 		fill_pat(&r, p.color, p.interior, p.style);
+	} else {
+		/* an event: white for easy reading, a thin border in its
+		   calendar's colour, and the thick strip on the left */
+		fill(&r, 0);
+		frame(&r, p.color);
 	}
 	strip = r;
 	strip.w = 3;
 	if (!it->cont)
 		fill(&strip, sel ? 0 : p.color);
-	if (e->status == ST_TENTATIVE || e->status == ST_CANCELLED)
-		frame(&r, sel ? 0 : p.color);
+	if (!sel && (e->status == ST_TENTATIVE || e->status == ST_CANCELLED))
+		fl |= TX_LIGHT;
 	cols_ = (r.w - 6) / cw;
 	if (cols_ <= 0)
 		return;

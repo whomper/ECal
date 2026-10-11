@@ -717,23 +717,54 @@ void dlg_find(void)
 	occ_free(&l);
 }
 
+/* the keys, as a table: headings, the keys in one column and what they
+   do in the next, two to a row where they're short */
 void dlg_keys(void)
 {
-	static const char *const lines[] = {
-		"T  today          D W M Y  day/week/month/year",
-		"\x04 \x03  day      Shift+\x04 \x03  previous/next period",
-		"\x01 \x02  week (month view), hours (day, week)",
-		"N  new event      Return  open the selected one",
-		"Tab  next event   Delete  delete it",
-		"^F find   ^G go to date   ^R refresh  ^S sidebar",
-		"F10  Hebrew keyboard (in text fields too)",
-		"Double-click a day or an hour: new event there",
-		"Right-click: more choices",
+	static const struct {
+		short row, col;		/* col 0: left pair, 1: right pair, -1: heading */
+		const char *key, *does;
+	} k[] = {
+		{ 1, -1, "View", 0 },
+		{ 2, 0, "T  Clr/Home", "today" },
+		{ 2, 1, "D W M Y", "day, week, month, year" },
+		{ 3, 0, "\x04 \x03", "a day back, ahead" },
+		{ 3, 1, "Shift+\x04 \x03", "a whole period" },
+		{ 4, 0, "\x01 \x02", "a week (month view)" },
+		{ 4, 1, "\x01 \x02", "the hours (day, week)" },
+		{ 5, -1, "Events", 0 },
+		{ 6, 0, "N  ^N", "a new event" },
+		{ 6, 1, "Return", "open the selected one" },
+		{ 7, 0, "Tab", "the next event" },
+		{ 7, 1, "Delete", "delete the selected one" },
+		{ 8, 0, "Shift+Tab", "the one before" },
+		{ 8, 1, "Esc", "nothing selected" },
+		{ 9, -1, "Commands", 0 },
+		{ 10, 0, "^F", "find" },
+		{ 10, 1, "^G", "go to a date" },
+		{ 11, 0, "^R", "refresh" },
+		{ 11, 1, "Shift+^R", "everything again" },
+		{ 12, 0, "^S", "the calendar list" },
+		{ 12, 1, "F10", "Hebrew keyboard" },
+		{ 13, 0, "^W  ^Q", "close the window" },
+		{ 13, 1, "Help", "these keys" },
+		{ 14, 0, "Double-click", "open; on a day: new" },
+		{ 14, 1, "Right-click", "more choices" },
 	};
-	FIELD f[11];
-	short i;
-	for (i = 0; i < 9; i++)
-		put(&f[i], FT_LABEL, FF_LTR, 0, i + 1, 0, lines[i]);
-	put(&f[9], FT_BUTTON, FF_DEFAULT | FF_CANCEL, 38, 11, 10, "OK");
-	run("Keys", f, 10, 49, 12, -1);
+	enum { N = sizeof(k) / sizeof(k[0]) };
+	FIELD f[2 * N + 1];
+	short i, n = 0;
+	for (i = 0; i < N; i++) {
+		/* left pair: keys from column 1, words from 14; right pair:
+		   keys from 37, words from 49 */
+		short kx = k[i].col == 1 ? 37 : 1, dx = k[i].col == 1 ? 49 : 14;
+		if (k[i].col < 0) {
+			put(&f[n++], FT_HEAD, 0, 0, k[i].row, 0, k[i].key);
+			continue;
+		}
+		put(&f[n++], FT_LABEL, FF_LTR, kx, k[i].row, 0, k[i].key);
+		put(&f[n++], FT_LABEL, FF_LTR, dx, k[i].row, 0, k[i].does);
+	}
+	put(&f[n++], FT_BUTTON, FF_DEFAULT | FF_CANCEL, 62, 15, 10, "OK");
+	run("Keys", f, n, 73, 16, -1);
 }

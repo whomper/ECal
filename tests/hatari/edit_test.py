@@ -18,10 +18,33 @@ from rig import Rig, K, SCAN  # noqa: E402
 import ui_tour  # noqa: E402
 
 
+def cache_records(data):
+    """The events in a CALnnnnn.DAT as ECal reads it: a changed event is
+    added again further on (the later copy wins), a deleted one gets an
+    "X href" line."""
+    recs, pos = {}, data.find(b"\n") + 1      # past "CALCACHE 1"
+    while pos < len(data):
+        nl = data.find(b"\n", pos)
+        if nl < 0:
+            break
+        line = data[pos:nl].decode("utf-8", "replace")
+        pos = nl + 1
+        if line.startswith("X "):
+            recs.pop(line[2:], None)
+        elif line.startswith("R "):
+            etag, href, n = line[2:].split("\t")
+            recs[href] = data[pos:pos + int(n)]
+            pos += int(n) + 1
+        elif not line.startswith("C "):
+            break
+    return recs
+
+
 def cache_text(hd):
     out = ""
     for f in glob.glob(os.path.join(hd, "ECAL", "CACHE", "*.DAT")):
-        out += open(f, "rb").read().decode("utf-8", "replace")
+        for raw in cache_records(open(f, "rb").read()).values():
+            out += "\nR " + raw.decode("utf-8", "replace")
     return out
 
 
