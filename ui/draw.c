@@ -213,9 +213,28 @@ short red_color(void)
 	return ncolors >= 4 ? 2 : 1;
 }
 
+static short pens_ready;
+
+/* the two greys for text and lines, found in the screen's own palette
+   (pens_init); black where there are none */
+static short grey_dark = 1, grey_light = 1;
+static void pens_init(void);
+
 short grey_color(void)
 {
-	return ncolors >= 16 ? 8 : 1;
+	if (ncolors < 16)
+		return 1;
+	text_grey(0);
+	return grey_light != 1 ? grey_light : 8;
+}
+
+short text_grey(int pale)
+{
+	if (ncolors < 16)
+		return 1;
+	if (!pens_ready)
+		pens_init();
+	return pale ? grey_light : grey_dark;
 }
 
 /* the Mac's colours (red orange yellow green blue purple brown grey) on
@@ -243,7 +262,6 @@ static const short mac_rgb[NCOLORS][3] = {
 	{ 0, 431, 156 },
 };
 static short c16[NCOLORS] = { 2, 10, 6, 3, 4, 15, 14, 8, 7, 5, 12, 11 };
-static short pens_ready;
 
 /* The standard palettes differ (the ST's index 9 is dark grey, the
    Falcon's dark red), and the user may have changed them: pick, for each
@@ -261,6 +279,44 @@ static void pens_init(void)
 	if (ncolors < 16)
 		return;
 	memset(taken, 0, sizeof(taken));
+	/* first the two greys for text, kept from the calendars' colours: a
+	   real grey (red, green and blue alike) nearest each target */
+	{
+		static const short want[2] = { 420, 690 };	/* dark, light (0-1000) */
+		short g;
+		for (g = 0; g < 2; g++) {
+			short pick = -1;
+			long best = 0x7fffffffL;
+			for (i = 2; i < n; i++) {
+				short lo, hi;
+				long dist;
+				if (taken[i])
+					continue;
+				vq_color(vdi_h, i, rgb);
+				lo = rgb[0] < rgb[1] ? rgb[0] : rgb[1];
+				lo = lo < rgb[2] ? lo : rgb[2];
+				hi = rgb[0] > rgb[1] ? rgb[0] : rgb[1];
+				hi = hi > rgb[2] ? hi : rgb[2];
+				if (hi - lo > 120 || hi < 200 || lo > 850)
+					continue;	/* not a grey, or too near black or white */
+				dist = (long)(rgb[0] + rgb[1] + rgb[2]) / 3 - want[g];
+				dist = dist < 0 ? -dist : dist;
+				if (dist < best) {
+					best = dist;
+					pick = i;
+				}
+			}
+			if (pick >= 0) {
+				taken[pick] = 1;
+				if (g)
+					grey_light = pick;
+				else
+					grey_dark = pick;
+			}
+		}
+		if (grey_dark == 1 && grey_light != 1)
+			grey_dark = grey_light;	/* only one grey: for both */
+	}
 	for (j = 0; j < NCOLORS; j++) {
 		short k = order[j], pick = -1;
 		long best = 0x7fffffffL;
@@ -403,7 +459,7 @@ void text_at(short x, short y, const char *s, long n, short cols, short flags)
 {
 	char vis[BIDI_MAX];
 	const char *out = s;
-	short i, color = next_text_color;
+	short i, color = next_text_color, effects;
 	next_text_color = 1;
 	if (cols <= 0 || n <= 0)
 		return;
@@ -428,10 +484,19 @@ void text_at(short x, short y, const char *s, long n, short cols, short flags)
 	}
 	if (flags & TX_CENTER)
 		x += (cols - (short)n) * cw / 2;
+	/* the greys where the screen has them; disabled text is light grey,
+	   or dotted (the light effect) without colours */
+	effects = ((flags & TX_BOLD) ? 1 : 0) | ((flags & TX_UNDER) ? 8 : 0);
+	if (color == 1 && (flags & (TX_GREY | TX_PALE | TX_DIM))) {
+		short g = text_grey((flags & (TX_PALE | TX_DIM)) != 0);
+		if (g != 1)
+			color = g;
+		else if (flags & TX_DIM)
+			effects |= 2;
+	}
 	if (heb_mode != HM_MAP && has_heb(out, n)) {
 		set_wrmode(2);
-		set_text((flags & TX_INVERSE) ? 0 : color,
-			 ((flags & TX_BOLD) ? 1 : 0) | ((flags & TX_DIM) ? 2 : 0) | ((flags & TX_UNDER) ? 8 : 0));
+		set_text((flags & TX_INVERSE) ? 0 : color, effects);
 		runs_at(x, y, out, (short)n);
 		return;
 	}
@@ -442,8 +507,7 @@ void text_at(short x, short y, const char *s, long n, short cols, short flags)
 		heb_font_map(vis, n, opt.hebfont);
 	}
 	set_wrmode(2);
-	set_text((flags & TX_INVERSE) ? 0 : color,
-		 ((flags & TX_BOLD) ? 1 : 0) | ((flags & TX_DIM) ? 2 : 0) | ((flags & TX_UNDER) ? 8 : 0));
+	set_text((flags & TX_INVERSE) ? 0 : color, effects);
 	for (i = 0; i < n; i += 120) {
 		short k = n - i > 120 ? 120 : (short)(n - i);
 		v_gtext_n(vdi_h, x + i * cw, y, out + i, k);

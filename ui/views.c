@@ -504,7 +504,7 @@ static void event_box(const ITEM *it, GRECT *clip, int bar)
 	if (!it->cont)
 		fill(&strip, sel ? 0 : p.color);
 	if (!sel && (e->status == ST_TENTATIVE || e->status == ST_CANCELLED))
-		fl |= TX_LIGHT;
+		fl |= TX_GREY;
 	cols_ = (r.w - 6) / cw;
 	if (cols_ <= 0)
 		return;
@@ -569,7 +569,7 @@ static void draw_items(GRECT *clip, int bars)
 			rect_and(&c, &items[i].r);
 			clip_on(&c);
 			snprintf(t, sizeof(t), "+%d more", items[i].occ);
-			text_at(items[i].r.x + 4, items[i].r.y, t, (long)strlen(t), items[i].r.w / cw, TX_LTR | TX_LIGHT);
+			text_at(items[i].r.x + 4, items[i].r.y, t, (long)strlen(t), items[i].r.w / cw, TX_LTR | TX_GREY);
 			continue;
 		}
 		{
@@ -643,7 +643,7 @@ static void draw_month(GRECT *clip)
 					text_at(nb.x + cw / 2, nb.y, n, (long)strlen(n), 3, TX_INVERSE | TX_BOLD | TX_LTR);
 				} else {
 					text_at(nb.x + cw / 2, nb.y, n, (long)strlen(n), 3,
-						TX_LTR | (m != m0 ? TX_LIGHT : 0) | (d == 1 ? TX_BOLD : 0));
+						TX_LTR | (m != m0 ? TX_PALE : 0) | (d == 1 ? TX_BOLD : 0));
 				}
 				if (d == 1 && cell.w >= 9 * cw)
 					text_at(nb.x + nb.w, nb.y, month_short[m - 1], 3, 3, TX_LTR | TX_BOLD);
@@ -658,7 +658,7 @@ static void draw_month(GRECT *clip)
 				else
 					hebrew_numeral(h.day, hs, sizeof(hs));
 				n = (short)strlen(hs);
-				text_at(cell.x + cell.w - (n + 1) * cw, cell.y + 1, hs, n, n, TX_LIGHT);
+				text_at(cell.x + cell.w - (n + 1) * cw, cell.y + 1, hs, n, n, TX_GREY);
 			}
 		}
 	/* the grid: whole lines rather than four sides per cell (each VDI
@@ -706,7 +706,7 @@ static void draw_details(GRECT *clip)
 				long e = i + 1 < nb ? br[i + 1] : n;
 				while (e > br[i] && hint[e - 1] == ' ')
 					e--;
-				text_at(x, y + (4 + (short)i) * ch, hint + br[i], e - br[i], w, TX_LTR);
+				text_at(x, y + (4 + (short)i) * ch, hint + br[i], e - br[i], w, TX_LTR | TX_GREY);
 			}
 		}
 		return;
@@ -752,7 +752,7 @@ static void draw_details(GRECT *clip)
 			char lab[16];
 			tz_label(e->tz, ev_from_wall(e, sel_occ.start, view_zone()), lab, sizeof(lab));
 			snprintf(line, sizeof(line), "%s (%s)", tz_city(e->tz), lab);
-			text_at(x, y, line, (long)strlen(line), w, TX_LTR | TX_LIGHT);
+			text_at(x, y, line, (long)strlen(line), w, TX_LTR | TX_GREY);
 			y += ch;
 		}
 		if (e->rr || e->recurid != CT_NONE) {
@@ -776,7 +776,7 @@ static void draw_details(GRECT *clip)
 			y += ch;
 		}
 		snprintf(line, sizeof(line), "Calendar: %s", cals[e->cal].name);
-		text_at(x, y, line, (long)strlen(line), w, TX_LTR | TX_LIGHT);
+		text_at(x, y, line, (long)strlen(line), w, TX_LTR | TX_GREY);
 		y += ch + ch / 2;
 		if (e->notes) {
 			nb = wrap_text(e->notes, (long)strlen(e->notes), w, br, 40);
@@ -837,13 +837,13 @@ static void draw_days(GRECT *clip)
 				hebrew_numeral(hd.day, hs, sizeof(hs));
 				n = (short)strlen(hs);
 			}
-			text_at(x + 2 + cw / 2, r_view.y + 3 + ch, hs, n, cell_w / cw - 1, TX_LIGHT);
+			text_at(x + 2 + cw / 2, r_view.y + 3 + ch, hs, n, cell_w / cw - 1, TX_GREY);
 		}
 		if (c)
 			line_col(x, r_view.y, x, r_view.y + r_view.h - 1, grey_color());
 	}
 	line_col(r_view.x, r_view.y + head_h - 1, grid.x + grid.w - 1, r_view.y + head_h - 1, 1);
-	text_at(r_view.x + 2, r_view.y + head_h + 2, "all-day", 7, gutter / cw, TX_LIGHT | TX_LTR);
+	text_at(r_view.x + 2, r_view.y + head_h + 2, "all-day", 7, gutter / cw, TX_GREY | TX_LTR);
 	line_col(r_view.x, grid.y - 1, grid.x + grid.w - 1, grid.y - 1, 1);
 	/* hours */
 	g = grid;
@@ -858,7 +858,7 @@ static void draw_days(GRECT *clip)
 				break;
 			if (h < 24 && h > day_scroll) {
 				fmt_time(h, 0, opt.h24, s, sizeof(s));
-				text_at(r_view.x + 2, y - ch / 2, s, (long)strlen(s), gutter / cw - 1, TX_LTR | TX_LIGHT);
+				text_at(r_view.x + 2, y - ch / 2, s, (long)strlen(s), gutter / cw - 1, TX_LTR | TX_GREY);
 			}
 			line_col(grid.x, y, grid.x + grid.w - 1, y, grey_color());
 			if (hour_h >= 2 * ch && ncolors >= 16)
@@ -970,7 +970,7 @@ static void draw_year(GRECT *clip)
 		text_at(ox, oy, month_names[m], (long)strlen(month_names[m]), 20,
 			TX_BOLD | TX_LTR | (m + 1 == m0 ? TX_UNDER : 0));
 		for (k = 0; k < 7; k++)
-			text_at(ox + k * 3 * cw, oy + ch + 2, wday_short[(k + opt.weekstart) % 7], 2, 2, TX_LTR | (yfont ? 0 : TX_LIGHT));
+			text_at(ox + k * 3 * cw, oy + ch + 2, wday_short[(k + opt.weekstart) % 7], 2, 2, TX_LTR | TX_GREY);
 		/* a week row at a time, consecutive days of the same look in one
 		   piece of text: on an 8 MHz ST each text call costs milliseconds */
 		{
@@ -991,7 +991,7 @@ static void draw_year(GRECT *clip)
 						flags = TX_INVERSE | (d == t ? TX_BOLD : 0);
 					} else {
 						/* the small fonts are too small for light and underlined text */
-						flags = busy_[d - jan1] ? (yfont ? TX_BOLD : TX_BOLD | TX_UNDER) : (yfont ? 0 : TX_LIGHT);
+						flags = busy_[d - jan1] ? (yfont ? TX_BOLD : TX_BOLD | TX_UNDER) : (yfont ? TX_GREY : TX_PALE);
 					}
 				}
 				if (rl && (k == dim || flags != rflags || col == 0 || (rflags & TX_INVERSE))) {

@@ -28,7 +28,9 @@ extern short ncolors;		/* 2, 4, 16, 256 */
 #define TX_LTR     16	/* left-to-right even when it starts in Hebrew */
 #define TX_CENTER  32
 #define TX_UNDER   64
-#define TX_DIM    128	/* greyed: only for what can't be used (disabled controls) */
+#define TX_DIM    128	/* what can't be used (disabled controls): light grey, else dotted */
+#define TX_GREY   256	/* secondary text: labels, hints, Hebrew dates (dark grey) */
+#define TX_PALE   512	/* what recedes: other months' days, hidden calendars (light grey) */
 void fill(GRECT *r, short color);
 void set_wrmode(short mode);	/* VDI writing mode, through draw.c's cache */
 void fill_pat(GRECT *r, short color, short interior, short style);
@@ -65,7 +67,8 @@ extern GRECT popup_area;		/* where the last popup was */
    the choice opens a dialog (GEM's redraw message would wait for it) */
 short win_popup(short x, short y, const char *const *labels, short n);
 short red_color(void);		/* "today" */
-short grey_color(void);		/* lines, other months' days */
+short grey_color(void);		/* lines (the light grey) */
+short text_grey(int pale);	/* the dark (0) or light (1) grey for text; 1 (black) without */
 
 /* ---- the window (win.c) ---- */
 extern short win_h;		/* AES handle, -1 when closed */

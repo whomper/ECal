@@ -941,7 +941,7 @@ short dlg_pick(const char *title, const char *const *items, short n, short sel)
 			text_at(r.x + cw, r.y, items[first + i], (long)strlen(items[first + i]), w,
 				(first + i == sel ? TX_INVERSE : 0) | (line_rtl(items[first + i], (long)strlen(items[first + i])) ? 0 : TX_LTR));
 		}
-		text_at(b.x + cw, list.y + list.h + 4, "\x01\x02 Return: choose  Esc: cancel", 29, w, TX_LIGHT | TX_LTR);
+		text_at(b.x + cw, list.y + list.h + 4, "\x01\x02 Return: choose  Esc: cancel", 29, w, TX_GREY | TX_LTR);
 		graf_mouse(M_ON, 0);
 		evnt_multi_(MU_KEYBD | MU_BUTTON, 0x102, 3, 0, 0, m, &e);
 		if (e.which & MU_KEYBD) {

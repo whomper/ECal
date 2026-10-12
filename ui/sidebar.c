@@ -61,7 +61,7 @@ static void draw_mini(void)
 	snprintf(s, sizeof(s), "%s %d", month_names[m - 1], y);
 	text_at(mini.x, mini.y, s, (long)strlen(s), 21, TX_BOLD | TX_LTR | TX_CENTER);
 	for (k = 0; k < 7; k++)
-		text_at(mini.x + k * 3 * cw, mini.y + ch + 2, wday_short[(k + opt.weekstart) % 7], 2, 2, TX_LTR | TX_LIGHT);
+		text_at(mini.x + k * 3 * cw, mini.y + ch + 2, wday_short[(k + opt.weekstart) % 7], 2, 2, TX_LTR | TX_GREY);
 	{
 		/* runs of same-looking days in one piece of text (see views.c) */
 		char run[24];
@@ -81,7 +81,7 @@ static void draw_mini(void)
 					fill(&b, day == t ? red_color() : 1);
 					flags = TX_INVERSE | (day == t ? TX_BOLD : 0);
 				} else {
-					flags = mm != m ? TX_LIGHT : 0;
+					flags = mm != m ? TX_PALE : 0;
 				}
 			}
 			if (rl && (k == 42 || flags != rflags || k % 7 == 0 || (rflags & TX_INVERSE))) {
@@ -113,14 +113,14 @@ void side_draw(GRECT *clip)
 	clip_on(&r);
 	fill(&r, 0);
 	if (!naccts) {
-		text_at(r_side.x + cw / 2, r_side.y + ch, "No calendars yet:", 17, cols, TX_LTR | TX_LIGHT);
-		text_at(r_side.x + cw / 2, r_side.y + 2 * ch, "\xF0 > Add account...", 18, cols, TX_LTR | TX_LIGHT);
+		text_at(r_side.x + cw / 2, r_side.y + ch, "No calendars yet:", 17, cols, TX_LTR | TX_GREY);
+		text_at(r_side.x + cw / 2, r_side.y + 2 * ch, "\xF0 > Add account...", 18, cols, TX_LTR | TX_GREY);
 	}
 	for (i = 0; i < nrows; i++) {
 		SROW *s = &srow[i];
 		if (s->cal < 0) {
 			ACCOUNT *a = &accts[s->acct];
-			text_at(r_side.x + cw / 2, s->y, a->name, (long)strlen(a->name), cols - 1, TX_BOLD | TX_RIGHT | TX_LIGHT);
+			text_at(r_side.x + cw / 2, s->y, a->name, (long)strlen(a->name), cols - 1, TX_BOLD | TX_RIGHT | TX_GREY);
 			if (a->err[0])
 				text_at(r_side.x + r_side.w - 2 * cw, s->y, "!", 1, 1, TX_BOLD | TX_LTR);
 		} else {
@@ -139,7 +139,7 @@ void side_draw(GRECT *clip)
 				frame(&box, p.color);
 			}
 			text_at(r_side.x + 3 * cw, s->y, c->name, (long)strlen(c->name), cols - 3,
-				TX_RIGHT | (c->visible ? 0 : TX_LIGHT));
+				TX_RIGHT | (c->visible ? 0 : TX_PALE));
 		}
 	}
 	if (mini.h)
