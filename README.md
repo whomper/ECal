@@ -1,5 +1,16 @@
 # ECal
 
+**Highlights**
+
+- iCloud and other CalDAV calendars, two-way sync; `.ics` subscriptions; local calendars
+- Day, week, month and year views, like the Mac's Calendar
+- Desk accessory or program, for the ST, STE, TT and Falcon
+- Falcon mode: TLS 1.2 on the Falcon itself, RSA on the DSP; any Atari through a Raspberry Pi gateway
+- Hebrew throughout: right-to-left text, Israeli keyboard (F10), Hebrew dates and Hebrew-calendar repeats
+- Every RFC 5545 repeat rule, with "only this one" or "all future ones" edits
+- Reminders over any program; time zones; works offline from its own copy
+- Runs in TT RAM when there is some; GDOS fonts; hover tooltips
+
 A calendar for the Atari ST, STE, TT and Falcon, written in C for GEM.
 It runs as a **desk accessory**, so it opens from the Desk menu over
 whatever program you're working in, and it works like the Mac's Calendar:
@@ -40,8 +51,18 @@ time zones, and Hebrew.
 - **Hebrew**: titles, places and notes in Hebrew, right to left, typed on
   the Israeli keyboard (F10) in every field, like EMail; Hebrew calendar
   names; Hebrew dates (י״ב תשרי תשפ״ז) next to the civil ones
-- Keeps a copy of everything on disk: opens at once and works offline
-  (the menu > Work offline, as in EMail)
+- **Cancelled events** are left out: cancelled by the organiser,
+  titled "Canceled:" (Outlook, Exchange), or invitations you declined
+- **Find** (^F) through titles, places and notes
+- **Tooltips**: rest the mouse on an event to see its title and times
+- **Fonts**: the system font or any monospaced GDOS font (NVDI,
+  SpeedoGDOS), picked in EMail's font selector; twelve calendar colours
+- **The calendar list** hides with a toolbar button (or ^S), leaving the
+  window to the calendar
+- Keeps a copy of everything on disk: opens at once, shows today before
+  it syncs, and works offline (the menu > Work offline, as in EMail)
+- **TT RAM**: on a TT or an accelerated Falcon the program and its memory
+  go to TT/Fast RAM, leaving ST RAM free; the About box says so
 - Runs on TOS 1.04 to 4.x, EmuTOS, MagiC and MiNT, with STinG or MiNTnet,
   in ST high, ST medium, TT and Falcon resolutions; with NVDI the views
   draw several times faster than with TOS's own VDI
@@ -130,7 +151,7 @@ tests/    unit tests, CalDAV integration tests, Hatari tests
 ```
 make test                    # the core: dates, Hebrew dates, zones, iCalendar, repeats,
                              # repeat rules with all of RFC 5545's examples, XML, URLs
-                             # (218 checks); and the gateway (8 tests)
+                             # (231 checks); and the gateway (8 tests)
 make itest                   # cal-cli against a real CalDAV server (Radicale): sync,
 GATEWAY=1 make itest         # add, rename, move one occurrence, delete one or the
 FALCON=1 make itest          # rest, changes from elsewhere, subscriptions, import;
