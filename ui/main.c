@@ -56,6 +56,33 @@ void settings_flush(void)
 	}
 }
 
+/* Closing the window (quitting: also the program): each step on the
+   info line, so a slow one (a secure connection to say goodbye to, a
+   floppy to write to) doesn't look like a hang */
+void closing_down(int quitting)
+{
+	char host[100], m[160];
+	busy(1);
+	if (settings_dirty) {
+		status("Closing: saving your settings...");
+		settings_flush();
+	}
+	if (quitting) {
+		http_kept_host(host, sizeof(host));
+		if (host[0]) {
+			snprintf(m, sizeof(m), "Closing: ending the connection to %s...", host);
+			status(m);
+		}
+		http_close_all();
+	}
+	if (opt.log) {
+		status("Closing: writing ECAL.LOG...");
+		conn_log_flush();
+	}
+	status(quitting ? "Closing ECal..." : "Closing the window...");
+	busy(0);
+}
+
 /* the info line; while the Hebrew keyboard is on it says so at the end,
    whatever else it shows (EMail's editor line does the same) */
 void status(const char *msg)
@@ -419,8 +446,8 @@ void cmd_menu(short x, short y)
 	case M_KEYS: dlg_keys(); break;
 	case M_ABOUT: dlg_about(); break;
 	case M_QUIT:
-		win_close();
 		quit_now = 1;
+		win_close();
 		break;
 	}
 }
@@ -738,10 +765,9 @@ int main(void)
 				}
 				break;
 			case AP_TERM:
-				if (is_acc)
-					win_close();
-				else
+				if (!is_acc)
 					quit_now = 1;
+				win_close();
 				break;
 			default:
 				win_message(msg);
@@ -794,10 +820,10 @@ int main(void)
 			}
 		}
 	}
+	win_close();			/* its steps on the info line, if still open */
+	settings_flush();
 	http_close_all();
 	conn_log_flush();
-	store_save_settings();
-	win_close();
 	v_clsvwk(vdi_h);
 	appl_exit();
 	return 0;

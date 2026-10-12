@@ -64,6 +64,7 @@ typedef struct {
    Digest one when the server asks for that. */
 int  http_request(const HTTPREQ *rq, HTTPRESP *rs, SBUF *body, char *err, int errlen);
 void http_close_all(void);	/* drop the kept-open connection */
+void http_kept_host(char *out, int size);	/* its host, "" if none */
 
 /* base64 of "user:pass" for Basic */
 void http_basic(const char *user, const char *pass, char *out, int size);

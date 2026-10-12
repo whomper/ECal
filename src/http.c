@@ -201,6 +201,18 @@ void http_close_all(void)
 	kept_key[0] = 0;
 }
 
+/* the host of the kept-open connection ("" when there is none) */
+void http_kept_host(char *out, int size)
+{
+	int n = 0;
+	if (kept && !kept->dead)
+		while (kept_key[n] && kept_key[n] != ':' && n < size - 1) {
+			out[n] = kept_key[n];
+			n++;
+		}
+	out[n] = 0;
+}
+
 /* where a request for u goes: the Pi (proxy form) or the server itself */
 static int via_gateway(const URL *u)
 {

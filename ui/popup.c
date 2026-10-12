@@ -30,7 +30,7 @@ static void item(const char *const *lab, short i, short on)
 {
 	GRECT r;
 	const char *l = lab[i];
-	short y = py + 2 + i * ih;
+	short y = py + 2 + i * ih, x0 = px + 2 * cw;
 	r.x = px + 1;
 	r.y = y;
 	r.w = pw - 2;
@@ -41,13 +41,16 @@ static void item(const char *const *lab, short i, short on)
 		return;
 	}
 	fill(&r, on ? 1 : 0);
-	if (l[0] == '\x08') {		/* a check mark in the margin */
+	if (l[0] == '\x08') {
+		/* a check mark in the margin, where the first of the two
+		   spaces would be: the text stays where unchecked text is */
 		text_at(px + cw / 2, y + (ih - ch) / 2, "\x08", 1, 1, on ? TX_INVERSE : 0);
 		l++;
+		x0 = px + 3 * cw;
 	} else if (l[0] == '~') {
 		l++;
 	}
-	text_at(px + 2 * cw, y + (ih - ch) / 2, l, strlen(l), (pw - 2 * cw) / cw,
+	text_at(x0, y + (ih - ch) / 2, l, strlen(l), (pw - 2 * cw) / cw,
 		TX_LTR | (on ? TX_INVERSE : 0) | (lab[i][0] == '~' ? TX_DIM : 0));
 }
 
@@ -84,7 +87,7 @@ short popup(short x, short y, const char *const *lab, short n)
 
 	font_sys_push();
 	for (i = 0; i < n; i++) {
-		short l = (short)strlen(lab[i]) - (lab[i][0] == '~' || lab[i][0] == '\x08');
+		short l = (short)strlen(lab[i]) - (lab[i][0] == '~');
 		if (l > w)
 			w = l;
 	}

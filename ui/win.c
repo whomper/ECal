@@ -159,6 +159,26 @@ static void draw_button(int i)
 		line_col(pane.x + pane.w, w.y, pane.x + pane.w, w.y + w.h - 1, 1);
 		return;
 	}
+	if (i == B_PREV || i == B_NEXT) {
+		/* an arrow: a solid head and a shaft, drawn, so it looks the
+		   same whatever the font (a GDOS font's arrow glyphs are tiny) */
+		short hh = (r.h - 6) / 2, cy = r.y + r.h / 2, tw, sw, sh, c, x0, dir = i == B_PREV ? -1 : 1;
+		if (hh < 2)
+			hh = 2;
+		tw = (short)(hh * 2 * cw / ch);	/* as wide as high, on tall pixels too */
+		if (tw < 3)
+			tw = 3;
+		sw = tw;
+		sh = hh / 3;
+		x0 = r.x + r.w / 2 + dir * (tw + sw) / 2;	/* the tip */
+		for (c = 0; c <= tw; c++) {
+			short half = (short)((long)hh * c / tw);
+			line_col(x0 - dir * c, cy - half, x0 - dir * c, cy + half, 1);
+		}
+		for (c = tw; c <= tw + sw; c++)
+			line_col(x0 - dir * c, cy - sh, x0 - dir * c, cy + sh, 1);
+		return;
+	}
 	text_at(r.x + (r.w - n * cw) / 2, r.y + 1, l, n, n, TX_LTR | (on ? TX_INVERSE : 0) |
 		(i == B_TODAY ? TX_BOLD : 0));
 }
@@ -318,7 +338,7 @@ void win_close(void)
 	if (win_h <= 0)
 		return;
 	remember_place();
-	settings_flush();		/* what was waiting to be written */
+	closing_down(quit_now || !is_acc);
 	wind_close(win_h);
 	wind_delete(win_h);
 	win_h = -1;
@@ -341,9 +361,9 @@ void win_message(short *msg)
 		wind_set(win_h, WF_TOP, 0, 0, 0, 0);
 		break;
 	case WM_CLOSED:
-		win_close();
 		if (!is_acc)
 			quit_now = 1;
+		win_close();
 		break;
 	case WM_FULLED: {
 		short x, y, w, h, fx, fy, fw, fh;
@@ -451,9 +471,9 @@ int win_key(short kstate, short key)
 		case 0x22: dlg_goto(); return 1;			/* ^G */
 		case 0x11:					/* ^W */
 		case 0x10:					/* ^Q */
-			win_close();
 			if (!is_acc)
 				quit_now = 1;
+			win_close();
 			return 1;
 		case 0x14: views_today(); return 1;		/* ^T */
 		case 0x1f: opt.sidebar = !opt.sidebar; settings_later(); win_layout(); win_redraw(0); return 1;	/* ^S */
