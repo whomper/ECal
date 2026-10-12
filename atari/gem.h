@@ -197,6 +197,9 @@ void vq_extnd(short h, short owflag, short *work_out);
 short vq_gdos(void);			/* 1 if a GDOS (NVDI, SpeedoGDOS...) is loaded */
 short vst_load_fonts(short h, short select);
 short vqt_name(short h, short index, char *name);	/* -> font id; name of 33 chars */
+long  vqt_char_index(short h, unsigned short c, short from, short to);
+short vst_map_mode(short h, short mode);
+void  v_gtext_w(short h, short x, short y, const unsigned short *s, short n);
 short vqt_font_format(short h, short index);	/* 1 bitmap, 2 Speedo, 4 TrueType, 8 Type 1, 0 unknown */
 short vst_font(short h, short id);
 short vst_point(short h, short point, short *cw, short *ch);

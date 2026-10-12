@@ -167,6 +167,14 @@ static void updated_status(void)
 	status(s);
 }
 
+void status_updated(void)
+{
+	if (data_ready)
+		updated_status();
+	else
+		status("");
+}
+
 static void refresh(int force, int quiet)
 {
 	int r;

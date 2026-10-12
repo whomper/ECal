@@ -166,12 +166,20 @@ void dlg_about(void);
 void dlg_keys(void);
 void font_apply(void);		/* opt.font_id/pt -> the VDI font, cw, ch */
 void font_menu(void);		/* the font selector (font.c) */
+void font_reselect(void);	/* the text font again, after drawing in another */
+/* how the text font gets its Hebrew letters */
+#define HM_MAP     0		/* where opt.hebfont says (system and bitmap fonts) */
+#define HM_UNICODE 1		/* a vector font's own, found by Unicode (NVDI) */
+#define HM_SYSTEM  2		/* a vector font without them: the system font's */
+extern short heb_mode;
+extern unsigned short heb_idx[27];
 void font_sys_push(void);	/* the system font, for a dialog or popup */
 void font_sys_pop(void);	/* back to the window's font */
 const char *zone_pick(const char *current);	/* a zone name, or NULL */
 
 /* ---- main.c ---- */
 void status(const char *msg);
+void status_updated(void);	/* back to "Updated 10:42" */
 void busy(int on);
 void cmd_refresh(int force);
 void cmd_menu(short x, short y);	/* the toolbar's menu */

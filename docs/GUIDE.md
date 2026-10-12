@@ -18,6 +18,7 @@ C:\ECAL.ACC
 C:\ECAL\ECAL.INF        settings, accounts, calendars
 C:\ECAL\ECAL.KEY        the key the passwords in ECAL.INF are encrypted with
 C:\ECAL\CACHE\          a copy of every calendar
+C:\ECAL\ECAL.FNT        which GDOS fonts are fixed-width (made by Font...)
 C:\ECAL\CACERT.PEM      Falcon mode: root certificates (copy them here)
 C:\ECAL\ROOTS.DAT       Falcon mode: the same, decoded ahead of time
 ```
@@ -79,9 +80,16 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
 
 **Font...** in the ≡ menu picks the font for the window, as in EMail: the
 system font in its two sizes, and with a GDOS (NVDI, SpeedoGDOS,
-FontGDOS) its monospaced fonts in any size they come in (proportional
-ones are listed but can't be chosen). Pick the Hebrew sample that reads
-correctly so ECal knows where the font keeps its Hebrew letters.
+FontGDOS) its monospaced fonts in any size they come in. The first time
+the selector opens, ECal measures every font to find the fixed-width
+ones (the info line counts them: "Looking for fixed-width fonts: 12 of
+240...") and keeps the answers in `ECAL.FNT`, so later openings are
+quick; only fonts added since are measured. For the system font and
+bitmap fonts, pick the Hebrew sample that reads correctly so ECal knows
+where the font keeps its Hebrew letters. A vector font (Speedo,
+TrueType, Type 1) is asked through NVDI 5 for its own Hebrew letters;
+when it has none, or there is no NVDI 5, they are drawn in the system
+font in the same cells, and the dialog's Type line says which.
 Dialogs and menus stay in the system font.
 
 ## Adding calendars

@@ -254,8 +254,11 @@ void heap_add(void *p, size_t bytes)
 	heap_fixed = 1;
 }
 
+#define MAX_BLOCKS 40		/* TOS's pool is shared with every program and folder */
+
 static HDR *more_core(size_t units)
 {
+	static short blocks;		/* GEMDOS blocks taken, a pool entry each */
 	static size_t taken;		/* units taken from GEMDOS so far */
 	size_t want = units, bytes;
 	HDR *h = 0;
@@ -270,6 +273,8 @@ static HDR *more_core(size_t units)
 		want = 65536L;
 	if (want < taken)
 		want = taken;
+	if (blocks >= MAX_BLOCKS)
+		return 0;		/* "out of memory" beats a halted machine */
 	while (!h) {
 		bytes = want * sizeof(HDR);
 		h = Mxalloc(bytes, 3);
@@ -283,6 +288,7 @@ static HDR *more_core(size_t units)
 		}
 	}
 	taken += want;
+	blocks++;
 	h->s.units = want;
 	free(h + 1);
 	return freep;

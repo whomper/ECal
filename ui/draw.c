@@ -303,6 +303,50 @@ static int has_heb(const char *s, long n)
 	return 0;
 }
 
+static int is_heb(unsigned char c)
+{
+	return c >= 0xC2 && c <= 0xDC;
+}
+
+/* a vector font: the Hebrew letters by the font's own indices (NVDI's
+   map mode 0), or in the system font, one cell each; the rest as usual */
+static void runs_at(short x, short y, const char *s, short n)
+{
+	short i = 0;
+	while (i < n) {
+		short j = i, heb = is_heb((unsigned char)s[i]);
+		while (j < n && is_heb((unsigned char)s[j]) == heb && j - i < 120)
+			j++;
+		if (!heb) {
+			v_gtext_n(vdi_h, x + i * cw, y, s + i, j - i);
+		} else if (heb_mode == HM_UNICODE) {
+			unsigned short w[120];
+			short k;
+			for (k = i; k < j; k++)
+				w[k - i] = heb_idx[(unsigned char)s[k] - 0xC2];
+			vst_map_mode(vdi_h, 0);
+			v_gtext_w(vdi_h, x + i * cw, y, w, j - i);
+			vst_map_mode(vdi_h, 1);
+		} else {
+			/* the system font, each letter centred in its cell */
+			short keep_cw = cw, keep_ch = ch, dw, dh, k;
+			char c[BIDI_MAX];
+			vst_font(vdi_h, 1);
+			vst_height(vdi_h, keep_ch >= 16 ? 13 : 6, &dw, &dh);
+			vst_alignment(vdi_h, 0, 5);
+			memcpy(c, s + i, j - i);
+			heb_font_map(c, j - i, opt.hebfont);
+			for (k = 0; k < j - i; k++)
+				v_gtext_n(vdi_h, x + (i + k) * keep_cw + (keep_cw - dw) / 2,
+					  y + (keep_ch - dh) / 2, c + k, 1);
+			font_reselect();
+			cw = keep_cw;
+			ch = keep_ch;
+		}
+		i = j;
+	}
+}
+
 void text_color(short color)
 {
 	next_text_color = color;
@@ -337,6 +381,13 @@ void text_at(short x, short y, const char *s, long n, short cols, short flags)
 	}
 	if (flags & TX_CENTER)
 		x += (cols - (short)n) * cw / 2;
+	if (heb_mode != HM_MAP && has_heb(out, n)) {
+		set_wrmode(2);
+		set_text((flags & TX_INVERSE) ? 0 : color,
+			 ((flags & TX_BOLD) ? 1 : 0) | ((flags & TX_DIM) ? 2 : 0) | ((flags & TX_UNDER) ? 8 : 0));
+		runs_at(x, y, out, (short)n);
+		return;
+	}
 	if (opt.hebfont != HEB_ATARI && has_heb(out, n)) {
 		if (out != vis)
 			memcpy(vis, out, n);

@@ -866,6 +866,7 @@ static void year_font(int level)
 		level = 2 - base;
 	if (level) {
 		vst_font(vdi_h, 1);
+		heb_mode = HM_MAP;	/* the system font has the Atari codes */
 		vst_height(vdi_h, heights[base + level], &c, &h);
 		cw = c;
 		ch = h;

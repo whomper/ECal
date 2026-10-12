@@ -1,25 +1,30 @@
 /*
- * font.c - the font for ECal's window and dialogs (menu > Font...), the
- * same selector as EMail's.
+ * font.c - the font for ECal's window (menu > Font...), the same
+ * selector as EMail's; dialogs and popups keep the system font.
  *
  * The font selector looks like the ones in other GEM programs: the font
  * families in a list on the left, the sizes of the chosen one next to
  * it, what kind of font it is, and a sample. The system font comes in
  * two sizes; with a GDOS (NVDI, SpeedoGDOS, FontGDOS...) its fonts are
  * listed too. ECal lays text out in character cells, so it needs a
- * monospaced font: only those are listed. Whether a font is monospaced
- * is looked at once, the first time the selector opens; their sizes
- * when a font is picked.
+ * monospaced font: only those are listed. Each font is measured once
+ * and the answer kept in ECAL.FNT, so the selector opens quickly the
+ * next time even with hundreds of fonts installed.
  *
- * The dialog also says where the font keeps its Hebrew letters: the
- * Atari character set (TOS, EmuTOS) or the ISO-8859-8 or DOS places,
- * as Israeli system fonts and many GDOS fonts have them.
+ * The dialog also says where the system and bitmap fonts keep their
+ * Hebrew letters: the Atari character set (TOS, EmuTOS) or the
+ * ISO-8859-8 or DOS places, as Israeli system fonts and many GDOS fonts
+ * have them. A vector font (Speedo, TrueType, Type 1) is asked through
+ * NVDI for its Hebrew letters by Unicode; when it has none, they are
+ * drawn in the system font in the same cells.
  */
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "ui.h"
+#include "../src/plat.h"
 
-#define MAXFAM 128
+#define MAXFAM 256
 #define MAXSIZE 20
 
 typedef struct {
@@ -31,9 +36,70 @@ typedef struct {
 static FAM fam[MAXFAM];
 static short nfam, gdos_fonts = -1;
 static short sizes[MAXSIZE], nsizes;
+static char size_label[MAXSIZE][12];
 static short sys_depth;		/* dialogs open: the system font */
 static void use_sys(void);
-static char size_label[MAXSIZE][12];
+
+short heb_mode;			/* HM_*: how this font gets its Hebrew */
+static short heb_why;		/* HM_SYSTEM: why */
+#define HW_NONE     0
+#define HW_NOHEB    1		/* the font has no Hebrew letters */
+#define HW_NOLOOKUP 2		/* the VDI can't look letters up (no NVDI 5) */
+unsigned short heb_idx[27];	/* HM_UNICODE: the font's index of each letter */
+static short cur_id = 1, cur_pt, probed_id = -1;
+
+/* Unicode of the Hebrew letters in the Atari order (0xC2-0xDC), less 0x5D0 */
+static const unsigned char heb_uni[27] = {
+	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 14, 16,
+	17, 18, 20, 22, 23, 24, 25, 26, 15, 10, 13, 19, 21
+};
+
+static short format_of(short id);
+
+/* a vector font: its Hebrew letters by Unicode through NVDI, else the
+   system font draws them */
+static void probe_hebrew(short id)
+{
+	static short probed_mode, probed_why;
+	short k, fmt;
+	if (id == 1) {
+		heb_mode = HM_MAP;
+		return;
+	}
+	if (id == probed_id) {
+		heb_mode = probed_mode;
+		heb_why = probed_why;
+		return;
+	}
+	probed_id = id;
+	heb_mode = HM_MAP;
+	heb_why = HW_NONE;
+	fmt = format_of(id);
+	/* a bitmap font draws the Atari codes itself; a vector font (or one
+	   whose kind the VDI doesn't say) is asked for its Hebrew letters */
+	if (fmt != 1) {
+		long a = vqt_char_index(vdi_h, 'A', 1, 0);
+		if (a > 0) {
+			for (k = 0; k < 27; k++) {
+				long i = vqt_char_index(vdi_h, (unsigned short)(0x5D0 + heb_uni[k]), 2, 0);
+				if (i <= 0)
+					break;
+				heb_idx[k] = (unsigned short)i;
+			}
+			if (k == 27) {
+				heb_mode = HM_UNICODE;
+			} else {
+				heb_mode = HM_SYSTEM;
+				heb_why = HW_NOHEB;
+			}
+		} else if (fmt) {
+			heb_mode = HM_SYSTEM;	/* a vector font, and no NVDI 5 to ask */
+			heb_why = HW_NOLOOKUP;
+		}
+	}
+	probed_mode = heb_mode;
+	probed_why = heb_why;
+}
 
 /* set the font; cw/ch become its cell size. 0 if it isn't there */
 static int set_font(short id, short pt)
@@ -52,7 +118,19 @@ static int set_font(short id, short pt)
 	cw = w;
 	ch = h;
 	vst_alignment(vdi_h, 0, 5);
+	cur_id = id;
+	cur_pt = pt;
+	probe_hebrew(id);
 	return 1;
+}
+
+/* back to the text font after drawing in another */
+void font_reselect(void)
+{
+	short keep_cw = cw, keep_ch = ch;
+	set_font(cur_id, cur_pt);
+	cw = keep_cw;
+	ch = keep_ch;
 }
 
 void font_apply(void)
@@ -95,18 +173,84 @@ void font_sys_pop(void)
 
 /* ---------------- the fonts ---------------- */
 
-/* a font whose i, W and m are as wide as each other */
-static int is_mono(short id)
+/* whether a font is monospaced: 'i', 'W' and 'm' as wide */
+static int measure_mono(FAM *f)
 {
 	short w, h;
-	if (vst_font(vdi_h, id) != id)
+	if (vst_font(vdi_h, f->id) != f->id)
 		return 0;
-	vst_point(vdi_h, 10, &w, &h);
+	vst_point(vdi_h, 12, &w, &h);
+	if (w < 1)
+		return 0;
 	return vqt_width(vdi_h, 'i') == vqt_width(vdi_h, 'W') &&
 	       vqt_width(vdi_h, 'i') == vqt_width(vdi_h, 'm');
 }
 
-/* the monospaced fonts: the only ones ECal can use */
+/* only monospaced fonts are listed. Measuring means loading each font,
+   slow with hundreds of vector fonts: the answers are kept in ECAL.FNT
+   ("1 Courier 10 Pitch", "0 Swiss 721") and only new fonts measured */
+static void keep_monospaced(void)
+{
+	char path[220], *known, *line;
+	SBUF out;
+	short i, n = 1, done = 0, todo = 0;
+	path_join(path, sizeof(path), opt.workdir, "ECAL.FNT");
+	known = pf_load(path, 0);
+	for (i = 1; i < nfam; i++) {
+		fam[i].mono = -1;
+		for (line = known; line && *line; line = strchr(line, '\n') ? strchr(line, '\n') + 1 : 0) {
+			size_t len = strcspn(line + 2, "\r\n");
+			if (line[1] == ' ' && len == strlen(fam[i].name) && !strncmp(line + 2, fam[i].name, len)) {
+				fam[i].mono = line[0] == '1';
+				break;
+			}
+		}
+		if (fam[i].mono < 0)
+			todo++;
+	}
+	if (todo) {
+		busy(1);
+		for (i = 1; i < nfam; i++)
+			if (fam[i].mono < 0) {
+				char m[80];
+				snprintf(m, sizeof(m), "Looking for fixed-width fonts: %d of %d...", ++done, todo);
+				status(m);
+				fam[i].mono = (signed char)measure_mono(&fam[i]);
+			}
+		busy(0);
+		status_updated();
+		sb_init(&out);
+		for (i = 1; i < nfam; i++)
+			sb_printf(&out, "%d %s\r\n", fam[i].mono, fam[i].name);
+		if (out.s)
+			pf_save(path, out.s, out.len);
+		sb_free(&out);
+		font_reselect();
+	}
+	free(known);
+	for (i = 1; i < nfam; i++)
+		if (fam[i].mono)
+			fam[n++] = fam[i];
+	nfam = n;
+}
+
+/* the format of the font with this id (1 bitmap, 2 Speedo, 4 TrueType,
+   8 Type 1), from the list or the VDI */
+static short format_of(short id)
+{
+	short i, n;
+	char name[34];
+	for (i = 0; i < nfam; i++)
+		if (fam[i].id == id)
+			return fam[i].format;
+	n = gdos_fonts > 0 ? gdos_fonts : 0;
+	for (i = 2; i <= n + 1; i++)
+		if (vqt_name(vdi_h, i, name) == id)
+			return vqt_font_format(vdi_h, i);
+	return 1;
+}
+
+/* names only: quick, whatever the number of fonts */
 static void list_families(void)
 {
 	short i, k;
@@ -117,9 +261,11 @@ static void list_families(void)
 	fam[0].mono = 1;
 	strcpy(fam[0].name, "System font");
 	nfam = 1;
-	busy(1);
-	if (gdos_fonts < 0)
+	if (gdos_fonts < 0) {
+		busy(1);
 		gdos_fonts = vq_gdos() ? vst_load_fonts(vdi_h, 0) : 0;
+		busy(0);
+	}
 	for (i = 2; i <= gdos_fonts + 1 && nfam < MAXFAM; i++) {
 		FAM *f = &fam[nfam];
 		short n;
@@ -134,13 +280,10 @@ static void list_families(void)
 		for (n = 31; n >= 0 && (f->name[n] == ' ' || !f->name[n]); n--)
 			f->name[n] = 0;
 		f->format = vqt_font_format(vdi_h, i);
-		if (!is_mono(f->id))
-			continue;
-		f->mono = 1;
+		f->mono = -1;
 		nfam++;
 	}
-	use_sys();
-	busy(0);
+	keep_monospaced();
 }
 
 /* the sizes of a family, and whether it is monospaced */
@@ -377,7 +520,7 @@ static void list_show(LIST *l, short k)
 /* ---------------- the dialog ---------------- */
 
 static short o_ok, o_type, o_prev, o_heb[3];
-static char type_line[40];
+static char type_line[64];
 
 static void draw_obj(short obj)
 {
@@ -425,10 +568,17 @@ static void draw_type(void)
 	FAM *f = &fam[lf.sel];
 	short x, y, n;
 	GRECT r;
-	if (f->id == 1)
+	if (f->id != 1 && f->format != 1) {
+		/* setting it says where its Hebrew comes from */
+		set_font(f->id, chosen_pt() ? chosen_pt() : 12);
+		snprintf(type_line, sizeof(type_line), "%s, Hebrew %s", format_name(f),
+			 heb_mode == HM_UNICODE ? "from the font" :
+			 heb_why == HW_NOHEB ? "in the system font (none in it)" :
+			 heb_why == HW_NOLOOKUP ? "in the system font (no NVDI 5)" : "as the font has it");
+		use_sys();
+	} else {
 		snprintf(type_line, sizeof(type_line), "%s", format_name(f));
-	else
-		snprintf(type_line, sizeof(type_line), "%s, %s", format_name(f), f->mono ? "monospaced" : "proportional");
+	}
 	objc_offset(tr, o_type, &x, &y);
 	r.x = x;
 	r.y = y;
@@ -572,8 +722,8 @@ void font_menu(void)
 	o_ok = d_button(53, 4, 9, "OK", EXIT | DEFAULT);
 	o_cancel = d_button(53, 6, 9, "Cancel", EXIT);
 	d_text(2, 14, "Type:");
-	o_type = d_add(G_IBOX, 0, 0, 0L, 8, 14, 43, 1);
-	d_text(2, 16, "Hebrew letters: pick the sample that reads correctly");
+	o_type = d_add(G_IBOX, 0, 0, 0L, 8, 14, 54, 1);
+	d_text(2, 16, "Hebrew in bitmap fonts: pick the sample that reads right");
 	for (i = 0; i < 3; i++)
 		o_heb[i] = d_add(G_BUTTON, SELECTABLE | RBUTTON, i == sel_heb ? SELECTED : 0,
 				 (long)heb_label[i], 2 + i * 20, 17, 18, 1);

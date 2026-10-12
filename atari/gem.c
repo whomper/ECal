@@ -613,6 +613,46 @@ short vqt_width(short h, short c)
 	return ptsout[0];
 }
 
+/* NVDI 5: a character's index in another mapping (0 the font's own
+ * index, 1 the Atari character set, 2 Unicode); -1 when the font hasn't
+ * got it or the VDI can't say */
+long vqt_char_index(short h, unsigned short c, short from, short to)
+{
+	vintin[0] = (short)c;
+	vintin[1] = from;
+	vintin[2] = to;
+	contrl[4] = 0;
+	vdi(190, 0, 3, h);
+	if (contrl[4] < 1 || (unsigned short)vintout[0] == 0xffff)
+		return -1;
+	return (unsigned short)vintout[0];
+}
+
+/* NVDI 4 and later: how text codes are read (0 the font's own index,
+ * 1 the Atari character set); the mode now in force, -1 without */
+short vst_map_mode(short h, short mode)
+{
+	vintin[0] = mode;
+	contrl[4] = 0;
+	vdi(236, 0, 1, h);
+	return contrl[4] < 1 ? -1 : vintout[0];
+}
+
+/* text given as 16-bit codes (font indices in map mode 0) */
+void v_gtext_w(short h, short x, short y, const unsigned short *s, short n)
+{
+	short i;
+	if (n > 127)
+		n = 127;
+	if (n <= 0)
+		return;
+	for (i = 0; i < n; i++)
+		vintin[i] = (short)s[i];
+	ptsin[0] = x;
+	ptsin[1] = y;
+	vdi(8, 1, n, h);
+}
+
 void v_hide_c(short h) { vdi(123, 0, 0, h); }
 
 void v_show_c(short h, short reset)
