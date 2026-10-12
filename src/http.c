@@ -330,11 +330,16 @@ static int body_add(BODY *b, const char *d, long n)
 	return sb_add(b->body, d, n);
 }
 
+/* where the answer is read into, up to 16 KB at a time: a quarter of the
+   STinG calls, clock reads and progress checks per byte of the 1 KB it
+   was (static: one request at a time, and the accessory's stack is small) */
+static char rbuf[16384];
+
 static int read_n(CONN *c, BODY *b, long n, HTTPRESP *rs)
 {
-	char tmp[1024];
+	char *tmp = rbuf;
 	while (n > 0) {
-		long k = conn_read(c, tmp, n > (long)sizeof(tmp) ? (long)sizeof(tmp) : n);
+		long k = conn_read(c, tmp, n > (long)sizeof(rbuf) ? (long)sizeof(rbuf) : n);
 		if (k <= 0)
 			return 0;
 		rs->length += k;
@@ -454,16 +459,19 @@ static int exchange(const HTTPREQ *rq, const URL *u, const char *auth, HTTPRESP 
 		}
 		ok = 1;
 	} else if (h->clen >= 0) {
+		if (!b.to_sink && body && h->clen <= b.max && !sb_reserve(body, h->clen)) {
+			str_copy(err, "not enough memory for the server's answer", errlen);
+			goto fail;
+		}
 		if (!read_n(c, &b, h->clen, rs))
 			goto body_err;
 		ok = 1;
 	} else {
 		/* until the server closes */
-		char tmp[1024];
 		long k;
-		while ((k = conn_read(c, tmp, sizeof(tmp))) > 0) {
+		while ((k = conn_read(c, rbuf, sizeof(rbuf))) > 0) {
 			rs->length += k;
-			if (!body_add(&b, tmp, k))
+			if (!body_add(&b, rbuf, k))
 				goto body_err;
 		}
 		h->close_after = 1;
@@ -479,6 +487,14 @@ static int exchange(const HTTPREQ *rq, const URL *u, const char *auth, HTTPRESP 
 			sb_free(&plain);
 			str_copy(err, "the server's compressed answer is damaged", errlen);
 			ok = 0;
+		} else if (!body_start) {
+			/* the unpacked text takes the packed one's place: no copy,
+			   and the packed buffer goes at once */
+			unpacked = plain.len;
+			sb_free(body);
+			*body = plain;
+			if (!body->s)
+				ok = sb_add(body, "", 0);
 		} else {
 			body->len = body_start;
 			ok = sb_add(body, plain.s ? plain.s : "", plain.len);
@@ -507,6 +523,11 @@ body_err:
 		snprintf(err, errlen, "couldn't save what %s sent (disk full?)", u->host);
 	else
 		snprintf(err, errlen, "%s: %s", u->host, c->err[0] ? c->err : "connection lost");
+	sb_free(&line);
+	http_close_all();
+	return 0;
+fail:
+	/* err says why; the answer is left unread, so the connection goes */
 	sb_free(&line);
 	http_close_all();
 	return 0;

@@ -18,6 +18,7 @@ void sb_reset(SBUF *b);
 int  sb_add(SBUF *b, const char *s, long n);
 int  sb_adds(SBUF *b, const char *s);
 int  sb_room(SBUF *b, long n);		/* make room for n more bytes */
+int  sb_reserve(SBUF *b, long n);	/* room for exactly n more, no doubling */
 int  sb_addc(SBUF *b, char c);
 int  sb_printf(SBUF *b, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
 char *sb_steal(SBUF *b);		/* hand over the buffer (NUL-terminated) */

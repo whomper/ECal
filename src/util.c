@@ -55,6 +55,22 @@ int sb_add(SBUF *b, const char *s, long n)
 }
 
 int sb_room(SBUF *b, long n) { return grow(b, n); }
+
+/* room for exactly n bytes more (an answer of known length): no doubling,
+   so a 1 MB answer needs 1 MB, not up to 2 MB and the old copy while it
+   moves */
+int sb_reserve(SBUF *b, long n)
+{
+	char *p;
+	if (b->len + n + 1 <= b->cap)
+		return 1;
+	p = realloc(b->s, b->len + n + 1);
+	if (!p)
+		return 0;
+	b->s = p;
+	b->cap = b->len + n + 1;
+	return 1;
+}
 int sb_adds(SBUF *b, const char *s) { return sb_add(b, s, strlen(s)); }
 int sb_addc(SBUF *b, char c) { return sb_add(b, &c, 1); }
 

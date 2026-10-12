@@ -14,12 +14,15 @@
 
 /* ---------------- memory and strings ---------------- */
 
+int mem_unaligned_ok;		/* a 68020 or later: longs at any address */
+
 void *memcpy(void *d, const void *s, size_t n)
 {
 	u8 *dp = d;
 	const u8 *sp = s;
-	/* word copies when both are even: the 68000 has a 16-bit bus */
-	if (!(((u32)dp | (u32)sp) & 1)) {
+	/* long copies when both are even, or always on a 68020 and later
+	   (the 68000 faults on an odd address; text is usually odd on one side) */
+	if (mem_unaligned_ok || !(((u32)dp | (u32)sp) & 1)) {
 		while (n >= 4) {
 			*(u32 *)dp = *(const u32 *)sp;
 			dp += 4;

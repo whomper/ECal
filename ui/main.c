@@ -794,6 +794,10 @@ int main(void)
 	AEVENT ev;
 
 	is_acc = _is_acc;
+	{
+		extern int mem_unaligned_ok;
+		mem_unaligned_ok = get_cookie(0x5F435055L) >= 20;	/* _CPU */
+	}
 	ap_id = appl_init();
 	if (ap_id < 0)
 		return 1;

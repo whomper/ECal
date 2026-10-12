@@ -15,7 +15,7 @@
 typedef struct {
 	int h;
 	void *tls;			/* TLS *, when encrypted */
-	char buf[4096];
+	char buf[16384];	/* a TLS record or a good STinG gulp at a time */
 	long pos, len;
 	long timeout_ms;
 	int dead;		/* known to be gone: close without a goodbye */

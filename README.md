@@ -115,6 +115,16 @@ iCloud sync also depends on the network and on how many events change.
 - On a TT or an accelerated Falcon, running in TT/Fast RAM makes
   everything ECal does itself faster.
 
+In Falcon mode the 68030 decrypts every byte itself and doesn't read
+from STinG while it does, so receiving and decrypting take turns: the
+speed is about 1/(1/network + 1/decrypt). EMail measured 13 KB/s that
+way against 37 KB/s through the Pi. Faster decryption is all ECal can
+do about it (table-based AES and the fastest GHASH, 16 KB reads, long
+copies on the 68030); a bigger TCP receive window in STinG's own
+configuration lets the two overlap. With **Write a log** on, every line
+of `ECAL.LOG` starts with the time of day to the hundredth of a second,
+so you can see where a sync spends its time.
+
 ## The files
 
 | File           | For                                                               |

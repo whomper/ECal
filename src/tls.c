@@ -694,6 +694,9 @@ TLS *tls_start(int sock, const char *host, int rsa_only, int *retry_ecdsa, char 
 	   times an Atari's cache */
 	br_ssl_engine_set_aes_ctr(&t->cc.eng, &br_aes_big_ctr_vtable);
 	br_ssl_engine_set_aes_cbc(&t->cc.eng, &br_aes_big_cbcenc_vtable, &br_aes_big_cbcdec_vtable);
+	/* AES-GCM's GHASH, chosen rather than left to BearSSL: ctmul is the
+	   fastest measured on the Falcon (50 KB/s, ctmul32 37) */
+	br_ssl_engine_set_ghash(&t->cc.eng, &br_ghash_ctmul);
 	br_ssl_engine_set_rsavrfy(&t->cc.eng, rsa_vrfy);
 	br_ssl_client_set_rsapub(&t->cc, rsa_public);
 	br_x509_minimal_set_rsa(&t->xc, rsa_vrfy);

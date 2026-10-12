@@ -90,8 +90,14 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
     DSP56001 do the RSA arithmetic (much faster than the 68030).
   - A server on your home network that speaks plain `http://` (a Radicale
     or Nextcloud without TLS) needs neither.
-  - **Write a log**: `ECAL.LOG` in `C:\ECAL\`, the conversation with
-    the servers (passwords left out) when something doesn't work.
+  - **Write a log**: `ECAL.LOG` in ECal's folder, the conversation
+    with the servers (passwords left out) when something doesn't work.
+    Every line starts with the time of day ("14:05:31.27"), so the log
+    shows where a sync spends its time.
+  - **Speed in Falcon mode**: the 68030 decrypts every byte and doesn't
+    read from the network meanwhile, so the two take turns (about
+    13 KB/s in EMail's measurements, against 37 KB/s through the Pi). A
+    bigger TCP receive window in STinG's configuration lets them overlap.
 
 **Font...** in the ≡ menu picks the font for the window, as in EMail: the
 system font in its two sizes, and with a GDOS (NVDI, SpeedoGDOS,
