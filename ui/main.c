@@ -28,7 +28,8 @@ extern short _is_acc;		/* crt0.S */
 
 static short menu_id = -1;
 static int data_ready;
-static char workdir[160];
+static char workdir[160];	/* ECal's folder: calendars, keys, certificates, log */
+static char inf_file[40];	/* ECAL.INF, in the root of the boot drive */
 static unsigned long last_refresh, last_minute;
 static CTIME alarm_checked;
 static long shown_today = -1;
@@ -454,21 +455,108 @@ void cmd_menu(short x, short y)
 
 /* ---------------- start-up ---------------- */
 
-/* where our files are: next to the program, or X:\ECAL on the boot drive */
+/* ECAL.INF lives in the root of the boot drive, where an accessory can
+   always find it; FOLDER= in it says where the rest of ECal's files are.
+   The program writes the folder it was started from; the accessory takes
+   it from there, and asks when it is missing (locate_folder). */
+
+/* FOLDER= from a settings file, "" when it has none */
+static void inf_folder(const char *inf, char *out, int size)
+{
+	/* read without malloc: the accessory calls this before its heap is
+	   taken. ECAL.PRG and ECAL.ACC write FOLDER= near the top */
+	static char t[4096];
+	char *k;
+	int h = pf_open(inf, PF_READ);
+	long n;
+	out[0] = 0;
+	if (h < 0)
+		return;
+	n = pf_read(h, t, sizeof(t) - 1);
+	pf_close(h);
+	t[n > 0 ? n : 0] = 0;
+	for (k = t; (k = (char *)str_istr(k, "folder=")); k += 7)
+		if (k == t || k[-1] == '\n') {
+			char *e = k + 7 + strcspn(k + 7, "\r\n");
+			*e = 0;
+			str_copy(out, k + 7, size);
+			break;
+		}
+	{
+		int n = (int)strlen(out);
+		while (n > 3 && (out[n - 1] == '\\' || out[n - 1] == ' '))
+			out[--n] = 0;
+	}
+}
+
 static void find_workdir(void)
 {
-	char path[160];
-	short drv = (short)Dgetdrv();
+	char path[160], old[200];
+	short drv = (short)Dgetdrv(), boot = boot_drive();
+	snprintf(inf_file, sizeof(inf_file), "%c:\\ECAL.INF", 'A' + boot);
 	if (is_acc) {
-		snprintf(workdir, sizeof(workdir), "%c:\\ECAL", 'A' + drv);
-		pf_mkdir(workdir);
+		inf_folder(inf_file, workdir, sizeof(workdir));
+		if (!pf_exists(inf_file)) {
+			/* settings from before ECAL.INF moved to the root */
+			snprintf(workdir, sizeof(workdir), "%c:\\ECAL", 'A' + boot);
+			path_join(old, sizeof(old), workdir, "ECAL.INF");
+			if (!pf_exists(old))
+				workdir[0] = 0;
+		}
+		if (workdir[0] && !pf_exists(workdir))
+			workdir[0] = 0;		/* gone: ask at the first opening */
 		return;
 	}
 	path[0] = 0;
 	Dgetpath(path, 0);
 	snprintf(workdir, sizeof(workdir), "%c:%s", 'A' + drv, path);
-	if (workdir[strlen(workdir) - 1] == '\\')
+	if (strlen(workdir) > 3 && workdir[strlen(workdir) - 1] == '\\')
 		workdir[strlen(workdir) - 1] = 0;
+}
+
+/* the old place's ECAL.INF to the root, the first time */
+static void move_inf(void)
+{
+	char old[200], *t;
+	long len;
+	if (pf_exists(inf_file) || !workdir[0])
+		return;
+	path_join(old, sizeof(old), workdir, "ECAL.INF");
+	if (!strcasecmp(old, inf_file) || !(t = pf_load(old, &len)))
+		return;
+	pf_save(inf_file, t, len);
+	free(t);
+}
+
+/* the accessory without its folder: the user shows it where it is */
+static void locate_folder(void)
+{
+	char path[200], name[20] = "", why[200];
+	short button = 0, boot = boot_drive();
+	inf_folder(inf_file, why, sizeof(why));
+	for (;;) {
+		short k = why[0] ? alert(1, "[2][ECal's folder is not at|%s.|Show me where it is?][Locate...|%c:\\ECAL]",
+					 why, 'A' + boot)
+				 : alert(1, "[2][Where is ECal's folder, with|its calendars, keys and|certificates?][Locate...|%c:\\ECAL]",
+					 'A' + boot);
+		char *e;
+		if (k != 1)
+			break;
+		snprintf(path, sizeof(path), "%c:\\*.*", 'A' + boot);
+		if (!fsel_exinput(path, name, &button, "ECal's folder: pick any file in it") || !button)
+			continue;
+		e = strrchr(path, '\\');
+		if (e)
+			*e = 0;
+		if (strlen(path) == 2)
+			strcat(path, "\\");
+		if (pf_exists(path) || strlen(path) == 3) {
+			str_copy(workdir, path, sizeof(workdir));
+			return;
+		}
+	}
+	snprintf(workdir, sizeof(workdir), "%c:\\ECAL", 'A' + boot);
+	pf_mkdir(workdir);
 }
 
 /* an accessory takes its memory once, now: later it would belong to
@@ -489,7 +577,7 @@ static void acc_heap(void)
 		if (want < 4096L * 1024)
 			want = 4096L * 1024;
 	}
-	snprintf(inf, sizeof(inf), "%s\\ECAL.INF", workdir);
+	str_copy(inf, inf_file, sizeof(inf));
 	h = Fopen(inf, 0);
 	if (h >= 0) {
 		n = Fread((short)h, sizeof(buf) - 1, buf);
@@ -528,7 +616,12 @@ static int sync_pending;	/* the first refresh, once the window is drawn */
 
 static void load_settings(void)
 {
-	store_init(workdir);
+	if (!workdir[0])
+		locate_folder();
+	move_inf();
+	store_init(workdir, inf_file);
+	if (strcasecmp(opt.folder, workdir))
+		store_save_settings();	/* FOLDER= as it is now */
 	path_join(conn_cacert, sizeof(conn_cacert), workdir, "CACERT.PEM");
 	path_join(tls_roots_cache, sizeof(tls_roots_cache), workdir, "ROOTS.DAT");
 	path_join(tls_seed_path, sizeof(tls_seed_path), workdir, "SEED.DAT");
@@ -705,7 +798,7 @@ int main(void)
 	if (ap_id < 0)
 		return 1;
 	if (is_acc)
-		menu_id = menu_register(ap_id, "  ECal");
+		menu_id = menu_register(ap_id, "  ECalendar");
 	vdi_h = graf_handle(&gl_wchar, &gl_hchar, &d, &d);
 	cw = gl_wchar;
 	ch = gl_hchar;

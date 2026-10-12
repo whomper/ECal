@@ -26,12 +26,24 @@ def main():
     ap.add_argument("--machine", default="falcon")
     ap.add_argument("--acc", default="ECAL.ACC")
     ap.add_argument("--mono", action="store_true")
+    ap.add_argument("--folder", help="its files in this folder (e.g. APPS\\ECAL.APP), "
+                    "named by FOLDER= in C:\\ECAL.INF")
+    ap.add_argument("--missing", action="store_true", help="with --folder: FOLDER= names a folder that isn't there")
     a = ap.parse_args()
     hd = os.path.join(a.work, "hd")
     shutil.rmtree(a.work, ignore_errors=True)
-    os.makedirs(os.path.join(hd, "ECAL"))
+    folder = os.path.join(hd, *(a.folder or "ECAL").split("\\"))
+    os.makedirs(folder)
     shutil.copy(os.path.join(ROOT, a.acc), os.path.join(hd, "ECAL.ACC"))
-    ui_tour.seed(os.path.join(hd, "ECAL"))
+    ui_tour.seed(folder)
+    if a.folder:
+        # ECAL.INF in the root, FOLDER= naming where the rest is
+        with open(os.path.join(folder, "ECAL.INF"), newline="") as f:
+            inf = f.read()
+        os.remove(os.path.join(folder, "ECAL.INF"))
+        where = "C:\\" + ("GONE\\" if a.missing else "") + a.folder
+        with open(os.path.join(hd, "ECAL.INF"), "w", newline="") as f:
+            f.write("FOLDER=" + where + "\r\n" + inf)
     extra = ["--memsize", "14" if a.machine == "falcon" else "4"]
     if a.mono:
         extra += ["--monitor", "mono"]

@@ -3,29 +3,44 @@
 ## Installing
 
 ECal is a desk accessory: TOS loads it at boot from the root of the
-boot drive, and it waits in the Desk menu until you choose it.
+boot drive, and it waits in the Desk menu as **ECalendar** until you
+choose it.
 
 | Your Atari        | Copy to `C:\`    | Connects                        |
 |-------------------|------------------|---------------------------------|
 | Falcon, TT        | `ECAL.ACC`       | by itself (Falcon mode) or through the Pi |
 | ST, STE, Mega ST  | `ECALST.ACC`     | through the Raspberry Pi gateway |
 
-ECal keeps its settings and the copies of your calendars in the folder
-`ECAL` on the boot drive (`C:\ECAL\`), made the first time it runs:
+The settings are in `ECAL.INF` in the root of the boot drive, next to
+the accessory, where it can always find them. Everything else is in
+ECal's folder, which can be anywhere, on any drive and as deep as you
+like: `FOLDER=` in `ECAL.INF` says where.
 
 ```
 C:\ECAL.ACC
-C:\ECAL\ECAL.INF        settings, accounts, calendars
-C:\ECAL\ECAL.KEY        the key the passwords in ECAL.INF are encrypted with
-C:\ECAL\CACHE\          a copy of every calendar
-C:\ECAL\ECAL.FNT        which GDOS fonts are fixed-width (made by Font...)
-C:\ECAL\CACERT.PEM      Falcon mode: root certificates (copy them here)
-C:\ECAL\ROOTS.DAT       Falcon mode: the same, decoded ahead of time
+C:\ECAL.INF               settings, accounts, calendars; FOLDER= names the folder
+F:\...\ECAL.APP\          ECal's folder (C:\ECAL\ unless you choose another):
+    ECAL.PRG              the program, if you use it
+    ECAL.KEY              the key the passwords in ECAL.INF are encrypted with
+    CACHE\                a copy of every calendar
+    ECAL.FNT              which GDOS fonts are fixed-width (made by Font...)
+    CACERT.PEM            Falcon mode: root certificates (copy them here)
+    ROOTS.DAT             Falcon mode: the same, decoded ahead of time
+    ECAL.LOG              with Write a log on
 ```
 
-`ECAL.PRG` is the same program, to start from the desktop or a
-shell; started that way it keeps its files in its own folder and ends when
-its window closes.
+- **`ECAL.PRG`** is the same program, to start from the desktop or a
+  shell; it ends when its window closes. It uses the folder it was
+  started from as ECal's folder and writes that into `FOLDER=`, so
+  starting it once from your folder is all it takes for the accessory
+  to find it too.
+- **The accessory** reads `FOLDER=` when it starts. If it's empty, or
+  the folder isn't there any more, the first time you open ECal it asks
+  where the folder is: **Locate...** opens the file selector (pick any
+  file in the folder), or use `C:\ECAL`. The answer is kept in
+  `FOLDER=`.
+- Settings from an older ECal, in `C:\ECAL\ECAL.INF` or in the
+  program's folder, are copied to the root the first time.
 
 **Memory.** The accessory takes its working memory once, at boot (an
 accessory can't safely take more later): 1.5 MB on a Falcon or TT,

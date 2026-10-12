@@ -75,7 +75,8 @@ typedef struct {
 	short offline;		/* Work offline: no connections */
 	short hebrew;		/* start with the Hebrew keyboard */
 	short heapkb;		/* the accessory's memory, KB (read at boot by main.c); 0: chosen */
-	char workdir[160];
+	char workdir[160];	/* ECal's folder in use: CACHE, ECAL.KEY, the log... */
+	char folder[160];	/* FOLDER= as ECAL.INF had it (main.c decides) */
 } OPT;
 
 enum { V_DAY, V_WEEK, V_MONTH, V_YEAR };
@@ -96,7 +97,8 @@ extern int store_lost_passwords;
 extern int store_plain_passwords;
 
 /* start-up: settings and the cached calendars from dir */
-void store_init(const char *dir);
+/* the settings from inf (NULL: dir\ECAL.INF); the rest of ECal's files in dir */
+void store_init(const char *dir, const char *inf);
 void store_save_settings(void);
 void cal_load_all(void);
 void cal_load(CALENDAR *c);

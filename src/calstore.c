@@ -134,7 +134,7 @@ static void set_opt(const char *k, const char *v)
 {
 #define S(name) if (!strcasecmp(k, #name)) { str_copy(opt.name, v, sizeof(opt.name)); return; }
 #define I(name) if (!strcasecmp(k, #name)) { opt.name = (short)atoi(v); return; }
-	S(home_tz) S(view_tz) S(gate)
+	S(home_tz) S(view_tz) S(gate) S(folder)
 	I(tzsupport) I(falcon) I(dsp) I(weekstart) I(h24) I(hebdates) I(view) I(daystart)
 	I(alarms) I(alarm_default) I(log) I(font_id) I(font_pt) I(hebfont) I(win_x) I(win_y)
 	I(win_w) I(win_h) I(sidebar) I(past_days) I(future_days) I(duration) I(refresh) I(sync_open) I(offline) I(hebrew) I(heapkb)
@@ -194,7 +194,7 @@ static void set_cal(CALENDAR *c, const char *k, const char *v)
 		c->synced = atol(v);
 }
 
-void store_init(const char *dir)
+void store_init(const char *dir, const char *inf)
 {
 	char key[200], *text, *line;
 	long len;
@@ -202,7 +202,10 @@ void store_init(const char *dir)
 	CALENDAR *c = 0;
 	defaults();
 	str_copy(opt.workdir, dir, sizeof(opt.workdir));
-	path_join(inf_path, sizeof(inf_path), dir, "ECAL.INF");
+	if (inf)
+		str_copy(inf_path, inf, sizeof(inf_path));
+	else
+		path_join(inf_path, sizeof(inf_path), dir, "ECAL.INF");
 	path_join(cache_dir, sizeof(cache_dir), dir, "CACHE");
 	pf_mkdir(cache_dir);
 	path_join(key, sizeof(key), dir, "ECAL.KEY");
@@ -296,6 +299,9 @@ void store_save_settings(void)
 #define S(key, name, text) note(&b, text); sb_printf(&b, key "=%s\r\n\r\n", opt.name);
 #define I(key, name, text) note(&b, text); sb_printf(&b, key "=%d\r\n\r\n", opt.name);
 	/* first: the accessory reads it at boot from the start of the file */
+	sb_printf(&b, "; ECal's folder, with its calendars, keys and certificates; ECAL.PRG\r\n"
+		    "; writes where it was started from, the accessory asks when it's missing\r\nFOLDER=%s\r\n\r\n",
+		  opt.workdir);
 	I("HEAPKB", heapkb, "memory the accessory takes at boot, in KB; 0: 1.5 MB on a Falcon/TT, 256 KB on an ST")
 	S("HOME_TZ", home_tz, "the time zone the Atari's clock is set to (Settings > Time zones)")
 	S("VIEW_TZ", view_tz, "the zone times are shown in, with time zone support on")

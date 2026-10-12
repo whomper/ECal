@@ -127,7 +127,7 @@ int main(int argc, char **argv)
 	}
 	path_join(tls_seed_path, sizeof(tls_seed_path), dir, "SEED.DAT");
 	pf_mkdir(dir);
-	store_init(dir);
+	store_init(dir, 0);
 	tls_tz_minutes = tz_offset(home_zone(), now_utc());
 	cal_load_all();
 

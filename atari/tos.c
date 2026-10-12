@@ -30,6 +30,19 @@ long get_cookie(long id)
 	return cookie_val;
 }
 
+static short bootdev;
+
+static void sup_bootdev(void)
+{
+	__asm__ volatile("move.w 0x446.w,%0" : "=d"(bootdev));	/* _bootdev */
+}
+
+short boot_drive(void)
+{
+	Supexec(sup_bootdev);
+	return bootdev;
+}
+
 static u32 hz;
 
 static void sup_hz200(void)

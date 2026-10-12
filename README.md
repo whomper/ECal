@@ -129,10 +129,13 @@ iCloud sync also depends on the network and on how many events change.
 1. Copy `ECAL.ACC` (Falcon/TT) or `ECALST.ACC` (ST/STE, renamed to
    `ECAL.ACC` or not) into the root of your boot drive, e.g. `C:\`.
    For Falcon mode, make a folder `C:\ECAL` and put `CACERT.PEM` and
-   `ROOTS.DAT` in it. (ECal keeps its own files there too.)
+   `ROOTS.DAT` in it. (ECal keeps its own files there too.) The folder
+   can be anywhere: the settings, `C:\ECAL.INF`, say where in `FOLDER=`;
+   start `ECAL.PRG` from the folder once, or show the accessory where
+   it is when it asks.
 2. For an ST, set up the gateway on a Raspberry Pi:
    `sudo gateway/install.sh` (see [gateway/README.md](gateway/README.md)).
-3. Reboot, choose **ECal** in the Desk menu, and add your iCloud
+3. Reboot, choose **ECalendar** in the Desk menu, and add your iCloud
    account with an [app-specific password](https://support.apple.com/en-us/102654).
 
 The [user guide](docs/GUIDE.md) describes the rest.
