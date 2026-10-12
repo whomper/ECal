@@ -102,6 +102,53 @@ void *st_ram(long n)
 	return n <= (long)sizeof(st_fallback) ? st_buf : 0;
 }
 
+/* small marks drawn on events: a loop for a repeating one, a bell for
+   one with an alert; 16x16 for tall fonts, 8x8 for small ones */
+static const unsigned short ic16[2][16] = {
+	{ 0x0000, 0x07A0, 0x1FB0, 0x3038, 0x603C, 0x6020, 0xC000, 0xC003,
+	  0xC003, 0xC003, 0x6006, 0x6006, 0x381C, 0x1FF8, 0x07E0, 0x0000 },
+	{ 0x0000, 0x0180, 0x07E0, 0x0FF0, 0x0FF0, 0x0FF0, 0x1FF8, 0x1FF8,
+	  0x1FF8, 0x3FFC, 0x3FFC, 0x7FFE, 0xFFFF, 0x0000, 0x03C0, 0x0180 }
+};
+static const unsigned short ic8[2][8] = {
+	{ 0x3400, 0x4600, 0x8700, 0x8000, 0x8100, 0x4200, 0x3C00, 0x0000 },
+	{ 0x1800, 0x3C00, 0x3C00, 0x7E00, 0x7E00, 0xFF00, 0x1800, 0x0000 }
+};
+
+short mark_w(void)
+{
+	return ch >= 14 ? 16 : 8;
+}
+
+void draw_mark(short x, short y, short n, int which, short color, const GRECT *clip)
+{
+	MFDB src, dst;
+	short pxy[8], colors[2];
+	unsigned short *bits = st_ram(32);
+	/* the VDI's raster copy may not clip: only marks wholly inside */
+	if (!bits || x < clip->x || y < clip->y || x + n > clip->x + clip->w || y + n > clip->y + clip->h)
+		return;
+	memcpy(bits, n == 16 ? ic16[which] : ic8[which], n * 2);
+	memset(&src, 0, sizeof(src));
+	memset(&dst, 0, sizeof(dst));
+	src.fd_addr = bits;
+	src.fd_w = 16;
+	src.fd_h = n;
+	src.fd_wdwidth = 1;
+	src.fd_nplanes = 1;
+	pxy[0] = 0;
+	pxy[1] = 0;
+	pxy[2] = n - 1;
+	pxy[3] = n - 1;
+	pxy[4] = x;
+	pxy[5] = y;
+	pxy[6] = x + n - 1;
+	pxy[7] = y + n - 1;
+	colors[0] = color;
+	colors[1] = 0;
+	vrt_cpyfm(vdi_h, 2, pxy, &src, &dst, colors);	/* transparent */
+}
+
 void fill_pat(GRECT *r, short color, short interior, short style)
 {
 	short pxy[4];

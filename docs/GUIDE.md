@@ -158,6 +158,10 @@ scratch); **≡** the menu.
 Today is in red everywhere. The info line under the title shows when
 ECal last updated, the selected event, or what it's doing.
 
+A loop at the right of an event's time line marks a repeating event, a
+bell one with an alert (when alerts are on for its calendar); in a box
+too narrow for them and the time, the time comes first.
+
 Rest the mouse on an event for a moment and a tooltip shows its title and
 when it starts and ends. Click an event to select it, double-click to
 open it. Double-click an

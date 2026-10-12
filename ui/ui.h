@@ -46,6 +46,10 @@ void heb_font_map(char *s, long n, short where);
 int  rect_hit(const GRECT *r, short x, short y);
 int  rect_and(GRECT *a, const GRECT *b);	/* a = a & b; 0 if empty */
 void st_ram_init(void);		/* at start-up */
+#define MARK_LOOP 0
+#define MARK_BELL 1
+short mark_w(void);		/* a mark's size for the font: 16 or 8 pixels */
+void draw_mark(short x, short y, short size, int which, short color, const GRECT *clip);	/* top left */
 void *st_ram(long n);		/* 1 KB of ST RAM for a bitmap to blit (one at a time) */
 
 /* colours of a calendar on this screen: a pen and a fill pattern */

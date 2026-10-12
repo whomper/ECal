@@ -833,7 +833,7 @@ int main(void)
 		/* a click comes at once; where a double click means something,
 		   click_count() waits for the second one before anything is done */
 		/* a refresh waiting: shortly, once the redraws are done */
-		which = evnt_multi_(flags, 0x101, 3, 0, wait, msg, &ev);
+		which = evnt_multi_(flags, is_acc ? 0x102 : 0x101, 3, 0, wait, msg, &ev);
 		if (which & (MU_M1 | MU_KEYBD | MU_BUTTON | MU_MESAG)) {
 			short k;
 			if (which & MU_M1)
@@ -881,8 +881,15 @@ int main(void)
 			if (h == win_h) {
 				if (h != t)
 					wind_set(h, WF_TOP, 0, 0, 0, 0);
-				else
-					win_mouse(ev.mx, ev.my, ev.mbutton, click_count(ev.mx, ev.my, ev.mbutton), ev.kstate);
+				else {
+					short n = click_count(ev.mx, ev.my, ev.mbutton);
+					/* an accessory gets the first click only once the AES
+					   has finished counting: its count is the one to use */
+					if (is_acc && ev.breturn >= 2 && !(ev.mbutton & 2) &&
+					    !win_instant(ev.mx, ev.my) && !side_instant(ev.mx, ev.my))
+						n = 2;
+					win_mouse(ev.mx, ev.my, ev.mbutton, n, ev.kstate);
+				}
 			}
 			wait_release();
 		}

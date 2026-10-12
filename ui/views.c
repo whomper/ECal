@@ -436,6 +436,44 @@ static void layout(void)
 
 /* ---------------- drawing ---------------- */
 
+/* the loop and the bell at the right end of the line at y; the columns
+   they take from that line's text */
+static short event_marks(EVENT *e, const GRECT *r, short y, short color, GRECT *clip, short keep)
+{
+	short w = mark_w(), x, n = 0, my, cols = (r->w - 6) / cw;
+	int bell = e->alarm != -1 && opt.alarms && cals[e->cal].alarms;
+	GRECT c = *clip;
+	if (!rect_and(&c, r))
+		return 0;
+	n = (short)(bell + (e->rr != 0));
+	if (w > r->h - 2 || cols - (n * (w + 2) + cw - 1) / cw < keep)
+		w = 8;			/* a short or narrow box: the small ones */
+	if (cols - (n * (w + 2) + cw - 1) / cw < keep)
+		return 0;		/* the text first: no room for them */
+	n = 0;
+	x = r->x + r->w - 3 - w;
+	my = y + (ch - w) / 2;		/* in the middle of the line, inside the box */
+	if (my + w > r->y + r->h - 1)
+		my = r->y + r->h - 1 - w;
+	if (my < r->y + 1)
+		my = r->y + 1;
+	if (bell) {
+		draw_mark(x, my, w, MARK_BELL, color, &c);
+		x -= w + 2;
+		n++;
+	}
+	if (e->rr) {
+		draw_mark(x, my, w, MARK_LOOP, color, &c);
+		n++;
+	}
+	return n ? (short)((n * (w + 2) + cw - 1) / cw) : 0;
+}
+
+static int has_marks(EVENT *e)
+{
+	return e->rr || (e->alarm != -1 && opt.alarms && cals[e->cal].alarms);
+}
+
 static void event_box(const ITEM *it, GRECT *clip, int bar)
 {
 	OCC *o = &occ.o[it->occ];
@@ -471,7 +509,9 @@ static void event_box(const ITEM *it, GRECT *clip, int bar)
 	if (cols_ <= 0)
 		return;
 	if (bar) {
-		/* one line: (time) title */
+		/* one line: (time) title, the marks at its end */
+		if (has_marks(e))
+			cols_ -= event_marks(e, &r, ty, sel ? 0 : 1, clip, 5);
 		if (!is_long(o) && cur_view == V_MONTH && cols_ >= 11) {
 			DT d;
 			ct_split(o->start, &d);
@@ -491,22 +531,28 @@ static void event_box(const ITEM *it, GRECT *clip, int bar)
 		ct_split(o->end, &b);
 		if (lines < 1)
 			lines = 1;
-		text_at(tx, ty, title, (long)strlen(title), cols_, fl | TX_RIGHT);
-		k++;
-		if (k < lines) {
-			char t2[16];
-			fmt_time(a.hour, a.min, opt.h24, tm, sizeof(tm));
-			fmt_time(b.hour, b.min, opt.h24, t2, sizeof(t2));
-			snprintf(line, sizeof(line), "%s-%s", tm, t2);
-			text_at(tx, ty + k * ch, line, (long)strlen(line), cols_, fl | TX_LTR);
+		/* the marks on the time's line, or the title's when there's one line */
+		{
+			/* keep room for the start time at least, or the title's start */
+			short mc = has_marks(e) ? event_marks(e, &r, ty + (lines > 1 ? ch : 0), sel ? 0 : 1, clip,
+							       lines > 1 ? (short)(opt.h24 ? 5 : 7) : 4) : 0;
+			text_at(tx, ty, title, (long)strlen(title), lines > 1 ? cols_ : cols_ - mc, fl | TX_RIGHT);
 			k++;
+			if (k < lines) {
+				char t2[16];
+				fmt_time(a.hour, a.min, opt.h24, tm, sizeof(tm));
+				fmt_time(b.hour, b.min, opt.h24, t2, sizeof(t2));
+				snprintf(line, sizeof(line), "%s-%s", tm, t2);
+				if ((short)strlen(line) > cols_ - mc)
+					str_copy(line, tm, sizeof(line));	/* narrow: when it starts */
+				text_at(tx, ty + k * ch, line, (long)strlen(line), cols_ - mc, fl | TX_LTR);
+				k++;
+			}
 		}
 		if (k < lines && e->location) {
 			text_at(tx, ty + k * ch, e->location, (long)strlen(e->location), cols_, fl | TX_RIGHT);
 			k++;
 		}
-		if (k < lines && e->rr)
-			text_at(tx, ty + k * ch, "\x0F repeats", 9, cols_, fl | TX_LTR | TX_LIGHT);
 	}
 }
 
