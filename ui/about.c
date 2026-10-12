@@ -151,7 +151,7 @@ void dlg_about(void)
 	font_sys_push();
 	snprintf(conn, sizeof(conn), "%s  \xF9  %s  \xF9  %s",
 		 strcmp(net_stack(), "none") ? net_stack() : "no network",
-		 opt.falcon ? "Falcon" : opt.gate[0] ? "Gateway" : "No gateway",
+		 opt.falcon ? (strcmp(falcon_dsp_state(), "DSP") ? "Falcon" : "Falcon/DSP") : opt.gate[0] ? "Gateway" : "No gateway",
 		 opt.offline ? "offline" : "ready");
 	{
 		/* TT/Fast RAM starts at 16 MB: where TOS loaded the program and
