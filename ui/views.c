@@ -651,8 +651,18 @@ static void draw_details(GRECT *clip)
 		hebrew_from_days(cur_day, &h);
 		hebrew_format(&h, 1, hs, sizeof(hs));
 		text_at(x, y + 2 * ch, hs, (long)strlen(hs), w, TX_RIGHT);
-		text_at(x, y + 4 * ch, "Click an event to see it here;", 30, w, TX_LIGHT | TX_LTR);
-		text_at(x, y + 5 * ch, "double-click to change it.", 26, w, TX_LIGHT | TX_LTR);
+		{
+			/* wrapped to the pane's width */
+			static const char hint[] = "Click an event to see it here; double-click to change it.";
+			long br[8], nb, i, n = (long)sizeof(hint) - 1;
+			nb = wrap_text(hint, n, w, br, 8);
+			for (i = 0; i < nb; i++) {
+				long e = i + 1 < nb ? br[i + 1] : n;
+				while (e > br[i] && hint[e - 1] == ' ')
+					e--;
+				text_at(x, y + (4 + (short)i) * ch, hint + br[i], e - br[i], w, TX_LTR);
+			}
+		}
 		return;
 	}
 	{
