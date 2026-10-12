@@ -86,6 +86,35 @@ Falcon, TT:          Falcon (ECAL.ACC, TLS 1.2, RSA on the DSP) ----------------
   with [BearSSL](https://bearssl.org/), and the DSP56001 checks the servers'
   RSA signatures (about 0.1 s each), as in EMail.
 
+## Performance: Pi, ST and Falcon
+
+Where the work happens decides the speed. Figures are from the emulated
+Falcon (16 MHz 68030) and from counting 68030 instructions; a real
+iCloud sync also depends on the network and on how many events change.
+
+| | ST through the Pi | Falcon through the Pi | Falcon mode, DSP | Falcon mode, no DSP |
+|---|---|---|---|---|
+| TLS, certificates | on the Pi | on the Pi | 68030 + DSP | 68030 alone |
+| New secure connection | none on the Atari | none on the Atari | a few seconds once, then ~0.7 s (resumed) | slower: the RSA check runs on the 68030 |
+| RSA signature check | — | — | ~0.1 s | several times longer |
+| Decrypting answers | — | — | ~200 instructions a byte | the same |
+| Compressed answers | unpacked by the Pi | unpacked by the Pi | unpacked by ECal, ~10 instructions a byte | the same |
+| Big subscription feeds | trimmed by the Pi to the months kept | trimmed by the Pi | parsed whole by ECal | parsed whole |
+
+- **Through the Pi** is the fastest way for any Atari: the Atari only
+  sends and reads plain HTTP on the home network, and the Pi keeps the
+  connections to the servers open. On an 8 MHz ST, drawing and reading
+  the calendar data take most of the time, not the network.
+- **Falcon mode** needs no Pi. After the first connection each request
+  costs well under a second; most of a first sync goes into the first
+  handshake and into decrypting what comes back, which compression keeps
+  small. Saving an event takes about a second.
+- **The DSP** only speeds up the certificate checks at the start of each
+  new connection; with session resumption there are few of those, so
+  it matters most for the first sync after starting ECal.
+- On a TT or an accelerated Falcon, running in TT/Fast RAM makes
+  everything ECal does itself faster.
+
 ## The files
 
 | File           | For                                                               |
