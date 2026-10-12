@@ -256,21 +256,34 @@ void heap_add(void *p, size_t bytes)
 
 static HDR *more_core(size_t units)
 {
-	size_t bytes;
-	HDR *h;
+	static size_t taken;		/* units taken from GEMDOS so far */
+	size_t want = units, bytes;
+	HDR *h = 0;
 	if (heap_fixed)
 		return 0;
-	/* 512 KB at a time: every GEMDOS block takes one of the few memory
-	   descriptors TOS has, and running out of those crashes the machine */
-	if (units < 65536L)
-		units = 65536L;
-	bytes = units * sizeof(HDR);
-	h = Mxalloc(bytes, 3);
-	if ((long)h == -32 || (long)h <= 0)
-		h = Malloc(bytes);
-	if ((long)h <= 0)
-		return 0;
-	h->s.units = units;
+	/* Every GEMDOS block takes an entry in TOS's small internal pool, and
+	   when that runs out TOS halts the machine ("OUT OF INTERNAL MEMORY").
+	   So few blocks: 512 KB at first, then each as big as all before it,
+	   so the heap doubles and 16 MB takes six. Less if that much isn't
+	   free; at worst exactly what is needed. */
+	if (want < 65536L)
+		want = 65536L;
+	if (want < taken)
+		want = taken;
+	while (!h) {
+		bytes = want * sizeof(HDR);
+		h = Mxalloc(bytes, 3);
+		if ((long)h == -32 || (long)h <= 0)
+			h = Malloc(bytes);
+		if ((long)h <= 0) {
+			h = 0;
+			if (want == units)
+				return 0;
+			want = want / 2 > units ? want / 2 : units;
+		}
+	}
+	taken += want;
+	h->s.units = want;
 	free(h + 1);
 	return freep;
 }
