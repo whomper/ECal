@@ -26,12 +26,18 @@ def main():
     ap.add_argument("--machine", default="falcon")
     ap.add_argument("--acc", default="ECAL.ACC")
     ap.add_argument("--mono", action="store_true")
+    ap.add_argument("--elsewhere", action="store_true",
+                    help="its files in C:\\ECAL.APP, named by C:\\ECAL.DIR")
     a = ap.parse_args()
     hd = os.path.join(a.work, "hd")
     shutil.rmtree(a.work, ignore_errors=True)
-    os.makedirs(os.path.join(hd, "ECAL"))
+    folder = "ECAL.APP" if a.elsewhere else "ECAL"
+    os.makedirs(os.path.join(hd, folder))
     shutil.copy(os.path.join(ROOT, a.acc), os.path.join(hd, "ECAL.ACC"))
-    ui_tour.seed(os.path.join(hd, "ECAL"))
+    ui_tour.seed(os.path.join(hd, folder))
+    if a.elsewhere:
+        with open(os.path.join(hd, "ECAL.DIR"), "w", newline="") as f:
+            f.write("C:\\ECAL.APP\r\n")
     extra = ["--memsize", "14" if a.machine == "falcon" else "4"]
     if a.mono:
         extra += ["--monitor", "mono"]
@@ -55,6 +61,9 @@ def main():
         r.shot("5-again")
     finally:
         r.stop()
+    if a.elsewhere:
+        made = os.path.isdir(os.path.join(hd, "ECAL"))
+        print("files in C:\\ECAL.APP only:", "no, C:\\ECAL was made" if made else "yes")
     print("screenshots in", os.path.join(a.work, "shots"))
 
 

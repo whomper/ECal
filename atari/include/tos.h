@@ -196,6 +196,7 @@ extern void *_BasePage;
 /* tos.c */
 long get_cookie(long id);	/* 0 when missing */
 u32 tos_hz200(void);		/* 200 Hz system timer */
+short boot_drive(void);		/* 0 = A: */
 void nf_debug(const char *s);	/* emulator console (NatFeats); no-op on hardware */
 
 #endif

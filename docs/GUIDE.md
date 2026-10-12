@@ -3,7 +3,8 @@
 ## Installing
 
 ECal is a desk accessory: TOS loads it at boot from the root of the
-boot drive, and it waits in the Desk menu until you choose it.
+boot drive, and it waits in the Desk menu as **ECalendar** until you
+choose it.
 
 | Your Atari        | Copy to `C:\`    | Connects                        |
 |-------------------|------------------|---------------------------------|
@@ -18,6 +19,7 @@ C:\ECAL.ACC
 C:\ECAL\ECAL.INF        settings, accounts, calendars
 C:\ECAL\ECAL.KEY        the key the passwords in ECAL.INF are encrypted with
 C:\ECAL\CACHE\          a copy of every calendar
+C:\ECAL.DIR             optional: the folder to use instead of C:\ECAL
 C:\ECAL\ECAL.FNT        which GDOS fonts are fixed-width (made by Font...)
 C:\ECAL\CACERT.PEM      Falcon mode: root certificates (copy them here)
 C:\ECAL\ROOTS.DAT       Falcon mode: the same, decoded ahead of time
@@ -26,6 +28,22 @@ C:\ECAL\ROOTS.DAT       Falcon mode: the same, decoded ahead of time
 `ECAL.PRG` is the same program, to start from the desktop or a
 shell; started that way it keeps its files in its own folder and ends when
 its window closes.
+
+**Keeping the files on another drive.** The accessory has to be in the
+root of the boot drive, but its files needn't be. Put one line naming
+the folder in `C:\ECAL.DIR`, e.g.
+
+```
+F:\ECAL.APP
+```
+
+and the accessory uses that folder (settings, calendars, certificates,
+log) instead of `C:\ECAL\`, the same one `ECAL.PRG` uses there. You
+don't have to write it yourself: start `ECAL.PRG` from its folder once
+while `ECAL.ACC` is on the boot drive, and it writes `ECAL.DIR` for you
+(unless `C:\ECAL\` already holds settings). From the next boot both
+share one set of files. An empty `C:\ECAL` made by an earlier boot can
+be deleted.
 
 **Memory.** The accessory takes its working memory once, at boot (an
 accessory can't safely take more later): 1.5 MB on a Falcon or TT,

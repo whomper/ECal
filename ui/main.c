@@ -454,14 +454,38 @@ void cmd_menu(short x, short y)
 
 /* ---------------- start-up ---------------- */
 
-/* where our files are: next to the program, or X:\ECAL on the boot drive */
+/* Where our files are. The program: its own folder. The accessory:
+   X:\ECAL on the boot drive, unless X:\ECAL.DIR names another folder
+   (one line, e.g. F:\ECAL.APP), so the accessory can share the
+   program's folder on another drive. The program writes that file
+   itself when it finds ECAL.ACC on the boot drive with no folder yet. */
+static void dir_from_pointer(const char *ptr, char *out, int size)
+{
+	char *t = pf_load(ptr, 0), *e;
+	out[0] = 0;
+	if (!t)
+		return;
+	e = t + strcspn(t, "\r\n");
+	*e = 0;
+	while (e > t && (e[-1] == ' ' || e[-1] == '\\'))
+		*--e = 0;
+	if (t[0] && t[1] == ':' && pf_exists(t))
+		str_copy(out, t, size);
+	free(t);
+}
+
 static void find_workdir(void)
 {
-	char path[160];
-	short drv = (short)Dgetdrv();
+	char path[160], ptr[32], acc[32], own[40], owninf[50];
+	short drv = (short)Dgetdrv(), boot = boot_drive();
+	snprintf(ptr, sizeof(ptr), "%c:\\ECAL.DIR", 'A' + boot);
+	snprintf(own, sizeof(own), "%c:\\ECAL", 'A' + boot);
 	if (is_acc) {
-		snprintf(workdir, sizeof(workdir), "%c:\\ECAL", 'A' + drv);
-		pf_mkdir(workdir);
+		dir_from_pointer(ptr, workdir, sizeof(workdir));
+		if (!workdir[0]) {
+			str_copy(workdir, own, sizeof(workdir));
+			pf_mkdir(workdir);
+		}
 		return;
 	}
 	path[0] = 0;
@@ -469,6 +493,17 @@ static void find_workdir(void)
 	snprintf(workdir, sizeof(workdir), "%c:%s", 'A' + drv, path);
 	if (workdir[strlen(workdir) - 1] == '\\')
 		workdir[strlen(workdir) - 1] = 0;
+	/* the accessory on the boot drive, and no settings of its own yet
+	   (X:\ECAL may be there, empty, from its first boot): point it
+	   here, so both use the same settings and calendars */
+	snprintf(acc, sizeof(acc), "%c:\\ECAL.ACC", 'A' + boot);
+	snprintf(owninf, sizeof(owninf), "%s\\ECAL.INF", own);
+	if (strlen(workdir) > 3 && pf_exists(acc) && !pf_exists(ptr) && !pf_exists(owninf) &&
+	    strcasecmp(workdir, own)) {
+		char line[180];
+		snprintf(line, sizeof(line), "%s\r\n", workdir);
+		pf_save(ptr, line, (long)strlen(line));
+	}
 }
 
 /* an accessory takes its memory once, now: later it would belong to
@@ -705,7 +740,7 @@ int main(void)
 	if (ap_id < 0)
 		return 1;
 	if (is_acc)
-		menu_id = menu_register(ap_id, "  ECal");
+		menu_id = menu_register(ap_id, "  ECalendar");
 	vdi_h = graf_handle(&gl_wchar, &gl_hchar, &d, &d);
 	cw = gl_wchar;
 	ch = gl_hchar;
