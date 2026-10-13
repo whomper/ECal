@@ -139,6 +139,14 @@ $(BIN)/ROOTS.DAT: $(BIN)/CACERT.PEM
 	$(MAKE) $(OBJDIR)/mkroots
 	$(OBJDIR)/mkroots $(BIN)/CACERT.PEM $@
 
+# the help file for ST-Guide and HypView, from docs/GUIDE.md; needs hcp
+# (github.com/th-otto/hypview): make help HCP=/path/to/hcp
+HCP     ?= hcp
+help: $(BIN)/ECAL.HYP
+$(BIN)/ECAL.HYP: docs/GUIDE.md tools/guide2stg.py VERSION | $(OBJDIR)
+	python3 tools/guide2stg.py docs/GUIDE.md $(OBJDIR)/ECAL.STG VERSION
+	$(HCP) -o $@ $(OBJDIR)/ECAL.STG
+
 test: $(OBJDIR)/unit
 	$(OBJDIR)/unit
 	python3 -m unittest discover -s gateway -p 'test_*.py'
@@ -149,4 +157,4 @@ itest: $(OBJDIR)/cal-cli
 clean:
 	rm -rf $(OBJDIR) $(BIN)/ECAL.ACC $(BIN)/ECAL.PRG $(BIN)/ECALST.ACC
 
-.PHONY: all test itest clean
+.PHONY: all help test itest clean

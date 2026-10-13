@@ -179,8 +179,9 @@ open it.
 time (it snaps to quarter hours), in the month view and for all-day
 events to another day, keeping its time and length. The info line says
 where it will go while you drag. A repeating event asks whether to move
-only this occurrence or this and all future ones, as the editor does. Double-click an
-empty day or hour for a new event there. Right-click an event to open,
+only this occurrence or this and all future ones, as the editor does.
+
+Double-click an empty day or hour for a new event there. Right-click an event to open,
 duplicate or delete it; right-click a day for a new event or to change
 the view.
 
