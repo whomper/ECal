@@ -827,6 +827,36 @@ static void test_gone(void)
 	ics_me[0] = 0;
 }
 
+/* alerts as iCloud and others write them: Apple's ACTION:NONE
+   placeholder before the real alert, an alert at a set time, one from
+   the end, and an event with only the placeholder */
+static void test_alarms(void)
+{
+#define EV(uid, body) "BEGIN:VEVENT\r\nUID:" uid "\r\nDTSTART:20261012T100000Z\r\n" \
+		      "DTEND:20261012T110000Z\r\nSUMMARY:x\r\n" body "END:VEVENT\r\n"
+#define PLACEHOLDER "BEGIN:VALARM\r\nX-WR-ALARMUID:p\r\nACTION:NONE\r\n" \
+		    "TRIGGER;VALUE=DATE-TIME:19760401T005545Z\r\nEND:VALARM\r\n"
+	static const char text[] = "BEGIN:VCALENDAR\r\n"
+		EV("a", PLACEHOLDER "BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT15M\r\nEND:VALARM\r\n")
+		EV("b", "BEGIN:VALARM\r\nACTION:AUDIO\r\nTRIGGER;VALUE=DATE-TIME:20261012T093000Z\r\nEND:VALARM\r\n")
+		EV("c", "BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER;RELATED=END:-PT90M\r\nEND:VALARM\r\n")
+		EV("d", PLACEHOLDER)
+		EV("e", "BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-P1DT2H\r\nEND:VALARM\r\n"
+			"BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT5M\r\nEND:VALARM\r\n")
+		"END:VCALENDAR\r\n";
+#undef EV
+#undef PLACEHOLDER
+	EVS s;
+	memset(&s, 0, sizeof(s));
+	CHECK_EQ(ics_parse(text, (long)strlen(text), keep, &s, CT_NONE, CT_NONE), 5);
+	CHECK(s.n == 5 && s.ev[0]->alarm == 15);	/* the real one after the placeholder */
+	CHECK(s.n == 5 && s.ev[1]->alarm == 30);	/* at 9:30 for 10:00 */
+	CHECK(s.n == 5 && s.ev[2]->alarm == 30);	/* 90 min before an end an hour after the start */
+	CHECK(s.n == 5 && s.ev[3]->alarm == -1);	/* only the placeholder: none */
+	CHECK(s.n == 5 && s.ev[4]->alarm == 26 * 60);	/* the first of two */
+	free_evs(&s);
+}
+
 static unsigned long sum_of(const SBUF *b)
 {
 	unsigned long t = 0;
@@ -875,6 +905,7 @@ int main(void)
 	test_urls();
 	test_inflate();
 	test_gone();
+	test_alarms();
 	printf("%d checks, %d failed\n", checks, fails);
 	return fails != 0;
 }

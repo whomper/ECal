@@ -225,8 +225,14 @@ struct ICSP {
 	SBUF rd;			/* the same for RDATE */
 	SBUF exr;			/* EXRULE values, one per line */
 	int range_future;		/* RECURRENCE-ID;RANGE=THISANDFUTURE */
-	char trigger[40];
-	int alarm_none;
+	/* the VALARM being read */
+	char a_trig[40];
+	int a_none, a_end, a_abs;
+	/* the event's alert: the first VALARM that really alerts (Apple adds
+	   placeholders with ACTION:NONE, often before the real one) */
+	int have_alarm, alarm_end, alarm_abs;
+	long alarm_rel;			/* minutes from the start (or end): negative before */
+	TVAL alarm_at;			/* an alert at a set time (TRIGGER;VALUE=DATE-TIME) */
 	/* VTIMEZONE */
 	char tzname[40];
 	TZSUB sub, std, dl;
@@ -506,10 +512,19 @@ static void finish_event(ICSP *p)
 		}
 	}
 	e->range_future = (unsigned char)(e->recurid != CT_NONE && p->range_future);
-	if (p->trigger[0] && !p->alarm_none) {
-		long m;
+	if (p->have_alarm) {
+		long m = p->alarm_rel;
+		int ok = 1;
+		if (p->alarm_abs) {
+			/* at a set time: as minutes from the start */
+			CTIME at;
+			ok = resolve(&p->alarm_at, &at, 0, 0) != 0;
+			m = at - e->start;
+		} else if (p->alarm_end) {
+			m += e->end - e->start;	/* from the end */
+		}
 		/* before the start, or (all-day events) during the day */
-		if (ics_duration(p->trigger, &m) && m > -40L * MIN_PER_DAY && m < MIN_PER_DAY && m != 1)
+		if (ok && m > -40L * MIN_PER_DAY && m < MIN_PER_DAY && m != 1)
 			e->alarm = (short)-m;
 	}
 	/* outside the window, and not repeating: not needed */
@@ -614,14 +629,16 @@ static void logical_line(ICSP *p, char *s)
 			p->in_event = 1;
 			p->ev = ev_new();
 			p->have_start = p->have_end = p->have_recur = p->have_dur = 0;
-			p->rrule[0] = p->trigger[0] = 0;
-			p->alarm_none = 0;
+			p->rrule[0] = 0;
+			p->have_alarm = 0;
 			p->range_future = 0;
 			sb_reset(&p->exd);
 			sb_reset(&p->rd);
 			sb_reset(&p->exr);
 		} else if (VALUE_IS("VALARM") && p->in_event && !p->in_alarm) {
 			p->in_alarm = 1;
+			p->a_trig[0] = 0;
+			p->a_none = p->a_end = p->a_abs = 0;
 		} else if (VALUE_IS("VTIMEZONE") && !p->in_event) {
 			p->in_tz = 1;
 			p->tz_known = 0;
@@ -644,6 +661,19 @@ static void logical_line(ICSP *p, char *s)
 			p->skip--;
 		} else if (p->in_alarm && VALUE_IS("VALARM")) {
 			p->in_alarm = 0;
+			if (!p->have_alarm && !p->a_none && p->a_trig[0]) {
+				long m;
+				if (p->a_abs) {
+					memset(&p->alarm_at, 0, sizeof(p->alarm_at));
+					str_copy(p->alarm_at.value, p->a_trig, sizeof(p->alarm_at.value));
+					p->have_alarm = p->alarm_abs = 1;
+				} else if (ics_duration(p->a_trig, &m)) {
+					p->alarm_rel = m;
+					p->alarm_end = p->a_end;
+					p->alarm_abs = 0;
+					p->have_alarm = 1;
+				}
+			}
 		} else if (p->in_event && VALUE_IS("VEVENT")) {
 			p->in_event = 0;
 			if (p->cb)
@@ -691,13 +721,15 @@ static void logical_line(ICSP *p, char *s)
 		return;
 	}
 	if (p->in_alarm) {
-		if (NAME_IS("TRIGGER") && !p->trigger[0]) {
-			char rel[16];
+		if (NAME_IS("TRIGGER") && !p->a_trig[0]) {
+			char rel[16], vt[16];
 			param(params, "RELATED", rel, sizeof(rel));
-			if (strcasecmp(rel, "END"))
-				str_copy(p->trigger, value, sizeof(p->trigger));
+			param(params, "VALUE", vt, sizeof(vt));
+			str_copy(p->a_trig, value, sizeof(p->a_trig));
+			p->a_end = !strcasecmp(rel, "END");
+			p->a_abs = !strcasecmp(vt, "DATE-TIME") || (value[0] >= '0' && value[0] <= '9');
 		} else if (NAME_IS("ACTION") && VALUE_IS("NONE")) {
-			p->alarm_none = 1;
+			p->a_none = 1;
 		}
 		return;
 	}
