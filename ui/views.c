@@ -1212,6 +1212,108 @@ static long day_at(short mx, short my, short *minute)
 	}
 }
 
+static void select_item(int i);
+
+/* Dragging an event: an outline follows the mouse, snapped to 15 minutes
+   in the day and week grids (to whole days for all-day events and in the
+   month), the info line says where it will go, and letting go moves it.
+   0 when the button came up without the mouse moving: a plain click */
+static int drag_event(int it, short mx, short my)
+{
+	ITEM *item = &items[it];
+	OCC o = occ.o[item->occ];
+	GRECT ghost, last;
+	short x = mx, y = my, b, k, shown = 0, m[8];
+	long grab_day = item->day, to_day = grab_day;
+	short start_min = (short)(o.start - ct_day_start(o.start));
+	CTIME to = o.start;
+	int timed = item->timed && cur_view != V_MONTH, moved = 0;
+	AEVENT e;
+	/* only a press that moves a few pixels is a drag */
+	for (;;) {
+		graf_mkstate(&x, &y, &b, &k);
+		if (!(b & 1))
+			return 0;
+		if (x - mx > 3 || mx - x > 3 || y - my > 3 || my - y > 3)
+			break;
+		evnt_timer_(10);
+	}
+	wind_update(BEG_UPDATE);
+	wind_update(3);			/* the mouse is ours until the button comes up */
+	graf_mouse(4, 0);		/* the flat hand */
+	clip_on(&r_view);
+	for (;;) {
+		long d = day_at(x, y, 0);
+		char line[80], tm[16];
+		DT a;
+		if (d >= first_day && d < first_day + ndays)
+			to_day = d;
+		ghost = item->r;
+		if (timed) {
+			short mins = start_min + (short)((long)(y - my) * 60 / hour_h);
+			mins = (short)((mins + (mins >= 0 ? 7 : -7)) / 15 * 15);	/* the nearest quarter */
+			if (mins < 0)
+				mins = 0;
+			if (mins > MIN_PER_DAY - 15)
+				mins = MIN_PER_DAY - 15;
+			to = (CTIME)to_day * MIN_PER_DAY + mins;
+			ghost.x = grid.x + (short)(to_day - first_day) * cell_w + 1;
+			ghost.w = cell_w - 2;
+			ghost.y = grid.y + (short)(((long)mins - day_scroll * 60L) * hour_h / 60);
+		} else {
+			/* whole days: the outline jumps from cell to cell */
+			long dd = to_day - grab_day;
+			to = o.start + dd * MIN_PER_DAY;
+			if (cur_view == V_MONTH) {
+				short gc = (short)((grab_day - first_day) % 7), gr = (short)((grab_day - first_day) / 7);
+				short tc = (short)((to_day - first_day) % 7), tr = (short)((to_day - first_day) / 7);
+				ghost.x += (tc - gc) * cell_w;
+				ghost.y += (tr - gr) * cell_h;
+			} else {
+				ghost.x += (short)dd * cell_w;
+			}
+		}
+		if (!shown || memcmp(&ghost, &last, sizeof(ghost))) {
+			graf_mouse(M_OFF, 0);
+			if (shown)
+				xor_frame(&last);
+			xor_frame(&ghost);
+			graf_mouse(M_ON, 0);
+			last = ghost;
+			shown = 1;
+			ct_split(to, &a);
+			fmt_time(a.hour, a.min, opt.h24, tm, sizeof(tm));
+			snprintf(line, sizeof(line), "Move to %s %d %s%s%s", wday_short[a.wday], a.day,
+				 month_short[a.mon - 1], o.ev->allday ? "" : ", ", o.ev->allday ? "" : tm);
+			win_status(line);
+		}
+		/* till the mouse moves or the button comes up */
+		evnt_set_m1(1, x, y, 1, 1);
+		evnt_multi_(MU_M1 | MU_BUTTON, 1, 1, 0, 0, m, &e);
+		graf_mkstate(&x, &y, &b, &k);
+		if (!(b & 1))
+			break;
+	}
+	graf_mouse(M_OFF, 0);
+	xor_frame(&last);
+	graf_mouse(M_ON, 0);
+	clip_off();
+	graf_mouse(ARROW, 0);
+	wind_update(2);
+	wind_update(END_UPDATE);
+	if (to != o.start)
+		moved = editor_move(o.ev, o.start, o.orig, to);
+	if (moved) {
+		views_select_none();
+		after_change();
+		status_updated();
+	} else {
+		select_item(it);
+		win_redraw(&r_view);
+	}
+	return 1;
+}
+
 static void select_item(int i)
 {
 	OCC *o = &occ.o[items[i].occ];
@@ -1304,6 +1406,9 @@ int views_click(short mx, short my, short clicks, short kstate, short button)
 		views_goto(items[it].day, V_DAY);
 		return 1;
 	}
+	if (it >= 0 && clicks == 1 && cur_view != V_YEAR && cal_writable(&cals[occ.o[items[it].occ].ev->cal]) &&
+	    drag_event(it, mx, my))
+		return 1;
 	if (it >= 0) {
 		int same = sel_occ.ev == occ.o[items[it].occ].ev && sel_occ.start == occ.o[items[it].occ].start;
 		select_item(it);

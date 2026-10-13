@@ -208,6 +208,26 @@ void frame(GRECT *r, short color)
 	v_pline(vdi_h, 5, p);
 }
 
+/* an outline drawn in XOR: drawn twice it is gone (a dragged event) */
+void xor_frame(GRECT *r)
+{
+	short p[10];
+	p[0] = p[6] = p[8] = r->x;
+	p[1] = p[3] = p[9] = r->y;
+	p[2] = p[4] = r->x + r->w - 1;
+	p[5] = p[7] = r->y + r->h - 1;
+	set_wrmode(3);
+	set_lcolor(1);
+	v_pline(vdi_h, 5, p);
+	p[0] = p[6] = p[8] = r->x + 1;
+	p[1] = p[3] = p[9] = r->y + 1;
+	p[2] = p[4] = r->x + r->w - 2;
+	p[5] = p[7] = r->y + r->h - 2;
+	if (r->w > 4 && r->h > 4)
+		v_pline(vdi_h, 5, p);
+	set_wrmode(1);
+}
+
 short red_color(void)
 {
 	return ncolors >= 4 ? 2 : 1;

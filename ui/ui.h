@@ -35,6 +35,7 @@ void fill(GRECT *r, short color);
 void set_wrmode(short mode);	/* VDI writing mode, through draw.c's cache */
 void fill_pat(GRECT *r, short color, short interior, short style);
 void frame(GRECT *r, short color);
+void xor_frame(GRECT *r);	/* an outline in XOR (twice: gone) */
 void clip_on(GRECT *r);
 void clip_off(void);
 void text_at(short x, short y, const char *s, long n, short cols, short flags);
@@ -162,6 +163,8 @@ int   dlg_ask(const char *title, const char *label, char *buf, short len);
 /* ---- the dialogs (dialogs.c, editor.c) ---- */
 int  editor_open(EVENT *e, CTIME occ_start, CTIME orig);	/* 1 if changed; orig: OCC.orig */
 void editor_new(long day, short hour_min, short allday);
+/* an occurrence dragged to new_start (the view's wall time): 1 if saved */
+int  editor_move(EVENT *e, CTIME occ_start, CTIME orig, CTIME new_start);
 void dlg_add_account(void);
 int  dlg_account(int a);	/* 1 changed, -1 deleted */
 int  dlg_calendar(int c);	/* name, colour, alarms of one calendar; 1 if changed */

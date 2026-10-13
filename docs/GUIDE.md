@@ -170,7 +170,13 @@ too narrow for them and the time, the time comes first.
 
 Rest the mouse on an event for a moment and a tooltip shows its title and
 when it starts and ends. Click an event to select it, double-click to
-open it. Double-click an
+open it.
+
+**Drag an event** to move it: in the day and week views to another day and
+time (it snaps to quarter hours), in the month view and for all-day
+events to another day, keeping its time and length. The info line says
+where it will go while you drag. A repeating event asks whether to move
+only this occurrence or this and all future ones, as the editor does. Double-click an
 empty day or hour for a new event there. Right-click an event to open,
 duplicate or delete it; right-click a day for a new event or to change
 the view.

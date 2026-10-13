@@ -983,6 +983,46 @@ static int run_editor(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 	}
 }
 
+/* a drag: the occurrence at occ_start (view's wall time) to new_start,
+   its length kept; a repeating one asks, as the editor does */
+int editor_move(EVENT *e, CTIME occ_start, CTIME orig, CTIME new_start)
+{
+	const TZONE *vz = view_zone();
+	EVENT *m = e->res >= 0 ? ev_master(e) : 0, *n;
+	CTIME act = ev_from_wall(e, occ_start, vz), to = ev_from_wall(e, new_start, vz), len = e->end - e->start;
+	CTIME occ_rep = orig != CT_NONE ? orig : e->recurid != CT_NONE ? e->recurid : act;
+	int how = SAVE_ALL, ok, first = m && occ_rep == m->start && e == m;
+	if (!cal_writable(&cals[e->cal]) || to == act)
+		return 0;
+	if (m && m->rr) {
+		how = ask_how(first);
+		if (how < 0)
+			return 0;
+	}
+	n = ev_dup(how == SAVE_ALL && m && m->rr && e->recurid == CT_NONE ? m : e);
+	if (!n)
+		return 0;
+	if (how == SAVE_ALL && m && m->rr) {
+		/* the whole series moves by as much as this occurrence did */
+		n->start = m->start + (to - act);
+		n->end = n->start + (m->end - m->start);
+	} else {
+		n->start = to;
+		n->end = to + len;
+	}
+	/* a weekly series follows its occurrence to the new weekday */
+	if (how != SAVE_THIS && n->rr && n->rr->freq == F_WEEKLY && n->rr->nbyday == 1 && n->rr->byday[0] < 8 &&
+	    ct_days(new_start) != ct_days(occ_start))
+		n->rr->byday[0] = (short)wday_of(ct_days(new_start));
+	busy(1);
+	ok = ev_save(n, e->cal, how, occ_rep);
+	busy(0);
+	ev_free(n);
+	if (!ok)
+		alert(1, "[1][Couldn't move the event:|%s][ OK ]", cal_err);
+	return ok;
+}
+
 int editor_open(EVENT *e, CTIME occ_start, CTIME orig)
 {
 	return run_editor(e, occ_start, orig, 0);
