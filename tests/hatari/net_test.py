@@ -105,12 +105,12 @@ def main():
          "DTEND;TZID=Asia/Jerusalem:20200105T120000\r\nRRULE:FREQ=WEEKLY\r\nSUMMARY:\u05de\u05e8\u05d5\u05d1\u05d4 \u05d4\u05e9\u05e8\u05ea\r\n"
          "END:VEVENT\r\nEND:VCALENDAR\r\n").encode(), "text/calendar")
 
-    shutil.copy(os.path.join(ROOT, a.acc), os.path.join(hd, "ECAL.ACC"))
+    shutil.copy(os.path.join(ROOT, "binary", a.acc), os.path.join(hd, "ECAL.ACC"))
     shutil.copy(os.path.join(ROOT, "tools", "fakesting", "FAKESTNG.PRG"), os.path.join(hd, "AUTO"))
     if a.falcon_mode:
         # the Mozilla roots ECal ships, plus the test certificate, decoded here
         with open(os.path.join(hd, "ECAL", "CACERT.PEM"), "wb") as f:
-            f.write(open(os.path.join(ROOT, "CACERT.PEM"), "rb").read() + open(cert, "rb").read())
+            f.write(open(os.path.join(ROOT, "binary", "CACERT.PEM"), "rb").read() + open(cert, "rb").read())
         subprocess.run([os.path.join(ROOT, "build", "mkroots"), os.path.join(hd, "ECAL", "CACERT.PEM"),
                         os.path.join(hd, "ECAL", "ROOTS.DAT")], check=True, capture_output=True)
         conn = "falcon=1\r\ndsp=1\r\n"

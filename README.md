@@ -127,6 +127,8 @@ so you can see where a sync spends its time.
 
 ## The files
 
+They are in the [`binary`](binary) folder:
+
 | File           | For                                                               |
 |----------------|-------------------------------------------------------------------|
 | `ECAL.ACC`     | Falcon and TT: the accessory with Falcon mode (TLS, DSP); also works through the Pi |
@@ -156,7 +158,7 @@ The [user guide](docs/GUIDE.md) describes the rest.
 
 ```
 sudo apt install gcc-m68k-linux-gnu      # Debian/Ubuntu
-make                                     # ECAL.ACC, ECAL.PRG, ECALST.ACC
+make                                     # binary/ECAL.ACC, ECAL.PRG, ECALST.ACC
 ```
 
 The program is freestanding (`atari/`, no MiNTLib); `tools/elf2tos.py`

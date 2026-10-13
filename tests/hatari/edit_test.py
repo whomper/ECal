@@ -58,7 +58,7 @@ def main():
     hd = os.path.join(a.work, "hd")
     shutil.rmtree(a.work, ignore_errors=True)
     os.makedirs(os.path.join(hd, "ECAL"))
-    shutil.copy(os.path.join(ui_tour.ROOT, a.acc), os.path.join(hd, "ECAL.ACC"))
+    shutil.copy(os.path.join(ui_tour.ROOT, "binary", a.acc), os.path.join(hd, "ECAL.ACC"))
     ui_tour.seed(os.path.join(hd, "ECAL"))
     extra = ["--memsize", "14" if a.machine == "falcon" else "4"]
     if a.machine == "st":

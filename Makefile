@@ -1,6 +1,6 @@
 # ECal - a calendar desk accessory for the Atari ST/STE/TT/Falcon, in C.
 #
-#   make            builds ECAL.ACC (the desk accessory) and ECAL.PRG
+#   make            builds binary/ECAL.ACC (the desk accessory) and ECAL.PRG
 #                   (the same program, to start from the desktop) with a stock
 #                   m68k ELF cross compiler (Debian/Ubuntu: apt install
 #                   gcc-m68k-linux-gnu). No MiNTLib: the program is freestanding
@@ -44,7 +44,10 @@ OBJS0   := $(OBJDIR)/crt0.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o \
 OBJS    := $(OBJS0) $(OBJDIR)/version.o
 HDRS    := $(wildcard src/*.h atari/*.h atari/include/*.h ui/*.h dsp/*.h)
 
-all: ECAL.ACC ECAL.PRG ECALST.ACC ROOTS.DAT
+# what goes onto the Atari: binary/
+BIN     := binary
+
+all: $(BIN)/ECAL.ACC $(BIN)/ECAL.PRG $(BIN)/ECALST.ACC $(BIN)/ROOTS.DAT
 
 # the ST edition: no TLS of its own (it uses the Pi gateway), 150 KB
 # smaller; only BearSSL's MD5 (for Digest logins), as 68000 code
@@ -53,7 +56,7 @@ STOBJS  := $(OBJDIR)/crt0.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o \
            $(addprefix $(OBJDIR)/,$(addsuffix .o,$(filter-out tls,$(CORE)) $(ATARI) $(UI) tls_none)) \
            $(addprefix $(OBJDIR)/st/,$(addsuffix .o,$(notdir $(STBSSL)))) $(OBJDIR)/version.o
 
-ECALST.ACC: $(OBJDIR)/ecalst.elf tools/elf2tos.py
+$(BIN)/ECALST.ACC: $(OBJDIR)/ecalst.elf tools/elf2tos.py
 	PRGFLAGS=7 python3 tools/elf2tos.py $< $@
 
 $(OBJDIR)/ecalst.elf: $(STOBJS) atari/link.ld
@@ -68,9 +71,9 @@ $(OBJDIR)/st/%.o: $(BSSL)/src/codec/%.c
 
 # one program, two names: it sees at start-up whether TOS loaded it as
 # an accessory or started it as an application
-ECAL.ACC: $(OBJDIR)/cal.elf tools/elf2tos.py
+$(BIN)/ECAL.ACC: $(OBJDIR)/cal.elf tools/elf2tos.py
 	PRGFLAGS=7 python3 tools/elf2tos.py $< $@
-ECAL.PRG: ECAL.ACC
+$(BIN)/ECAL.PRG: $(BIN)/ECAL.ACC
 	cp $< $@
 
 $(OBJDIR)/cal.elf: $(OBJS) $(OBJDIR)/libbearssl.a atari/link.ld
@@ -132,9 +135,9 @@ $(OBJDIR)/unit: tests/unit.c $(HOSTSRC) $(HDRS) $(HOSTLIB) | $(OBJDIR)
 $(OBJDIR)/mkroots: tools/mkroots.c $(HOSTSRC) $(HDRS) $(HOSTLIB) | $(OBJDIR)
 	$(HOSTCC) $(HOSTCFLAGS) -I$(BSSL)/inc -o $@ tools/mkroots.c $(HOSTSRC) $(HOSTLIB)
 
-ROOTS.DAT: CACERT.PEM
+$(BIN)/ROOTS.DAT: $(BIN)/CACERT.PEM
 	$(MAKE) $(OBJDIR)/mkroots
-	$(OBJDIR)/mkroots CACERT.PEM $@
+	$(OBJDIR)/mkroots $(BIN)/CACERT.PEM $@
 
 test: $(OBJDIR)/unit
 	$(OBJDIR)/unit
@@ -144,6 +147,6 @@ itest: $(OBJDIR)/cal-cli
 	tests/integration.sh
 
 clean:
-	rm -rf $(OBJDIR) ECAL.ACC ECAL.PRG ECALST.ACC
+	rm -rf $(OBJDIR) $(BIN)/ECAL.ACC $(BIN)/ECAL.PRG $(BIN)/ECALST.ACC
 
 .PHONY: all test itest clean

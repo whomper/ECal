@@ -66,7 +66,7 @@ def main():
     hd = os.path.join(a.work, "hd")
     shutil.rmtree(a.work, ignore_errors=True)
     os.makedirs(hd)
-    shutil.copy(os.path.join(ROOT, a.prg), os.path.join(hd, "ECAL.PRG"))
+    shutil.copy(os.path.join(ROOT, "binary", a.prg), os.path.join(hd, "ECAL.PRG"))
     seed(hd)
     extra = ["--memsize", "4"] if a.machine != "falcon" else ["--memsize", "14"]
     if a.machine == "st":

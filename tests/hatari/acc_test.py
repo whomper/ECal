@@ -34,7 +34,7 @@ def main():
     shutil.rmtree(a.work, ignore_errors=True)
     folder = os.path.join(hd, *(a.folder or "ECAL").split("\\"))
     os.makedirs(folder)
-    shutil.copy(os.path.join(ROOT, a.acc), os.path.join(hd, "ECAL.ACC"))
+    shutil.copy(os.path.join(ROOT, "binary", a.acc), os.path.join(hd, "ECAL.ACC"))
     ui_tour.seed(folder)
     if a.folder:
         # ECAL.INF in the root, FOLDER= naming where the rest is
