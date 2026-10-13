@@ -76,7 +76,10 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
   **Show alerts** turns all reminders on or off.
 - **Time zones**: see [Time zones](#time-zones).
 - **Refresh**: how often every calendar is brought up to date, and
-  whether opening the window does it. **Keep on this Atari**: how many
+  whether opening the window does it. **With the window closed** (the
+  accessory only, off at first) refreshes them when they're due even
+  while you work in another program, quietly and one calendar at a
+  time; problems show in the calendar list the next time you open ECal. **Keep on this Atari**: how many
   days back and ahead ECal keeps. It starts with 0 and 400: nothing from
   before today is copied, and repeating events show from today on. Fewer use
   less memory and sync faster.
@@ -258,6 +261,15 @@ When an event's alert comes due, ECal beeps and shows it over
 whatever program is running, even with its window closed. **Show** opens
 the day. Settings > Events > **Show alerts** turns them all off; each calendar has
 its own switch too (subscriptions start with theirs off).
+
+The accessory doesn't have to be opened for its reminders: a few seconds
+after boot it reads the calendars kept on disk, one at a time so the
+desktop stays responsive, and from then on it checks every half minute.
+An accessory only runs while the program in front waits for GEM (the
+desktop and most GEM programs do): during a TOS program or a game the
+reminders wait, and come when you're back, if that's within two days.
+Events added elsewhere arrive with the next refresh: open ECal, or turn
+on Settings > Refresh > **With the window closed**.
 
 ## Time zones
 

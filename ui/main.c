@@ -657,11 +657,15 @@ static void load_settings(void)
 }
 
 /* the calendars from the copies on disk, with the window already open */
+static int bg_loaded;		/* calendars read so far (the accessory, after boot) */
+
 static void load_calendars(void)
 {
 	busy(1);
 	status("Reading your calendars...");
-	cal_load_all();
+	for (; bg_loaded < ncals; bg_loaded++)
+		cal_load(&cals[bg_loaded]);
+	status("");
 	views_invalidate();
 	busy(0);
 	data_ready = 1;
@@ -788,6 +792,78 @@ static void tip_show(void)
 	tip_on = 1;
 }
 
+/* The accessory, its window closed. A few seconds after boot it reads
+   the calendars kept on disk, one per timer tick so the program in front
+   keeps going between them, and so it can remind of events without
+   having been opened. With BGSYNC it also refreshes them when they are
+   due, again one calendar per tick, quietly. */
+static unsigned long bg_start;
+static int bg_next = -1;		/* the next calendar to refresh, -1 none */
+
+static void background(void)
+{
+	unsigned long now = pf_ms();
+	if (!is_acc || win_h > 0)
+		return;
+	if (!data_ready) {
+		if (now - bg_start < 8000UL)
+			return;		/* let the desktop come up first */
+		if (!settings_ready) {
+			if (!workdir[0])
+				return;	/* the folder is asked for at the first opening */
+			load_settings();
+			return;
+		}
+		if (bg_loaded < ncals) {
+			cal_load(&cals[bg_loaded++]);
+			return;
+		}
+		views_invalidate();
+		data_ready = 1;
+		return;
+	}
+	if (!opt.bgsync || opt.offline || !naccts)
+		return;
+	if (bg_next < 0) {
+		int i, due = opt.refresh > 0 && now - last_refresh > (unsigned long)opt.refresh * 60000UL;
+		for (i = 0; i < ncals && !due; i++) {
+			ACCOUNT *a = &accts[cals[i].acct];
+			due = a->refresh > 0 && cals[i].synced && now_utc() - cals[i].synced >= a->refresh &&
+			      now - last_refresh > 60000UL;
+		}
+		if (due)
+			bg_next = 0;
+		return;
+	}
+	if (bg_next < ncals) {
+		/* errors stay in the account (shown at the next opening) */
+		sync_calendar(&cals[bg_next++], 0);
+		return;
+	}
+	bg_next = -1;
+	last_refresh = now;
+	http_close_all();
+	conn_log_flush();
+	settings_later();
+	views_invalidate();
+}
+
+/* after a click that was acted on at once: a second press near it
+   before the double-click time is up (counted from the first press) */
+static int second_click(short mx, short my, unsigned long t0)
+{
+	short x, y, b, k, released = 0;
+	while (pf_ms() - t0 < 350UL) {
+		graf_mkstate(&x, &y, &b, &k);
+		if (!(b & 1))
+			released = 1;
+		else if (released)
+			return x - mx < 6 && mx - x < 6 && y - my < 6 && my - y < 6;
+		evnt_timer_(5);
+	}
+	return 0;
+}
+
 int main(void)
 {
 	short work_out[57], msg[8], d;
@@ -801,6 +877,7 @@ int main(void)
 	ap_id = appl_init();
 	if (ap_id < 0)
 		return 1;
+	bg_start = pf_ms();
 	if (is_acc)
 		menu_id = menu_register(ap_id, "  ECalendar");
 	vdi_h = graf_handle(&gl_wchar, &gl_hchar, &d, &d);
@@ -885,7 +962,26 @@ int main(void)
 			if (h == win_h) {
 				if (h != t)
 					wind_set(h, WF_TOP, 0, 0, 0, 0);
-				else {
+				else if (!(ev.mbutton & 2) && rect_hit(&r_view, ev.mx, ev.my)) {
+					/* the calendar itself: the click acts at once (a
+					   selection is harmless), a second one opens */
+					static unsigned long last_t;
+					static short last_x, last_y;
+					unsigned long t0 = pf_ms();
+					short n = 1;
+					if (is_acc ? ev.breturn >= 2 :
+					    t0 - last_t < 450UL && ev.mx - last_x < 6 && last_x - ev.mx < 6 &&
+					    ev.my - last_y < 6 && last_y - ev.my < 6)
+						n = 2;	/* counted by the AES, or two events close together */
+					win_mouse(ev.mx, ev.my, ev.mbutton, n, ev.kstate);
+					last_t = n == 2 ? 0 : t0;
+					last_x = ev.mx;
+					last_y = ev.my;
+					if (n == 1 && !is_acc && second_click(ev.mx, ev.my, t0)) {
+						win_mouse(ev.mx, ev.my, ev.mbutton, 2, ev.kstate);
+						last_t = 0;
+					}
+				} else {
 					short n = click_count(ev.mx, ev.my, ev.mbutton);
 					/* an accessory gets the first click only once the AES
 					   has finished counting: its count is the one to use */
@@ -899,6 +995,8 @@ int main(void)
 		}
 		if ((which & MU_TIMER) && settings_dirty && pf_ms() - settings_at >= 3000UL)
 			settings_flush();
+		if (which & MU_TIMER)
+			background();
 		if ((which & MU_TIMER) && sync_pending && win_h > 0) {
 			sync_pending = 0;
 			refresh(0, 0);

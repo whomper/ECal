@@ -1214,6 +1214,21 @@ static long day_at(short mx, short my, short *minute)
 
 static void select_item(int i);
 
+/* every box of an occurrence (a bar over several days has several) */
+static void redraw_occ(const OCC *o)
+{
+	int i;
+	if (!o->ev)
+		return;
+	for (i = 0; i < nitems; i++)
+		if (items[i].kind == IT_EVENT && occ.o[items[i].occ].ev == o->ev && occ.o[items[i].occ].start == o->start) {
+			GRECT r = items[i].r;
+			r.w++;
+			r.h++;
+			win_redraw(&r);
+		}
+}
+
 /* Dragging an event: an outline follows the mouse, snapped to 15 minutes
    in the day and week grids (to whole days for all-day events and in the
    month), the info line says where it will go, and letting go moves it.
@@ -1411,11 +1426,21 @@ int views_click(short mx, short my, short clicks, short kstate, short button)
 		return 1;
 	if (it >= 0) {
 		int same = sel_occ.ev == occ.o[items[it].occ].ev && sel_occ.start == occ.o[items[it].occ].start;
+		OCC was = sel_occ;
+		long day0 = cur_day;
 		select_item(it);
 		if (cur_view == V_MONTH || cur_view == V_WEEK)
 			cur_day = items[it].day;
-		laid_out = 0;
-		win_redraw(&r_view);
+		if (cur_day != day0) {
+			laid_out = 0;
+			win_redraw(&r_view);	/* the day's highlight moves too */
+		} else if (!same) {
+			/* only what changed: the two events' boxes, the day's details */
+			redraw_occ(&was);
+			redraw_occ(&sel_occ);
+			if (cur_view == V_DAY && detail.w)
+				win_redraw(&detail);
+		}
 		if (clicks == 2 || (same && clicks == 2))
 			open_selected();
 		return 1;

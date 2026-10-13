@@ -137,7 +137,7 @@ static void set_opt(const char *k, const char *v)
 	S(home_tz) S(view_tz) S(gate) S(folder)
 	I(tzsupport) I(falcon) I(dsp) I(weekstart) I(h24) I(hebdates) I(view) I(daystart)
 	I(alarms) I(alarm_default) I(log) I(font_id) I(font_pt) I(hebfont) I(win_x) I(win_y)
-	I(win_w) I(win_h) I(sidebar) I(past_days) I(future_days) I(duration) I(refresh) I(sync_open) I(offline) I(hebrew) I(heapkb)
+	I(win_w) I(win_h) I(sidebar) I(past_days) I(future_days) I(duration) I(refresh) I(sync_open) I(bgsync) I(offline) I(hebrew) I(heapkb)
 	if (!strcasecmp(k, "gateport")) {
 		opt.gateport = (unsigned short)atoi(v);
 		return;
@@ -316,6 +316,7 @@ void store_save_settings(void)
 	I("FUTURE_DAYS", future_days, "days ahead kept on this Atari")
 	I("REFRESH", refresh, "minutes between refreshes of all calendars; 0: only by hand")
 	I("SYNC_OPEN", sync_open, "refresh when the window opens")
+	I("BGSYNC", bgsync, "the accessory refreshes with its window closed too, a calendar at a time")
 	I("WEEKSTART", weekstart, "first day of the week: 0 Sunday, 1 Monday, 6 Saturday")
 	I("DAYSTART", daystart, "first hour shown in the day and week views")
 	I("H24", h24, "24-hour clock")

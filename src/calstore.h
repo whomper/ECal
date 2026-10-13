@@ -72,6 +72,7 @@ typedef struct {
 	short duration;		/* default length of a new event, minutes */
 	short refresh;		/* minutes between automatic refreshes of all; 0 = by hand */
 	short sync_open;	/* refresh when the window opens */
+	short bgsync;		/* the accessory refreshes with its window closed too */
 	short offline;		/* Work offline: no connections */
 	short hebrew;		/* start with the Hebrew keyboard */
 	short heapkb;		/* the accessory's memory, KB (read at boot by main.c); 0: chosen */

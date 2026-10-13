@@ -433,7 +433,7 @@ static void settings(short first)
 	enum { L1, F1, L2, F2, F3, F4, L13, F13, F14,
 	       L5, F5, L6, F6, F7,
 	       L8, F8, F9, L10, F10,
-	       L11, F11, F12, H3, L15, F15, L16, F16,
+	       L11, F11, F12, F17, H3, L15, F15, L16, F16,
 	       C1, C2, N1, L3, C3, L4, C4, N2, C7,
 	       BCAN, BOK, N };
 	FIELD f[N];
@@ -540,6 +540,9 @@ static void settings(short first)
 	row++;
 	put(&f[F12], FT_CHECK, 0, VX, row, 30, "When the window opens");
 	f[F12].val = opt.sync_open;
+	row++;
+	put(&f[F17], FT_CHECK, is_acc ? 0 : FF_DISABLED, VX, row, 30, "With the window closed");
+	f[F17].val = opt.bgsync;
 	row += 2;
 	put(&f[H3], FT_LABEL, 0, CX, row, 0, "Keep on this Atari:");
 	row++;
@@ -608,6 +611,7 @@ static void settings(short first)
 	opt.tzsupport = f[F9].val;
 	opt.refresh = refresh_min[f[F11].val];
 	opt.sync_open = f[F12].val;
+	opt.bgsync = f[F17].val;
 	/* 0 days back: from today; at most ten years either way */
 	opt.past_days = (short)(atoi(past) < 0 ? 0 : atoi(past) > 3650 ? 3650 : atoi(past));
 	opt.future_days = (short)(atoi(future) < 7 ? 400 : atoi(future) > 3650 ? 3650 : atoi(future));
