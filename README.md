@@ -152,7 +152,7 @@ They are in the [`binary`](binary) folder:
 
 The [user guide](docs/GUIDE.md) describes the rest.
 
-![Desk menu](docs/desk-menu.png) ![New event with a Hebrew title](docs/new-event.png)
+![Desk menu](docs/desk-menu.png) ![New event](docs/new-event.png)
 
 ## Building
 
@@ -216,6 +216,8 @@ tests/hatari/edit_test.py WORK etos512us.img --machine st --acc ECALST.ACC
 tests/hatari/net_test.py WORK etos512us.img                # an ST syncing through ecalgate
 tests/hatari/net_test.py WORK etos512us.img --falcon-mode  # TLS on the Falcon, RSA on the DSP
 tests/hatari/ui_tour.py WORK etos512us.img                 # screenshots of every view
+TZ=America/New_York tests/hatari/docs_shots.py WORK etos512us.img --update
+                                                           # the screenshots in docs/
 ```
 
 The network tests use EMail's FAKESTNG.PRG (`make -C tools/fakesting`),

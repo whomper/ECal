@@ -23,8 +23,10 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 CLI = os.path.join(ROOT, "build", "cal-cli")
 
 
-def seed(hd):
-    """An On My Atari calendar with this week's events, written by cal-cli."""
+def seed(hd, english=False):
+    """An On My Atari calendar with this week's events, written by cal-cli.
+    english: no Hebrew titles or dates and a New York clock, for the
+    screenshots in docs/"""
     d = os.path.join(hd, "seed")
     shutil.rmtree(d, ignore_errors=True)
 
@@ -34,14 +36,14 @@ def seed(hd):
     today = time.strftime("%Y%m%d")
     tomorrow = time.strftime("%Y%m%d", time.localtime(time.time() + 86400))
     in3 = time.strftime("%Y%m%d", time.localtime(time.time() + 3 * 86400))
-    cli("zone", "Asia/Jerusalem")
+    cli("zone", "America/New_York" if english else "Asia/Jerusalem")
     cli("local", "Home")
     cli("local", "Work")
     cli("local", "Family")
-    cli("add", "0", "ישיבת צוות", today + "T1000", "60", "FREQ=WEEKLY")
+    cli("add", "0", "Team meeting" if english else "ישיבת צוות", today + "T1000", "60", "FREQ=WEEKLY")
     cli("add", "1", "Design review", today + "T1400", "90")
-    cli("add", "1", "Lunch with Avi", today + "T1230", "45")
-    cli("add", "2", "יום הולדת לדנה", tomorrow + "T0000", "0", "FREQ=YEARLY")
+    cli("add", "1", "Lunch with Sam" if english else "Lunch with Avi", today + "T1230", "45")
+    cli("add", "2", "Dana's birthday" if english else "יום הולדת לדנה", tomorrow + "T0000", "0", "FREQ=YEARLY")
     cli("add", "0", "Atari club", in3 + "T1900", "120", "FREQ=MONTHLY")
     cli("add", "1", "Standup", today + "T0915", "15", "FREQ=DAILY;COUNT=20")
     # the files as the Atari keeps them: ECAL.INF and CACHE\ next to the program
@@ -54,6 +56,12 @@ def seed(hd):
     # no refreshing at start: there is no network here
     with open(os.path.join(hd, "ECAL.INF"), "a") as f:
         f.write("sync_open=0\r\n")
+    if english:
+        inf = os.path.join(hd, "ECAL.INF")
+        with open(inf, newline="") as f:
+            t = f.read()
+        with open(inf, "w", newline="") as f:
+            f.write(t.replace("HEBDATES=1", "HEBDATES=0"))
 
 
 def main():
