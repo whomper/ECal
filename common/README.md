@@ -8,6 +8,18 @@ branch, which holds just this folder and is kept up to date by a workflow.
 
     tools/sync-common.sh        # git subtree pull --prefix=common <AERA-Atari> common --squash
 
+## Who uses it
+
+| App | Since | Check when it moved |
+|---|---|---|
+| EFTP | 14 Oct 2026 | programs byte-identical before/after; unit, FTP/FTPS and gateway tests |
+| EMail | 14 Oct 2026 | programs byte-identical; unit and Dovecot tests (plain, Falcon TLS, stunnel gateway) |
+| ECal | 14 Oct 2026 | programs byte-identical; unit, gateway and Radicale tests (same results as before) |
+| EContact | 14 Oct 2026 | programs byte-identical; unit, low-memory and Radicale tests |
+
+ClaudeST (`st/`) and EHypView carry older copies of some of these files; they follow once layer 2
+is in, since their copies differ more.
+
 ## What's here (layer 1)
 
 These files were the same code in ECal, EContact, EMail and EFTP when they moved here (October 2026).
@@ -44,15 +56,24 @@ LDFLAGS += -Wl,-T,common/atari/link.ld
 Then add pattern rules for `common/src/%.c`, `common/atari/%.c`, `common/ui/%.c` and the two `.S`
 files. `binary/CACERT.PEM` is copied from `common/certs/`. EFTP's Makefile is the reference.
 
-## Coming next (layer 2)
+## Layer 2a: merged copies (14 Oct 2026)
 
-These files exist in every app but have drifted in two directions. They move here once merged, best
-copy first:
+These had drifted between the apps; each is now the most complete copy, with every app's additions:
 
-| Area | Files | Merge |
+| Files | Taken from | What the others gain |
 |---|---|---|
-| TLS and connections | `tls.c/.h`, `conn.c/.h`, `tls_none.c` | ECal's session resumption + EMail's ChaCha/AES fallback |
-| network | `sting.c/.h`, `net_tos.c` | EFTP's `net_close_wait`, plus a random DNS ID |
-| runtime | `tos.c`, `libc.c`, `crt0.S`, `gem.c/.h`, `stdlib.h`, `tos.h` | ECal's crt0 (PRG+ACC) and fast mul/div, EContact's heap sort and scrap calls, EFTP's VDI cache |
-| text | `charset.c/.h`, `charset_tab.h`, `util.c/.h`, `tz.c/.h` | |
-| GEM building blocks | `popup.c`, `about.c`, `font.c`, alert, help launcher, menu builder, crash handler | the AERA guidelines' reference copies |
+| `atari/sting.c/.h`, `atari/net_tos.c` | EFTP | `net_close_wait()` (close once everything sent has gone out); **and a random DNS query ID** (was the fixed "TR", which let anyone on the network answer for the name server) |
+| `atari/tos.c` | ECal | `boot_drive()`; 32-bit multiply and divide with `mulu.w`/`divu.w` instead of bit loops (checked against the 68020's own instructions on 2 million cases under QEMU) |
+| `atari/include/tos.h` | EFTP + ECal | `Dfree`, `Fattrib`, `Fdatime`, `Drvmap`, `boot_drive` |
+| `atari/include/stdlib.h` | ECal | `heap_add()` (the accessories' fixed heap) |
+| `src/util.c/.h` | ECal | `sb_room()` |
+| `src/tz.c/.h` | ECal | a small cache of the last zones looked up |
+| `src/charset.c/.h`, `charset_tab.h` | EMail | ECal and EContact lose the Troll-proxy guesswork EMail dropped (it could take real text for already-converted Atari text) |
+
+## Coming next
+
+| Area | Files | Plan |
+|---|---|---|
+| TLS and connections (2b) | `tls.c/.h`, `tls_none.c`, `conn.c/.h` | EFTP's `tls.c` (ECal's session resumption + EMail's ChaCha20 first); one `conn` API for all (EFTP's buffer size and Stop, EMail's small-Atari buffer, STARTTLS) |
+| runtime (2c) | `libc.c`, `crt0.S`, `gem.c/.h` | ECal's crt0 (PRG+ACC), EContact's heap sort and clipboard calls, EFTP's VDI cache |
+| GEM building blocks | `popup.c`, `about.c`, `font.c`, alert, help launcher, menu builder, crash handler | the guidelines' reference copies |
