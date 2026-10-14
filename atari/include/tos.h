@@ -130,6 +130,18 @@ static inline long trap14_ww(short fn, short a)
 	return r;
 }
 
+/* Rsconf(speed, flow, ucr, rsr, tsr, scr) */
+static inline long trap14_w6(short fn, short a, short b, short c, short d, short e, short f)
+{
+	register long r __asm__("d0");
+	__asm__ volatile(
+		"move.w %7,-(%%sp)\n\tmove.w %6,-(%%sp)\n\tmove.w %5,-(%%sp)\n\t"
+		"move.w %4,-(%%sp)\n\tmove.w %3,-(%%sp)\n\tmove.w %2,-(%%sp)\n\t"
+		"move.w %1,-(%%sp)\n\ttrap #14\n\tlea 14(%%sp),%%sp"
+		: "=r"(r) : "r"(fn), "r"(a), "r"(b), "r"(c), "r"(d), "r"(e), "r"(f) : TRAP_CLOBBER);
+	return r;
+}
+
 static inline long trap14_wl(short fn, long a)
 {
 	register long r __asm__("d0");
@@ -182,10 +194,21 @@ static inline long trap14_wl(short fn, long a)
 #define Bconstat(d)        trap13_ww(1, (d))
 #define Bconin(d)          trap13_ww(2, (d))
 #define Bconout(d, c)      trap13_www(3, (d), (c))
+#define Bcostat(d)         trap13_ww(8, (d))
+#define DEV_AUX 1		/* AUX: the ST's RS-232, the Falcon's modem port (Bconmap) */
 #define Drvmap()           trap13_w(10)
 
 /* XBIOS */
 #define Iorec(d)           ((void *)trap14_ww(14, (d)))
+/* Bconmap(dev): which serial port BIOS device 1 (AUX) means on a TT or
+ * Falcon (6 = MFP, 7 = SCC B, 8 = TT-MFP, 9 = SCC A); -1 asks, -2 table */
+#define Bconmap(d)         trap14_ww(44, (d))
+#define Rsconf(s,f,u,r,t,c) trap14_w6(15, (s), (f), (u), (r), (t), (c))
+/* Rsconf speed codes */
+#define BAUD_19200 0
+#define BAUD_9600  1
+#define BAUD_4800  2
+#define BAUD_2400  4
 #define Supexec(f)         trap14_wl(38, (long)(f))
 
 typedef struct {
