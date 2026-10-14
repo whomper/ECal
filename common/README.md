@@ -80,9 +80,17 @@ These had drifted between the apps; each is now the most complete copy, with eve
 
 An app provides `net_close_wait()` in its `plat.h` (declared; the code is in `atari/net_tos.c`).
 
+## Layer 2c: runtime (14 Oct 2026)
+
+| Files | Taken from | What the others gain |
+|---|---|---|
+| `atari/crt0.S` | ECal | starts as a desk accessory or a program (`_is_acc`); stack size from `STACK_SIZE` (default 48 KB) |
+| `atari/libc.c` | EContact + EMail | the accessory's fixed heap (`heap_add`); a heap that doubles (16 MB in six GEMDOS blocks); EMail's ST/TT RAM counts (`heap_st`, `heap_tt`); a long-word `memset`; heap sort instead of shell sort (no quadratic case) |
+| `atari/gem.c/.h` | ECal + EContact + EFTP | `appl_getinfo`, iconify messages, `vsl_type`; the clipboard (`scrp_read/write`); EFTP's VDI attribute cache; the AES event type is `AEVENT` |
+
 ## Coming next
 
 | Area | Files | Plan |
 |---|---|---|
-| runtime (2c) | `libc.c`, `crt0.S`, `gem.c/.h` | ECal's crt0 (PRG+ACC), EContact's heap sort and clipboard calls, EFTP's VDI cache |
 | GEM building blocks | `popup.c`, `about.c`, `font.c`, alert, help launcher, menu builder, crash handler | the guidelines' reference copies |
+| ClaudeST and EHypView | `st/`, `atari/` | move them onto common/ |
