@@ -84,6 +84,9 @@ typedef struct {
 #define UPARROW 0x0040
 #define DNARROW 0x0080
 #define VSLIDE  0x0100
+#define LFARROW 0x0200
+#define RTARROW 0x0400
+#define HSLIDE  0x0800
 #define INFO    0x0010
 
 /* wind_get / wind_set */
@@ -93,16 +96,37 @@ typedef struct {
 #define WF_CURRXYWH   5
 #define WF_PREVXYWH   6
 #define WF_FULLXYWH   7
+#define WF_HSLIDE     8
 #define WF_VSLIDE     9
 #define WF_TOP        10
 #define WF_FIRSTXYWH  11
 #define WF_NEXTXYWH   12
+#define WF_HSLSIZE    15
 #define WF_VSLSIZE    16
 #define WF_ICONIFY    26
 #define WF_UNICONIFY  27
 
 #define WC_BORDER 0
 #define WC_WORK   1
+
+/* WM_ARROWED actions */
+#define WA_UPPAGE 0
+#define WA_DNPAGE 1
+#define WA_UPLINE 2
+#define WA_DNLINE 3
+#define WA_LFPAGE 4
+#define WA_RTPAGE 5
+#define WA_LFLINE 6
+#define WA_RTLINE 7
+
+/* VDI writing modes and fill styles */
+#define MD_REPLACE  1
+#define MD_TRANS    2
+#define MD_XOR      3
+#define FIS_HOLLOW  0
+#define FIS_SOLID   1
+#define FIS_PATTERN 2
+#define FIS_HATCH   3
 
 #define BEG_UPDATE 1
 #define END_UPDATE 0
@@ -158,7 +182,7 @@ short menu_ienable(OBJECT *tree, short item, short enable);
 short evnt_timer_(unsigned long ms);
 short appl_id(void);
 short appl_find(const char *name);	/* 8 characters, blank-padded; -1 if none */
-short appl_write(short id, short len, void *buf);
+short appl_write(short id, short len, const void *buf);
 short scrp_read(char *path);			/* the clipboard's folder */
 short scrp_write(const char *path);
 short wind_find(short x, short y);
@@ -210,6 +234,7 @@ void vrt_cpyfm(short h, short mode, const short *pxy, MFDB *src, MFDB *dst, cons
 void vq_extnd(short h, short owflag, short *work_out);
 short vq_gdos(void);			/* 1 if a GDOS (NVDI, SpeedoGDOS...) is loaded */
 short vst_load_fonts(short h, short select);
+void vst_unload_fonts(short h, short select);
 short vqt_name(short h, short index, char *name);	/* -> font id; name of 33 chars */
 long  vqt_char_index(short h, unsigned short c, short from, short to);
 short vst_map_mode(short h, short mode);
@@ -220,5 +245,12 @@ short vst_point(short h, short point, short *cw, short *ch);
 short vqt_width(short h, short c);	/* cell width of character c */
 void v_hide_c(short h);
 void v_show_c(short h, short reset);
+
+/* more VDI (from EHypView) */
+void v_bar(short h, const short *pxy);
+void v_rbox(short h, const short *pxy);
+void v_rfbox(short h, const short *pxy);
+void vsl_ends(short h, short beg, short end);	/* 0 square, 1 arrow, 2 round */
+void vr_trnfm(short h, MFDB *src, MFDB *dst);
 
 #endif

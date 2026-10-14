@@ -129,11 +129,11 @@ short appl_find(const char *name)
 	return aes(13, 0, 1, 1, 0);
 }
 
-short appl_write(short id, short len, void *buf)
+short appl_write(short id, short len, const void *buf)
 {
 	aintin[0] = id;
 	aintin[1] = len;
-	addrin[0] = buf;
+	addrin[0] = (void *)buf;
 	return aes(12, 2, 1, 1, 0);
 }
 
@@ -633,6 +633,12 @@ short vst_load_fonts(short h, short select)
 	return vintout[0];
 }
 
+void vst_unload_fonts(short h, short select)
+{
+	vintin[0] = select;
+	vdi(120, 0, 1, h);
+}
+
 short vqt_name(short h, short index, char *name)
 {
 	short i;
@@ -740,4 +746,46 @@ void v_gtext_n(short h, short x, short y, const char *s, short n)
 	ptsin[0] = x;
 	ptsin[1] = y;
 	vdi(8, 1, n, h);
+}
+
+/* ---------------- more VDI (from EHypView) ---------------- */
+
+/* a GDP call (opcode 11) with its sub-function */
+static void gdp(short sub, short nptsin, short h)
+{
+	contrl[0] = 11;
+	contrl[1] = nptsin;
+	contrl[3] = 0;
+	contrl[5] = sub;
+	contrl[6] = h;
+	__asm__ volatile("move.l %0,%%d1\n\tmove.w #115,%%d0\n\ttrap #2"
+		: : "r"((long)vdipb) : "d0", "d1", "d2", "a0", "a1", "a2", "memory", "cc");
+}
+
+static void gdp_box(short sub, short h, const short *pxy)
+{
+	short i;
+	for (i = 0; i < 4; i++)
+		ptsin[i] = pxy[i];
+	gdp(sub, 2, h);
+}
+
+void v_bar(short h, const short *pxy) { gdp_box(1, h, pxy); }
+void v_rbox(short h, const short *pxy) { gdp_box(8, h, pxy); }
+void v_rfbox(short h, const short *pxy) { gdp_box(9, h, pxy); }
+
+void vsl_ends(short h, short beg, short end)
+{
+	vintin[0] = beg;
+	vintin[1] = end;
+	vdi(108, 0, 2, h);
+}
+
+void vr_trnfm(short h, MFDB *src, MFDB *dst)
+{
+	contrl[7] = (short)((u32)src >> 16);
+	contrl[8] = (short)((u32)src & 0xffff);
+	contrl[9] = (short)((u32)dst >> 16);
+	contrl[10] = (short)((u32)dst & 0xffff);
+	vdi(110, 0, 0, h);
 }

@@ -88,9 +88,20 @@ An app provides `net_close_wait()` in its `plat.h` (declared; the code is in `at
 | `atari/libc.c` | EContact + EMail | the accessory's fixed heap (`heap_add`); a heap that doubles (16 MB in six GEMDOS blocks); EMail's ST/TT RAM counts (`heap_st`, `heap_tt`); a long-word `memset`; heap sort instead of shell sort (no quadratic case) |
 | `atari/gem.c/.h` | ECal + EContact + EFTP | `appl_getinfo`, iconify messages, `vsl_type`; the clipboard (`scrp_read/write`); EFTP's VDI attribute cache; the AES event type is `AEVENT` |
 
+## ClaudeST and EHypView (14 Oct 2026)
+
+What they brought in:
+- **EHypView:** a corrected `atari/nf.S`. NatFeats read their argument at 4(sp), so the earlier copy's
+  lookup always failed and `nf_debug()` never printed under Hatari. Also `nf_find()`, and the VDI
+  calls `v_bar`, `v_rbox`, `v_rfbox`, `vsl_ends`, `vr_trnfm`, `vst_unload_fonts`, and the names
+  for the horizontal slider (`HSLIDE`, `LFARROW`, `RTARROW`, `WF_HSLIDE`, `WF_HSLSIZE`), the
+  arrow actions (`WA_*`), the writing modes (`MD_*`) and the fill styles (`FIS_*`) in `gem.h`.
+- **ClaudeST:** the serial port calls (`Rsconf`, `Bconmap`, `Bcostat`, `DEV_AUX`, the `BAUD_*`
+  codes) in `tos.h`.
+- `appl_write()` now takes a `const` message.
+
 ## Coming next
 
 | Area | Files | Plan |
 |---|---|---|
 | GEM building blocks | `popup.c`, `about.c`, `font.c`, alert, help launcher, menu builder, crash handler | the guidelines' reference copies |
-| ClaudeST and EHypView | `st/`, `atari/` | move them onto common/ |
