@@ -167,6 +167,7 @@ int  editor_open(EVENT *e, CTIME occ_start, CTIME orig);	/* 1 if changed; orig: 
 void editor_new(long day, short hour_min, short allday);
 /* an occurrence dragged to new_start (the view's wall time): 1 if saved */
 int  editor_move(EVENT *e, CTIME occ_start, CTIME orig, CTIME new_start);
+void dlg_subscribe(const char *url);
 void dlg_add_account(void);
 int  dlg_account(int a);	/* 1 changed, -1 deleted */
 int  dlg_calendar(int c);	/* name, colour, alarms of one calendar; 1 if changed */

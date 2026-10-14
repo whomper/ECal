@@ -261,6 +261,15 @@ they were when it saves an event.
 **Find** (^F) looks through titles, places and notes, from as far back as
 ECal keeps to two years ahead.
 
+## From other programs
+
+A desktop such as Thing, jinnee or Gemini, or any program (with the AV
+protocol's VA_START), can hand ECal:
+
+- **.ics files**: their events are imported into the only calendar that
+  can take them, or into the one you pick;
+- **a webcal: address**: Subscribe opens with it filled in.
+
 ## Reminders
 
 When an event's alert comes due, ECal beeps and shows it over

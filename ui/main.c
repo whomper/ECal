@@ -24,6 +24,7 @@
 #include "bidi.h"
 #include "../src/version.h"
 #include "crash.h"
+#include "av.h"
 
 short vdi_h, cw, ch, scr_w, scr_h, desk_x, desk_y, desk_w, desk_h, planes;
 short gl_wchar, gl_hchar, ap_id, is_acc, ncolors, hebrew_kbd, quit_now;
@@ -356,11 +357,12 @@ void cmd_delete_selected(void)
 	after_change();
 }
 
+static void import_file(int cal, const char *path);
+
 void cmd_import(int cal)
 {
 	char path[200], name[20] = "", dir[200];
 	short button = 0;
-	int n;
 	snprintf(dir, sizeof(dir), "%s\\*.ICS", workdir);
 	if (!fsel_exinput(dir, name, &button, "Import which .ics file?") || !button || !name[0])
 		return;
@@ -370,13 +372,20 @@ void cmd_import(int cal)
 			slash[1] = 0;
 		snprintf(path, sizeof(path), "%s%s", dir, name);
 	}
+	import_file(cal, path);
+}
+
+/* the events in an .ics file into the calendar */
+static void import_file(int cal, const char *path)
+{
+	int n;
 	busy(1);
 	if (!cal_import(cal, path, &n)) {
 		busy(0);
 		alert(1, "[1][Import stopped: %s|(%d events imported)][ OK ]", cal_err, n);
 	} else {
 		busy(0);
-		alert(1, "[1][%d events imported into|%s.][ OK ]", n, cals[cal].name);
+		alert(1, "[1][%d event%s imported into|%s.][ OK ]", n, n == 1 ? "" : "s", cals[cal].name);
 	}
 	after_change();
 }
@@ -701,6 +710,55 @@ static void open_window(void)
 	}
 }
 
+/* the calendar an .ics file from another program goes into: the only
+   one that can take it, else the one picked; -1 for none */
+static int cal_for_import(void)
+{
+	const char *items[48];
+	short idx[48], n = 0, i, r;
+	for (i = 0; i < ncals && n < 48; i++)
+		if (cal_writable(&cals[i])) {
+			items[n] = cals[i].name;
+			idx[n++] = i;
+		}
+	if (!n) {
+		alert(1, "[1][Add a calendar first: Add account|or calendar... in the menu (On|My Atari needs no server).][ OK ]");
+		return -1;
+	}
+	if (n == 1)
+		return idx[0];
+	r = dlg_pick("Import into which calendar?", items, n, 0);
+	return r >= 0 && r < n ? idx[r] : -1;
+}
+
+/* VA_START (common/ui/av.c), from the desktop or another program:
+   nothing opens the window; .ics files are imported, a webcal: address
+   subscribed to */
+static void av_start(const char *s)
+{
+	char path[200];
+	const char *p = s;
+	open_window();
+	if (win_h <= 0)
+		return;
+	if (!strncasecmp(s, "webcal", 6)) {
+		dlg_subscribe(s);
+		return;
+	}
+	while ((p = av_arg(p, path, sizeof(path))) != 0) {
+		long l = (long)strlen(path);
+		int cal;
+		if (l < 4 || strcasecmp(path + l - 4, ".ICS")) {
+			alert(1, "[1][ECal takes calendars (.ics|files, webcal: addresses):|%s isn't one.][ OK ]", path);
+			continue;
+		}
+		cal = cal_for_import();
+		if (cal < 0)
+			return;
+		import_file(cal, path);
+	}
+}
+
 static void wait_release(void)
 {
 	short mx, my, mb, ks;
@@ -928,6 +986,7 @@ int main(void)
 	crash_report = conn_log_append;	/* the report in ECAL.LOG too */
 	st_ram_init();
 	help_init();
+	av_init("ECAL|ECALST");		/* the desktop's AV server, if one runs yet */
 	dlg_after = win_frame_refresh;
 	if (is_acc)
 		acc_heap();
@@ -961,10 +1020,13 @@ int main(void)
 			tip_show();
 		}
 		if (which & MU_MESAG) {
+			const char *va;
 			switch (msg[0]) {
 			case AC_OPEN:
-				if (msg[4] == menu_id)
+				if (msg[4] == menu_id) {
+					av_init("ECAL|ECALST");	/* a desktop started since */
 					open_window();
+				}
 				break;
 			case AC_CLOSE:
 				/* the program in front ended: the AES took our window */
@@ -979,7 +1041,10 @@ int main(void)
 				win_close();
 				break;
 			default:
-				win_message(msg);
+				if (av_message(msg, &va) == AV_START)
+					av_start(va);
+				else
+					win_message(msg);
 			}
 		}
 		if ((which & MU_KEYBD) && win_h > 0) {
@@ -1064,6 +1129,7 @@ int main(void)
 	http_close_all();
 	conn_log_flush();
 	crash_remove();
+	av_exit();
 	v_clsvwk(vdi_h);
 	appl_exit();
 	return 0;

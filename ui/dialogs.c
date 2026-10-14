@@ -229,6 +229,37 @@ static int edit_subscription(ACCOUNT *a, CALENDAR *c, int is_new)
 	return 1;
 }
 
+/* a published calendar: the address asked for (or given, from a
+   webcal: link a program sent with VA_START), then its events */
+void dlg_subscribe(const char *url)
+{
+	ACCOUNT *a;
+	CALENDAR *c;
+	int ai;
+	a = acct_add(AK_SUBSCR);
+	if (!a) {
+		alert(1, "[1][There are too many accounts.][ OK ]");
+		return;
+	}
+	ai = naccts - 1;
+	c = cal_add(ai, "Subscription");
+	if (c && url)
+		str_copy(c->url, url, sizeof(c->url));
+	if (!c || edit_subscription(a, c, 1) <= 0 || !connection_ready(a->url)) {
+		acct_delete(ai);
+		store_save_settings();
+		return;
+	}
+	busy(1);
+	if (sync_calendar(c, 1) < 0) {
+		busy(0);
+		alert(1, "[1][%s][ OK ]", cal_err);
+	}
+	busy(0);
+	store_save_settings();
+	after_change();
+}
+
 void dlg_add_account(void)
 {
 	enum { L1, B1, B2, B3, B4, BCAN, N };
@@ -271,27 +302,7 @@ void dlg_add_account(void)
 		store_save_settings();
 		after_change();
 	} else if (r == B3) {
-		ACCOUNT *a;
-		CALENDAR *c;
-		int ai;
-		a = acct_add(AK_SUBSCR);
-		if (!a)
-			return;
-		ai = naccts - 1;
-		c = cal_add(ai, "Subscription");
-		if (!c || edit_subscription(a, c, 1) <= 0 || !connection_ready(a->url)) {
-			acct_delete(ai);
-			store_save_settings();
-			return;
-		}
-		busy(1);
-		if (sync_calendar(c, 1) < 0) {
-			busy(0);
-			alert(1, "[1][%s][ OK ]", cal_err);
-		}
-		busy(0);
-		store_save_settings();
-		after_change();
+		dlg_subscribe("");
 	} else if (r == B4) {
 		char name[40] = "Atari";
 		int i, a = -1;
