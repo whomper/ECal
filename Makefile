@@ -42,7 +42,7 @@ ATARI   := libc tos plat_tos net_tos sting gem dsprsa
 UI      := main win draw popup dsp views sidebar editor dialogs field about font
 
 OBJDIR  := build
-OBJS0   := $(OBJDIR)/crt0.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o \
+OBJS0   := $(OBJDIR)/crt0.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o $(OBJDIR)/crash.o $(OBJDIR)/crash_s.o \
            $(addprefix $(OBJDIR)/,$(addsuffix .o,$(CORE) $(ATARI) $(UI)))
 OBJS    := $(OBJS0) $(OBJDIR)/version.o
 HDRS    := $(wildcard src/*.h atari/*.h atari/include/*.h ui/*.h \
@@ -54,9 +54,10 @@ BIN     := binary
 all: $(BIN)/ECAL.ACC $(BIN)/ECAL.PRG $(BIN)/ECALST.ACC $(BIN)/ROOTS.DAT
 
 # the ST edition: no TLS of its own (it uses the Pi gateway), 150 KB
-# smaller; only BearSSL's MD5 (for Digest logins), as 68000 code
+# smaller; only BearSSL's MD5 (for Digest logins), as 68000 code. Only
+# ever an accessory, so no crash catcher (crash_none.c)
 STBSSL  := hash/md5 codec/dec32le codec/enc32le
-STOBJS  := $(OBJDIR)/crt0.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o \
+STOBJS  := $(OBJDIR)/crt0.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o $(OBJDIR)/crash_none.o \
            $(addprefix $(OBJDIR)/,$(addsuffix .o,$(filter-out tls,$(CORE)) $(ATARI) $(UI) tls_none)) \
            $(addprefix $(OBJDIR)/st/,$(addsuffix .o,$(notdir $(STBSSL)))) $(OBJDIR)/version.o
 
@@ -121,6 +122,8 @@ $(OBJDIR)/crt0.o: common/atari/crt0.S | $(OBJDIR)
 $(OBJDIR)/sting_s.o: common/atari/sting.S | $(OBJDIR)
 	$(CC) -m68000 -c -o $@ $<
 $(OBJDIR)/nf.o: common/atari/nf.S | $(OBJDIR)
+	$(CC) -m68000 -c -o $@ $<
+$(OBJDIR)/crash_s.o: common/atari/crash.S | $(OBJDIR)
 	$(CC) -m68000 -c -o $@ $<
 
 $(OBJDIR):

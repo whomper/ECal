@@ -23,6 +23,7 @@
 #include "util.h"
 #include "bidi.h"
 #include "../src/version.h"
+#include "crash.h"
 
 short vdi_h, cw, ch, scr_w, scr_h, desk_x, desk_y, desk_w, desk_h, planes;
 short gl_wchar, gl_hchar, ap_id, is_acc, ncolors, hebrew_kbd, quit_now;
@@ -91,6 +92,7 @@ void closing_down(int quitting)
 void status(const char *msg)
 {
 	char s[200];
+	crash_note(msg);		/* for CRASH.LOG, should ECal crash */
 	if (win_h <= 0)
 		return;
 	if (hebrew_kbd) {
@@ -866,6 +868,23 @@ static int second_click(short mx, short my, unsigned long t0)
 	return 0;
 }
 
+/* ECal (the program) crashed and CRASH.LOG is written
+   (common/atari/crash.c): say so and leave GEM tidy. Only the AES and
+   VDI: the heap may be what went wrong */
+static void crash_quit(const char *what)
+{
+	char a[200];
+	graf_mouse(ARROW, 0);
+	snprintf(a, sizeof(a), "[3][ECal has crashed|(%s).|What happened is in|CRASH.LOG, next to ECAL.PRG.][ Quit ]", what);
+	form_alert(1, a);
+	if (win_h > 0) {
+		wind_close(win_h);
+		wind_delete(win_h);
+	}
+	v_clsvwk(vdi_h);
+	appl_exit();
+}
+
 int main(void)
 {
 	short work_out[57], msg[8], d;
@@ -896,6 +915,9 @@ int main(void)
 	vst_alignment(vdi_h, 0, 5);
 	wind_get(0, WF_WORKXYWH, &desk_x, &desk_y, &desk_w, &desk_h);
 	find_workdir();
+	crash_install(workdir, "ECal", cal_version);	/* the program only */
+	crash_cleanup = crash_quit;
+	crash_report = conn_log_append;	/* the report in ECAL.LOG too */
 	st_ram_init();
 	help_init();
 	dlg_after = win_frame_refresh;
@@ -903,6 +925,8 @@ int main(void)
 		acc_heap();
 	else
 		open_window();
+	if (crash_previous())
+		alert(1, "[1][ECal crashed last time|(%s).|What happened is in|CRASH.LOG, next to ECAL.PRG.][ OK ]", crash_previous());
 
 	while (!quit_now) {
 		short flags = MU_MESAG | MU_TIMER, which, hovering;
@@ -956,7 +980,7 @@ int main(void)
 				set_hebrew_kbd(!hebrew_kbd);
 			else if (scan == 0x62)
 				help_open();
-			else
+			else if (!crash_test(scan))	/* test builds: F1-F4 crash */
 				win_key(ev.kstate, ev.kreturn);
 		}
 		if ((which & MU_BUTTON) && win_h > 0) {
@@ -1031,6 +1055,7 @@ int main(void)
 	settings_flush();
 	http_close_all();
 	conn_log_flush();
+	crash_remove();
 	v_clsvwk(vdi_h);
 	appl_exit();
 	return 0;
