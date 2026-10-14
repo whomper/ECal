@@ -163,7 +163,7 @@ sudo apt install gcc-m68k-linux-gnu      # Debian/Ubuntu
 make                                     # binary/ECAL.ACC, ECAL.PRG, ECALST.ACC
 ```
 
-The program is freestanding (`atari/`, no MiNTLib); `tools/elf2tos.py`
+The program is freestanding (`atari/`, no MiNTLib); `common/tools/elf2tos.py`
 writes the TOS executable. One binary is both the accessory and the
 program: the start-up code (`atari/crt0.S`) sees which way TOS started it.
 Everything is 68000 code except BearSSL, which is built for the 68030.
@@ -183,11 +183,12 @@ src/      the calendar core, also built on Linux for the tests:
           xml.c    WebDAV answers
           http.c   HTTP/1.1, via the Pi or with TLS   caldav.c  CalDAV
           calstore.c  accounts, caches, sync, saving changes
-          (charset, bidi, conn, tls, secret: from EMail)
+          (charset, conn, tls: from EMail; bidi, secret: in common/)
 ui/       the GEM program: window, views, sidebar, event editor, dialogs,
           and field.c, dialogs whose text fields take Hebrew
 atari/    TOS runtime from EMail (start-up for accessories added), STinG, DSP
-dsp/      the DSP56001 RSA program (from EMail)
+common/   code shared with the other AERA programs (from AERA-Atari):
+          BearSSL, the DSP RSA program, bidi, dates, passwords, build tools
 gateway/  ecalgate.py, the Raspberry Pi gateway, and its installer
 tests/    unit tests, CalDAV integration tests, Hatari tests
 ```
@@ -239,7 +240,7 @@ Copyright (C) 2026 Erez Yaary.
 
 It includes, under their own licences (compatible with the GPL):
 
-- [BearSSL](third_party/bearssl) by Thomas Pornin: MIT licence
-  ([LICENSE.txt](third_party/bearssl/LICENSE.txt))
+- [BearSSL](common/third_party/bearssl) by Thomas Pornin: MIT licence
+  ([LICENSE.txt](common/third_party/bearssl/LICENSE.txt))
 - `CACERT.PEM`, the root certificates for Falcon mode, from Mozilla's CA
   list (Mozilla Public License 2.0)
