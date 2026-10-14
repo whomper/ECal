@@ -306,7 +306,12 @@ instance).
 | ^S                  | show/hide the calendar list             |
 | ^W, ^Q              | close the window                        |
 | F10                 | Hebrew keyboard                         |
-| Help                | the keys                                |
+| Help                | this guide, in ST-Guide (see below)     |
+
+Help (or **Help...** in the ≡ menu) opens this guide in ST-Guide or
+HypView, when one of them is running: copy `ECAL.HYP` and `ECAL.REF`
+next to ECal, or into ST-Guide's help folder. Without ST-Guide, Help
+shows the keys above.
 
 ## Which version
 

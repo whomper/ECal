@@ -403,7 +403,7 @@ void cmd_menu(short x, short y)
 	items[M_S3] = "-";
 	items[M_SET] = "  Settings...";
 	items[M_FONT] = "  Font...";
-	items[M_KEYS] = "  Keys...            Help";
+	items[M_KEYS] = "  Help...            Help";
 	items[M_ABOUT] = "  About ECal...";
 	items[M_S4] = "-";
 	items[M_QUIT] = "  Quit                ^Q";
@@ -446,7 +446,7 @@ void cmd_menu(short x, short y)
 		break;
 	case M_SET: dlg_settings(); break;
 	case M_FONT: font_menu(); break;
-	case M_KEYS: dlg_keys(); break;
+	case M_KEYS: help_open(); break;
 	case M_ABOUT: dlg_about(); break;
 	case M_QUIT:
 		quit_now = 1;
@@ -897,6 +897,7 @@ int main(void)
 	wind_get(0, WF_WORKXYWH, &desk_x, &desk_y, &desk_w, &desk_h);
 	find_workdir();
 	st_ram_init();
+	help_init();
 	dlg_after = win_frame_refresh;
 	if (is_acc)
 		acc_heap();
@@ -954,7 +955,7 @@ int main(void)
 			if (scan == 0x44)
 				set_hebrew_kbd(!hebrew_kbd);
 			else if (scan == 0x62)
-				dlg_keys();
+				help_open();
 			else
 				win_key(ev.kstate, ev.kreturn);
 		}

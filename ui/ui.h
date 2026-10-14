@@ -176,6 +176,8 @@ void dlg_goto(void);
 void dlg_find(void);
 void dlg_about(void);
 void dlg_keys(void);
+void help_init(void);		/* at start-up */
+void help_open(void);		/* ECAL.HYP in ST-Guide, or the keys */
 void font_apply(void);		/* opt.font_id/pt -> the VDI font, cw, ch */
 void font_menu(void);		/* the font selector (font.c) */
 void font_reselect(void);	/* the text font again, after drawing in another */

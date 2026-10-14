@@ -731,6 +731,46 @@ void dlg_find(void)
 
 /* the keys, as a table: headings, the keys in one column and what they
    do in the next, two to a row where they're short */
+/* Help: the user guide, ECAL.HYP, in ST-Guide (or HypView, which answers
+   to the same name or its own), sent with VA_START. The name has to be
+   readable by ST-Guide: under MiNT's memory protection that means memory
+   taken as global, at start-up as an accessory can't take it later. The
+   keys dialog when no ST-Guide is there to show it. */
+#define VA_START 0x4711
+static char help_fallback[200];
+static char *help_path = help_fallback;
+
+void help_init(void)
+{
+	void *p = 0;
+	if (get_cookie(0x4D694E54L) || get_cookie(0x4D616758L))	/* MiNT, MagX */
+		p = Mxalloc(sizeof(help_fallback), 0x23);	/* global, any RAM */
+	if ((long)p > 0)
+		help_path = p;
+}
+
+void help_open(void)
+{
+	static const char *names[] = { "ST-GUIDE", "HYPVIEW ", "HYP_VIEW" };
+	short msg[8], id = -1, i;
+	for (i = 0; i < 3 && id < 0; i++)
+		id = appl_find(names[i]);
+	if (id < 0) {
+		dlg_keys();
+		return;
+	}
+	/* the copy next to ECal, or ST-Guide looks along its own PATHS */
+	path_join(help_path, sizeof(help_fallback), opt.workdir, "ECAL.HYP");
+	if (!opt.workdir[0] || !pf_exists(help_path))
+		strcpy(help_path, "*:\\ECAL.HYP");
+	memset(msg, 0, sizeof(msg));
+	msg[0] = VA_START;
+	msg[1] = appl_id();
+	msg[3] = (short)((long)help_path >> 16);
+	msg[4] = (short)(long)help_path;
+	appl_write(id, 16, msg);
+}
+
 void dlg_keys(void)
 {
 	static const struct {
@@ -759,7 +799,7 @@ void dlg_keys(void)
 		{ 12, 0, "^S", "the calendar list" },
 		{ 12, 1, "F10", "Hebrew keyboard" },
 		{ 13, 0, "^W  ^Q", "close the window" },
-		{ 13, 1, "Help", "these keys" },
+		{ 13, 1, "Help", "the user guide" },
 		{ 14, 0, "Double-click", "open; on a day: new" },
 		{ 14, 1, "Right-click", "more choices" },
 	};

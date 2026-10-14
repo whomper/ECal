@@ -78,6 +78,15 @@ $(BIN)/ECAL.ACC: $(OBJDIR)/cal.elf tools/elf2tos.py
 $(BIN)/ECAL.PRG: $(BIN)/ECAL.ACC
 	cp $< $@
 
+# a stand-in ST-Guide for tests/hatari/help_test.py
+fakeguide: $(OBJDIR)/ST-GUIDE.ACC
+$(OBJDIR)/ST-GUIDE.ACC: $(OBJDIR)/fakeguide.elf tools/elf2tos.py
+	python3 tools/elf2tos.py $< $@
+$(OBJDIR)/fakeguide.elf: $(OBJDIR)/crt0.o $(OBJDIR)/gem.o $(OBJDIR)/fakeguide.o atari/link.ld
+	$(CC) $(LDFLAGS) -o $@ $(OBJDIR)/crt0.o $(OBJDIR)/gem.o $(OBJDIR)/fakeguide.o -lgcc
+$(OBJDIR)/fakeguide.o: tests/hatari/fakeguide.c atari/gem.h | $(OBJDIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
 $(OBJDIR)/cal.elf: $(OBJS) $(OBJDIR)/libbearssl.a atari/link.ld
 	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(OBJDIR)/libbearssl.a -lgcc
 
@@ -159,4 +168,4 @@ itest: $(OBJDIR)/cal-cli
 clean:
 	rm -rf $(OBJDIR) $(BIN)/ECAL.ACC $(BIN)/ECAL.PRG $(BIN)/ECALST.ACC
 
-.PHONY: all help test itest clean
+.PHONY: fakeguide all help test itest clean

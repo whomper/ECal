@@ -122,6 +122,20 @@ short wind_find(short x, short y)
 	return aes(106, 2, 1, 0, 0);
 }
 
+short appl_find(const char *name)
+{
+	addrin[0] = (void *)name;
+	return aes(13, 0, 1, 1, 0);
+}
+
+short appl_write(short id, short len, void *buf)
+{
+	aintin[0] = id;
+	aintin[1] = len;
+	addrin[0] = buf;
+	return aes(12, 2, 1, 1, 0);
+}
+
 short appl_id(void)
 {
 	return global[2];

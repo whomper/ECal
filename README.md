@@ -135,7 +135,7 @@ They are in the [`binary`](binary) folder:
 | `ECALST.ACC`   | ST and STE: the same accessory without TLS (150 KB smaller), through the Pi |
 | `ECAL.PRG`     | the same as ECAL.ACC, to start from the desktop instead       |
 | `CACERT.PEM`, `ROOTS.DAT` | the root certificates for Falcon mode                  |
-| `ECAL.HYP`, `ECAL.REF` | this guide for ST-Guide or HypView: copy them into your help folder (e.g. `C:\GUIDES\`) |
+| `ECAL.HYP`, `ECAL.REF` | this guide for ST-Guide or HypView, opened by the Help key: keep them next to ECal or in your help folder (e.g. `C:\GUIDES\`) |
 
 ## Getting started
 

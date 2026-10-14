@@ -149,6 +149,8 @@ short menu_icheck(OBJECT *tree, short item, short check);
 short menu_ienable(OBJECT *tree, short item, short enable);
 short evnt_timer_(unsigned long ms);
 short appl_id(void);
+short appl_find(const char *name);	/* 8 characters, blank-padded; -1 if none */
+short appl_write(short id, short len, void *buf);
 short wind_find(short x, short y);
 OBJECT *rsrc_tree(short index);
 short objc_draw(OBJECT *tree, short start, short depth, short x, short y, short w, short h);
