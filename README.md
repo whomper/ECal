@@ -149,7 +149,7 @@ They are in the [`binary`](binary) folder:
    it is when it asks.
 2. For an ST, set up the gateway on a Raspberry Pi:
    `sudo gateway/install.sh` (see [gateway/README.md](gateway/README.md)).
-3. Reboot, choose **ECalendar** in the Desk menu, and add your iCloud
+3. Reboot, choose **ECal** in the Desk menu, and add your iCloud
    account with an [app-specific password](https://support.apple.com/en-us/102654).
 
 The [user guide](docs/GUIDE.md) describes the rest.

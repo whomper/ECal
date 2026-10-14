@@ -743,11 +743,11 @@ void dlg_find(void)
 /* the keys, as a table: headings, the keys in one column and what they
    do in the next, two to a row where they're short */
 /* Help: the user guide, ECAL.HYP, in EHypView or ST-Guide (common/ui/help.c,
-   which also keeps the name where the viewer may read it); the keys
-   dialog when no viewer is there to show it */
+   which also keeps the name where the viewer may read it); without a
+   viewer, an alert says how to get one and offers the keys dialog */
 void help_open(void)
 {
-	if (!help_show(opt.workdir, "ECAL.HYP", 0))
+	if (help_key(opt.workdir, "ECAL.HYP", 0, "Keys"))
 		dlg_keys();
 }
 
@@ -776,7 +776,7 @@ void dlg_keys(void)
 		{ 10, 1, "^G", "go to a date" },
 		{ 11, 0, "^R", "refresh" },
 		{ 11, 1, "Shift+^R", "everything again" },
-		{ 12, 0, "^S", "the calendar list" },
+		{ 12, 0, "\x01^S", "the calendar list" },
 		{ 12, 1, "F10", "Hebrew keyboard" },
 		{ 13, 0, "^W  ^Q", "close the window" },
 		{ 13, 1, "Help", "the user guide" },

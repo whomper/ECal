@@ -25,6 +25,7 @@
 #include "../src/version.h"
 #include "crash.h"
 #include "av.h"
+#include "aboutbox.h"
 
 short vdi_h, cw, ch, scr_w, scr_h, desk_x, desk_y, desk_w, desk_h, planes;
 short gl_wchar, gl_hchar, ap_id, is_acc, ncolors, hebrew_kbd, quit_now;
@@ -403,7 +404,7 @@ void cmd_menu(short x, short y)
 	items[M_FIND] = "  Find...             ^F";
 	items[M_TODAY] = "  Today                T";
 	items[M_S2] = "-";
-	items[M_SIDE] = opt.sidebar ? "\x08 Calendar list       ^S" : "  Calendar list       ^S";
+	items[M_SIDE] = opt.sidebar ? "\x08 Calendar list      \x01^S" : "  Calendar list      \x01^S";
 	items[M_HEB] = opt.hebdates ? "\x08 Hebrew dates" : "  Hebrew dates";
 	items[M_KBD] = hebrew_kbd ? "\x08 Hebrew keyboard     F10" : "  Hebrew keyboard     F10";
 	items[M_S5] = "-";
@@ -690,6 +691,8 @@ static void load_calendars(void)
    from the event loop once everything is drawn, the refresh */
 static void open_window(void)
 {
+	if (!screen_check("ECal", scr_w))	/* not in ST low (the accessory) */
+		return;
 	int first = win_h <= 0;
 	if (!settings_ready)
 		load_settings();
@@ -965,7 +968,7 @@ int main(void)
 		return 1;
 	bg_start = pf_ms();
 	if (is_acc)
-		menu_id = menu_register(ap_id, "  ECalendar");
+		menu_id = menu_register(ap_id, "  ECal");
 	vdi_h = graf_handle(&gl_wchar, &gl_hchar, &d, &d);
 	cw = gl_wchar;
 	ch = gl_hchar;
@@ -988,12 +991,16 @@ int main(void)
 	help_init();
 	av_init("ECAL|ECALST");		/* the desktop's AV server, if one runs yet */
 	dlg_after = win_frame_refresh;
+	if (!is_acc && !screen_check("ECal", scr_w)) {	/* not in ST low */
+		v_clsvwk(vdi_h);
+		appl_exit();
+		return 1;
+	}
 	if (is_acc)
 		acc_heap();
 	else
 		open_window();
-	if (crash_previous())
-		alert(1, "[1][ECal crashed last time|(%s).|What happened is in|CRASH.LOG, next to ECAL.PRG.][ OK ]", crash_previous());
+	crash_offer("ECal", "next to ECAL.PRG");
 
 	while (!quit_now) {
 		short flags = MU_MESAG | MU_TIMER, which, hovering;

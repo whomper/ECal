@@ -3,7 +3,7 @@
 ## Installing
 
 ECal is a desk accessory: TOS loads it at boot from the root of the
-boot drive, and it waits in the Desk menu as **ECalendar** until you
+boot drive, and it waits in the Desk menu as **ECal** until you
 choose it.
 
 | Your Atari        | Copy to `C:\`    | Connects                        |
@@ -149,7 +149,7 @@ delete it from the Atari (nothing is deleted on the server).
 ![Week view](week.png)
 
 The toolbar: the first button hides the calendar list on the left, so
-the window is all calendar (click it again, or ^S, to bring it back);
+the window is all calendar (click it again, or Shift+^S, to bring it back);
 **‹ Today ›** move back, to today and forward; then the
 period's name (double-click it to go to a date); **Day Week Month Year**;
 **+** a new event; **Refresh** (with Shift: everything again, from
@@ -317,7 +317,7 @@ instance).
 | ^F                  | find                                    |
 | ^G                  | go to a date                            |
 | ^R                  | refresh (Shift+^R: everything again)    |
-| ^S                  | show/hide the calendar list             |
+| Shift+^S            | show/hide the calendar list             |
 | ^W, ^Q              | close the window                        |
 | F10                 | Hebrew keyboard                         |
 | Help                | this guide (see below)                  |
@@ -325,8 +325,8 @@ instance).
 Help (or **Help...** in the ≡ menu) opens this guide in EHypView,
 ST-Guide or HypView, whichever is running (as an accessory, or as a
 program under MultiTOS or MagiC): copy `ECAL.HYP` and `ECAL.REF` next to
-ECal, or into the viewer's help folder. Without a viewer, Help shows the
-keys above.
+ECal, or into the viewer's help folder. Without a viewer, Help says how
+to get one and offers the keys above instead.
 
 ## Which version
 
