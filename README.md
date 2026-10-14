@@ -70,10 +70,19 @@ These had drifted between the apps; each is now the most complete copy, with eve
 | `src/tz.c/.h` | ECal | a small cache of the last zones looked up |
 | `src/charset.c/.h`, `charset_tab.h` | EMail | ECal and EContact lose the Troll-proxy guesswork EMail dropped (it could take real text for already-converted Atari text) |
 
+## Layer 2b: TLS and connections (14 Oct 2026)
+
+| Files | Taken from | What the others gain |
+|---|---|---|
+| `src/tls.c/.h` | EFTP (itself ECal + EMail) | ECal's TLS session resumption for EMail; EMail's ChaCha20-first handshake (twice as fast as AES-GCM on a 68030) for ECal and EContact |
+| `src/tls_none.c` | EFTP | the ST editions' stand-in; names the Falcon edition from `TLS_FULL_EDITION` |
+| `src/conn.c/.h` | EFTP + EMail | one API: `conn_open(name, host, port, bufsize, sec, err, errlen)` with `bufsize` 0 for `conn_bufsize` (16 KB; EMail lowers it on a small Atari); `SEC_STARTTLS`; EFTP's Stop (`conn_stop`), raw reads (`conn_read`: 0 = closed, -1 = timeout/stopped), `conn_pending`, `conn_close_flush`; ECal's handshake timing; a block-buffered log flushed at each milestone |
+
+An app provides `net_close_wait()` in its `plat.h` (declared; the code is in `atari/net_tos.c`).
+
 ## Coming next
 
 | Area | Files | Plan |
 |---|---|---|
-| TLS and connections (2b) | `tls.c/.h`, `tls_none.c`, `conn.c/.h` | EFTP's `tls.c` (ECal's session resumption + EMail's ChaCha20 first); one `conn` API for all (EFTP's buffer size and Stop, EMail's small-Atari buffer, STARTTLS) |
 | runtime (2c) | `libc.c`, `crt0.S`, `gem.c/.h` | ECal's crt0 (PRG+ACC), EContact's heap sort and clipboard calls, EFTP's VDI cache |
 | GEM building blocks | `popup.c`, `about.c`, `font.c`, alert, help launcher, menu builder, crash handler | the guidelines' reference copies |
