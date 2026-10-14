@@ -59,6 +59,8 @@ long net_write(int h, const void *buf, long n);	/* bytes sent or < 0 */
 /* non-blocking: > 0 bytes read, 0 nothing yet, < 0 closed or failed */
 long net_read(int h, void *buf, long max);
 void net_close(int h);
+/* close once what was sent has gone out, waiting at most this long */
+void net_close_wait(int h, int seconds);
 
 /* the UI can show progress and keep the screen alive while we wait */
 extern void (*pf_idle)(void);

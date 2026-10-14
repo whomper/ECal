@@ -247,7 +247,7 @@ static CONN *get_conn(const URL *u, int gw, int *reused, char *err, int errlen)
 		return kept;
 	}
 	http_close_all();
-	kept = conn_open("HTTP", host, port, sec, err, errlen);
+	kept = conn_open("HTTP", host, port, 0, sec, err, errlen);
 	if (!kept) {
 		if (gw) {
 			char e2[200];

@@ -182,3 +182,4 @@ long net_read(int h, void *buf, long max)
 }
 
 void net_close(int h) { close(h); }
+void net_close_wait(int h, int seconds) { (void)seconds; close(h); }

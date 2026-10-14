@@ -16,8 +16,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "ui.h"
-#include "../src/conn.h"
-#include "../src/tls.h"
+#include "conn.h"
+#include "tls.h"
 #include "../src/http.h"
 #include "../src/plat.h"
 #include "util.h"

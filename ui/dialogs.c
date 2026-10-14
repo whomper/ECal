@@ -10,11 +10,11 @@
 #include <stdlib.h>
 #include "ui.h"
 #include "util.h"
-#include "../src/conn.h"
+#include "conn.h"
 #include "../src/http.h"
 #include "../src/version.h"
 #include "../src/plat.h"
-#include "../src/tls.h"
+#include "tls.h"
 
 static void put(FIELD *f, short type, short flags, short x, short y, short w, const char *label)
 {
