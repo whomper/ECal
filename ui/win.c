@@ -9,7 +9,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "ui.h"
-#include "../src/bidi.h"
+#include "bidi.h"
 
 short win_h = -1;
 short win_iconified;	/* shown as ECal's icon (WM_ICONIFY) */

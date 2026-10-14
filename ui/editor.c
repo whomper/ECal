@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "ui.h"
-#include "../src/util.h"
+#include "util.h"
 
 static short last_cal = -1;	/* new events go where the last one went */
 

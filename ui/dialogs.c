@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "ui.h"
-#include "../src/util.h"
+#include "util.h"
 #include "../src/conn.h"
 #include "../src/http.h"
 #include "../src/version.h"

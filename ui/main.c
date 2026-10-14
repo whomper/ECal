@@ -20,8 +20,8 @@
 #include "../src/tls.h"
 #include "../src/http.h"
 #include "../src/plat.h"
-#include "../src/util.h"
-#include "../src/bidi.h"
+#include "util.h"
+#include "bidi.h"
 #include "../src/version.h"
 
 short vdi_h, cw, ch, scr_w, scr_h, desk_x, desk_y, desk_w, desk_h, planes;

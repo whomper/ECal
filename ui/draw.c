@@ -9,7 +9,7 @@
  */
 #include <string.h>
 #include "ui.h"
-#include "../src/bidi.h"
+#include "bidi.h"
 
 static short next_text_color = 1;
 

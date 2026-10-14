@@ -21,7 +21,7 @@ fstart.o: fstart.S
 	$(CC) -m68000 -c -o $@ $<
 nf.o: ../../common/atari/nf.S
 	$(CC) -m68000 -c -o $@ $<
-tos.o: ../../atari/tos.c
+tos.o: ../../common/atari/tos.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 fakesting.o: fakesting.c
 	$(CC) $(CFLAGS) -c -o $@ $<

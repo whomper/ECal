@@ -12,7 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "ui.h"
-#include "../src/util.h"
+#include "util.h"
 
 long cur_day;
 short cur_view = V_MONTH;

@@ -16,8 +16,8 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include "ui.h"
-#include "../src/bidi.h"
-#include "../src/util.h"
+#include "bidi.h"
+#include "util.h"
 
 static GRECT box;		/* the dialog on screen */
 static short rh;		/* pixels per row */
