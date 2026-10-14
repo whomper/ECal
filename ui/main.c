@@ -1005,8 +1005,10 @@ int main(void)
 	while (!quit_now) {
 		short flags = MU_MESAG | MU_TIMER, which, hovering;
 		unsigned long wait = sync_pending ? 150 : 1000;
+		if (win_h > 0)
+			flags |= MU_KEYBD | MU_BUTTON;
 		if (win_h > 0 && !win_iconified)
-			flags |= MU_KEYBD | MU_BUTTON | MU_M1;
+			flags |= MU_M1;
 		/* the mouse moving away from where it was last seen */
 		evnt_set_m1(1, hover_x, hover_y, 1, 1);
 		hovering = win_h > 0 && !win_iconified && !tip_tried && hover_x >= 0;
@@ -1016,6 +1018,8 @@ int main(void)
 		   click_count() waits for the second one before anything is done */
 		/* a refresh waiting: shortly, once the redraws are done */
 		which = evnt_multi_(flags, is_acc ? 0x102 : 0x101, 3, 0, wait, msg, &ev);
+		if (win_iconified)	/* an icon takes no keys or clicks (taken, not left for later) */
+			which &= ~(MU_KEYBD | MU_BUTTON);
 		if (which & (MU_M1 | MU_KEYBD | MU_BUTTON | MU_MESAG)) {
 			short k;
 			if (which & MU_M1)

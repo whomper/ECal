@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include "ui.h"
 #include "bidi.h"
+#include "iconify.h"
 
 short win_h = -1;
 short win_iconified;	/* shown as ECal's icon (WM_ICONIFY) */
@@ -19,18 +20,10 @@ GRECT work, r_tool, r_side, r_view;
 
 static char title[80], info[140];
 
-/* the AES can iconify windows (AES 4.1, MagiC, XaAES, N.AES...) */
+/* with the iconifier when the AES can iconify (common/ui/iconify.c) */
 static short kind(void)
 {
-	static short k = -1;
-	short o1, o2, o3, o4;
-	if (k < 0) {
-		k = KIND;
-		if ((aes_version() >= 0x0400 || get_cookie(0x3F414749L))	/* ?AGI */
-		    && appl_getinfo(11, &o1, &o2, &o3, &o4) && (o1 & 0x80))	/* WF_ICONIFY */
-			k |= SMALLER;
-	}
-	return k;
+	return icon_kind(KIND);
 }
 
 enum { B_SIDE, B_PREV, B_TODAY, B_NEXT, B_DAY, B_WEEK, B_MONTH, B_YEAR, B_NEW, B_REFRESH, B_MENU, NBUT };
@@ -255,6 +248,10 @@ void win_redraw(GRECT *area)
 	GRECT box, full;
 	if (win_h <= 0)
 		return;
+	if (win_iconified) {
+		icon_window(area);	/* over the small window, not the old work area */
+		return;
+	}
 	wind_update(BEG_UPDATE);
 	graf_mouse(M_OFF, 0);
 	full = work;
@@ -263,24 +260,11 @@ void win_redraw(GRECT *area)
 		wind_update(END_UPDATE);
 		return;
 	}
-	if (win_iconified) {
-		/* the icon fills the small window, whatever was asked */
-		wind_get(win_h, WF_WORKXYWH, &full.x, &full.y, &full.w, &full.h);
-		if (area && !rect_and(&(GRECT){ area->x, area->y, area->w, area->h }, &full)) {
-			graf_mouse(M_ON, 0);
-			wind_update(END_UPDATE);
-			return;
-		}
-	}
 	wind_get(win_h, WF_FIRSTXYWH, &box.x, &box.y, &box.w, &box.h);
 	while (box.w && box.h) {
 		GRECT d = box;
-		if (rect_and(&d, &full)) {
-			if (win_iconified)
-				icon_window(&full, &d);
-			else
-				draw_all(&d);
-		}
+		if (rect_and(&d, &full))
+			draw_all(&d);
 		wind_get(win_h, WF_NEXTXYWH, &box.x, &box.y, &box.w, &box.h);
 	}
 	graf_mouse(M_ON, 0);
@@ -371,7 +355,8 @@ void win_close(void)
 {
 	if (win_h <= 0)
 		return;
-	remember_place();
+	if (!win_iconified)	/* the place was kept when it was iconified */
+		remember_place();
 	closing_down(quit_now || !is_acc);
 	wind_close(win_h);
 	wind_delete(win_h);
@@ -422,6 +407,8 @@ void win_message(short *msg)
 		break;
 	case WM_FULLED: {
 		short x, y, w, h, fx, fy, fw, fh;
+		if (win_iconified)
+			break;
 		wind_get(win_h, WF_CURRXYWH, &x, &y, &w, &h);
 		wind_get(win_h, WF_FULLXYWH, &fx, &fy, &fw, &fh);
 		if (x == fx && y == fy && w == fw && h == fh)
@@ -436,6 +423,10 @@ void win_message(short *msg)
 	case WM_MOVED: {
 		short w = msg[6] < 40 * cw ? 40 * cw : msg[6], h = msg[7] < 14 * ch ? 14 * ch : msg[7];
 		short sx = snap_x(msg[4]);
+		if (win_iconified) {	/* the icon goes where it is put, as it is */
+			wind_set(win_h, WF_CURRXYWH, msg[4], msg[5], msg[6], msg[7]);
+			break;
+		}
 		if (sx + w > desk_x + desk_w)
 			w = desk_x + desk_w - sx;
 		wind_set(win_h, WF_CURRXYWH, sx, msg[5], w, h);

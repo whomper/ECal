@@ -177,7 +177,7 @@ void dlg_goto(void);
 void dlg_find(void);
 void dlg_about(void);
 void icon_today(char *s, int size);	/* "Oct 14" */
-void icon_window(GRECT *work, GRECT *clip);	/* the iconified window: icon and today */
+void icon_window(GRECT *area);		/* the iconified window: icon and today */
 void dlg_keys(void);
 #include "help.h"		/* help_init (at start-up), help_show: common/ui */
 void help_open(void);		/* ECAL.HYP in EHypView or ST-Guide, or the keys */
