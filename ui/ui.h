@@ -64,8 +64,7 @@ typedef struct {
 } PEN;
 void pen_of(int cal, PEN *p);
 void pen_color(short k, PEN *p);	/* colour k of the eight */
-short popup(short x, short y, const char *const *labels, short n);	/* popup.c */
-extern GRECT popup_area;		/* where the last popup was */
+#include "popup.h"		/* popup(), popup_area: common/ui */
 /* a popup over the window: what it covered is repainted at once, before
    the choice opens a dialog (GEM's redraw message would wait for it) */
 short win_popup(short x, short y, const char *const *labels, short n);
