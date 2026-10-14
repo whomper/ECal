@@ -99,6 +99,7 @@ extern OCC sel_occ;		/* the selected occurrence (ev NULL: none) */
 extern short day_scroll;	/* first hour shown in day and week views */
 void views_scroll_to(short hour);	/* scroll there: the events move too */
 int  views_tip(short mx, short my, char *title, int tn, char *when, int wn);	/* the event under the mouse */
+void views_copy(void);				/* ^C: the event chosen, to the clipboard */
 void views_invalidate(void);	/* events changed: collect again */
 void views_draw(GRECT *clip);
 int  views_click(short mx, short my, short clicks, short kstate, short button);
@@ -165,6 +166,7 @@ int   dlg_ask(const char *title, const char *label, char *buf, short len);
 /* ---- the dialogs (dialogs.c, editor.c) ---- */
 int  editor_open(EVENT *e, CTIME occ_start, CTIME orig);	/* 1 if changed; orig: OCC.orig */
 void editor_new(long day, short hour_min, short allday);
+void editor_new_titled(long day, const char *text);	/* text dropped: a new event */
 /* an occurrence dragged to new_start (the view's wall time): 1 if saved */
 int  editor_move(EVENT *e, CTIME occ_start, CTIME orig, CTIME new_start);
 void dlg_subscribe(const char *url);

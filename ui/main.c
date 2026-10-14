@@ -25,6 +25,7 @@
 #include "../src/version.h"
 #include "crash.h"
 #include "av.h"
+#include "dd.h"
 #include "aboutbox.h"
 
 short vdi_h, cw, ch, scr_w, scr_h, desk_x, desk_y, desk_w, desk_h, planes;
@@ -1042,6 +1043,7 @@ int main(void)
 			case AC_CLOSE:
 				/* the program in front ended: the AES took our window */
 				if (msg[3] == menu_id) {
+					av_window(win_h, 0);
 					win_h = -1;
 					settings_flush();
 				}
@@ -1051,11 +1053,24 @@ int main(void)
 					quit_now = 1;
 				win_close();
 				break;
-			default:
-				if (av_message(msg, &va) == AV_START)
-					av_start(va);
-				else
-					win_message(msg);
+			default: {
+				DROP d;
+				/* dropped: .ics files as VA_START's; text, a new event */
+				switch (dd_message(msg, DD_WANT_FILES | DD_WANT_TEXT, &d)) {
+				case DD_FILES: av_start(d.data); break;
+				case DD_TEXT:
+					open_window();
+					if (win_h > 0)
+						editor_new_titled(cur_day, d.data);
+					break;
+				case DD_NONE:
+					if (av_message(msg, &va) == AV_START)
+						av_start(va);
+					else
+						win_message(msg);
+				}
+				dd_done(&d);
+			}
 			}
 		}
 		if ((which & MU_KEYBD) && win_h > 0) {

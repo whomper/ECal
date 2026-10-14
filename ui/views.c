@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include "ui.h"
 #include "util.h"
+#include "clip.h"
 
 long cur_day;
 short cur_view = V_MONTH;
@@ -1354,19 +1355,56 @@ static void open_selected(void)
 		after_change();
 }
 
+/* ^C: the event chosen, as text: its title, when, where, then its notes */
+void views_copy(void)
+{
+	EVENT *e = sel_occ.ev;
+	char when[80], t1[16], t2[16], *t;
+	DT a, b;
+	long n;
+	if (!e)
+		return;
+	ct_split(sel_occ.start, &a);
+	ct_split(e->allday ? sel_occ.end - MIN_PER_DAY : sel_occ.end, &b);
+	fmt_time(a.hour, a.min, opt.h24, t1, sizeof(t1));
+	fmt_time(b.hour, b.min, opt.h24, t2, sizeof(t2));
+	if (e->allday && a.day == b.day && a.mon == b.mon && a.year == b.year)
+		snprintf(when, sizeof(when), "%s %d %s %d, all day", wday_short[a.wday], a.day, month_short[a.mon - 1], a.year);
+	else if (e->allday)
+		snprintf(when, sizeof(when), "%d %s %d - %d %s %d", a.day, month_short[a.mon - 1], a.year,
+			 b.day, month_short[b.mon - 1], b.year);
+	else if (a.day == b.day && a.mon == b.mon && a.year == b.year)
+		snprintf(when, sizeof(when), "%s %d %s %d, %s - %s", wday_short[a.wday], a.day, month_short[a.mon - 1],
+			 a.year, t1, t2);
+	else
+		snprintf(when, sizeof(when), "%d %s %d %s - %d %s %d %s", a.day, month_short[a.mon - 1], a.year, t1,
+			 b.day, month_short[b.mon - 1], b.year, t2);
+	n = 120 + (long)strlen(when) + (e->summary ? (long)strlen(e->summary) : 0) +
+	    (e->location ? (long)strlen(e->location) : 0) + (e->notes ? (long)strlen(e->notes) : 0);
+	if (!(t = malloc(n)))
+		return;
+	snprintf(t, n, "%s\n%s%s%s%s%s", e->summary ? e->summary : "New Event", when,
+		 e->location && *e->location ? "\n" : "", e->location ? e->location : "",
+		 e->notes && *e->notes ? "\n\n" : "", e->notes ? e->notes : "");
+	win_status(clip_put(t, (long)strlen(t)) ? "Copied to the clipboard." : "Couldn't write the clipboard.");
+	free(t);
+}
+
 static void context_menu(short mx, short my, int it, long day, short minute)
 {
-	static const char *const ev_items[] = { "  Open...", "  Duplicate", "-", "  Delete..." };
+	static const char *const ev_items[] = { "  Open...", "  Copy        ^C", "  Duplicate", "-", "  Delete..." };
 	static const char *const day_items[] = { "  New event...", "  New all-day event", "-",
 						 "  Show this day", "  Show this week", "  Today" };
 	short k;
 	if (it >= 0 && items[it].kind == IT_EVENT) {
 		select_item(it);
 		win_redraw(&r_view);
-		k = win_popup(mx, my, ev_items, cal_writable(&cals[sel_occ.ev->cal]) ? 4 : 1);
+		k = win_popup(mx, my, ev_items, cal_writable(&cals[sel_occ.ev->cal]) ? 5 : 2);
 		if (k == 0)
 			open_selected();
-		else if (k == 1) {
+		else if (k == 1)
+			views_copy();
+		else if (k == 2) {
 			EVENT *c = ev_dup(sel_occ.ev);
 			if (c) {
 				CTIME d = c->end - c->start;
@@ -1386,7 +1424,7 @@ static void context_menu(short mx, short my, int it, long day, short minute)
 				ev_free(c);
 				after_change();
 			}
-		} else if (k == 3)
+		} else if (k == 4)
 			cmd_delete_selected();
 		return;
 	}

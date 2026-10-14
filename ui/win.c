@@ -11,6 +11,7 @@
 #include "ui.h"
 #include "bidi.h"
 #include "iconify.h"
+#include "av.h"
 
 short win_h = -1;
 short win_iconified;	/* shown as ECal's icon (WM_ICONIFY) */
@@ -326,6 +327,8 @@ void win_open(void)
 		x = sx;
 	}
 	wind_open(win_h, x, y, w, h);
+	if (is_acc)		/* the desktop drops files on it (VA_DRAGACCWIND) */
+		av_window(win_h, 1);
 	win_layout();
 	win_sliders();
 }
@@ -358,6 +361,8 @@ void win_close(void)
 	if (!win_iconified)	/* the place was kept when it was iconified */
 		remember_place();
 	closing_down(quit_now || !is_acc);
+	if (is_acc)
+		av_window(win_h, 0);
 	wind_close(win_h);
 	wind_delete(win_h);
 	win_h = -1;
@@ -522,6 +527,7 @@ int win_key(short kstate, short key)
 			win_close();
 			return 1;
 		case 0x14: views_today(); return 1;		/* ^T */
+		case 0x2e: views_copy(); return 1;		/* ^C: the event chosen */
 		case 0x1f:					/* Shift+^S; ^S is Save */
 			if (!(kstate & (K_LSHIFT | K_RSHIFT)))
 				return 0;

@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include "ui.h"
 #include "util.h"
+#include "clip.h"
 
 static short last_cal = -1;	/* new events go where the last one went */
 
@@ -1030,6 +1031,20 @@ int editor_open(EVENT *e, CTIME occ_start, CTIME orig)
 	return run_editor(e, occ_start, orig, 0);
 }
 
+static const char *new_title;		/* text dropped: the new event's title */
+
+/* text dropped on the window: a new event with it as its title (its first
+   line) */
+void editor_new_titled(long day, const char *text)
+{
+	char t[200];
+	str_copy(t, text, sizeof(t));
+	clip_line(t);
+	new_title = t;
+	editor_new(day, -1, 0);
+	new_title = 0;
+}
+
 void editor_new(long day, short minute, short allday)
 {
 	EVENT *e = ev_new();
@@ -1047,6 +1062,8 @@ void editor_new(long day, short minute, short allday)
 	for (i = 0; i < ncals && e->cal < 0; i++)
 		if (cal_writable(&cals[i]))
 			e->cal = (short)i;
+	if (new_title && *new_title)
+		ev_set(&e->summary, new_title);
 	if (e->cal < 0) {
 		ev_free(e);
 		alert(1, "[1][There is no calendar you can add events to yet.|Add an iCloud or other account, or an On My Atari calendar, from the \xF0 menu.][ OK ]");

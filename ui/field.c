@@ -18,6 +18,7 @@
 #include "ui.h"
 #include "bidi.h"
 #include "util.h"
+#include "clip.h"
 
 static GRECT box;		/* the dialog on screen */
 static short rh;		/* pixels per row */
@@ -532,12 +533,54 @@ static void press_effect(DLG *d, short i)
 	graf_mouse(M_ON, 0);
 }
 
+/* ^C ^X ^V (common/ui/clip.c). With nothing selected, the field, and in a
+   field of several lines the line the cursor is in; nothing is copied out
+   of a password. A paste goes in as far as the field takes it, its first
+   line only unless the field has more */
+static int clip_field(DLG *d, FIELD *f, int what)
+{
+	char t[1200], *p;
+	short n = (short)strlen(f->buf), s = 0, e = n;
+	if (f->type == FT_MULTI) {
+		for (s = f->cur; s > 0 && f->buf[s - 1] != '\n'; s--)
+			;
+		for (e = f->cur; e < n && f->buf[e] != '\n'; e++)
+			;
+	}
+	if (what == CLIP_PASTE) {
+		clip_get(t, sizeof(t));
+		if (f->type != FT_MULTI)
+			clip_line(t);
+		for (p = t; *p && n < f->max - 1; p++) {
+			unsigned char a = *p == '\t' ? ' ' : (unsigned char)*p;
+			if ((a < 32 && a != '\n') || ((f->flags & FF_DIGITS) && (a < '0' || a > '9')) ||
+			    (f->type == FT_PASS && a >= 0x80))
+				continue;
+			memmove(f->buf + f->cur + 1, f->buf + f->cur, n - f->cur + 1);
+			f->buf[f->cur++] = (char)a;
+			n++;
+		}
+	} else {
+		if (f->type == FT_PASS || !clip_put(f->buf + s, e - s) || what != CLIP_CUT)
+			return 1;
+		if (f->type == FT_MULTI && e < n)
+			e++;			/* the line goes with its end */
+		memmove(f->buf + s, f->buf + e, n - e + 1);
+		f->cur = s;
+		f->first = 0;
+	}
+	dlg_redraw_field(d, (short)(f - d->f));
+	return 1;
+}
+
 /* typing into a text field; 1 if the key was taken */
 static int edit_key(DLG *d, FIELD *f, short kstate, short key)
 {
 	short scan = KEY_SCAN(key), n = (short)strlen(f->buf);
 	unsigned char a = key_char(kstate, key);
 	short rtl = field_rtl(f, f->buf, n);
+	if ((kstate & K_CTRL) && clip_key(key))
+		return clip_field(d, f, clip_key(key));
 	switch (scan) {
 	case 0x0e:		/* Backspace */
 		if (f->cur > 0) {

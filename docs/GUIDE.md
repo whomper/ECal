@@ -270,6 +270,20 @@ protocol's VA_START), can hand ECal:
   can take them, or into the one you pick;
 - **a webcal: address**: Subscribe opens with it filled in.
 
+Under MultiTOS, MagiC or XaAES you can drag .ics files onto ECal's
+window too, or text from another program: a new event opens with the
+text as its title. Running as an accessory, ECal tells the desktop about
+its window, so Thing and the like can drop .ics files on it there too.
+
+## Copy and paste
+
+^C copies the event you chose to the GEM clipboard, as text: its title,
+when, where, then its notes (or **Copy** in the event's right-click
+menu). In a dialog, ^C copies a field, ^X cuts it and ^V pastes into it,
+in Notes the line the cursor is in; a calendar's address or an
+app-specific password is easier to paste than to type. Nothing is ever
+copied out of a password field.
+
 ## Reminders
 
 When an event's alert comes due, ECal beeps and shows it over
@@ -316,6 +330,8 @@ instance).
 | N, ^N               | new event                               |
 | ^F                  | find                                    |
 | ^G                  | go to a date                            |
+| ^C                  | copy the selected event                 |
+| ^C ^X ^V            | in a dialog: copy, cut, paste a field   |
 | ^R                  | refresh (Shift+^R: everything again)    |
 | Shift+^S            | show/hide the calendar list             |
 | ^W, ^Q              | close the window                        |
