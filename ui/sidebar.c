@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later
+ * Copyright (C) 2026 Erez Yaary */
 /*
  * sidebar.c - the calendar list on the left, grouped by account as on
  * the Mac (a tick box in each calendar's colour shows or hides it), and

@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later
+ * Copyright (C) 2026 Erez Yaary */
 /*
  * libc.c - the subset of the C library ECal uses on the Atari:
  * strings, a heap on top of GEMDOS Malloc/Mxalloc, number parsing,

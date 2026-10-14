@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2026 Erez Yaary
 # Set up a Raspberry Pi (or any Debian/Ubuntu/Raspberry Pi OS computer)
 # as ECal's gateway: the Atari sends its calendar requests to the Pi
 # in plain HTTP on your home network, and ecalgate.py makes the HTTPS

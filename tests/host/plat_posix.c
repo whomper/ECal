@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later
+ * Copyright (C) 2026 Erez Yaary */
 /*
  * plat_posix.c - plat.h for Linux/macOS: lets the mail core run in
  * tests and in mail-cli against real servers.

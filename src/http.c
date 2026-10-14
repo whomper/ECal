@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later
+ * Copyright (C) 2026 Erez Yaary */
 /*
  * http.c - an HTTP/1.1 client on conn.c, with one kept-open connection
  * (TLS handshakes cost a Falcon a second or two; the Pi is happy either

@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later
+ * Copyright (C) 2026 Erez Yaary */
 /*
  * xml.h - just enough XML for WebDAV answers: a pull scanner that gives
  * start tags, end tags and text. Namespace prefixes are dropped

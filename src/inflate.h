@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later
+ * Copyright (C) 2026 Erez Yaary */
 /*
  * inflate.h - gzip/DEFLATE decompression of HTTP answers (inflate.c).
  * Each appends what it unpacks to out; 1 when the data was whole.

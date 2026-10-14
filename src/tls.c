@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later
+ * Copyright (C) 2026 Erez Yaary */
 /*
  * tls.c - TLS 1.2 client on BearSSL 0.6 (third_party/bearssl), for
  * Falcon mode: EMail talks to the mail provider directly, without the

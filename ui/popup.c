@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later
+ * Copyright (C) 2026 Erez Yaary */
 /*
  * popup.c - right-click menus. A GEM-style popup at the mouse: click an
  * item, or press, drag and release; arrows, Return and Esc work too.

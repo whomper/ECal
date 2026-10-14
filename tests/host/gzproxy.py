@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2026 Erez Yaary
 """A proxy in front of Radicale that answers the way iCloud does: HTTP/1.1
 with connections kept open, and answers compressed with gzip when the
 client asks for it. Radicale itself speaks HTTP/1.0 and never compresses,

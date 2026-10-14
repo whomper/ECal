@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2026 Erez Yaary
 # ECal's core against a real CalDAV server (Radicale) and a published
 # feed, with cal-cli (the same calstore/CalDAV/HTTP/TLS code as the Atari):
 #

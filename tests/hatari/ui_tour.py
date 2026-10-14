@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2026 Erez Yaary
 """ECal in Hatari: seed a calendar with cal-cli (the same core as the
 Atari program), boot an emulated Atari with ECAL.PRG and take
 screenshots of the month, week, day and year views, the event dialog

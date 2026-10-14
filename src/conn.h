@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later
+ * Copyright (C) 2026 Erez Yaary */
 /*
  * conn.h - a buffered, line-oriented TCP connection with timeouts and
  * an optional protocol log (ECAL.LOG). From EMail, where IMAP, POP3 and SMTP share it.

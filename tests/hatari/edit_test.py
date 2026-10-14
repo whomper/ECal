@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2026 Erez Yaary
 """ECal in Hatari, end to end: as a desk accessory, add an event with
 an English title and one with a Hebrew title typed on the Israeli
 keyboard, change one, delete it, and check what ECAL.ACC wrote to its

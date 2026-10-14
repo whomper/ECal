@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later
+ * Copyright (C) 2026 Erez Yaary */
 /*
  * tls_none.c - the ST edition (ECALST.ACC) has no TLS of its own: an ST
  * is too slow for it, and saving BearSSL's 150 KB leaves room for the

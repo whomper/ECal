@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later
+ * Copyright (C) 2026 Erez Yaary */
 /*
  * ctime.c - civil date arithmetic (proleptic Gregorian, days since
  * 1970) and the Hebrew calendar.

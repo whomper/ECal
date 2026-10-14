@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later
+ * Copyright (C) 2026 Erez Yaary */
 | ECal TOS start-up, for a desk accessory and an application alike
 | (from EMail and Claude ST, whomper/atari_claude).
 |

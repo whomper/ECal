@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later
+ * Copyright (C) 2026 Erez Yaary */
 /* EMail freestanding libc: formatted output into strings only */
 #ifndef _STDIO_H
 #define _STDIO_H

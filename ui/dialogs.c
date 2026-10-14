@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later
+ * Copyright (C) 2026 Erez Yaary */
 /*
  * dialogs.c - adding and changing accounts, a calendar's details, the
  * settings, the connection, going to a date, finding events, the keys,

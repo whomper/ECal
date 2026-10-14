@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later
+ * Copyright (C) 2026 Erez Yaary */
 /*
  * mkroots.c - decodes CACERT.PEM into ROOTS.DAT on this computer, the
  * same file EMail writes the first time it connects in Falcon mode. It

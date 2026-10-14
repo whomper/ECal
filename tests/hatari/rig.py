@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2026 Erez Yaary
 """Drive ECal in the Hatari emulator: an X display (Xvfb), Hatari's
 command FIFO for keys and screenshots, xdotool for the mouse.
 Adapted from Claude ST's recording rig (whomper/atari_claude).

@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later
+ * Copyright (C) 2026 Erez Yaary */
 /*
  * plat.h - what the calendar core needs from the machine: files, folders,
  * the clock, a millisecond timer and TCP. Implemented for TOS/GEM in

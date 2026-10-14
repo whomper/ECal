@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2026 Erez Yaary
 """ECal as a desk accessory in Hatari: ECAL.ACC in the boot
 drive's root, its files in C:\\ECAL\\. Boots to the desktop, opens the
 Desk menu, chooses ECal, and takes screenshots; then closes the window
