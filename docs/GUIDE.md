@@ -27,6 +27,7 @@ F:\...\ECAL.APP\          ECal's folder (C:\ECAL\ unless you choose another):
     CACERT.PEM            Falcon mode: root certificates (copy them here)
     ROOTS.DAT             Falcon mode: the same, decoded ahead of time
     ECAL.LOG              with Write a log on
+    CRASH.LOG             what happened, if ECAL.PRG ever crashes
 ```
 
 - **`ECAL.PRG`** is the same program, to start from the desktop or a
@@ -310,12 +311,13 @@ instance).
 | ^S                  | show/hide the calendar list             |
 | ^W, ^Q              | close the window                        |
 | F10                 | Hebrew keyboard                         |
-| Help                | this guide, in ST-Guide (see below)     |
+| Help                | this guide (see below)                  |
 
-Help (or **Help...** in the ≡ menu) opens this guide in ST-Guide or
-HypView, when one of them is running: copy `ECAL.HYP` and `ECAL.REF`
-next to ECal, or into ST-Guide's help folder. Without ST-Guide, Help
-shows the keys above.
+Help (or **Help...** in the ≡ menu) opens this guide in EHypView,
+ST-Guide or HypView, whichever is running (as an accessory, or as a
+program under MultiTOS or MagiC): copy `ECAL.HYP` and `ECAL.REF` next to
+ECal, or into the viewer's help folder. Without a viewer, Help shows the
+keys above.
 
 ## Which version
 
@@ -354,3 +356,10 @@ for icon editors. For EmuTOS, `tools/icon/add_to_emuicon.py` adds it to
 - An **!** next to an account in the sidebar: its last refresh failed; the
   calendar's info (double-click) shows why.
 - `ECAL.LOG` (Settings > Connection > Write a log) has the details.
+- **A crash**: if ECal itself goes wrong (what would be 2 to 8 bombs),
+  it says so, writes what happened to `CRASH.LOG` next to `ECAL.PRG` and
+  quits, leaving the Atari running. A crash in the system or a driver
+  still gives the bombs; TOS keeps a record of them, and ECal adds it to
+  `CRASH.LOG` the next time it starts (and says so if the crash was in
+  ECal). Send `CRASH.LOG`, with `ECAL.LOG` if the log was on, to the author. Under MiNT or MagiC, which
+  handle crashes themselves, there is no `CRASH.LOG`, nor in the accessory.
