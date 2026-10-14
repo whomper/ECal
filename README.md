@@ -165,7 +165,7 @@ make                                     # binary/ECAL.ACC, ECAL.PRG, ECALST.ACC
 
 The program is freestanding (`atari/`, no MiNTLib); `common/tools/elf2tos.py`
 writes the TOS executable. One binary is both the accessory and the
-program: the start-up code (`atari/crt0.S`) sees which way TOS started it.
+program: the start-up code (`common/atari/crt0.S`) sees which way TOS started it.
 Everything is 68000 code except BearSSL, which is built for the 68030.
 
 **Version numbers.** As in EMail, `VERSION` holds major.minor (e.g.
