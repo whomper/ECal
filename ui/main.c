@@ -868,6 +868,13 @@ static int second_click(short mx, short my, unsigned long t0)
 	return 0;
 }
 
+/* alerts (common/ui/alert.c): Hebrew letters where the font has them */
+static void alert_heb(char *line, long n)
+{
+	if (opt.hebfont != HEB_ATARI)
+		heb_font_map(line, n, opt.hebfont);
+}
+
 /* ECal (the program) crashed and CRASH.LOG is written
    (common/atari/crash.c): say so and leave GEM tidy. Only the AES and
    VDI: the heap may be what went wrong */
@@ -917,6 +924,7 @@ int main(void)
 	find_workdir();
 	crash_install(workdir, "ECal", cal_version);	/* the program only */
 	crash_cleanup = crash_quit;
+	alert_hebrew = alert_heb;
 	crash_report = conn_log_append;	/* the report in ECAL.LOG too */
 	st_ram_init();
 	help_init();

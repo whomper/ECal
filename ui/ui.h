@@ -158,7 +158,7 @@ short dlg_run(DLG *d);		/* the button pressed (field index), -1 Esc */
 void  dlg_redraw_field(DLG *d, short i);
 void  dlg_redraw(DLG *d);		/* all of it (after a dialog opened from it) */
 extern void (*dlg_after)(void);	/* when the last dialog closes */
-short alert(short def, const char *fmt, ...);
+#include "alert.h"		/* alert(): common/ui */
 /* a list to pick from (a calendar, a zone): index or -1 */
 short dlg_pick(const char *title, const char *const *items, short n, short sel);
 int   dlg_ask(const char *title, const char *label, char *buf, short len);
