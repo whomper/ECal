@@ -75,6 +75,7 @@ short text_grey(int pale);	/* the dark (0) or light (1) grey for text; 1 (black)
 
 /* ---- the window (win.c) ---- */
 extern short win_h;		/* AES handle, -1 when closed */
+extern short win_iconified;	/* shown as the icon */
 extern GRECT work;		/* its work area */
 void win_open(void);
 void win_close(void);
@@ -175,6 +176,8 @@ void dlg_connection(void);
 void dlg_goto(void);
 void dlg_find(void);
 void dlg_about(void);
+void icon_today(char *s, int size);	/* "Oct 14" */
+void icon_window(GRECT *work, GRECT *clip);	/* the iconified window: icon and today */
 void dlg_keys(void);
 void help_init(void);		/* at start-up */
 void help_open(void);		/* ECAL.HYP in ST-Guide, or the keys */

@@ -200,6 +200,10 @@ As in EMail's Options menu, the ≡ menu has three ticks:
 While the Hebrew keyboard is on, the info line ends with "Hebrew keyboard
 (F10)".
 
+Where the AES can iconify windows (MultiTOS, MagiC, XaAES, N.AES), the
+window has the iconify button: ECal shrinks to its icon, with today's
+date as the title. Reminders still come while it is iconified.
+
 ## Events
 
 ![New event](new-event.png)
@@ -325,6 +329,17 @@ setting, `1` for on and `0` for off. It can be edited with any text
 editor while ECal isn't running (keys in any case, a note after a value
 with ` ;`). A password typed in there in plain text is encrypted with
 ECAL.KEY the next time ECal starts.
+
+## The desktop icon
+
+![ECal's icon](icon16.png)
+
+`binary/icons/` has ECal's icon for the desktop: `ECAL.RSC` holds a
+black and white and a 16-colour version to copy into `DESKICON.RSC` /
+`DESKCICN.RSC` (or Thing's, TeraDesk's or Jinnee's icon file) with a
+resource editor, and `ECAL.ICN` / `ECALMK.ICN` are the image and mask
+for icon editors. For EmuTOS, `tools/icon/add_to_emuicon.py` adds it to
+`EMUICON.RSC`; then pick it with Options > Install icon.
 
 ## When something goes wrong
 

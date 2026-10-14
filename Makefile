@@ -78,6 +78,10 @@ $(BIN)/ECAL.ACC: $(OBJDIR)/cal.elf tools/elf2tos.py
 $(BIN)/ECAL.PRG: $(BIN)/ECAL.ACC
 	cp $< $@
 
+# ECal's icon for the desktop: binary/icons/ (ui/icon*.h too)
+icons:
+	python3 tools/icon/make_rsc.py
+
 # a stand-in ST-Guide for tests/hatari/help_test.py
 fakeguide: $(OBJDIR)/ST-GUIDE.ACC
 $(OBJDIR)/ST-GUIDE.ACC: $(OBJDIR)/fakeguide.elf tools/elf2tos.py
@@ -168,4 +172,4 @@ itest: $(OBJDIR)/cal-cli
 clean:
 	rm -rf $(OBJDIR) $(BIN)/ECAL.ACC $(BIN)/ECAL.PRG $(BIN)/ECALST.ACC
 
-.PHONY: fakeguide all help test itest clean
+.PHONY: icons fakeguide all help test itest clean

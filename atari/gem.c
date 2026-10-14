@@ -241,6 +241,18 @@ short evnt_timer_(unsigned long ms)
 	return aes(24, 2, 1, 0, 0);
 }
 
+short appl_getinfo(short type, short *o1, short *o2, short *o3, short *o4)
+{
+	short r;
+	aintin[0] = type;
+	r = aes(130, 1, 5, 0, 0);
+	*o1 = aintout[1];
+	*o2 = aintout[2];
+	*o3 = aintout[3];
+	*o4 = aintout[4];
+	return r;
+}
+
 short aes_version(void)
 {
 	return global[0];

@@ -65,6 +65,9 @@ typedef struct {
 #define WM_MOVED    28
 #define WM_NEWTOP   29
 #define WM_ONTOP    31
+#define WM_ICONIFY     34	/* AES 4.1 and newer, MagiC, XaAES */
+#define WM_UNICONIFY   35
+#define WM_ALLICONIFY  36
 #define AP_TERM     50
 #define AC_OPEN     40
 #define AC_CLOSE    41
@@ -76,6 +79,7 @@ typedef struct {
 #define FULLER  0x0004
 #define MOVER   0x0008
 #define SIZER   0x0020
+#define SMALLER 0x4000	/* the iconifier */
 #define UPARROW 0x0040
 #define DNARROW 0x0080
 #define VSLIDE  0x0100
@@ -93,6 +97,8 @@ typedef struct {
 #define WF_FIRSTXYWH  11
 #define WF_NEXTXYWH   12
 #define WF_VSLSIZE    16
+#define WF_ICONIFY    26
+#define WF_UNICONIFY  27
 
 #define WC_BORDER 0
 #define WC_WORK   1
@@ -128,6 +134,7 @@ short rsrc_obfix(OBJECT *tree, short obj);
 short form_alert(short def, const char *str);
 short rsrc_load(const char *name);
 short aes_version(void);
+short appl_getinfo(short type, short *o1, short *o2, short *o3, short *o4);	/* 0: not known */
 short fsel_exinput(char *path, char *name, short *button, const char *title);
 short form_do(OBJECT *tree, short start);
 short form_keybd(OBJECT *tree, short obj, short next, short ch, short *onext, short *och);

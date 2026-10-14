@@ -907,11 +907,11 @@ int main(void)
 	while (!quit_now) {
 		short flags = MU_MESAG | MU_TIMER, which, hovering;
 		unsigned long wait = sync_pending ? 150 : 1000;
-		if (win_h > 0)
+		if (win_h > 0 && !win_iconified)
 			flags |= MU_KEYBD | MU_BUTTON | MU_M1;
 		/* the mouse moving away from where it was last seen */
 		evnt_set_m1(1, hover_x, hover_y, 1, 1);
-		hovering = win_h > 0 && !tip_tried && hover_x >= 0;
+		hovering = win_h > 0 && !win_iconified && !tip_tried && hover_x >= 0;
 		if (hovering && wait > 100)
 			wait = 100;
 		/* a click comes at once; where a double click means something,
@@ -1016,6 +1016,8 @@ int main(void)
 						if (cur_day == shown_today)
 							cur_day = t;
 						shown_today = t;
+						if (win_iconified)
+							win_title();	/* its date */
 						after_change();
 					} else if (cur_view == V_DAY || cur_view == V_WEEK) {
 						win_redraw(&r_view);	/* the red "now" line moves */

@@ -12,11 +12,26 @@
 #include "../src/bidi.h"
 
 short win_h = -1;
+short win_iconified;	/* shown as ECal's icon (WM_ICONIFY) */
 GRECT work, r_tool, r_side, r_view;
 
 #define KIND (NAME | CLOSER | FULLER | MOVER | SIZER | INFO | UPARROW | DNARROW | VSLIDE)
 
 static char title[80], info[140];
+
+/* the AES can iconify windows (AES 4.1, MagiC, XaAES, N.AES...) */
+static short kind(void)
+{
+	static short k = -1;
+	short o1, o2, o3, o4;
+	if (k < 0) {
+		k = KIND;
+		if ((aes_version() >= 0x0400 || get_cookie(0x3F414749L))	/* ?AGI */
+		    && appl_getinfo(11, &o1, &o2, &o3, &o4) && (o1 & 0x80))	/* WF_ICONIFY */
+			k |= SMALLER;
+	}
+	return k;
+}
 
 enum { B_SIDE, B_PREV, B_TODAY, B_NEXT, B_DAY, B_WEEK, B_MONTH, B_YEAR, B_NEW, B_REFRESH, B_MENU, NBUT };
 static GRECT but[NBUT];
@@ -27,7 +42,10 @@ static GRECT r_title;
 
 void win_title(void)
 {
-	snprintf(title, sizeof(title), " ECal ");
+	if (win_iconified)
+		icon_today(title, sizeof(title));	/* the icon's title: today */
+	else
+		snprintf(title, sizeof(title), " ECal ");
 	if (win_h > 0)
 		wind_set_str(win_h, WF_NAME, title);
 }
@@ -66,7 +84,7 @@ void win_status(const char *s)
 void win_layout(void)
 {
 	short th = ch + 8, sw, x, i, bw;
-	if (win_h <= 0)
+	if (win_h <= 0 || win_iconified)
 		return;
 	wind_get(win_h, WF_WORKXYWH, &work.x, &work.y, &work.w, &work.h);
 	r_tool = work;
@@ -245,11 +263,24 @@ void win_redraw(GRECT *area)
 		wind_update(END_UPDATE);
 		return;
 	}
+	if (win_iconified) {
+		/* the icon fills the small window, whatever was asked */
+		wind_get(win_h, WF_WORKXYWH, &full.x, &full.y, &full.w, &full.h);
+		if (area && !rect_and(&(GRECT){ area->x, area->y, area->w, area->h }, &full)) {
+			graf_mouse(M_ON, 0);
+			wind_update(END_UPDATE);
+			return;
+		}
+	}
 	wind_get(win_h, WF_FIRSTXYWH, &box.x, &box.y, &box.w, &box.h);
 	while (box.w && box.h) {
 		GRECT d = box;
-		if (rect_and(&d, &full))
-			draw_all(&d);
+		if (rect_and(&d, &full)) {
+			if (win_iconified)
+				icon_window(&full, &d);
+			else
+				draw_all(&d);
+		}
 		wind_get(win_h, WF_NEXTXYWH, &box.x, &box.y, &box.w, &box.h);
 	}
 	graf_mouse(M_ON, 0);
@@ -283,7 +314,8 @@ void win_open(void)
 		wind_set(win_h, WF_TOP, 0, 0, 0, 0);
 		return;
 	}
-	win_h = wind_create(KIND, desk_x, desk_y, desk_w, desk_h);
+	win_iconified = 0;
+	win_h = wind_create(kind(), desk_x, desk_y, desk_w, desk_h);
 	if (win_h <= 0) {
 		win_h = -1;
 		alert(1, "[3][No window left for ECal:|close one and try again.][ OK ]");
@@ -361,6 +393,24 @@ void win_message(short *msg)
 		break;
 	case WM_TOPPED:
 		wind_set(win_h, WF_TOP, 0, 0, 0, 0);
+		break;
+	case WM_ICONIFY:
+	case WM_ALLICONIFY:
+		if (win_iconified)
+			break;
+		remember_place();
+		win_iconified = 1;
+		wind_set(win_h, WF_ICONIFY, msg[4], msg[5], msg[6], msg[7]);
+		win_title();
+		break;
+	case WM_UNICONIFY:
+		if (!win_iconified)
+			break;
+		wind_set(win_h, WF_UNICONIFY, msg[4], msg[5], msg[6], msg[7]);
+		win_iconified = 0;
+		win_title();
+		win_layout();
+		win_redraw(0);
 		break;
 	case WM_CLOSED:
 		if (!is_acc)
