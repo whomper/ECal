@@ -1172,7 +1172,6 @@ int main(void)
 	alert_hebrew = alert_heb;
 	crash_report = conn_log_append;	/* the report in ECAL.LOG too */
 	st_ram_init();
-	win_buffer_init();
 	help_init();
 	av_init("ECAL|ECALST");		/* the desktop's AV server, if one runs yet */
 	dlg_after = win_frame_refresh;

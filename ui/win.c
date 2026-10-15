@@ -12,7 +12,6 @@
 #include "bidi.h"
 #include "iconify.h"
 #include "av.h"
-#include <tos.h>
 
 short win_h = -1;
 short win_iconified;	/* shown as ECal's icon (WM_ICONIFY) */
@@ -245,80 +244,6 @@ static void draw_all(GRECT *clip)
 	clip_off();
 }
 
-/* ---- drawing off the screen ----
- * A view is many small fills, lines and texts; drawn straight onto the
- * screen, a slow machine shows them appearing one by one. So the window
- * is drawn into a screen-sized buffer and copied to the screen at once.
- * TOS's VDI draws at the logical screen base, so the buffer is made the
- * logical screen for the drawing (Setscreen), the shown screen staying
- * as it is. Only under single-tasking TOS on the machine's own video
- * (nothing else can draw meanwhile), and only when a test at start-up
- * shows that drawing really goes there; elsewhere it is drawn as before. */
-static void *obuf;		/* the buffer, NULL: draw straight on the screen */
-static MFDB obuf_mfdb;
-
-static long xbios_setscreen(void *log)
-{
-	register long r __asm__("d0");
-	__asm__ volatile("move.w #-1,-(%%sp)\n\tmove.l #-1,-(%%sp)\n\tmove.l %1,-(%%sp)\n\t"
-			 "move.w #5,-(%%sp)\n\ttrap #14\n\tlea 12(%%sp),%%sp"
-			 : "=r"(r) : "r"(log) : "d1", "d2", "a0", "a1", "a2", "memory", "cc");
-	return r;
-}
-
-static void *xbios_base(short fn)	/* 2 Physbase, 3 Logbase */
-{
-	return (void *)trap14_w(fn);
-}
-
-void win_buffer_init(void)
-{
-	long size = (long)((scr_w + 15) / 16) * 2 * planes * scr_h;
-	unsigned char *p, *b;
-	void *screen = xbios_base(3);
-	GRECT r;
-	short i, changed = 0;
-	if (get_cookie(0x4D694E54L) || get_cookie(0x4D616758L))	/* MiNT, MagiC */
-		return;
-	if (screen != xbios_base(2) || planes < 1 || size > 640L * 1024)
-		return;
-	p = Mxalloc(size + 256, 0);			/* ST RAM, where the blitter reaches */
-	if ((long)p == -32 || (long)p == 0)		/* no Mxalloc: plain Malloc is ST RAM */
-		p = (unsigned char *)trap1_wl(0x48, size + 256);
-	if ((long)p <= 0)
-		return;
-	b = (unsigned char *)(((unsigned long)p + 255) & ~255UL);
-	/* the test: a short black line at the top left must land in the buffer */
-	for (i = 0; i < 64; i++)
-		b[i] = 0x55;
-	wind_update(BEG_UPDATE);
-	graf_mouse(M_OFF, 0);
-	xbios_setscreen(b);
-	r.x = 0;
-	r.y = 0;
-	r.w = 16;
-	r.h = 1;
-	clip_on(&r);
-	fill(&r, 1);
-	clip_off();
-	xbios_setscreen(screen);
-	graf_mouse(M_ON, 0);
-	wind_update(END_UPDATE);
-	for (i = 0; i < 2 * planes && i < 64; i++)
-		changed |= b[i] != 0x55;
-	if (!changed) {
-		trap1_wl(0x49, (long)p);		/* Mfree */
-		return;
-	}
-	obuf = b;
-	memset(&obuf_mfdb, 0, sizeof(obuf_mfdb));
-	obuf_mfdb.fd_addr = b;
-	obuf_mfdb.fd_w = (scr_w + 15) & ~15;
-	obuf_mfdb.fd_h = scr_h;
-	obuf_mfdb.fd_wdwidth = (scr_w + 15) / 16;
-	obuf_mfdb.fd_nplanes = planes;
-}
-
 void win_redraw(GRECT *area)
 {
 	GRECT box, full;
@@ -336,35 +261,12 @@ void win_redraw(GRECT *area)
 		wind_update(END_UPDATE);
 		return;
 	}
-	if (obuf && xbios_base(3) == xbios_base(2)) {
-		/* all of it off the screen, then each visible piece copied */
-		void *screen = xbios_base(3);
-		MFDB scr;
-		memset(&scr, 0, sizeof(scr));
-		xbios_setscreen(obuf);
-		draw_all(&full);
-		xbios_setscreen(screen);
-		wind_get(win_h, WF_FIRSTXYWH, &box.x, &box.y, &box.w, &box.h);
-		while (box.w && box.h) {
-			GRECT d = box;
-			if (rect_and(&d, &full)) {
-				short pxy[8];
-				pxy[0] = pxy[4] = d.x;
-				pxy[1] = pxy[5] = d.y;
-				pxy[2] = pxy[6] = d.x + d.w - 1;
-				pxy[3] = pxy[7] = d.y + d.h - 1;
-				vro_cpyfm(vdi_h, 3, pxy, &obuf_mfdb, &scr);	/* S_ONLY */
-			}
-			wind_get(win_h, WF_NEXTXYWH, &box.x, &box.y, &box.w, &box.h);
-		}
-	} else {
-		wind_get(win_h, WF_FIRSTXYWH, &box.x, &box.y, &box.w, &box.h);
-		while (box.w && box.h) {
-			GRECT d = box;
-			if (rect_and(&d, &full))
-				draw_all(&d);
-			wind_get(win_h, WF_NEXTXYWH, &box.x, &box.y, &box.w, &box.h);
-		}
+	wind_get(win_h, WF_FIRSTXYWH, &box.x, &box.y, &box.w, &box.h);
+	while (box.w && box.h) {
+		GRECT d = box;
+		if (rect_and(&d, &full))
+			draw_all(&d);
+		wind_get(win_h, WF_NEXTXYWH, &box.x, &box.y, &box.w, &box.h);
 	}
 	graf_mouse(M_ON, 0);
 	wind_update(END_UPDATE);
