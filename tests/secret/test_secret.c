@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * Passwords in NAME.INF (src/secret.c) on the build machine: encrypted
  * with the key in NAME.KEY, made the first time; the same key read again

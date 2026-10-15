@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * av.h - the AV protocol (the AERA guidelines, 4.1): how the AERA
  * programs, the desktop and other programs hand each other work.

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * fuzz_net.h - the network for an app's fuzz targets (the AERA guidelines,
  * 7.1): every server the program talks to says the fuzz input, in pieces

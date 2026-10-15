@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Copyright (C) 2026 Erez Yaary
+# Copyright (C) 2026 AERA | Erez Yaary
 # The DNS reply reader (atari/dns.h) on the build machine: make test; and
 # make fuzz (clang with libFuzzer: Debian/Ubuntu clang, libclang-rt-dev)
 CFLAGS   := -O1 -g -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=undefined

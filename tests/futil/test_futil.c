@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * pf_save and pf_load (src/futil.c) on the build machine: the new file
  * goes in under a temporary 8.3 name and is renamed over the old one,

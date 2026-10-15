@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * gem.h - minimal AES/VDI bindings (no GEMlib needed).
  * From Claude ST (whomper/ClaudeST), extended for EMail's dialogs, ECal's

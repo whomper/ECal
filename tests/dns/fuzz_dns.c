@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * Nameservers' replies, from the fuzz input, to atari/dns.h (the AERA
  * guidelines, 7.1); the id is the reply's own, so every input gets past

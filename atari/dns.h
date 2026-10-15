@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * dns.h - the answer to net_tos.c's DNS question (an A record for a
  * name), read from the nameserver's reply. Here, not in net_tos.c, so

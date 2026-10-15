@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * The AV protocol (ui/av.c) on the build machine, with the AES and TOS
  * calls it makes standing in: appl_write writes down the message it was
