@@ -179,8 +179,8 @@ code except BearSSL, which is built for the 68030.
 file.
 
 **Versions and releases.** `VERSION` holds the last release, major.minor (e.g. 1.97), and the build
-never changes it. A release build (`RELEASE=1`) shows it as it is in the About box and the User-Agent
-ECal sends; any other build shows `1.97-dev`. To release: `tools/bump.py`, commit and push, then run
+never changes it. Every build shows it as it is in the About box and the User-Agent ECal sends. Only
+releases leave the build machine. To release: `tools/bump.py`, commit and push, then run
 the Release workflow (**Actions > Release > Run workflow**, on `main`) with what is new:
 [`.github/workflows/release.yml`](.github/workflows/release.yml) tags the commit `v1.98`, tests, builds
 the programs and the help file, and publishes them as a GitHub Release with those notes. Pushing a tag

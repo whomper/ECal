@@ -3,7 +3,7 @@
 # Copyright (C) 2026 AERA | Erez Yaary
 """Start a release: count the version in VERSION up and say what to do next.
 
-A normal build never changes VERSION (it shows "x.y-dev"); only this does.
+A build never changes VERSION (it shows it as it is); only this does.
 The release workflow (.github/workflows/release.yml), run by hand on main
 or started by a tag vX.Y, builds the programs and publishes them as a
 GitHub Release.

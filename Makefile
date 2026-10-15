@@ -137,12 +137,11 @@ $(OBJDIR) $(BIN):
 	mkdir -p $@
 
 # the version: VERSION holds the last release (major.minor, e.g. 1.97),
-# and the build never writes it. A release build (RELEASE=1, as the
-# release workflow makes it) shows it as it is; any other shows
-# "1.97-dev". tools/bump.py starts a release.
-VERSION_STR := $(shell cat VERSION)$(if $(RELEASE),,-dev)
+# and the build never writes it; every build shows it as it is.
+# tools/bump.py starts a release.
+VERSION_STR := $(shell cat VERSION)
 
-# written again whenever the string changes, so RELEASE=1 rebuilds it
+# written again whenever the string changes
 $(OBJDIR)/version.c: FORCE | $(OBJDIR)
 	@printf '/* written by the Makefile: do not edit */\nconst char cal_version[] = "%s";\n' "$(VERSION_STR)" > $@.new
 	@if cmp -s $@.new $@; then rm $@.new; else mv $@.new $@; fi
