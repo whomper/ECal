@@ -112,7 +112,10 @@ void ev_set(char **field, const char *s)
 
 char *ics_unescape(const char *s, long n)
 {
-	char *tmp = malloc(n + 1), *out;
+	/* the usual text fits the static buffer: no malloc and free for
+	   each one (on the Atari a free walks the whole free list) */
+	static char scratch[1024];
+	char *tmp = n < (long)sizeof(scratch) ? scratch : malloc(n + 1), *out;
 	long i, o = 0, outlen;
 	if (!tmp)
 		return 0;
@@ -126,7 +129,8 @@ char *ics_unescape(const char *s, long n)
 	}
 	tmp[o] = 0;
 	out = cs_to_atari(tmp, o, CS_UTF8, &outlen);
-	free(tmp);
+	if (tmp != scratch)
+		free(tmp);
 	if (out) {
 		/* lines end in \n only, and no trailing blanks */
 		long r = 0, w = 0;
@@ -228,6 +232,7 @@ struct ICSP {
 	CTIME from, to;
 	SBUF line;
 	int skip;			/* depth inside components we ignore */
+	int dropping;			/* the line being read is in one of those: not kept */
 	int in_event, in_alarm, in_tz, in_sub;
 	int tz_known;			/* the VTIMEZONE being read is one we have */
 	EVENT *ev;
@@ -254,19 +259,39 @@ struct ICSP {
 	int count;
 };
 
+/* the last parser ended, with its buffers, ready for the next: a cache
+   file is parsed an event at a time, and allocating and freeing a parser
+   for each was a good part of reading one on the Atari */
+static ICSP *spare;
+
 ICSP *ics_begin(ICS_CB cb, void *ud, CTIME from, CTIME to)
 {
-	ICSP *p = calloc(1, sizeof(ICSP));
-	if (!p)
-		return 0;
+	ICSP *p = spare;
+	if (p) {
+		SBUF line = p->line, exd = p->exd, rd = p->rd, exr = p->exr;
+		spare = 0;
+		memset(p, 0, sizeof(*p));
+		p->line = line;
+		p->exd = exd;
+		p->rd = rd;
+		p->exr = exr;
+		sb_reset(&p->line);
+		sb_reset(&p->exd);
+		sb_reset(&p->rd);
+		sb_reset(&p->exr);
+	} else {
+		p = calloc(1, sizeof(ICSP));
+		if (!p)
+			return 0;
+		sb_init(&p->line);
+		sb_init(&p->exd);
+		sb_init(&p->rd);
+		sb_init(&p->exr);
+	}
 	p->cb = cb;
 	p->ud = ud;
 	p->from = from;
 	p->to = to;
-	sb_init(&p->line);
-	sb_init(&p->exd);
-	sb_init(&p->rd);
-	sb_init(&p->exr);
 	ics_calname[0] = 0;
 	return p;
 }
@@ -824,16 +849,55 @@ static void flush_line(ICSP *p)
 	}
 }
 
+/* Whether logical_line() could want this line: a few letters looked at,
+   no more (it runs for every line). It may say yes to a line that isn't
+   wanted, never no to one that is. Dropped: DTSTAMP, CREATED,
+   LAST-MODIFIED, TRANSP, X-APPLE-..., PRODID and the like. */
+static int up(const char *s, long n, long i)
+{
+	return i < n ? (s[i] & ~32) : 0;
+}
+
+static int wanted(const char *s, long n)
+{
+	switch (up(s, n, 0)) {
+	case 'A':	/* ACTION, ATTENDEE; not ATTACH */
+		return up(s, n, 1) == 'C' || (up(s, n, 1) == 'T' && up(s, n, 3) == 'E');
+	case 'B': case 'E': case 'R': case 'S': case 'U':
+		return 1;	/* BEGIN; END, EX...; RDATE, RECURRENCE-ID, RRULE;
+				   SEQUENCE, STATUS, SUMMARY; UID, URL */
+	case 'D':	/* DESCRIPTION, DTEND, DTSTART, DURATION; not DTSTAMP */
+		return !(up(s, n, 1) == 'T' && up(s, n, 4) == 'A' && up(s, n, 5) == 'M');
+	case 'L':	/* LOCATION; not LAST-MODIFIED */
+		return up(s, n, 1) == 'O';
+	case 'T':	/* TRIGGER, TZID, TZOFFSET...; not TRANSP */
+		return up(s, n, 1) == 'Z' || up(s, n, 2) == 'I';
+	case 'X':	/* X-WR-CALNAME; not X-APPLE-... */
+		return up(s, n, 2) == 'W' && up(s, n, 3) == 'R';
+	}
+	return 0;	/* CREATED, CLASS, PRODID, VERSION, CALSCALE, METHOD, ORGANIZER... */
+}
+
 void ics_line(ICSP *p, const char *s, long n)
 {
 	if (n && s[n - 1] == '\r')
 		n--;
 	if (n && (s[0] == ' ' || s[0] == '\t')) {
-		if (p->line.len + n < LINE_MAX_LEN)
+		if (!p->dropping && p->line.len + n < LINE_MAX_LEN)
 			sb_add(&p->line, s + 1, n - 1);
 		return;
 	}
 	flush_line(p);
+	/* a line nobody reads (DTSTAMP, CREATED, X-APPLE-..., most of an
+	   iCloud event), or any but BEGIN and END inside a component that is
+	   ignored (a time zone already known, in every iCloud event), is
+	   passed over without being kept or split: reading a big calendar
+	   on the Atari is mostly this */
+	p->dropping = !wanted(s, n) ||
+		      (p->skip && !(n >= 4 && !strncasecmp(s, "END:", 4)) &&
+		       !(n >= 6 && !strncasecmp(s, "BEGIN:", 6)));
+	if (p->dropping)
+		return;
 	if (n > LINE_MAX_LEN)
 		n = LINE_MAX_LEN;
 	if (n)
@@ -845,7 +909,12 @@ int ics_end(ICSP *p)
 	int n;
 	flush_line(p);
 	ev_free(p->ev);
+	p->ev = 0;
 	n = p->count;
+	if (!spare && p->line.cap <= 16384) {
+		spare = p;		/* kept, buffers and all, for the next */
+		return n;
+	}
 	sb_free(&p->line);
 	sb_free(&p->exd);
 	sb_free(&p->rd);

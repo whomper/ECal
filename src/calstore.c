@@ -758,12 +758,81 @@ static void set_me(CALENDAR *c)
 	str_copy(ics_me, strchr(u, '@') ? u : "", sizeof(ics_me));
 }
 
-void cal_load(CALENDAR *c)
+/* While a cache file is read, its events by href: each record must
+   replace an older copy of itself, and looking through all the others
+   for it (live_res) made reading a big calendar quadratic: 1500 events
+   took over a million string compares, seconds on a Falcon. */
+static int *hx;			/* resource numbers, -1 for empty; hx_cap a power of 2 */
+static int hx_cap;
+
+static unsigned long hx_hash(const char *s)
+{
+	unsigned long h = 5381;			/* djb2: shifts and adds, no multiply (a 68000 has none) */
+	while (*s)
+		h = ((h << 5) + h) ^ (unsigned char)*s++;
+	return h;
+}
+
+static void hx_put(CALENDAR *c, int r)
+{
+	unsigned long i = hx_hash(c->res[r].href) & (hx_cap - 1);
+	while (hx[i] >= 0)
+		i = (i + 1) & (hx_cap - 1);
+	hx[i] = r;
+}
+
+/* room for n resources, the table at most half full; 0 if no memory
+   (then hx_live falls back to live_res) */
+static int hx_room(CALENDAR *c, int n)
+{
+	int cap = hx_cap ? hx_cap : 256, i, *t;
+	if (hx && n * 2 < hx_cap)
+		return 1;
+	while (n * 2 >= cap)
+		cap *= 2;
+	t = malloc(cap * sizeof(int));
+	if (!t)
+		return 0;
+	free(hx);
+	hx = t;
+	hx_cap = cap;
+	for (i = 0; i < cap; i++)
+		hx[i] = -1;
+	for (i = 0; i < c->nres; i++)
+		if (!c->res[i].dead && c->res[i].href)
+			hx_put(c, i);
+	return 1;
+}
+
+static int hx_live(CALENDAR *c, const char *href)
+{
+	unsigned long i;
+	if (!hx)
+		return live_res(c, href);
+	i = hx_hash(href) & (hx_cap - 1);
+	for (; hx[i] >= 0; i = (i + 1) & (hx_cap - 1)) {
+		int r = hx[i];
+		if (!c->res[r].dead && !strcmp(c->res[r].href, href))
+			return r;
+	}
+	return -1;
+}
+
+static void hx_done(void)
+{
+	free(hx);
+	hx = 0;
+	hx_cap = 0;
+}
+
+static void load_cal(CALENDAR *c)
 {
 	char path[200], line[700];
 	CTIME from, to;
 	LOADCTX l;
 	static FR f;		/* 16 KB: not on the accessory's stack */
+	char *rawbuf = 0;
+	long rawcap = 0;
 	cal_free_events(c);
 	window(&from, &to);
 	set_me(c);
@@ -793,7 +862,7 @@ void cal_load(CALENDAR *c)
 			continue;		/* the ctag lives in ECAL.INF */
 		if (line[0] == 'X' && line[1] == ' ') {
 			/* an event deleted since the file was written */
-			int old = live_res(c, line + 2);
+			int old = hx_live(c, line + 2);
 			if (old >= 0)
 				kill_res(c, old);
 			continue;
@@ -808,7 +877,7 @@ void cal_load(CALENDAR *c)
 		len = atol(tab2 + 1);
 		{
 			/* a newer copy of an event, appended when it was changed */
-			int old = live_res(c, tab1 + 1);
+			int old = hx_live(c, tab1 + 1);
 			if (old >= 0)
 				kill_res(c, old);
 		}
@@ -821,6 +890,8 @@ void cal_load(CALENDAR *c)
 			c->res = n;
 			c->maxres = max;
 		}
+		if (!hx_room(c, c->nres + 1))
+			hx_done();		/* no memory: the slow way, which copes */
 		r = &c->res[c->nres];
 		r->etag = strdup(line + 2);
 		r->href = strdup(tab1 + 1);
@@ -828,22 +899,42 @@ void cal_load(CALENDAR *c)
 		r->len = len;
 		r->dead = 0;
 		l.res = c->nres++;
-		raw = len < 65536L ? malloc(len + 1) : 0;
+		if (hx && r->href)
+			hx_put(c, l.res);
+		/* one buffer for all, grown as needed: not a malloc and free
+		   for each event */
+		if (len < 65536L && len + 1 > rawcap) {
+			free(rawbuf);
+			rawcap = len + 1 > 4096 ? len + 1 : 4096;
+			if (!(rawbuf = malloc(rawcap)))
+				rawcap = 0;
+		}
+		raw = len < 65536L && rawbuf ? rawbuf : 0;
 		if (raw) {
-			if (!fr_bytes(&f, raw, len)) {
-				free(raw);
+			if (!fr_bytes(&f, raw, len))
 				break;
-			}
 			raw[len] = 0;
 			ics_parse(raw, len, add_event, &l, from, to);
-			free(raw);
 		} else if (!fr_bytes(&f, 0, len)) {
 			break;
 		}
 		fr_bytes(&f, 0, 1);		/* the newline after it */
 	}
 	pf_close(f.h);
+	free(rawbuf);
+	hx_done();
 	mark_exceptions(c);
+}
+
+/* reading a calendar's cache, with how long it took in the log */
+void cal_load(CALENDAR *c)
+{
+	unsigned long t0 = pf_ms(), t;
+	char m[120];
+	load_cal(c);
+	t = pf_ms() - t0;
+	snprintf(m, sizeof(m), "read %s: %d events in %lu.%02lu s", c->name, c->nev, t / 1000, t % 1000 / 10);
+	conn_log("ECal", "--", m, (long)strlen(m));
 }
 
 void cal_load_all(void)
