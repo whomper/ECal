@@ -27,6 +27,8 @@
 #include "av.h"
 #include "dd.h"
 #include "aboutbox.h"
+#include "mbar.h"
+#include "twin.h"
 
 short vdi_h, cw, ch, scr_w, scr_h, desk_x, desk_y, desk_w, desk_h, planes;
 short gl_wchar, gl_hchar, ap_id, is_acc, ncolors, hebrew_kbd, quit_now;
@@ -392,80 +394,201 @@ static void import_file(int cal, const char *path)
 	after_change();
 }
 
-void cmd_menu(short x, short y)
+/* the commands of the menu bar (the program) and the toolbar's menu */
+enum { C_NONE, C_ABOUT, C_NEW, C_ADD, C_REFRESH, C_REFRESH_ALL, C_QUIT, C_COPY, C_DAY, C_WEEK,
+       C_MONTH, C_YEAR, C_TODAY, C_GOTO, C_FIND, C_SIDE, C_HEB, C_SET, C_FONT, C_OFFL, C_FALC,
+       C_LOG, C_KBD, C_HELP, C_KEYS };
+
+static const MBAR_ITEM m_desk[] = {
+	{ "About ECal...", 0, C_ABOUT },
+	{ 0, 0, 0 }
+};
+static const MBAR_ITEM m_file[] = {
+	{ "New event", "^N", C_NEW },
+	{ "Add account or calendar...", 0, C_ADD },
+	{ "-", 0, 0 },
+	{ "Refresh", "^R", C_REFRESH },
+	{ "Refresh everything", "\x01^R", C_REFRESH_ALL },
+	{ "-", 0, 0 },
+	{ "Quit", "^Q", C_QUIT },
+	{ 0, 0, 0 }
+};
+static const MBAR_ITEM m_edit[] = {
+	{ "Copy event", "^C", C_COPY },
+	{ 0, 0, 0 }
+};
+static const MBAR_ITEM m_view[] = {
+	{ "Day", "D", C_DAY },
+	{ "Week", "W", C_WEEK },
+	{ "Month", "M", C_MONTH },
+	{ "Year", "Y", C_YEAR },
+	{ "-", 0, 0 },
+	{ "Today", "^T", C_TODAY },
+	{ "Go to date...", "^G", C_GOTO },
+	{ "Find...", "^F", C_FIND },
+	{ "-", 0, 0 },
+	{ "Calendar list", "\x01^S", C_SIDE },
+	{ "Hebrew dates", 0, C_HEB },
+	{ 0, 0, 0 }
+};
+static const MBAR_ITEM m_opts[] = {
+	{ "Settings...", "^,", C_SET },
+	{ "Font...", 0, C_FONT },
+	{ "-", 0, 0 },
+	{ "Work offline", 0, C_OFFL },
+	{ "Falcon mode (TLS)", 0, C_FALC },
+	{ "Write a log", 0, C_LOG },
+	{ "Hebrew keyboard", "F10", C_KBD },
+	{ 0, 0, 0 }
+};
+static const MBAR_ITEM m_help[] = {
+	{ "ECal help", "Help", C_HELP },
+	{ "Keys...", 0, C_KEYS },
+	{ 0, 0, 0 }
+};
+static const MBAR_TITLE bar[] = {
+	{ " ECal ", m_desk },
+	{ " File ", m_file },
+	{ " Edit ", m_edit },
+	{ " View ", m_view },
+	{ " Options ", m_opts },
+	{ " Help ", m_help },
+	{ 0, 0 }
+};
+static MBAR mb;
+static int has_menu;
+
+static void check(int cmd, int on)
 {
-	enum { M_ADD, M_NEW, M_S1, M_GOTO, M_FIND, M_TODAY, M_S2, M_SIDE, M_HEB, M_KBD, M_S5,
-	       M_OFFL, M_FALC, M_LOG, M_S3, M_SET, M_FONT, M_KEYS, M_ABOUT, M_S4, M_QUIT, M_N };
-	const char *items[M_N];
-	short k, n = is_acc ? M_S4 : M_N;
-	items[M_ADD] = "  Add account or calendar...";
-	items[M_NEW] = "  New event            N";
-	items[M_S1] = "-";
-	items[M_GOTO] = "  Go to date...       ^G";
-	items[M_FIND] = "  Find...             ^F";
-	items[M_TODAY] = "  Today                T";
-	items[M_S2] = "-";
-	items[M_SIDE] = opt.sidebar ? "\x08 Calendar list      \x01^S" : "  Calendar list      \x01^S";
-	items[M_HEB] = opt.hebdates ? "\x08 Hebrew dates" : "  Hebrew dates";
-	items[M_KBD] = hebrew_kbd ? "\x08 Hebrew keyboard     F10" : "  Hebrew keyboard     F10";
-	items[M_S5] = "-";
-	/* as EMail's Options menu */
-	items[M_OFFL] = opt.offline ? "\x08 Work offline" : "  Work offline";
-	items[M_FALC] = opt.falcon ? "\x08 Falcon mode (TLS)" : "  Falcon mode (TLS)";
-	items[M_LOG] = opt.log ? "\x08 Write a log" : "  Write a log";
-	items[M_S3] = "-";
-	items[M_SET] = "  Settings...";
-	items[M_FONT] = "  Font...";
-	items[M_KEYS] = "  Help...            Help";
-	items[M_ABOUT] = "  About ECal...";
-	items[M_S4] = "-";
-	items[M_QUIT] = "  Quit                ^Q";
-	k = win_popup(x, y, items, n);
-	switch (k) {
-	case M_ADD: dlg_add_account(); break;
-	case M_NEW: cmd_new_event(); break;
-	case M_GOTO: dlg_goto(); break;
-	case M_FIND: dlg_find(); break;
-	case M_TODAY: views_today(); break;
-	case M_SIDE:
+	short o = mbar_object(&mb, cmd);
+	if (o > 0)
+		menu_icheck(mb.tree, o, on ? 1 : 0);
+}
+
+/* the menu bar's ticks, as things are now */
+static void menu_update(void)
+{
+	if (!has_menu)
+		return;
+	check(C_DAY, cur_view == V_DAY);
+	check(C_WEEK, cur_view == V_WEEK);
+	check(C_MONTH, cur_view == V_MONTH);
+	check(C_YEAR, cur_view == V_YEAR);
+	check(C_SIDE, opt.sidebar);
+	check(C_HEB, opt.hebdates);
+	check(C_OFFL, opt.offline);
+	check(C_FALC, opt.falcon);
+	check(C_LOG, opt.log);
+	check(C_KBD, hebrew_kbd);
+}
+
+static void command(int c)
+{
+	switch (c) {
+	case C_ABOUT: dlg_about(); break;
+	case C_NEW: cmd_new_event(); break;
+	case C_ADD: dlg_add_account(); break;
+	case C_REFRESH: cmd_refresh(0); break;
+	case C_REFRESH_ALL: cmd_refresh(1); break;
+	case C_COPY: views_copy(); break;
+	case C_DAY: views_goto(cur_day, V_DAY); break;
+	case C_WEEK: views_goto(cur_day, V_WEEK); break;
+	case C_MONTH: views_goto(cur_day, V_MONTH); break;
+	case C_YEAR: views_goto(cur_day, V_YEAR); break;
+	case C_TODAY: views_today(); break;
+	case C_GOTO: dlg_goto(); break;
+	case C_FIND: dlg_find(); break;
+	case C_SIDE:
 		opt.sidebar = !opt.sidebar;
 		settings_later();
 		win_layout();
 		win_redraw(0);
 		break;
-	case M_HEB:
+	case C_HEB:
 		opt.hebdates = !opt.hebdates;
 		settings_later();
 		after_change();
 		break;
-	case M_KBD: set_hebrew_kbd(!hebrew_kbd); break;
-	case M_OFFL:
+	case C_KBD: set_hebrew_kbd(!hebrew_kbd); break;
+	case C_OFFL:
 		opt.offline = !opt.offline;
 		if (opt.offline)
 			http_close_all();
 		store_save_settings();
 		updated_status();
 		break;
-	case M_FALC:
+	case C_FALC:
 		if (falcon_mode_set(!opt.falcon)) {
 			http_close_all();
 			store_save_settings();
 		}
 		break;
-	case M_LOG:
+	case C_LOG:
 		opt.log = !opt.log;
 		set_logging();
 		store_save_settings();
 		break;
-	case M_SET: dlg_settings(); break;
-	case M_FONT: font_menu(); break;
-	case M_KEYS: help_open(); break;
-	case M_ABOUT: dlg_about(); break;
-	case M_QUIT:
+	case C_SET: dlg_settings(); break;
+	case C_FONT: font_menu(); break;
+	case C_HELP: help_open(); break;
+	case C_KEYS: dlg_keys(); break;
+	case C_QUIT:
 		quit_now = 1;
 		win_close();
 		break;
 	}
+	menu_update();
+}
+
+/* the toolbar's menu: the menu bar's commands, for the accessory, which
+   has none */
+void cmd_menu(short x, short y)
+{
+	static const struct {
+		const char *text;
+		short cmd;
+	} m[] = {
+		{ "  Add account or calendar...", C_ADD },
+		{ "  New event            N", C_NEW },
+		{ "-", 0 },
+		{ "  Go to date...       ^G", C_GOTO },
+		{ "  Find...             ^F", C_FIND },
+		{ "  Today                T", C_TODAY },
+		{ "-", 0 },
+		{ "  Calendar list      \x01^S", C_SIDE },
+		{ "  Hebrew dates", C_HEB },
+		{ "  Hebrew keyboard     F10", C_KBD },
+		{ "-", 0 },
+		/* as EMail's Options menu */
+		{ "  Work offline", C_OFFL },
+		{ "  Falcon mode (TLS)", C_FALC },
+		{ "  Write a log", C_LOG },
+		{ "-", 0 },
+		{ "  Settings...         ^,", C_SET },
+		{ "  Font...", C_FONT },
+		{ "  Help...            Help", C_HELP },
+		{ "  About ECal...", C_ABOUT },
+		{ "-", 0 },
+		{ "  Quit                ^Q", C_QUIT },
+	};
+	enum { N = sizeof(m) / sizeof(m[0]) };
+	char ticked[N][40];
+	const char *items[N];
+	short i, k, n = is_acc ? N - 2 : N;
+	for (i = 0; i < N; i++) {
+		int on = (m[i].cmd == C_SIDE && opt.sidebar) || (m[i].cmd == C_HEB && opt.hebdates) ||
+			 (m[i].cmd == C_KBD && hebrew_kbd) || (m[i].cmd == C_OFFL && opt.offline) ||
+			 (m[i].cmd == C_FALC && opt.falcon) || (m[i].cmd == C_LOG && opt.log);
+		items[i] = m[i].text;
+		if (on) {
+			str_copy(ticked[i], m[i].text, sizeof(ticked[i]));
+			ticked[i][0] = '\x08';		/* the tick */
+			items[i] = ticked[i];
+		}
+	}
+	k = win_popup(x, y, items, n);
+	if (k >= 0 && k < N)
+		command(m[k].cmd);
 }
 
 /* ---------------- start-up ---------------- */
@@ -518,8 +641,9 @@ static void find_workdir(void)
 			if (!pf_exists(old))
 				workdir[0] = 0;
 		}
-		if (workdir[0] && !pf_exists(workdir))
-			workdir[0] = 0;		/* gone: ask at the first opening */
+		if (workdir[0] && strlen(workdir) > 3 && !pf_exists(workdir))
+			workdir[0] = 0;		/* gone: ask at the first opening (a
+						   drive's root has no entry to find) */
 		return;
 	}
 	path[0] = 0;
@@ -625,6 +749,8 @@ static void acc_heap(void)
 		heap_add(p, (size_t)want);
 }
 
+static void files_check(void);
+
 /* the settings, at the first opening: quick, so the window can open at once */
 static int settings_ready;
 static int sync_pending;	/* the first refresh, once the window is drawn */
@@ -635,6 +761,7 @@ static void load_settings(void)
 		locate_folder();
 	move_inf();
 	store_init(workdir, inf_file);
+	store_mark();			/* the files as we found them */
 	if (strcasecmp(opt.folder, workdir))
 		store_save_settings();	/* FOLDER= as it is now */
 	path_join(conn_cacert, sizeof(conn_cacert), workdir, "CACERT.PEM");
@@ -695,6 +822,8 @@ static void open_window(void)
 	if (!screen_check("ECal", scr_w))	/* not in ST low (the accessory) */
 		return;
 	int first = win_h <= 0;
+	if (first)
+		files_check();
 	if (!settings_ready)
 		load_settings();
 	win_open();
@@ -866,10 +995,49 @@ static void tip_show(void)
 static unsigned long bg_start;
 static int bg_next = -1;		/* the next calendar to refresh, -1 none */
 
+/* The accessory stands aside while ECAL.PRG runs (twin.h; the AERA
+   guidelines, 2.3): it doesn't sync, show reminders or open its window,
+   and hands AC_OPEN and VA_START to the program. What the program
+   changed in ECAL.INF and the caches meanwhile is read again before
+   anything is written. */
+static int prg_was;
+
+static void files_check(void)
+{
+	static const char m[] = "the files changed since ECal last wrote them: reading them again";
+	if (!is_acc || !settings_ready || !store_changed())
+		return;
+	conn_log("ECal", "--", m, (long)(sizeof(m) - 1));
+	http_close_all();
+	views_select_none();
+	store_release();
+	views_invalidate();
+	settings_ready = 0;
+	data_ready = 0;
+	bg_loaded = 0;
+	bg_next = -1;
+	find_workdir();			/* FOLDER= may name another folder now */
+}
+
+static int prg_runs(void)
+{
+	if (!is_acc)
+		return 0;
+	if (twin_prg() >= 0) {
+		prg_was = 1;
+		return 1;
+	}
+	if (prg_was) {
+		prg_was = 0;
+		files_check();
+	}
+	return 0;
+}
+
 static void background(void)
 {
 	unsigned long now = pf_ms();
-	if (!is_acc || win_h > 0)
+	if (!is_acc || win_h > 0 || prg_runs())
 		return;
 	if (!data_ready) {
 		if (now - bg_start < 8000UL)
@@ -897,8 +1065,11 @@ static void background(void)
 			due = a->refresh > 0 && cals[i].synced && now_utc() - cals[i].synced >= a->refresh &&
 			      now - last_refresh > 60000UL;
 		}
-		if (due)
-			bg_next = 0;
+		if (due) {
+			files_check();		/* before anything is written */
+			if (data_ready)
+				bg_next = 0;
+		}
 		return;
 	}
 	if (bg_next < ncals) {
@@ -967,6 +1138,11 @@ int main(void)
 	ap_id = appl_init();
 	if (ap_id < 0)
 		return 1;
+	twin_init("ECAL|ECALST");
+	if (!is_acc && twin_handover(av_command())) {
+		appl_exit();		/* ECAL.ACC runs, and has it */
+		return 0;
+	}
 	bg_start = pf_ms();
 	if (is_acc)
 		menu_id = menu_register(ap_id, "  ECal");
@@ -983,6 +1159,7 @@ int main(void)
 		ncolors = 256;
 	vst_alignment(vdi_h, 0, 5);
 	wind_get(0, WF_WORKXYWH, &desk_x, &desk_y, &desk_w, &desk_h);
+	store_watch = is_acc;
 	find_workdir();
 	crash_install(workdir, "ECal", cal_version);	/* the program only */
 	crash_cleanup = crash_quit;
@@ -997,10 +1174,18 @@ int main(void)
 		appl_exit();
 		return 1;
 	}
-	if (is_acc)
+	if (is_acc) {
 		acc_heap();
-	else
-		open_window();
+	} else {
+		/* the menu bar (the accessory has the toolbar's menu) */
+		if (mbar_build(&mb, bar, gl_wchar, gl_hchar, scr_w, scr_h) == 0)
+			has_menu = menu_bar(mb.tree, 1) != 0;
+		if (av_command()[0])
+			av_start(av_command());	/* an .ics the desktop opens with ECal */
+		else
+			open_window();
+		menu_update();		/* the settings are read now */
+	}
 	crash_offer("ECal", "next to ECAL.PRG");
 
 	while (!quit_now) {
@@ -1036,11 +1221,20 @@ int main(void)
 			switch (msg[0]) {
 			case AC_OPEN:
 				if (msg[4] == menu_id) {
+					if (twin_pass(""))	/* ECAL.PRG runs: its window to the front */
+						break;
 					av_init("ECAL|ECALST");	/* a desktop started since */
 					open_window();
 				}
 				break;
+			case MN_SELECTED:
+				if (has_menu) {
+					command(mbar_command(&mb, msg[4]));
+					menu_tnormal(mb.tree, msg[3], 1);
+				}
+				break;
 			case AC_CLOSE:
+				twin_reset();		/* another program in front */
 				/* the program in front ended: the AES took our window */
 				if (msg[3] == menu_id) {
 					av_window(win_h, 0);
@@ -1064,7 +1258,7 @@ int main(void)
 						editor_new_titled(cur_day, d.data);
 					break;
 				case DD_NONE:
-					if (av_message(msg, &va) == AV_START)
+					if (av_message(msg, &va) == AV_START && !(is_acc && twin_pass(va)))
 						av_start(va);
 					else
 						win_message(msg);
@@ -1119,6 +1313,8 @@ int main(void)
 			}
 			wait_release();
 		}
+		if (which & (MU_KEYBD | MU_BUTTON | MU_MESAG))
+			menu_update();
 		if ((which & MU_TIMER) && settings_dirty && pf_ms() - settings_at >= 3000UL)
 			settings_flush();
 		if (which & MU_TIMER)
@@ -1132,7 +1328,10 @@ int main(void)
 			long t = ct_days(now_view());
 			if (now - last_minute >= 30000UL) {
 				last_minute = now;
-				check_alarms();
+				if (prg_was)		/* ECAL.PRG shows them */
+					alarm_checked = now_view();
+				else
+					check_alarms();
 				if (win_h > 0) {
 					if (t != shown_today) {
 						/* midnight: today moved */
@@ -1156,6 +1355,9 @@ int main(void)
 	conn_log_flush();
 	crash_remove();
 	av_exit();
+	if (has_menu)
+		menu_bar(mb.tree, 0);
+	mbar_free(&mb);
 	v_clsvwk(vdi_h);
 	appl_exit();
 	return 0;

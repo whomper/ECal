@@ -36,6 +36,8 @@ int store_lost_passwords;
 int store_plain_passwords;		/* ECAL.INF has a password not yet encrypted */
 
 static char inf_path[200], cache_dir[200];
+int store_watch;			/* the accessory: store_changed() is asked */
+static unsigned long known;		/* the files as we last left them */
 
 static void status(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 static void status(const char *fmt, ...)
@@ -371,6 +373,7 @@ void store_save_settings(void)
 	}
 	pf_save(inf_path, b.s, b.len);
 	sb_free(&b);
+	store_mark();
 	str_copy(http_cfg.gate, opt.gate, sizeof(http_cfg.gate));
 	http_cfg.gateport = opt.gateport;
 	http_cfg.falcon = opt.falcon;
@@ -416,6 +419,46 @@ static void cal_free_events(CALENDAR *c)
 	c->ndead = 0;
 }
 
+/* ECAL.INF, ECAL.KEY and the calendars' caches as they are now: their
+   sizes and when they were written */
+static unsigned long store_stamp(void)
+{
+	char p[200];
+	unsigned long h = 5381;
+	int i;
+	for (i = -2; i < ncals; i++) {
+		if (i == -2)
+			str_copy(p, inf_path, sizeof(p));
+		else if (i == -1)
+			path_join(p, sizeof(p), opt.workdir, "ECAL.KEY");
+		else
+			cache_path(&cals[i], accts[cals[i].acct].kind == AK_SUBSCR ? "ICS" : "DAT", p, sizeof(p));
+		h = (h * 33) ^ pf_stamp(p);
+		h = (h * 33) ^ (unsigned long)pf_size(p);
+	}
+	return h;
+}
+
+void store_mark(void)
+{
+	if (store_watch)
+		known = store_stamp();
+}
+
+int store_changed(void)
+{
+	return store_watch && store_stamp() != known;
+}
+
+void store_release(void)
+{
+	int i;
+	for (i = 0; i < ncals; i++)
+		cal_free_events(&cals[i]);
+	ncals = naccts = 0;
+	store_lost_passwords = store_plain_passwords = 0;
+}
+
 void cal_delete(int i)
 {
 	char p[200];
@@ -429,6 +472,7 @@ void cal_delete(int i)
 	for (k = i; k < ncals - 1; k++)
 		cals[k] = cals[k + 1];
 	ncals--;
+	store_mark();
 	/* the events know their calendar by index */
 	for (k = i; k < ncals; k++) {
 		int e;
@@ -871,6 +915,7 @@ static int cw_close(CW *w)
 	cache_path(w->c, "DAT", path, sizeof(path));
 	pf_remove(path);
 	pf_rename(w->tmp, path);
+	store_mark();
 	return 1;
 }
 
@@ -952,6 +997,7 @@ static int cache_change(CALENDAR *c, int drop, const char *href, const char *eta
 		cal_load(c);
 		return cache_rewrite(c, -1, 0, 0, 0, 0);
 	}
+	store_mark();
 	mark_exceptions(c);
 	return 1;
 }
@@ -1152,6 +1198,7 @@ static int sync_subscription(CALENDAR *c, int force)
 	}
 	pf_remove(path);
 	pf_rename(tmp, path);
+	store_mark();
 	str_copy(c->etag, rs.etag, sizeof(c->etag));
 	str_copy(c->lastmod, rs.lastmod, sizeof(c->lastmod));
 	c->synced = now_utc();

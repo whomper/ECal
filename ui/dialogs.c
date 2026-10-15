@@ -784,6 +784,7 @@ void dlg_keys(void)
 		{ 14, 1, "Right-click", "more choices" },
 		{ 15, 0, "^C", "copy the event" },
 		{ 15, 1, "^C ^X ^V", "in a dialog's field" },
+		{ 16, 0, "^,", "settings" },
 	};
 	enum { N = sizeof(k) / sizeof(k[0]) };
 	FIELD f[2 * N + 1];

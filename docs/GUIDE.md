@@ -31,10 +31,18 @@ F:\...\ECAL.APP\          ECal's folder (C:\ECAL\ unless you choose another):
 ```
 
 - **`ECAL.PRG`** is the same program, to start from the desktop or a
-  shell; it ends when its window closes. It uses the folder it was
-  started from as ECal's folder and writes that into `FOLDER=`, so
-  starting it once from your folder is all it takes for the accessory
-  to find it too.
+  shell; it ends when its window closes. It has a menu bar (**File**,
+  **Edit**, **View**, **Options**, **Help**) with the commands of the
+  accessory's ≡ menu. It uses the folder it was started from as ECal's
+  folder and writes that into `FOLDER=`, so starting it once from your
+  folder is all it takes for the accessory to find it too.
+- **Both installed:** they share the settings and the calendars, and
+  never work on them at once. While `ECAL.PRG` runs, the accessory stands
+  aside: ECal in the Desk menu brings the program's window to the front,
+  and the program, not the accessory, refreshes and shows the reminders.
+  When the accessory is next opened, it reads again whatever the program
+  changed. Under MagiC or MiNT, where the accessory runs beside the
+  programs, starting `ECAL.PRG` opens the accessory instead.
 - **The accessory** reads `FOLDER=` when it starts. If it's empty, or
   the folder isn't there any more, the first time you open ECal it asks
   where the folder is: **Locate...** opens the file selector (pick any
@@ -63,7 +71,8 @@ zone the clock is in.
 
 ## Settings
 
-The ≡ menu (the button at the right of the toolbar) > **Settings...**. As
+Options > **Settings...** (^,), or the ≡ menu (the button at the right
+of the toolbar) in the accessory. As
 in EMail, the sections are listed on the left; click one for its
 settings. **OK** keeps the changes in all of them, **Cancel** none.
 
@@ -103,7 +112,7 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
     13 KB/s in EMail's measurements, against 37 KB/s through the Pi). A
     bigger TCP receive window in STinG's configuration lets them overlap.
 
-**Font...** in the ≡ menu picks the font for the window, as in EMail: the
+**Font...** in the Options menu (or the ≡ menu) picks the font for the window, as in EMail: the
 system font in its two sizes, and with a GDOS (NVDI, SpeedoGDOS,
 FontGDOS) its monospaced fonts in any size they come in. The first time
 the selector opens, ECal measures every font to find the fixed-width
@@ -119,7 +128,7 @@ Dialogs and menus stay in the system font.
 
 ## Adding calendars
 
-The ≡ menu > **Add account or calendar...**:
+File > **Add account or calendar...** (in the accessory, the ≡ menu):
 
 - **iCloud**: your Apple ID and an **app-specific password**. Make one at
   [appleid.apple.com](https://appleid.apple.com) > Sign-In and Security >
@@ -186,11 +195,11 @@ Double-click an empty day or hour for a new event there. Right-click an event to
 duplicate or delete it; right-click a day for a new event or to change
 the view.
 
-**Hebrew dates** (≡ > Hebrew dates) show next to each day: the day of the
+**Hebrew dates** (View > Hebrew dates, or ≡ > Hebrew dates) show next to each day: the day of the
 Hebrew month in each cell, the month's name on its first day, the full
 date in day and week views.
 
-As in EMail's Options menu, the ≡ menu has three ticks:
+As in EMail, the Options menu (and the ≡ menu) has three ticks:
 
 - **Work offline**: no connections at all; the calendars stay as they
   are on the Atari, and Refresh says ECal is offline. The info line says
@@ -270,6 +279,9 @@ protocol's VA_START), can hand ECal:
   can take them, or into the one you pick;
 - **a webcal: address**: Subscribe opens with it filled in.
 
+`ECAL.PRG` takes .ics files the same way when the desktop starts it with
+one: install it as the application for `.ICS` and double-click a file.
+
 Under MultiTOS, MagiC or XaAES you can drag .ics files onto ECal's
 window too, or text from another program: a new event opens with the
 text as its title. Running as an accessory, ECal tells the desktop about
@@ -333,12 +345,13 @@ instance).
 | ^C                  | copy the selected event                 |
 | ^C ^X ^V            | in a dialog: copy, cut, paste a field   |
 | ^R                  | refresh (Shift+^R: everything again)    |
+| ^,                  | Settings                                |
 | Shift+^S            | show/hide the calendar list             |
 | ^W, ^Q              | close the window                        |
 | F10                 | Hebrew keyboard                         |
 | Help                | this guide (see below)                  |
 
-Help (or **Help...** in the ≡ menu) opens this guide in EHypView,
+Help (or Help > **ECal help**, or **Help...** in the ≡ menu) opens this guide in EHypView,
 ST-Guide or HypView, whichever is running (as an accessory, or as a
 program under MultiTOS or MagiC): copy `ECAL.HYP` and `ECAL.REF` next to
 ECal, or into the viewer's help folder. Without a viewer, Help says how
@@ -346,7 +359,7 @@ to get one and offers the keys above instead.
 
 ## Which version
 
-The ≡ menu > **About ECal** shows the version, e.g. `Version 1.25`, and
+ECal > **About ECal...** (or the ≡ menu > **About ECal**) shows the version, e.g. `Version 1.25`, and
 how ECal is connected. The number after the dot goes up with every build.
 
 ## ECAL.INF
@@ -355,7 +368,9 @@ The settings file explains itself, like EMail's: a note before each
 setting, `1` for on and `0` for off. It can be edited with any text
 editor while ECal isn't running (keys in any case, a note after a value
 with ` ;`). A password typed in there in plain text is encrypted with
-ECAL.KEY the next time ECal starts.
+ECAL.KEY the next time ECal starts. ECal writes the file anew as
+`ECAL.IN$` and only then puts it in the old one's place, so a reset or a
+full disk while it writes leaves the old settings as they were.
 
 ## The desktop icon
 

@@ -40,6 +40,16 @@ long pf_size(const char *path)
 	return r;
 }
 
+unsigned long pf_stamp(const char *path)
+{
+	void *old = Fgetdta();
+	unsigned long r;
+	Fsetdta(&dta);
+	r = Fsfirst(path, 0x07) == 0 ? (unsigned long)dta.d_date << 16 | dta.d_time : 0;
+	Fsetdta(old);
+	return r;
+}
+
 int pf_exists(const char *path)
 {
 	void *old = Fgetdta();

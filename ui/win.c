@@ -528,6 +528,7 @@ int win_key(short kstate, short key)
 			return 1;
 		case 0x14: views_today(); return 1;		/* ^T */
 		case 0x2e: views_copy(); return 1;		/* ^C: the event chosen */
+		case 0x33: dlg_settings(); return 1;		/* ^, */
 		case 0x1f:					/* Shift+^S; ^S is Save */
 			if (!(kstate & (K_LSHIFT | K_RSHIFT)))
 				return 0;

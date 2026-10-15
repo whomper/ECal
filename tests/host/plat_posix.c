@@ -42,6 +42,14 @@ long pf_size(const char *path)
 	return st.st_size;
 }
 
+unsigned long pf_stamp(const char *path)
+{
+	struct stat st;
+	if (stat(path, &st) < 0 || !S_ISREG(st.st_mode))
+		return 0;
+	return (unsigned long)st.st_mtime ^ (unsigned long)st.st_mtim.tv_nsec;
+}
+
 int pf_exists(const char *path)
 {
 	struct stat st;

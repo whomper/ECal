@@ -103,6 +103,14 @@ extern int store_plain_passwords;
 /* the settings from inf (NULL: dir\ECAL.INF); the rest of ECal's files in dir */
 void store_init(const char *dir, const char *inf);
 void store_save_settings(void);
+/* the accessory and ECAL.PRG (the AERA guidelines, 2.3): with store_watch
+   set, our own writes are noted (store_mark), and store_changed() says
+   whether another program changed ECAL.INF, ECAL.KEY or a calendar's
+   cache since; store_release() lets everything go, to be read again */
+extern int store_watch;
+void store_mark(void);
+int  store_changed(void);
+void store_release(void);
 void cal_load_all(void);
 void cal_load(CALENDAR *c);
 /* the zones now in use */
