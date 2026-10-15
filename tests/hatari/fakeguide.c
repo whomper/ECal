@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /* A stand-in for ST-Guide in the Hatari tests: an accessory called
    ST-GUIDE.ACC, so the AES knows it as "ST-GUIDE". What VA_START hands it
    goes into C:\GUIDE.TXT for the test to read. */

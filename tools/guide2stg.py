@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Copyright (C) 2026 Erez Yaary
+# Copyright (C) 2026 AERA | Erez Yaary
 """docs/GUIDE.md -> ST-Guide source (ECAL.STG), for hcp to compile into
 ECAL.HYP, the help file ST-Guide and HypView show on the Atari.
 
@@ -123,7 +123,7 @@ def convert(md, version):
            "@charset atarist",
            '@database "ECal - user guide"',
            '@subject "Personal/Calendar"',
-           '@author "Erez Yaary"',
+           '@author "AERA | Erez Yaary"',
            "@$VER: ECAL.HYP %s" % version,
            "@options +z",
            "@width %d" % (WIDTH + 2),

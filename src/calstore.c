@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * calstore.c - the calendars: settings, caches on disk, syncing with
  * CalDAV servers and subscriptions, occurrences for the views, and

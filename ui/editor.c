@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * editor.c - the event dialog: title, place, all-day, start and end,
  * time zone, repeat, alert, calendar, notes. For a repeating event it

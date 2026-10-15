@@ -240,7 +240,7 @@ any later version. It is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See [COPYING](COPYING).
 
-Copyright (C) 2026 Erez Yaary.
+Copyright (C) 2026 AERA | Erez Yaary.
 
 It includes, under their own licences (compatible with the GPL):
 

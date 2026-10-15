@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Copyright (C) 2026 Erez Yaary
+# Copyright (C) 2026 AERA | Erez Yaary
 """Tests for ecalgate: the feed trimming, and the proxy against a local server."""
 
 import gzip

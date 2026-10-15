@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * unit.c - tests for the calendar core: dates, the Hebrew calendar,
  * time zones, iCalendar in and out, repeating events, XML and URLs.

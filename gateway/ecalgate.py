@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Copyright (C) 2026 Erez Yaary
+# Copyright (C) 2026 AERA | Erez Yaary
 """ecalgate - the Raspberry Pi gateway for ECal on the Atari.
 
 Calendar servers (iCloud, Google, Fastmail...) and published calendars

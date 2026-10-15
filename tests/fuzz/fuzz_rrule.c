@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * An RRULE from a server (the AERA guidelines, 7.1): read, described in
  * words for the editor and written back.

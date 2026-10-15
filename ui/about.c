@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * about.c - ECal's About box (the AERA programs' shared one,
  * common/ui/aboutbox.c, with ECal's status line) and its icon in an

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Copyright (C) 2026 Erez Yaary
+# Copyright (C) 2026 AERA | Erez Yaary
 """Writes tests/fuzz/seeds/: the starting inputs for make fuzz, answers
 as calendar servers give them. For fuzz_dav the first byte picks the
 request (see fuzz_dav.c); the rest is what the server says.

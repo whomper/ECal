@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * ics.h - iCalendar (RFC 5545): events in, events out, and the
  * expansion of repeating events into the days they fall on.

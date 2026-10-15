@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * iCalendar from a server (the AERA guidelines, 7.1): the events parsed
  * (folded lines, escapes, UTF-8, time zones, repeat rules), each one's

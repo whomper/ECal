@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * rrule.c - repeating events: RFC 5545 recurrence rules in full, with
  * RDATE, EXDATE, EXRULE, and RFC 7529's RSCALE=HEBREW (what an iPhone

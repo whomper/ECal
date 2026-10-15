@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Copyright (C) 2026 Erez Yaary
+# Copyright (C) 2026 AERA | Erez Yaary
 """ECal's icon, drawn as 32x32 1-bit pixel art: the same SM124-style
 monochrome monitor as EMail's and Claude ST's icons, whose dark screen
 shows a calendar page: a red band with two rings, the days in a grid,
@@ -175,7 +175,7 @@ crect(8, 28, 23, 28, 8)
 crect(9, 27, 22, 27, 9)
 
 with open(os.path.join(ROOT, "ui", "icon16.h"), "w") as f:
-    f.write("/* SPDX-License-Identifier: GPL-2.0-or-later\n * Copyright (C) 2026 Erez Yaary */\n")
+    f.write("/* SPDX-License-Identifier: GPL-2.0-or-later\n * Copyright (C) 2026 AERA | Erez Yaary */\n")
     f.write("/* ECal icon, 32x32 in 16 colours (VDI pens, 2 per byte), from\n"
             " * tools/icon/make_icon.py. 0 = background, not drawn. */\n")
     f.write("static const unsigned char icon16_px[32 * 16] = {\n")

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * ui.h - ECal's GEM interface: one window with a toolbar, the
  * calendar list on the left and the day, week, month or year on the

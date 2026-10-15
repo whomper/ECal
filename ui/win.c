@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * win.c - ECal's window: the toolbar on top (back, Today, forward,
  * the period's name, Day/Week/Month/Year, new event, refresh, menu),

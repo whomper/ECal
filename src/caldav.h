@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * caldav.h - CalDAV (RFC 4791), the calendar protocol iCloud, Fastmail,
  * Nextcloud, Radicale and others speak: WebDAV requests carrying

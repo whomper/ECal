@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Copyright (C) 2026 Erez Yaary
+# Copyright (C) 2026 AERA | Erez Yaary
 """Esc stops the network (the AERA guidelines, 7.1): ECALST.ACC refreshes
 through a "gateway" that takes the connection and never answers, as a
 server can. Esc while the busy bee shows must end the wait at once, not

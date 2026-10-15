@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Copyright (C) 2026 Erez Yaary
+# Copyright (C) 2026 AERA | Erez Yaary
 """The other end of FAKESTNG.PRG: Hatari's emulated serial port on one
 side, real TCP connections on the other (see tools/fakesting/fakesting.c
 for the frames).

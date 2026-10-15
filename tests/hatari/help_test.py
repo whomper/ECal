@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Copyright (C) 2026 Erez Yaary
+# Copyright (C) 2026 AERA | Erez Yaary
 """Help opens the user guide in ST-Guide. ECAL.PRG runs with a stand-in
 ST-Guide accessory (build/ST-GUIDE.ACC, make fakeguide) that writes what
 VA_START hands it into C:\\GUIDE.TXT:

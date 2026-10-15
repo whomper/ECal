@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * cal_cli.c - the calendar core on Linux, for the integration tests and
  * for trying servers before the Atari does: the same calstore.c, sync,

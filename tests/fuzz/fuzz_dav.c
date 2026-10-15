@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * The calendar server's answers, from the fuzz input (the AERA
  * guidelines, 7.1): HTTP (status, headers, Content-Length, chunks, gzip,

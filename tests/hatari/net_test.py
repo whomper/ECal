@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Copyright (C) 2026 Erez Yaary
+# Copyright (C) 2026 AERA | Erez Yaary
 """ECal on an emulated Atari, through the Pi gateway, against a real
 CalDAV server: the way an ST uses it.
 

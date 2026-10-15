@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * calstore.h - accounts, calendars and their events, the settings in
  * ECAL.INF, the copies kept on disk, and keeping them in step with
