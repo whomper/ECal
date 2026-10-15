@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * twin.h - NAME.PRG and NAME.ACC on one machine (the AERA guidelines,
  * 2.3): one of them in use at a time, so that the two never write the

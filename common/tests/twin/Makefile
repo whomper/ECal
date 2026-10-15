@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Copyright (C) 2026 Erez Yaary
+# Copyright (C) 2026 AERA | Erez Yaary
 # NAME.PRG and NAME.ACC (ui/twin.c) on the build machine: make test. Not
 # position-independent, so a string's address fits a message's two words
 CFLAGS := -O2 -Wall -Wextra -no-pie -fsanitize=address,undefined -Istub -I../../ui

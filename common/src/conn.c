@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * conn.c - buffered TCP connection on top of plat.h's net_*, with TLS
  * when Falcon mode talks to the server itself: EMail's cipher retries

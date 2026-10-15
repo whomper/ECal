@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * LATER.PRG - starts a program some seconds after XaAES has come up, as a
  * person would, once the desk accessories are in: run.py --later. C:\LATER.TXT

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * busy.h - the busy bee, and Esc or Undo to stop what the network is
  * doing meanwhile (the AERA guidelines, 7.1), ECal's, EContact's and

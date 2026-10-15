@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * The DNS reply reader of atari/net_tos.c (atari/dns.h) on the build
  * machine, with AddressSanitizer: answers as nameservers give them, and

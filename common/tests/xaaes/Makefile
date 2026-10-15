@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Copyright (C) 2026 Erez Yaary
+# Copyright (C) 2026 AERA | Erez Yaary
 # FreeMiNT 1.17.0 with XaAES in Hatari: an AES that iconifies windows,
 # multitasks and does drag and drop, for checking the apps where EmuTOS's
 # AES can't (see run.py).

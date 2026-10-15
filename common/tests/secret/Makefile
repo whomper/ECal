@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Copyright (C) 2026 Erez Yaary
+# Copyright (C) 2026 AERA | Erez Yaary
 # passwords in NAME.INF (src/secret.c) on the build machine: make test
 CFLAGS := -O2 -Wall -Wextra -fsanitize=address,undefined -Istub -I../../src
 B      := build

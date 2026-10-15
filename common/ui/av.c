@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * av.c - the AV protocol (see av.h). From EHypView's VA_START and
  * EContact's VA_START to EMail.

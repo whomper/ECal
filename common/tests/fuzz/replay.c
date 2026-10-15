@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
- * Copyright (C) 2026 Erez Yaary */
+ * Copyright (C) 2026 AERA | Erez Yaary */
 /*
  * replay.c - runs a fuzz target on the files it is given, without
  * libFuzzer: linked with any C compiler's AddressSanitizer and UBSan, it
