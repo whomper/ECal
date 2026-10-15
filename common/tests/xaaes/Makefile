@@ -18,16 +18,20 @@ LDFLAGS := -m68000 -nostdlib -static -no-pie -Wl,--emit-relocs -Wl,-T,$(A)/link.
            -Wl,--build-id=none -Wl,-z,noexecstack -Wl,--no-warn-rwx-segments
 B       := build
 
-all: $(B)/ICONTEST.PRG $(B)/OPNWK.PRG
+all: $(B)/ICONTEST.PRG $(B)/OPNWK.PRG $(B)/LATER.PRG
 base: $(B)/OPNWK.PRG
 	python3 fetch.py
 $(B)/%.PRG: $(B)/%.elf ../../tools/elf2tos.py
 	python3 ../../tools/elf2tos.py $< $@
 $(B)/ICONTEST.elf: $(B)/crt0.o $(B)/icontest.o $(B)/gem.o $(B)/tos.o $(B)/libc.o $(B)/nf.o
 	$(CC) $(LDFLAGS) -o $@ $^ -lgcc
+$(B)/LATER.elf: $(B)/crt0.o $(B)/later.o $(B)/gem.o $(B)/tos.o $(B)/libc.o $(B)/nf.o
+	$(CC) $(LDFLAGS) -o $@ $^ -lgcc
 $(B)/OPNWK.elf: $(B)/crt0.o $(B)/opnwk.o $(B)/tos.o $(B)/libc.o $(B)/nf.o
 	$(CC) $(LDFLAGS) -o $@ $^ -lgcc
 $(B)/opnwk.o: opnwk.c | $(B)
+	$(CC) $(ACFLAGS) -c -o $@ $<
+$(B)/later.o: later.c | $(B)
 	$(CC) $(ACFLAGS) -c -o $@ $<
 $(B)/icontest.o: icontest.c | $(B)
 	$(CC) $(ACFLAGS) -c -o $@ $<
