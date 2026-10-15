@@ -79,6 +79,7 @@ extern GRECT work;		/* its work area */
 void win_open(void);
 void win_close(void);
 void win_redraw(GRECT *area);	/* NULL: everything */
+void win_buffer_init(void);	/* at start-up: the buffer windows are drawn in */
 void win_message(short *msg);
 void win_status(const char *s);	/* the info line */
 void win_frame_refresh(void);
