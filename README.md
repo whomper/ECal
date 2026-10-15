@@ -1,96 +1,134 @@
 # ECal
 
+<img src="docs/icon16.png" width="96" align="right" alt="ECal icon: an Atari SM124-style monitor whose dark screen shows a calendar page, with a red band and two rings at the top and one day marked in red">
+
+A calendar for the Atari ST, STE, TT and Falcon: a GEM desk accessory that syncs with iCloud and any
+CalDAV server.
+
 **Highlights**
 
-- iCloud and other CalDAV calendars, two-way sync; `.ics` subscriptions; local calendars
-- Day, week, month and year views, like the Mac's Calendar
-- Desk accessory or program, for the ST, STE, TT and Falcon
-- Falcon mode: TLS 1.2 on the Falcon itself, RSA on the DSP; any Atari through a Raspberry Pi gateway
-- Hebrew throughout: right-to-left text, Israeli keyboard (F10), Hebrew dates and Hebrew-calendar repeats
-- Every RFC 5545 repeat rule, with "only this one" or "all future ones" edits
-- Reminders over any program; time zones; works offline from its own copy
-- Runs in TT RAM when there is some; GDOS fonts; hover tooltips
+- **Like the Mac's Calendar:** day, week, month and year views; iCloud and other CalDAV calendars with
+  two-way sync, `.ics` subscriptions and calendars kept only on the Atari, each in its own colour.
+- **Modern but Atari:** a desk accessory that opens over whatever program you're working in, or a
+  program; right-click menus, drag and drop, iconify, help in EHypView or ST-Guide.
+- **Secure:** TLS 1.2 on the Falcon and TT, with RSA on the DSP; ST and STE through a Raspberry Pi
+  gateway.
+- **Hebrew** throughout: right-to-left text, the Israeli keyboard (F10), Hebrew dates and
+  Hebrew-calendar repeats.
+- **Every repeat:** all of RFC 5545's rules, with "only this one" or "all future ones" edits.
+- **Always to hand:** reminders over any program, time zones, and its own copy on disk, so it works
+  offline.
+- **Makes the most of the machine:** TT RAM when there is some, GDOS fonts, hover tooltips.
 
-A calendar for the Atari ST, STE, TT and Falcon, written in C for GEM.
-It runs as a **desk accessory**, so it opens from the Desk menu over
-whatever program you're working in, and it works like the Mac's Calendar:
-day, week, month and year views, several calendars in colour, iCloud and
-other CalDAV accounts, subscriptions to published calendars, reminders,
-time zones, and Hebrew.
+![ECal's month view on a Falcon (Hatari): October 2026 with the Home, Work and Family calendars in red, olive and yellow, today (the 13th) in red, and the calendar list and a small month on the left](docs/month.png)
 
-![Month view on a Falcon](docs/month.png)
+## Getting started
 
-- **iCloud** and any **CalDAV** server (Fastmail, Nextcloud, Radicale,
-  Synology, Yahoo...): calendars found automatically, events added, changed
-  and deleted on the server, changes made elsewhere fetched with ETags so
-  only what changed comes over the line
-- **Subscriptions**: `webcal://` and `https://` `.ics` feeds (holidays,
-  sports, a Google calendar's secret iCal address), refreshed on a schedule
-- **On My Atari** calendars, kept only on this computer; `.ics` import
-- **Views**: day (with the selected event's details), week, month, year;
-  all-day and multi-day events as bars, overlapping events side by side,
-  "+3 more" when a day is full
-- **Today**: today's date in red everywhere, a red line at the current time,
-  a Today button, and the view moves on at midnight
-- **Repeating events**: every kind of repeat iCalendar has (RFC 5545:
-  yearly to every second, any BYDAY/BYMONTHDAY/BYYEARDAY/BYWEEKNO/BYMONTH/
-  BYHOUR/BYMINUTE/BYSECOND, BYSETPOS, WKST, extra dates (RDATE), excluded
-  dates and rules (EXDATE, EXRULE)), plus Hebrew-calendar repeats
-  (RFC 7529 `RSCALE=HEBREW`, "every year on 12 Tishri"). The Repeat menu
-  has the usual ones; **Custom...** builds any rule ("the last Friday of
-  every month", "the second Monday of March and September"), or type it
-- **One occurrence or the series**: move, change or delete just one
-  occurrence of a repeating event, or this and all future ones, as on the
-  Mac; changes made on an iPhone to one occurrence or to "this and future"
-  show as they should
-- **Reminders** that pop up over any program, even with the window closed
-- **Time zones**: events keep their zone; with time zone support on, see
-  your calendar as it looks from another city. Summer time rules for Israel
-  (the Friday before the last Sunday of March), Europe, the Americas,
-  Australia and more are built in; others are learned from the calendar data
-- **Hebrew**: titles, places and notes in Hebrew, right to left, typed on
-  the Israeli keyboard (F10) in every field, like EMail; Hebrew calendar
-  names; Hebrew dates (י״ב תשרי תשפ״ז) next to the civil ones
-- **Cancelled events** are left out: cancelled by the organiser,
-  titled "Canceled:" (Outlook, Exchange), or invitations you declined
-- **Find** (^F) through titles, places and notes
-- **Tooltips**: rest the mouse on an event to see its title and times
-- **Fonts**: the system font or any monospaced GDOS font (NVDI,
-  SpeedoGDOS), picked in EMail's font selector; twelve calendar colours
-- **The calendar list** hides with a toolbar button (or ^S), leaving the
-  window to the calendar
-- Keeps a copy of everything on disk: opens at once, shows today before
-  it syncs, and works offline (the menu > Work offline, as in EMail)
-- **TT RAM**: on a TT or an accelerated Falcon the program and its memory
-  go to TT/Fast RAM, leaving ST RAM free; the About box says so
-- Runs on TOS 1.04 to 4.x, EmuTOS, MagiC and MiNT, with STinG or MiNTnet,
-  in ST high, ST medium, TT and Falcon resolutions; with NVDI the views
-  draw several times faster than with TOS's own VDI
+Download the latest release from **[Releases](https://github.com/whomper/ECal/releases/latest)**: each
+file on its own, or all of them in `ECAL-x.y.zip`.
+
+| File | What it is |
+|---|---|
+| `ECAL.ACC` | Falcon and TT: the desk accessory with Falcon mode (TLS, DSP); also works through the Pi |
+| `ECALST.ACC` | ST and STE: the same accessory without TLS (about 105 KB smaller), through the Pi |
+| `ECAL.PRG` | the same as `ECAL.ACC`, to start from the desktop, with a menu bar |
+| `CACERT.PEM`, `ROOTS.DAT` | the root certificates for Falcon mode |
+| `ECAL.HYP`, `ECAL.REF` | the guide, for EHypView, ST-Guide or HypView, opened by the Help key |
+| `ECAL.RSC`, `ECAL.ICN`, `ECALMK.ICN` | ECal's desktop icon, black and white and 16 colours; in the zip's `icons/` folder (see the guide's [The desktop icon](docs/GUIDE.md#the-desktop-icon)) |
+| `ECAL-x.y.zip` | all of these in one file |
+
+1. Copy `ECAL.ACC` (Falcon, TT) or `ECALST.ACC` (ST, STE; renamed to `ECAL.ACC` or not) to the root
+   of your boot drive, e.g. `C:\`.
+2. For Falcon mode, make a folder `C:\ECAL` and put `CACERT.PEM` and `ROOTS.DAT` in it. ECal keeps
+   its own files there too. The folder can be anywhere: `FOLDER=` in the settings, `C:\ECAL.INF`, says
+   where. Start `ECAL.PRG` from the folder once, or show the accessory where it is when it asks.
+3. On an ST or STE, set up the gateway on a Raspberry Pi: clone this repository there and run
+   `sudo gateway/install.sh` (see [gateway/README.md](gateway/README.md)). It prints the address to
+   type into ECal.
+4. Reboot and choose **ECal** in the Desk menu. Open **Settings...** (^, or the ≡ menu at the right of
+   the toolbar):
+   - **Connection**: type the Pi's IP address (e.g. 192.168.1.x, not its name) and port 8180 into
+     **Pi gateway**; or, on a Falcon or TT, tick **Falcon mode**.
+   - **Time zones**: set the zone the Atari's clock is in.
+5. Add your iCloud account with **Add account or calendar...** (the ≡ menu, or **File** in
+   `ECAL.PRG`) and an [app-specific password](https://support.apple.com/en-us/102654); your Apple ID's
+   own password won't work.
+6. Copy `ECAL.HYP` and `ECAL.REF` next to ECal or into your help folder (e.g. `C:\GUIDES\`), and press
+   **Help** in ECal for the guide.
+
+The [user guide](docs/GUIDE.md) describes the rest.
+
+**Needs:** TOS 1.04 to 4.x, EmuTOS, MagiC or MiNT; ST medium, ST high, TT or Falcon resolution; 1 MB of
+RAM (2 MB or more for big calendars); STinG or MiNTnet. On an ST or STE, a Raspberry Pi (or any Debian
+or Ubuntu computer) for the gateway; Falcon mode needs a Falcon or TT.
 
 ## How it reaches the servers
 
-Calendar servers want HTTPS. Like [EMail](https://github.com/whomper/EMAIL),
-ECal gets there one of two ways:
+Calendar servers want HTTPS. Like [EMail](https://github.com/whomper/EMail), ECal gets there one of two
+ways:
 
 ```
-ST, STE, any Atari:  Atari (ECALST.ACC) --plain HTTP, home LAN--> Raspberry Pi (ecalgate.py) --HTTPS--> iCloud
-Falcon, TT:          Falcon (ECAL.ACC, TLS 1.2, RSA on the DSP) ---------------------HTTPS--> iCloud
+ST, STE:     Atari (ECALST.ACC) --plain HTTP, home LAN--> Raspberry Pi (ecalgate.py) --HTTPS--> the server
+Falcon, TT:  Atari (ECAL.ACC, TLS 1.2, RSA on the DSP) --------------------------------HTTPS--> the server
 ```
 
-- **Through the Pi.** `gateway/ecalgate.py` on a Raspberry Pi takes the
-  Atari's requests and makes the HTTPS connections. It also does what an
-  8 MHz machine finds hard: it unpacks compressed answers, keeps
-  connections to the servers open, and cuts multi-megabyte subscription
-  feeds down to the months you keep. See [gateway/README.md](gateway/README.md).
-- **Falcon mode.** On a Falcon (or a TT), ECal does TLS 1.2 itself
-  with [BearSSL](https://bearssl.org/), and the DSP56001 checks the servers'
-  RSA signatures (about 0.1 s each), as in EMail.
+- **Through the Pi.** `gateway/ecalgate.py` on a Raspberry Pi takes the Atari's requests and makes the
+  HTTPS connections. It also does what an 8 MHz machine finds hard: it unpacks compressed answers,
+  keeps connections to the servers open, and cuts multi-megabyte subscription feeds down to the months
+  you keep. Any Atari can use it, a Falcon too, to save time.
+- **Falcon mode.** On a Falcon (or a TT), ECal does TLS 1.2 itself with
+  [BearSSL](https://bearssl.org/), and the DSP56001 checks the servers' RSA signatures (about 0.1 s
+  each), as in EMail.
+
+The gateway's own README, with its options and how to keep it private:
+[gateway/README.md](gateway/README.md).
+
+## What it does
+
+- **iCloud** and any **CalDAV** server (Fastmail, Nextcloud, Radicale, Synology, Yahoo...): calendars
+  found automatically; events added, changed and deleted on the server; changes made elsewhere fetched
+  with ETags, so only what changed comes over the line.
+- **Subscriptions**: `webcal://` and `https://` `.ics` feeds (holidays, sports, a Google calendar's
+  secret iCal address), refreshed on a schedule.
+- **On My Atari** calendars, kept only on this computer; `.ics` import.
+- **Views**: day (with the selected event's details), week, month and year; all-day and multi-day
+  events as bars, overlapping events side by side, "+3 more" when a day is full.
+- **Today** in red everywhere, a red line at the current time, a **Today** button, and the view moves
+  on at midnight.
+- **Repeating events**: every kind of repeat iCalendar has (RFC 5545: yearly to every second, any
+  BYDAY/BYMONTHDAY/BYYEARDAY/BYWEEKNO/BYMONTH/BYHOUR/BYMINUTE/BYSECOND, BYSETPOS, WKST, extra dates
+  (RDATE), excluded dates and rules (EXDATE, EXRULE)), plus Hebrew-calendar repeats (RFC 7529
+  `RSCALE=HEBREW`, "every year on 12 Tishri"). The **Repeat** menu has the usual ones; **Custom...**
+  builds any rule ("the last Friday of every month", "the second Monday of March and September"), or
+  type it in.
+- **One occurrence or the series**: move, change or delete just one occurrence of a repeating event,
+  or this and all future ones, as on the Mac. Changes made on an iPhone to one occurrence or to "this
+  and future" show as they should.
+- **Reminders** pop up over any program, even with the window closed.
+- **Time zones**: events keep their zone; with time zone support on, see your calendar as it looks
+  from another city. Summer time rules for Israel (the Friday before the last Sunday of March),
+  Europe, the Americas, Australia and more are built in; others are learned from the calendar data.
+- **Hebrew**: titles, places and notes in Hebrew, right to left, typed on the Israeli keyboard (F10)
+  in every field, as in EMail; Hebrew calendar names; Hebrew dates (י״ב תשרי תשפ״ז) next to the civil
+  ones.
+- **Cancelled events** are left out: cancelled by the organiser, titled "Canceled:" (Outlook,
+  Exchange), or invitations you declined.
+- **Find** (^F) through titles, places and notes.
+- **Tooltips**: rest the mouse on an event to see its title and times.
+- **Fonts**: the system font or any monospaced GDOS font (NVDI, SpeedoGDOS), picked in EMail's font
+  selector; twelve calendar colours. With NVDI the views draw several times faster than with TOS's own
+  VDI.
+- **The calendar list** hides with a toolbar button (or ⇧^S), leaving the window to the calendar.
+- **Offline**: ECal keeps a copy of everything on disk, so it opens at once, shows today before it
+  syncs, and works offline (**Work offline** in the Options or ≡ menu, as in EMail).
+- **TT RAM**: on a TT or an accelerated Falcon the program and its memory go to TT/Fast RAM, leaving
+  ST RAM free; the About box says so.
 
 ## Performance: Pi, ST and Falcon
 
-Where the work happens decides the speed. Figures are from the emulated
-Falcon (16 MHz 68030) and from counting 68030 instructions; a real
-iCloud sync also depends on the network and on how many events change.
+Where the work happens decides the speed. Figures are from the emulated Falcon (16 MHz 68030) and from
+counting 68030 instructions; a real iCloud sync also depends on the network and on how many events
+change.
 
 | | ST through the Pi | Falcon through the Pi | Falcon mode, DSP | Falcon mode, no DSP |
 |---|---|---|---|---|
@@ -101,107 +139,72 @@ iCloud sync also depends on the network and on how many events change.
 | Compressed answers | unpacked by the Pi | unpacked by the Pi | unpacked by ECal, ~10 instructions a byte | the same |
 | Big subscription feeds | trimmed by the Pi to the months kept | trimmed by the Pi | parsed whole by ECal | parsed whole |
 
-- **Through the Pi** is the fastest way for any Atari: the Atari only
-  sends and reads plain HTTP on the home network, and the Pi keeps the
-  connections to the servers open. On an 8 MHz ST, drawing and reading
-  the calendar data take most of the time, not the network.
-- **Falcon mode** needs no Pi. After the first connection each request
-  costs well under a second; most of a first sync goes into the first
-  handshake and into decrypting what comes back, which compression keeps
-  small. Saving an event takes about a second.
-- **The DSP** only speeds up the certificate checks at the start of each
-  new connection; with session resumption there are few of those, so
-  it matters most for the first sync after starting ECal.
-- On a TT or an accelerated Falcon, running in TT/Fast RAM makes
-  everything ECal does itself faster.
+- **Through the Pi** is the fastest way for any Atari: the Atari only sends and reads plain HTTP on
+  the home network, and the Pi keeps the connections to the servers open. On an 8 MHz ST, drawing and
+  reading the calendar data take most of the time, not the network.
+- **Falcon mode** needs no Pi. After the first connection each request costs well under a second;
+  most of a first sync goes into the first handshake and into decrypting what comes back, which
+  compression keeps small. Saving an event takes about a second.
+- **The DSP** only speeds up the certificate checks at the start of each new connection; with session
+  resumption there are few of those, so it matters most for the first sync after starting ECal.
+- On a TT or an accelerated Falcon, running in TT/Fast RAM makes everything ECal does itself faster.
 
-In Falcon mode the 68030 decrypts every byte itself and doesn't read
-from STinG while it does, so receiving and decrypting take turns: the
-speed is about 1/(1/network + 1/decrypt). EMail measured 13 KB/s that
-way against 37 KB/s through the Pi. Faster decryption is all ECal can
-do about it (table-based AES and the fastest GHASH, 16 KB reads, long
-copies on the 68030); a bigger TCP receive window in STinG's own
-configuration lets the two overlap. With **Write a log** on, every line
-of `ECAL.LOG` starts with the time of day to the hundredth of a second,
-so you can see where a sync spends its time.
-
-## The files
-
-Each [release](https://github.com/whomper/ECal/releases/latest) has
-them, each on its own and all together in `ECAL-x.y.zip`:
-
-| File           | For                                                               |
-|----------------|-------------------------------------------------------------------|
-| `ECAL.ACC`     | Falcon and TT: the accessory with Falcon mode (TLS, DSP); also works through the Pi |
-| `ECALST.ACC`   | ST and STE: the same accessory without TLS (150 KB smaller), through the Pi |
-| `ECAL.PRG`     | the same as ECAL.ACC, to start from the desktop, with a menu bar |
-| `CACERT.PEM`, `ROOTS.DAT` | the root certificates for Falcon mode                  |
-| `ECAL.RSC`, `ECAL.ICN`, `ECALMK.ICN` | ECal's icon for the desktop, black and white and 16 colours, in the zip's `icons/` folder (see the guide's "The desktop icon") |
-| `ECAL.HYP`, `ECAL.REF` | this guide for ST-Guide or HypView, opened by the Help key: keep them next to ECal or in your help folder (e.g. `C:\GUIDES\`) |
-
-## Getting started
-
-1. Copy `ECAL.ACC` (Falcon/TT) or `ECALST.ACC` (ST/STE, renamed to
-   `ECAL.ACC` or not) into the root of your boot drive, e.g. `C:\`.
-   For Falcon mode, make a folder `C:\ECAL` and put `CACERT.PEM` and
-   `ROOTS.DAT` in it. (ECal keeps its own files there too.) The folder
-   can be anywhere: the settings, `C:\ECAL.INF`, say where in `FOLDER=`;
-   start `ECAL.PRG` from the folder once, or show the accessory where
-   it is when it asks.
-2. For an ST, set up the gateway on a Raspberry Pi:
-   `sudo gateway/install.sh` (see [gateway/README.md](gateway/README.md)).
-3. Reboot, choose **ECal** in the Desk menu, and add your iCloud
-   account with an [app-specific password](https://support.apple.com/en-us/102654).
-
-The [user guide](docs/GUIDE.md) describes the rest.
-
-![Desk menu](docs/desk-menu.png) ![New event](docs/new-event.png)
+In Falcon mode the 68030 decrypts every byte itself and doesn't read from STinG while it does, so
+receiving and decrypting take turns: the speed is about 1/(1/network + 1/decrypt). EMail measured
+13 KB/s that way against 37 KB/s through the Pi. Faster decryption is all ECal can do about it
+(table-based AES and the fastest GHASH, 16 KB reads, long copies on the 68030); a bigger TCP receive
+window in STinG's own configuration lets the two overlap. With **Write a log** on, every line of
+`ECAL.LOG` starts with the time of day to the hundredth of a second, so you can see where a sync spends
+its time.
 
 ## Building
 
+```sh
+sudo apt install gcc gcc-m68k-linux-gnu python3 zip   # Debian/Ubuntu; no MiNTLib needed
+make                          # binary/ECAL.ACC, ECAL.PRG, ECALST.ACC, CACERT.PEM, ROOTS.DAT
+make test                     # the core's unit tests on this computer, the fuzz inputs, the gateway's tests
+make itest                    # against a local CalDAV server (Radicale)
+make help HCP=/path/to/hcp    # binary/ECAL.HYP from docs/GUIDE.md (hcp: common/tools/build-hcp.sh)
+make dist HCP=/path/to/hcp    # dist/: a release's files, each on its own and in ECAL-x.y.zip
+make icons                    # icons/, ECal's desktop icon (committed), drawn by tools/icon/
 ```
-sudo apt install gcc-m68k-linux-gnu      # Debian/Ubuntu
-make                                     # binary/ECAL.ACC, ECAL.PRG, ECALST.ACC
-make help HCP=...                        # binary/ECAL.HYP (hcp: common/tools/build-hcp.sh)
-make dist                                # a release's files in dist/
-```
 
-The program is freestanding (`atari/`, no MiNTLib); `common/tools/elf2tos.py`
-writes the TOS executable. One binary is both the accessory and the
-program: the start-up code (`common/atari/crt0.S`) sees which way TOS started it.
-Everything is 68000 code except BearSSL, which is built for the 68030.
+The program is freestanding (no MiNTLib): the C library and the TOS runtime are in `common/atari/`,
+and `common/tools/elf2tos.py` writes the TOS executable. One binary is both the accessory and the
+program: the start-up code (`common/atari/crt0.S`) sees which way TOS started it. Everything is 68000
+code except BearSSL, which is built for the 68030.
 
-`binary/` and `dist/` are what make builds; they are never committed.
+`binary/` and `dist/` are what make builds; they are never committed, and a build changes no tracked
+file.
 
-**Versions and releases.** `VERSION` holds the last release, major.minor
-(e.g. 1.97), and the build never changes it. A release build
-(`RELEASE=1`) shows it as it is in the About box and the User-Agent ECal
-sends; any other build shows `1.97-dev`. To release: `tools/bump.py`,
-commit and push, then run the Release workflow (Actions > Release > Run
-workflow, on main) with what is new:
-[`.github/workflows/release.yml`](.github/workflows/release.yml) tags the
-commit `v1.98`, tests, builds the programs and the help file, and
-publishes them as a GitHub Release with those notes. Pushing a tag
-`v1.98` made with `git tag -a` does the same, with the tag's message as
-the notes.
+**Versions and releases.** `VERSION` holds the last release, major.minor (e.g. 1.97), and the build
+never changes it. A release build (`RELEASE=1`) shows it as it is in the About box and the User-Agent
+ECal sends; any other build shows `1.97-dev`. To release: `tools/bump.py`, commit and push, then run
+the Release workflow (**Actions > Release > Run workflow**, on `main`) with what is new:
+[`.github/workflows/release.yml`](.github/workflows/release.yml) tags the commit `v1.98`, tests, builds
+the programs and the help file, and publishes them as a GitHub Release with those notes. Pushing a tag
+`v1.98` made with `git tag -a` does the same, with the tag's message as the notes.
 
 ## Source
 
 ```
 src/      the calendar core, also built on Linux for the tests:
-          ctime.c  dates and the Hebrew calendar      tz.c      time zones
-          ics.c    iCalendar                          rrule.c   repeat rules
-          xml.c    WebDAV answers
-          http.c   HTTP/1.1, via the Pi or with TLS   caldav.c  CalDAV
-          calstore.c  accounts, caches, sync, saving changes
-          (charset, conn, tls: from EMail; bidi, secret: in common/)
-ui/       the GEM program: window, views, sidebar, event editor, dialogs,
+          ics.c       iCalendar               rrule.c    repeat rules
+          xml.c       WebDAV answers          inflate.c  compressed answers
+          http.c      HTTP/1.1, via the Pi or with TLS
+          caldav.c    CalDAV                  calstore.c accounts, caches, sync, saving changes
+ui/       the GEM program: window, views, sidebar, event editor, dialogs, fonts, About box,
           and field.c, dialogs whose text fields take Hebrew
-atari/    TOS runtime from EMail (start-up for accessories added), STinG, DSP
-common/   code shared with the other AERA programs (from AERA-Atari):
-          BearSSL, the DSP RSA program, bidi, dates, passwords, build tools
+atari/    plat_tos.c: files, folders and time on GEMDOS
+common/   code shared with the other AERA programs (from AERA-Atari): the TOS runtime and
+          C library, STinG, TLS and connections, BearSSL, the DSP RSA program, charsets,
+          bidi, dates and the Hebrew calendar (ctime.c), time zones (tz.c), passwords,
+          GEM building blocks (menus, alerts, help, AV, iconify), build tools
 gateway/  ecalgate.py, the Raspberry Pi gateway, and its installer
-tests/    unit tests, CalDAV integration tests, Hatari tests
+tests/    unit tests, fuzz targets, CalDAV integration tests, Hatari tests
+tools/    bump.py (a release), guide2stg.py (the help file), icon/ (the icons),
+          fakesting/ (the Hatari tests' network), sync-common.sh (common/ from AERA-Atari)
+docs/     the user guide (GUIDE.md, the source of ECAL.HYP) and its pictures
 ```
 
 ## Tests
@@ -220,27 +223,30 @@ FALCON=1 make itest          # rest, changes from elsewhere, subscriptions, impo
                              # (pip install radicale)
 ```
 
-`tests/hatari/` runs the real accessory in the
-[Hatari](https://hatari.tuxfamily.org/) emulator with
-[EmuTOS](https://emutos.sourceforge.io/), driven by Xvfb and xdotool:
+`tests/hatari/` runs the real accessory in the [Hatari](https://hatari.tuxfamily.org/) emulator with
+[EmuTOS](https://emutos.sourceforge.io/), driven by Xvfb and xdotool. The machine is an emulated
+Falcon unless the line says otherwise:
 
 ```
-tests/hatari/acc_test.py WORK etos512us.img                # as a desk accessory, Falcon
+tests/hatari/acc_test.py WORK etos512us.img                # as a desk accessory
 tests/hatari/edit_test.py WORK etos512us.img               # add, Hebrew title, find, delete,
                                                            # one occurrence, custom repeats
 tests/hatari/edit_test.py WORK etos512us.img --machine st --acc ECALST.ACC
                                                            # the same on an ST, up to delete
 tests/hatari/net_test.py WORK etos512us.img                # an ST syncing through ecalgate
 tests/hatari/net_test.py WORK etos512us.img --falcon-mode  # TLS on the Falcon, RSA on the DSP
-tests/hatari/stop_test.py WORK etos512us.img               # Esc stops a server that says nothing
+tests/hatari/stop_test.py WORK etos512us.img               # on an ST: Esc stops a server that
+                                                           # says nothing
+tests/hatari/twin_test.py WORK etos512us.img               # ECAL.PRG and ECAL.ACC on one machine
+tests/hatari/help_test.py WORK etos512us.img               # the Help key (make fakeguide first)
 tests/hatari/ui_tour.py WORK etos512us.img                 # screenshots of every view
 TZ=America/New_York tests/hatari/docs_shots.py WORK etos512us.img --update
-                                                           # the screenshots in docs/
+                                                           # the screenshots in docs/ (Falcon,
+                                                           # and a Mega ST in mono)
 ```
 
-The network tests use EMail's FAKESTNG.PRG (`make -C tools/fakesting`),
-which carries the emulated Atari's TCP over its serial port; it's for the
-emulator only, never for a real Atari.
+The network tests use EMail's `FAKESTNG.PRG` (`make -C tools/fakesting`), which carries the emulated
+Atari's TCP over its serial port; it's for the emulator only, never for a real Atari.
 
 ## Licence
 
@@ -259,3 +265,7 @@ It includes, under their own licences (compatible with the GPL):
   ([LICENSE.txt](common/third_party/bearssl/LICENSE.txt))
 - `CACERT.PEM`, the root certificates for Falcon mode, from Mozilla's CA
   list (Mozilla Public License 2.0)
+
+---
+
+Part of **AERA** for Atari: [ECal](https://github.com/whomper/ECal) · [EContact](https://github.com/whomper/EContact) · [EMail](https://github.com/whomper/EMail) · [EFTP](https://github.com/whomper/EFTP) · [EHypView](https://github.com/whomper/EHypView) · [ClaudeST](https://github.com/whomper/ClaudeST) · 8-bit: [EDOS](https://github.com/whomper/EDOS) · [EFTP_XL](https://github.com/whomper/EFTP_XL)

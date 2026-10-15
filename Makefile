@@ -59,7 +59,7 @@ BIN     := binary
 
 all: $(BIN)/ECAL.ACC $(BIN)/ECAL.PRG $(BIN)/ECALST.ACC $(BIN)/ROOTS.DAT
 
-# the ST edition: no TLS of its own (it uses the Pi gateway), 150 KB
+# the ST edition: no TLS of its own (it uses the Pi gateway), about 105 KB
 # smaller; only BearSSL's MD5 (for Digest logins), as 68000 code. Only
 # ever an accessory, so no crash catcher (crash_none.c)
 STBSSL  := hash/md5 codec/dec32le codec/enc32le
