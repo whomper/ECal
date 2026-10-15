@@ -338,7 +338,7 @@ instance).
 | Tab, Shift+Tab      | the next/previous event                 |
 | Return              | open the selected event (none: a new one) |
 | Delete              | delete the selected event               |
-| Esc                 | nothing selected                        |
+| Esc                 | nothing selected; while busy: stop      |
 | N, ^N               | new event                               |
 | ^F                  | find                                    |
 | ^G                  | go to a date                            |
@@ -350,6 +350,11 @@ instance).
 | ^W, ^Q              | close the window                        |
 | F10                 | Hebrew keyboard                         |
 | Help                | this guide (see below)                  |
+
+While the busy bee shows (a refresh, saving an event to the server), Esc
+or Undo stops what ECal is waiting for from the server, at once rather
+than after the minute it would wait: the alert then says "stopped".
+Anything else you type meanwhile is kept for afterwards.
 
 Help (or Help > **ECal help**, or **Help...** in the ≡ menu) opens this guide in EHypView,
 ST-Guide or HypView, whichever is running (as an accessory, or as a
@@ -371,6 +376,10 @@ with ` ;`). A password typed in there in plain text is encrypted with
 ECAL.KEY the next time ECal starts. ECal writes the file anew as
 `ECAL.IN$` and only then puts it in the old one's place, so a reset or a
 full disk while it writes leaves the old settings as they were.
+When ECAL.KEY can't be written (a locked disk, a full one, a folder in its
+place), the passwords go into ECAL.INF as they are, and ECal says so once
+each time it starts; once ECAL.KEY can be written, they are encrypted the
+next time ECal saves its settings.
 
 ## The desktop icon
 

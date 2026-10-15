@@ -198,7 +198,10 @@ tests/    unit tests, CalDAV integration tests, Hatari tests
 ```
 make test                    # the core: dates, Hebrew dates, zones, iCalendar, repeats,
                              # repeat rules with all of RFC 5545's examples, XML, URLs
-                             # (231 checks); and the gateway (8 tests)
+                             # (241 checks); the fuzz inputs again (tests/fuzz/seeds,
+                             # and found/: what once broke a parser); the gateway (8 tests)
+make fuzz                    # the CalDAV answers, iCalendar, repeat rules, XML and
+                             # inflate from libFuzzer (clang), FUZZTIME seconds each
 make itest                   # cal-cli against a real CalDAV server (Radicale): sync,
 GATEWAY=1 make itest         # add, rename, move one occurrence, delete one or the
 FALCON=1 make itest          # rest, changes from elsewhere, subscriptions, import;
@@ -218,6 +221,7 @@ tests/hatari/edit_test.py WORK etos512us.img --machine st --acc ECALST.ACC
                                                            # the same on an ST, up to delete
 tests/hatari/net_test.py WORK etos512us.img                # an ST syncing through ecalgate
 tests/hatari/net_test.py WORK etos512us.img --falcon-mode  # TLS on the Falcon, RSA on the DSP
+tests/hatari/stop_test.py WORK etos512us.img               # Esc stops a server that says nothing
 tests/hatari/ui_tour.py WORK etos512us.img                 # screenshots of every view
 TZ=America/New_York tests/hatari/docs_shots.py WORK etos512us.img --update
                                                            # the screenshots in docs/

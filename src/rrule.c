@@ -139,8 +139,11 @@ int rrule_parse(const char *s, RRULE *r)
 				int sign = 1, ord = 0, w;
 				if (*p == '+' || *p == '-')
 					sign = *p++ == '-' ? -1 : 1;
-				while (*p >= '0' && *p <= '9')
-					ord = ord * 10 + (*p++ - '0');
+				while (*p >= '0' && *p <= '9') {
+					if (ord < 1000)		/* "2151222225MO": too big, not an overflow */
+						ord = ord * 10 + (*p - '0');
+					p++;
+				}
 				w = wday_code(p);
 				if (w >= 0 && ord <= 53)
 					r->byday[r->nbyday++] = (short)(sign * ord * 8 + w);
@@ -151,19 +154,19 @@ int rrule_parse(const char *s, RRULE *r)
 			}
 		} else if (!strcmp(key, "BYMONTHDAY")) {
 			n = num_list(val, -31, 31, 0, nums, RR_MAXBY);
-			for (i = 0; i < n; i++)
+			for (i = 0; i < n && r->nbymd < RR_MAXBY; i++)	/* the key may come twice */
 				r->bymd[r->nbymd++] = (signed char)nums[i];
 		} else if (!strcmp(key, "BYYEARDAY")) {
 			n = num_list(val, -366, 366, 0, nums, RR_MAXBY);
-			for (i = 0; i < n; i++)
+			for (i = 0; i < n && r->nbyyd < RR_MAXBY; i++)	/* the key may come twice */
 				r->byyd[r->nbyyd++] = (short)nums[i];
 		} else if (!strcmp(key, "BYWEEKNO")) {
 			n = num_list(val, -53, 53, 0, nums, RR_MAXBY);
-			for (i = 0; i < n; i++)
+			for (i = 0; i < n && r->nbywn < RR_MAXBY; i++)	/* the key may come twice */
 				r->bywn[r->nbywn++] = (signed char)nums[i];
 		} else if (!strcmp(key, "BYSETPOS")) {
 			n = num_list(val, -366, 366, 0, nums, RR_MAXBY);
-			for (i = 0; i < n; i++)
+			for (i = 0; i < n && r->nbysetpos < RR_MAXBY; i++)	/* the key may come twice */
 				r->bysetpos[r->nbysetpos++] = (short)nums[i];
 		} else if (!strcmp(key, "BYMONTH")) {
 			char *p = val;

@@ -39,7 +39,7 @@ HBSSLOBJ = $(patsubst $(BSSL)/src/%.c,$(OBJDIR)/hbssl/%.o,$(BSSLSRC))
 
 CORE    := util charset conn tls bidi secret futil ctime tz ics rrule xml inflate http caldav calstore
 ATARI   := libc tos plat_tos net_tos sting gem dsprsa
-UI      := main win draw popup dsp views sidebar editor dialogs field about font help av alert aboutbox iconify clip dd mbar twin
+UI      := main win draw popup dsp views sidebar editor dialogs field about font help av alert aboutbox iconify clip dd mbar twin busy
 
 OBJDIR  := build
 OBJS0   := $(OBJDIR)/crt0.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o $(OBJDIR)/crash.o $(OBJDIR)/crash_s.o \
@@ -176,8 +176,45 @@ $(BIN)/ECAL.HYP: docs/GUIDE.md tools/guide2stg.py VERSION | $(OBJDIR)
 	python3 tools/guide2stg.py docs/GUIDE.md $(OBJDIR)/ECAL.STG VERSION
 	$(HCP) -o $@ $(OBJDIR)/ECAL.STG
 
-test: $(OBJDIR)/unit
+# ---- fuzzing (the AERA guidelines, 7.1): what servers send, from
+# libFuzzer, with AddressSanitizer and UBSan. The network is
+# common/tests/fuzz/fuzz_net.c: the server says the fuzz input. Needs
+# clang with libFuzzer (Debian/Ubuntu: clang, libclang-rt-dev); make fuzz
+# runs each target FUZZTIME seconds from tests/fuzz/seeds (mkseeds.py)
+FUZZCC    ?= clang
+FUZZTIME  ?= 60
+FUZZERS   := dav ics rrule xml inflate
+FUZZFLAGS := -g -O1 -fsanitize=fuzzer,address,undefined -fno-sanitize-recover=undefined -DFUZZ_NET \
+             -Isrc -Icommon/src -Icommon/tests/fuzz -I$(BSSL)/inc
+
+$(OBJDIR)/fuzz_%: tests/fuzz/fuzz_%.c $(HOSTSRC) $(HDRS) $(HOSTLIB) common/tests/fuzz/fuzz_net.c | $(OBJDIR)
+	$(FUZZCC) $(FUZZFLAGS) -o $@ $< $(HOSTSRC) common/tests/fuzz/fuzz_net.c $(HOSTLIB)
+
+fuzz: $(addprefix $(OBJDIR)/fuzz_,$(FUZZERS))
+	@for f in $(FUZZERS); do \
+	  mkdir -p $(OBJDIR)/corpus/$$f; \
+	  echo "fuzz_$$f: $(FUZZTIME) s"; \
+	  $(OBJDIR)/fuzz_$$f -max_total_time=$(FUZZTIME) -timeout=10 -rss_limit_mb=1024 \
+	    -artifact_prefix=$(OBJDIR)/crash-$$f- $(OBJDIR)/corpus/$$f tests/fuzz/seeds/$$f \
+	    $$(ls -d tests/fuzz/found/$$f 2>/dev/null) \
+	    > $(OBJDIR)/fuzz_$$f.log 2>&1 || { tail -40 $(OBJDIR)/fuzz_$$f.log; exit 1; }; \
+	  grep -E "^#[0-9]+.*DONE" $(OBJDIR)/fuzz_$$f.log | tail -1; \
+	done
+
+# the same targets without libFuzzer (common/tests/fuzz/replay.c), with
+# this computer's compiler: make test runs the seeds again, and the inputs
+# that once broke a parser (tests/fuzz/found)
+REPLAYFLAGS := $(HOSTCFLAGS) -fno-sanitize-recover=undefined -DFUZZ_NET -Icommon/tests/fuzz -I$(BSSL)/inc
+REPLAYSRC   := common/tests/fuzz/fuzz_net.c common/tests/fuzz/replay.c
+
+$(OBJDIR)/replay_%: tests/fuzz/fuzz_%.c $(HOSTSRC) $(HDRS) $(HOSTLIB) $(REPLAYSRC) | $(OBJDIR)
+	$(HOSTCC) $(REPLAYFLAGS) -o $@ $< $(HOSTSRC) $(REPLAYSRC) $(HOSTLIB)
+
+test: $(OBJDIR)/unit $(addprefix $(OBJDIR)/replay_,$(FUZZERS))
 	$(OBJDIR)/unit
+	@for f in $(FUZZERS); do \
+	  $(OBJDIR)/replay_$$f tests/fuzz/seeds/$$f $$(ls -d tests/fuzz/found/$$f 2>/dev/null) || exit 1; \
+	done
 	python3 -m unittest discover -s gateway -p 'test_*.py'
 
 itest: $(OBJDIR)/cal-cli
@@ -186,4 +223,4 @@ itest: $(OBJDIR)/cal-cli
 clean:
 	rm -rf $(OBJDIR) $(BIN)/ECAL.ACC $(BIN)/ECAL.PRG $(BIN)/ECALST.ACC
 
-.PHONY: icons fakeguide all help test itest clean
+.PHONY: icons fakeguide all help test itest fuzz clean

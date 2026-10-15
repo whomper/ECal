@@ -123,8 +123,9 @@ void pf_debug(const char *s)
 		fprintf(stderr, "%s\n", s);
 }
 
-/* ---- TCP ---- */
+/* ---- TCP ---- (the fuzz targets have their own: common/tests/fuzz/fuzz_net.c) */
 
+#ifndef FUZZ_NET
 int net_init(void) { return 1; }
 const char *net_stack(void) { return "POSIX"; }
 
@@ -191,3 +192,4 @@ long net_read(int h, void *buf, long max)
 
 void net_close(int h) { close(h); }
 void net_close_wait(int h, int seconds) { (void)seconds; close(h); }
+#endif

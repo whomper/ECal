@@ -376,10 +376,25 @@ static void test_rrules(void)
 		CHECK_STR(s, "Every month on the last Friday");
 		CHECK(rrule_parse("FREQ=HOURLY", &r) && r.freq == F_HOURLY);
 		CHECK(!rrule_parse("RSCALE=CHINESE;FREQ=YEARLY", &r));
+		/* found by make fuzz: an ordinal too long for an int is left out */
+		CHECK(rrule_parse("FREQ=MONTHLY;BYDAY=2151222225MO,2TU", &r) && r.nbyday == 1);
+		/* and a list given twice no longer runs past its 32 places */
+		{
+			char rule[400] = "FREQ=YEARLY", one[200] = ";BYYEARDAY=1";
+			int k;
+			for (k = 2; k <= 32; k++)
+				snprintf(one + strlen(one), sizeof(one) - strlen(one), ",%d", k);
+			strcat(rule, one);
+			strcat(rule, one);
+			CHECK(rrule_parse(rule, &r) && r.nbyyd == RR_MAXBY);
+		}
 	}
 	{
 		long m;
 		CHECK(ics_duration("-PT15M", &m) && m == -15);
+		/* found by make fuzz: no overflow, at most 1000 years */
+		CHECK(ics_duration("P1777777777777777777W", &m) && m == 1000L * 366 * 24 * 60);
+		CHECK(ics_duration("P999999W1D", &m) && m == 1000L * 366 * 24 * 60);
 		CHECK(ics_duration("P1DT2H", &m) && m == 26 * 60);
 		CHECK(ics_duration("-P1W", &m) && m == -7 * 1440);
 	}

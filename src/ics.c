@@ -161,6 +161,17 @@ void ics_escape(SBUF *b, const char *atari)
 
 /* ---------------- durations and rules ---------------- */
 
+/* a duration is kept to 1000 years: in minutes, that fits the Atari's
+   32-bit long, whatever a server writes ("P99999999999W") */
+#define DUR_MAX (1000L * 366 * MIN_PER_DAY)
+
+static long dur_add(long v, long n, long unit)
+{
+	if (n > (DUR_MAX - v) / unit)
+		return DUR_MAX;
+	return v + n * unit;
+}
+
 int ics_duration(const char *s, long *minutes)
 {
 	long v = 0, n = 0;
@@ -173,16 +184,17 @@ int ics_duration(const char *s, long *minutes)
 		return 0;
 	for (; *s; s++) {
 		if (*s >= '0' && *s <= '9') {
-			n = n * 10 + (*s - '0');
+			if (n <= DUR_MAX / 10)
+				n = n * 10 + (*s - '0');
 			continue;
 		}
 		switch (*s) {
-		case 'W': v += n * 7 * MIN_PER_DAY; break;
-		case 'D': v += n * MIN_PER_DAY; break;
+		case 'W': v = dur_add(v, n, 7 * MIN_PER_DAY); break;
+		case 'D': v = dur_add(v, n, MIN_PER_DAY); break;
 		case 'T': time = 1; break;
-		case 'H': v += n * 60; break;
-		case 'M': if (time) v += n; break;
-		case 'S': v += n / 60; break;
+		case 'H': v = dur_add(v, n, 60); break;
+		case 'M': if (time) v = dur_add(v, n, 1); break;
+		case 'S': v = dur_add(v, n / 60, 1); break;
 		default: return 0;
 		}
 		any = 1;

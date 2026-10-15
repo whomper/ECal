@@ -1,0 +1,63 @@
+€HTTP/1.1 207 Multi-Status
+Content-Type: application/xml; charset=utf-8
+Content-Length: 409
+
+<?xml version="1.0" encoding="utf-8"?>
+<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/" xmlns:ic="http://apple.com/ns/ical/"><d:response><d:href>/</d:href><d:propstat><d:prop><d:current-user-principal><d:href>/principals/me/</d:href></d:current-user-principal></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>HTTP/1.1 207 Multi-Status
+Content-Type: application/xml; charset=utf-8
+Content-Length: 412
+
+<?xml version="1.0" encoding="utf-8"?>
+<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/" xmlns:ic="http://apple.com/ns/ical/"><d:response><d:href>/principals/me/</d:href><d:propstat><d:prop><c:calendar-home-set><d:href>/calendars/me/</d:href></c:calendar-home-set></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>HTTP/1.1 207 Multi-Status
+Content-Type: application/xml; charset=utf-8
+Transfer-Encoding: chunked
+
+28
+<?xml version="1.0" encoding="utf-8"?>
+<
+28
+d:multistatus xmlns:d="DAV:" xmlns:c="ur
+28
+n:ietf:params:xml:ns:caldav" xmlns:cs="h
+28
+ttp://calendarserver.org/ns/" xmlns:ic="
+28
+http://apple.com/ns/ical/"><d:response><
+28
+d:href>/calendars/me/</d:href><d:propsta
+28
+t><d:prop><d:resourcetype><d:collection/
+28
+></d:resourcetype></d:prop><d:status>HTT
+28
+P/1.1 200 OK</d:status></d:propstat></d:
+28
+response><d:response><d:href>/calendars/
+28
+me/home/</d:href><d:propstat><d:prop><d:
+28
+resourcetype><d:collection/><c:calendar/
+28
+></d:resourcetype><d:displayname>Home &a
+28
+mp; work</d:displayname><ic:calendar-col
+28
+or>#FF2968FF</ic:calendar-color><cs:getc
+28
+tag>"ctag-1"</cs:getctag><c:supported-ca
+28
+lendar-component-set><c:comp name="VEVEN
+28
+T"/></c:supported-calendar-component-set
+28
+><d:current-user-privilege-set><d:privil
+28
+ege><d:write/></d:privilege></d:current-
+28
+user-privilege-set></d:prop><d:status>HT
+28
+TP/1.1 200 OK</d:status></d:propstat></d
+1a
+:response></d:multistatus>
+0
+

@@ -11,6 +11,10 @@
 void xml_init(XMLP *x, const char *s, long n)
 {
 	memset(x, 0, sizeof(*x));
+	if (!s) {			/* an empty answer */
+		s = "";
+		n = 0;
+	}
 	x->p = s;
 	x->end = s + n;
 }

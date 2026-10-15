@@ -249,7 +249,7 @@ static CONN *get_conn(const URL *u, int gw, int *reused, char *err, int errlen)
 	http_close_all();
 	kept = conn_open("HTTP", host, port, 0, sec, err, errlen);
 	if (!kept) {
-		if (gw) {
+		if (gw && !conn_stop) {		/* (Esc: "stopped", nothing more) */
 			char e2[200];
 			str_copy(e2, err, sizeof(e2));
 			snprintf(err, errlen, "Can't reach the gateway at %s:%u (%s). Is ecalgate running on the Pi?",
