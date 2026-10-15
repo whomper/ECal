@@ -223,12 +223,15 @@ static const TZONE *fixed_zone(const char *name)
 	sign = *p++ == '-' ? -1 : 1;
 	if (posix)
 		sign = -sign;
-	while (*p >= '0' && *p <= '9')
-		h = h * 10 + (*p++ - '0');
+	/* digits enough for the checks below; a long run doesn't overflow */
+	for (; *p >= '0' && *p <= '9'; p++)
+		if (h < 1000)
+			h = h * 10 + (*p - '0');
 	if (*p == ':')
 		p++;
-	while (*p >= '0' && *p <= '9')
-		m = m * 10 + (*p++ - '0');
+	for (; *p >= '0' && *p <= '9'; p++)
+		if (m < 1000)
+			m = m * 10 + (*p - '0');
 	if (*p || h > 14)
 		return 0;
 	memset(&z, 0, sizeof(z));
