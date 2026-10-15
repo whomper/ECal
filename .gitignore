@@ -4,3 +4,5 @@ __pycache__/
 tools/fakesting/*.o
 tools/fakesting/*.elf
 tools/fakesting/FAKESTNG.PRG
+binary/
+dist/

@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
  * Copyright (C) 2026 AERA | Erez Yaary */
 /*
- * version.h - ECal's version, major.minor as in EMail: VERSION holds it
- * and every build counts the minor number up (tools/bump.py, from the
- * Makefile), e.g. "1.25".
+ * version.h - ECal's version: VERSION holds the last release (major.minor,
+ * e.g. "1.97"), which a release build shows; other builds show "1.97-dev".
+ * The Makefile writes version.c; tools/bump.py starts a release.
  */
 #ifndef VERSION_H
 #define VERSION_H

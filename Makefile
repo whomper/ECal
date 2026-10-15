@@ -10,6 +10,12 @@
 #   make test       builds the calendar core for this computer and runs the
 #                   unit tests; `make itest` also syncs with a local CalDAV
 #                   server (Radicale) directly and through the Pi gateway.
+#   make help       binary/ECAL.HYP, the guide for ST-Guide (needs hcp:
+#                   common/tools/build-hcp.sh builds it)
+#   make dist       a release's files in dist/: each file, and ECAL-x.y.zip
+#
+# binary/ is what make builds, never committed: releases carry the
+# programs (.github/workflows/release.yml, on a tag vX.Y).
 #
 # The Atari runtime, TLS and Hebrew text come from EMail
 # (github.com/whomper/EMAIL), which took them from Claude ST.
@@ -48,7 +54,7 @@ OBJS    := $(OBJS0) $(OBJDIR)/version.o
 HDRS    := $(wildcard src/*.h atari/*.h atari/include/*.h ui/*.h \
            common/src/*.h common/atari/*.h common/atari/include/*.h common/dsp/*.h)
 
-# what goes onto the Atari: binary/
+# what goes onto the Atari: binary/ (built, never committed)
 BIN     := binary
 
 all: $(BIN)/ECAL.ACC $(BIN)/ECAL.PRG $(BIN)/ECALST.ACC $(BIN)/ROOTS.DAT
@@ -61,7 +67,7 @@ STOBJS  := $(OBJDIR)/crt0.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o $(OBJDIR)/crash_n
            $(addprefix $(OBJDIR)/,$(addsuffix .o,$(filter-out tls,$(CORE)) $(ATARI) $(UI) tls_none)) \
            $(addprefix $(OBJDIR)/st/,$(addsuffix .o,$(notdir $(STBSSL)))) $(OBJDIR)/version.o
 
-$(BIN)/ECALST.ACC: $(OBJDIR)/ecalst.elf common/tools/elf2tos.py
+$(BIN)/ECALST.ACC: $(OBJDIR)/ecalst.elf common/tools/elf2tos.py | $(BIN)
 	PRGFLAGS=7 python3 common/tools/elf2tos.py $< $@
 
 $(OBJDIR)/ecalst.elf: $(STOBJS) common/atari/link.ld
@@ -76,12 +82,13 @@ $(OBJDIR)/st/%.o: $(BSSL)/src/codec/%.c
 
 # one program, two names: it sees at start-up whether TOS loaded it as
 # an accessory or started it as an application
-$(BIN)/ECAL.ACC: $(OBJDIR)/cal.elf common/tools/elf2tos.py
+$(BIN)/ECAL.ACC: $(OBJDIR)/cal.elf common/tools/elf2tos.py | $(BIN)
 	PRGFLAGS=7 python3 common/tools/elf2tos.py $< $@
 $(BIN)/ECAL.PRG: $(BIN)/ECAL.ACC
 	cp $< $@
 
-# ECal's icon for the desktop: binary/icons/ (ui/icon*.h too)
+# ECal's icon for the desktop: icons/ (ui/icon*.h too), drawn by
+# tools/icon and committed; a release carries them
 icons:
 	python3 tools/icon/make_rsc.py
 
@@ -126,14 +133,20 @@ $(OBJDIR)/nf.o: common/atari/nf.S | $(OBJDIR)
 $(OBJDIR)/crash_s.o: common/atari/crash.S | $(OBJDIR)
 	$(CC) -m68000 -c -o $@ $<
 
-$(OBJDIR):
+$(OBJDIR) $(BIN):
 	mkdir -p $@
 
-# every build counts the version up (VERSION, major.minor as in EMail):
-# version.c is written again
-# whenever anything in either edition was compiled again
-$(OBJDIR)/version.c: $(OBJS0) $(filter-out $(OBJDIR)/version.o,$(STOBJS)) src/version.h tools/bump.py
-	python3 tools/bump.py VERSION $@
+# the version: VERSION holds the last release (major.minor, e.g. 1.97),
+# and the build never writes it. A release build (RELEASE=1, as the
+# release workflow makes it) shows it as it is; any other shows
+# "1.97-dev". tools/bump.py starts a release.
+VERSION_STR := $(shell cat VERSION)$(if $(RELEASE),,-dev)
+
+# written again whenever the string changes, so RELEASE=1 rebuilds it
+$(OBJDIR)/version.c: FORCE | $(OBJDIR)
+	@printf '/* written by the Makefile: do not edit */\nconst char cal_version[] = "%s";\n' "$(VERSION_STR)" > $@.new
+	@if cmp -s $@.new $@; then rm $@.new; else mv $@.new $@; fi
+FORCE:
 $(OBJDIR)/version.o: $(OBJDIR)/version.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
@@ -162,7 +175,7 @@ $(OBJDIR)/mkroots: common/tools/mkroots.c $(HOSTSRC) $(HDRS) $(HOSTLIB) | $(OBJD
 	$(HOSTCC) $(HOSTCFLAGS) -I$(BSSL)/inc -o $@ common/tools/mkroots.c $(HOSTSRC) $(HOSTLIB)
 
 # the root certificates: Mozilla's list, kept in common/
-$(BIN)/CACERT.PEM: common/certs/CACERT.PEM
+$(BIN)/CACERT.PEM: common/certs/CACERT.PEM | $(BIN)
 	cp $< $@
 $(BIN)/ROOTS.DAT: $(BIN)/CACERT.PEM
 	$(MAKE) $(OBJDIR)/mkroots
@@ -172,9 +185,23 @@ $(BIN)/ROOTS.DAT: $(BIN)/CACERT.PEM
 # (github.com/th-otto/hypview): make help HCP=/path/to/hcp
 HCP     ?= hcp
 help: $(BIN)/ECAL.HYP
-$(BIN)/ECAL.HYP: docs/GUIDE.md tools/guide2stg.py VERSION | $(OBJDIR)
+$(BIN)/ECAL.HYP: docs/GUIDE.md tools/guide2stg.py VERSION | $(OBJDIR) $(BIN)
 	python3 tools/guide2stg.py docs/GUIDE.md $(OBJDIR)/ECAL.STG VERSION
 	$(HCP) -o $@ $(OBJDIR)/ECAL.STG
+
+# a release's files: each one in dist/, and all of them in
+# dist/ECAL-x.y.zip (the icons in icons/), for the release workflow
+DIST    := $(BIN)/ECAL.ACC $(BIN)/ECALST.ACC $(BIN)/ECAL.PRG $(BIN)/CACERT.PEM $(BIN)/ROOTS.DAT \
+           $(BIN)/ECAL.HYP $(BIN)/ECAL.REF
+ICONS   := icons/ECAL.RSC icons/ECAL.ICN icons/ECALMK.ICN
+dist: all help
+	rm -rf dist
+	mkdir -p dist/zip/icons
+	cp $(DIST) $(ICONS) dist/
+	cp $(DIST) dist/zip/
+	cp $(ICONS) dist/zip/icons/
+	cd dist/zip && zip -q -9 -r ../ECAL-$(VERSION_STR).zip .
+	rm -rf dist/zip
 
 # ---- fuzzing (the AERA guidelines, 7.1): what servers send, from
 # libFuzzer, with AddressSanitizer and UBSan. The network is
@@ -221,6 +248,6 @@ itest: $(OBJDIR)/cal-cli
 	tests/integration.sh
 
 clean:
-	rm -rf $(OBJDIR) $(BIN)/ECAL.ACC $(BIN)/ECAL.PRG $(BIN)/ECALST.ACC
+	rm -rf $(OBJDIR) $(BIN) dist
 
-.PHONY: icons fakeguide all help test itest fuzz clean
+.PHONY: icons fakeguide all help dist test itest fuzz clean FORCE

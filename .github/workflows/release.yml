@@ -1,0 +1,41 @@
+name: Release
+
+# A tag vX.Y (matching VERSION) builds ECal and publishes it as a GitHub
+# Release: each file on its own, and all of them in ECAL-x.y.zip. The
+# tag's message (git tag -a) is the release's notes.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: The tag matches VERSION
+        run: |
+          if [ "v$(cat VERSION)" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME, but VERSION says $(cat VERSION)"
+            exit 1
+          fi
+      - name: Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-m68k-linux-gnu zip autoconf automake libtool gettext autopoint pkg-config
+      - name: hcp, for the help file
+        run: common/tools/build-hcp.sh "$RUNNER_TEMP/hcp"
+      - name: Test
+        run: make test
+      - name: Build
+        run: make dist RELEASE=1 HCP="$RUNNER_TEMP/hcp/hcp"
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch -q --force origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+          git tag -l --format='%(contents)' "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
+          gh release create "$GITHUB_REF_NAME" dist/* --title "ECal $(cat VERSION)" \
+            --notes-file "$RUNNER_TEMP/notes.md"

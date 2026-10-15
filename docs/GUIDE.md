@@ -385,7 +385,7 @@ next time ECal saves its settings.
 
 ![ECal's icon](icon16.png)
 
-`binary/icons/` has ECal's icon for the desktop: `ECAL.RSC` holds a
+The release has ECal's icon for the desktop (in the zip, in `icons/`): `ECAL.RSC` holds a
 black and white and a 16-colour version to copy into `DESKICON.RSC` /
 `DESKCICN.RSC` (or Thing's, TeraDesk's or Jinnee's icon file) with a
 resource editor, and `ECAL.ICN` / `ECALMK.ICN` are the image and mask

@@ -127,7 +127,8 @@ so you can see where a sync spends its time.
 
 ## The files
 
-They are in the [`binary`](binary) folder:
+Each [release](https://github.com/whomper/ECal/releases/latest) has
+them, each on its own and all together in `ECAL-x.y.zip`:
 
 | File           | For                                                               |
 |----------------|-------------------------------------------------------------------|
@@ -135,7 +136,7 @@ They are in the [`binary`](binary) folder:
 | `ECALST.ACC`   | ST and STE: the same accessory without TLS (150 KB smaller), through the Pi |
 | `ECAL.PRG`     | the same as ECAL.ACC, to start from the desktop, with a menu bar |
 | `CACERT.PEM`, `ROOTS.DAT` | the root certificates for Falcon mode                  |
-| `icons/ECAL.RSC`, `ECAL.ICN`, `ECALMK.ICN` | ECal's icon for the desktop, black and white and 16 colours (see the guide's "The desktop icon") |
+| `ECAL.RSC`, `ECAL.ICN`, `ECALMK.ICN` | ECal's icon for the desktop, black and white and 16 colours, in the zip's `icons/` folder (see the guide's "The desktop icon") |
 | `ECAL.HYP`, `ECAL.REF` | this guide for ST-Guide or HypView, opened by the Help key: keep them next to ECal or in your help folder (e.g. `C:\GUIDES\`) |
 
 ## Getting started
@@ -161,6 +162,8 @@ The [user guide](docs/GUIDE.md) describes the rest.
 ```
 sudo apt install gcc-m68k-linux-gnu      # Debian/Ubuntu
 make                                     # binary/ECAL.ACC, ECAL.PRG, ECALST.ACC
+make help HCP=...                        # binary/ECAL.HYP (hcp: common/tools/build-hcp.sh)
+make dist                                # a release's files in dist/
 ```
 
 The program is freestanding (`atari/`, no MiNTLib); `common/tools/elf2tos.py`
@@ -168,11 +171,16 @@ writes the TOS executable. One binary is both the accessory and the
 program: the start-up code (`common/atari/crt0.S`) sees which way TOS started it.
 Everything is 68000 code except BearSSL, which is built for the 68030.
 
-**Version numbers.** As in EMail, `VERSION` holds major.minor (e.g.
-1.25) and every build counts the minor number up: `make` does it
-whenever anything was compiled again (`tools/bump.py`). The About box
-shows it, and it's in the User-Agent ECal sends. Commit `VERSION` with
-the program.
+`binary/` and `dist/` are what make builds; they are never committed.
+
+**Versions and releases.** `VERSION` holds the last release, major.minor
+(e.g. 1.97), and the build never changes it. A release build
+(`RELEASE=1`) shows it as it is in the About box and the User-Agent ECal
+sends; any other build shows `1.97-dev`. To release: `tools/bump.py`,
+commit, `git tag -a v1.98 -m "what is new"` and push the tag:
+[`.github/workflows/release.yml`](.github/workflows/release.yml) tests,
+builds the programs and the help file, and publishes them as a GitHub
+Release, with the tag's message as its notes.
 
 ## Source
 

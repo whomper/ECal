@@ -1,10 +1,13 @@
 # Notes for working on ECal
 
-- **Every new build gets a new version.** `make` counts the minor number
-  in `VERSION` up whenever anything was compiled again (`tools/bump.py`),
-  as in EMail and EContact: commit `VERSION` with `binary/`, and never
-  reuse a number. `make help HCP=...` makes `binary/ECAL.HYP` from
-  `docs/GUIDE.md` with that version.
+- **Releases carry the programs.** `binary/` and `dist/` are build output,
+  never committed. `VERSION` holds the last release and `make` never
+  writes it (a build shows `x.y-dev`; `RELEASE=1` shows `x.y`). A
+  release: `tools/bump.py`, commit, `git tag -a vX.Y -m "notes"`, push the
+  tag; `.github/workflows/release.yml` tests, builds the programs and
+  `ECAL.HYP` (hcp from `common/tools/build-hcp.sh`) and publishes each
+  file and the zip as a GitHub Release. Never reuse a number. The icons
+  are committed in `icons/` (`make icons`).
 - Before pushing: `make test` (the core, the fuzz inputs again, the
   gateway), `make itest` (cal-cli against Radicale: `pip install
   radicale`; also `GATEWAY=1` and `FALCON=1` when the connection code
