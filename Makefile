@@ -52,7 +52,7 @@ OBJS0   := $(OBJDIR)/crt0.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o $(OBJDIR)/crash.o
            $(addprefix $(OBJDIR)/,$(addsuffix .o,$(CORE) $(ATARI) $(UI)))
 OBJS    := $(OBJS0) $(OBJDIR)/version.o
 HDRS    := $(wildcard src/*.h atari/*.h atari/include/*.h ui/*.h \
-           common/src/*.h common/atari/*.h common/atari/include/*.h common/dsp/*.h)
+           common/src/*.h common/atari/*.h common/atari/include/*.h common/ui/*.h common/dsp/*.h)
 
 # what goes onto the Atari: binary/ (built, never committed)
 BIN     := binary
