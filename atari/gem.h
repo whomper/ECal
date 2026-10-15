@@ -184,6 +184,11 @@ short menu_ienable(OBJECT *tree, short item, short enable);
 short evnt_timer_(unsigned long ms);
 short appl_id(void);
 short appl_find(const char *name);	/* 8 characters, blank-padded; -1 if none */
+short appl_search(short mode, char *name, short *type, short *id);	/* 0: no more */
+#define APP_FIRST	0
+#define APP_NEXT	1
+#define APP_APPLICATION	2		/* appl_search's kinds */
+#define APP_ACCESSORY	4
 short appl_write(short id, short len, const void *buf);
 short scrp_read(char *path);			/* the clipboard's folder */
 short scrp_write(const char *path);
