@@ -66,24 +66,6 @@ def st_shots(r):
     r.shot("st-mono")
 
 
-def accessory(work, tos):
-    """the Desk menu with ECalendar in it"""
-    hd = os.path.join(work, "hd")
-    shutil.rmtree(work, ignore_errors=True)
-    os.makedirs(os.path.join(hd, "ECAL"))
-    shutil.copy(os.path.join(BIN, "ECAL.ACC"), os.path.join(hd, "ECAL.ACC"))
-    ui_tour.seed(os.path.join(hd, "ECAL"), english=True)
-    r = Rig(work, tos, machine="falcon", extra=["--memsize", "14"], auto=None)
-    try:
-        time.sleep(16)
-        r.click(18, 8)
-        time.sleep(1)
-        r.shot("desk-menu")
-    finally:
-        r.stop()
-    return os.path.join(work, "shots")
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("work")
@@ -91,8 +73,7 @@ def main():
     ap.add_argument("--update", action="store_true", help="copy them into docs/")
     a = ap.parse_args()
     dirs = [program(os.path.join(a.work, "falcon"), a.tos, "falcon", falcon_shots),
-            program(os.path.join(a.work, "st"), a.tos, "st", st_shots),
-            accessory(os.path.join(a.work, "acc"), a.tos)]
+            program(os.path.join(a.work, "st"), a.tos, "st", st_shots)]
     for d in dirs:
         for f in sorted(os.listdir(d)):
             if not f.endswith(".png") or f.startswith("grab"):
