@@ -799,6 +799,8 @@ static void load_settings(void)
 			 (unsigned long)h, (unsigned long)h >= 0x01000000UL ? "TT" : "ST");
 		free(h);
 		conn_log("ECal", "--", m, (long)strlen(m));
+		snprintf(m, sizeof(m), "the window is drawn %s", win_drawing());
+		conn_log("ECal", "--", m, (long)strlen(m));
 		conn_log_flush();
 	}
 	settings_ready = 1;
@@ -1207,6 +1209,8 @@ int main(void)
 		hovering = win_h > 0 && !win_iconified && !tip_tried && hover_x >= 0;
 		if (hovering && wait > 100)
 			wait = 100;
+		if (win_scroll_pending())
+			wait = 0;	/* a scroll waiting: drawn as soon as nothing more comes */
 		/* a click comes at once; where a double click means something,
 		   click_count() waits for the second one before anything is done */
 		/* a refresh waiting: shortly, once the redraws are done */
@@ -1218,6 +1222,11 @@ int main(void)
 			which = evnt_multi_(flags, is_acc ? 0x102 : 0x101, 3, 0, wait, msg, &ev);
 		if (win_iconified)	/* an icon takes no keys or clicks (taken, not left for later) */
 			which &= ~(MU_KEYBD | MU_BUTTON);
+		/* the scroll waiting is drawn before anything else is done; more
+		   arrows add to it (up to 150 ms of them) */
+		if (win_scroll_pending() &&
+		    (!(which & MU_MESAG) || msg[0] != WM_ARROWED || win_scroll_due()))
+			win_scroll_flush();
 		if (which & (MU_M1 | MU_KEYBD | MU_BUTTON | MU_MESAG)) {
 			short k;
 			if (which & MU_M1)

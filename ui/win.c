@@ -12,6 +12,7 @@
 #include "bidi.h"
 #include "iconify.h"
 #include "av.h"
+#include "plat.h"
 #include <tos.h>
 
 short win_h = -1;
@@ -249,13 +250,25 @@ static void draw_all(GRECT *clip)
  * A view is many small fills, lines and texts; drawn straight onto the
  * screen, a slow machine shows them appearing one by one. So the window
  * is drawn into a screen-sized buffer and copied to the screen at once.
- * TOS's VDI draws at the logical screen base, so the buffer is made the
- * logical screen for the drawing (Setscreen), the shown screen staying
- * as it is. Only under single-tasking TOS on the machine's own video
- * (nothing else can draw meanwhile), and only when a test at start-up
- * shows that drawing really goes there; elsewhere it is drawn as before. */
+ * Two ways to draw there:
+ *  - an off-screen bitmap (EdDI v_opnbm: NVDI 3 and later, fVDI...): a
+ *    VDI workstation of its own over our buffer; the drawing code's
+ *    vdi_h is that one while it draws. Safe under any AES.
+ *  - with TOS's own VDI, which draws at the logical screen base: the
+ *    buffer is made the logical screen (Setscreen) while drawing, the
+ *    shown screen staying. Only under single-tasking TOS on the machine's
+ *    own video, nothing else being able to draw meanwhile.
+ * Either is used only when a test at start-up finds a line drawn that
+ * way really in the buffer; otherwise the window is drawn as before. */
 static void *obuf;		/* the buffer, NULL: draw straight on the screen */
 static MFDB obuf_mfdb;
+static short bm_h;		/* the off-screen bitmap's workstation, 0: none */
+static const char *drawing = "straight on the screen";
+
+const char *win_drawing(void)
+{
+	return drawing;
+}
 
 static long xbios_setscreen(void *log)
 {
@@ -271,29 +284,62 @@ static void *xbios_base(short fn)	/* 2 Physbase, 3 Logbase */
 	return (void *)trap14_w(fn);
 }
 
-void win_buffer_init(void)
+/* EdDI's off-screen bitmaps (VDI 100 and 101, sub-opcode 1), not in
+   common/'s bindings */
+static short bc[12], bin[20], bout[57], bpin[4], bpout[12];
+static void *bpb[5] = { bc, bin, bpin, bout, bpout };
+
+static void vdi_bm(void)
 {
-	long size = (long)((scr_w + 15) / 16) * 2 * planes * scr_h;
-	unsigned char *p, *b;
+	__asm__ volatile("move.l %0,%%d1\n\tmove.w #115,%%d0\n\ttrap #2"
+			 : : "g"((long)bpb) : "d0", "d1", "d2", "a0", "a1", "a2", "memory", "cc");
+}
+
+static short v_opnbm(short screen, MFDB *m)
+{
+	short i;
+	memset(bc, 0, sizeof(bc));
+	for (i = 0; i < 10; i++)
+		bin[i] = 1;
+	bin[10] = 2;			/* raster coordinates */
+	bin[11] = m->fd_w - 1;
+	bin[12] = m->fd_h - 1;
+	for (i = 13; i < 20; i++)
+		bin[i] = 0;		/* the screen's pixel size and format */
+	bc[0] = 100;
+	bc[3] = 20;
+	bc[5] = 1;
+	bc[6] = screen;
+	bc[7] = (short)((unsigned long)m >> 16);
+	bc[8] = (short)((unsigned long)m & 0xffff);
+	vdi_bm();
+	return bc[6] != screen ? bc[6] : 0;
+}
+
+static void v_clsbm(short h)
+{
+	memset(bc, 0, sizeof(bc));
+	bc[0] = 101;
+	bc[5] = 1;
+	bc[6] = h;
+	vdi_bm();
+}
+
+/* a short black line at the top left, drawn with handle h: does it land
+   in the buffer b? */
+static int lands_in(unsigned char *b, short h, int setscreen)
+{
 	void *screen = xbios_base(3);
+	short keep = vdi_h, i, changed = 0;
 	GRECT r;
-	short i, changed = 0;
-	if (get_cookie(0x4D694E54L) || get_cookie(0x4D616758L))	/* MiNT, MagiC */
-		return;
-	if (screen != xbios_base(2) || planes < 1 || size > 640L * 1024)
-		return;
-	p = Mxalloc(size + 256, 0);			/* ST RAM, where the blitter reaches */
-	if ((long)p == -32 || (long)p == 0)		/* no Mxalloc: plain Malloc is ST RAM */
-		p = (unsigned char *)trap1_wl(0x48, size + 256);
-	if ((long)p <= 0)
-		return;
-	b = (unsigned char *)(((unsigned long)p + 255) & ~255UL);
-	/* the test: a short black line at the top left must land in the buffer */
 	for (i = 0; i < 64; i++)
 		b[i] = 0x55;
 	wind_update(BEG_UPDATE);
 	graf_mouse(M_OFF, 0);
-	xbios_setscreen(b);
+	if (setscreen)
+		xbios_setscreen(b);
+	vdi_h = h;
+	draw_forget();
 	r.x = 0;
 	r.y = 0;
 	r.w = 16;
@@ -301,22 +347,56 @@ void win_buffer_init(void)
 	clip_on(&r);
 	fill(&r, 1);
 	clip_off();
-	xbios_setscreen(screen);
+	vdi_h = keep;
+	draw_forget();
+	if (setscreen)
+		xbios_setscreen(screen);
 	graf_mouse(M_ON, 0);
 	wind_update(END_UPDATE);
 	for (i = 0; i < 2 * planes && i < 64; i++)
 		changed |= b[i] != 0x55;
-	if (!changed) {
-		trap1_wl(0x49, (long)p);		/* Mfree */
+	return changed;
+}
+
+void win_buffer_init(void)
+{
+	long size = (long)((scr_w + 15) / 16) * 2 * planes * scr_h;
+	unsigned char *p, *b;
+	int multitasking = get_cookie(0x4D694E54L) || get_cookie(0x4D616758L);	/* MiNT, MagiC */
+	if (planes < 1 || size > 640L * 1024)
 		return;
-	}
-	obuf = b;
+	p = Mxalloc(size + 256, 0);			/* ST RAM, where the blitter reaches */
+	if ((long)p == -32 || (long)p == 0)		/* no Mxalloc: plain Malloc is ST RAM */
+		p = (unsigned char *)trap1_wl(0x48, size + 256);
+	if ((long)p <= 0)
+		return;
+	b = (unsigned char *)(((unsigned long)p + 255) & ~255UL);
 	memset(&obuf_mfdb, 0, sizeof(obuf_mfdb));
 	obuf_mfdb.fd_addr = b;
 	obuf_mfdb.fd_w = (scr_w + 15) & ~15;
 	obuf_mfdb.fd_h = scr_h;
 	obuf_mfdb.fd_wdwidth = (scr_w + 15) / 16;
 	obuf_mfdb.fd_nplanes = planes;
+	if (get_cookie(0x45644449L)) {			/* EdDI */
+		MFDB m = obuf_mfdb;
+		short h = v_opnbm(vdi_h, &m);
+		if (h > 0 && lands_in(b, h, 0)) {
+			if (vq_gdos())
+				vst_load_fonts(h, 0);
+			bm_h = h;
+			obuf = b;
+			drawing = "off the screen, in an EdDI bitmap";
+			return;
+		}
+		if (h > 0)
+			v_clsbm(h);
+	}
+	if (!multitasking && xbios_base(3) == xbios_base(2) && lands_in(b, vdi_h, 1)) {
+		obuf = b;
+		drawing = "off the screen, through the logical screen";
+		return;
+	}
+	trap1_wl(0x49, (long)p);			/* Mfree */
 }
 
 void win_redraw(GRECT *area)
@@ -336,14 +416,24 @@ void win_redraw(GRECT *area)
 		wind_update(END_UPDATE);
 		return;
 	}
-	if (obuf && xbios_base(3) == xbios_base(2)) {
+	if (obuf && (bm_h || xbios_base(3) == xbios_base(2))) {
 		/* all of it off the screen, then each visible piece copied */
-		void *screen = xbios_base(3);
 		MFDB scr;
 		memset(&scr, 0, sizeof(scr));
-		xbios_setscreen(obuf);
-		draw_all(&full);
-		xbios_setscreen(screen);
+		if (bm_h) {
+			short keep = vdi_h;
+			vdi_h = bm_h;
+			draw_forget();
+			font_reselect();	/* the window's font, on the bitmap too */
+			draw_all(&full);
+			vdi_h = keep;
+			draw_forget();
+		} else {
+			void *screen = xbios_base(3);
+			xbios_setscreen(obuf);
+			draw_all(&full);
+			xbios_setscreen(screen);
+		}
 		wind_get(win_h, WF_FIRSTXYWH, &box.x, &box.y, &box.w, &box.h);
 		while (box.w && box.h) {
 			GRECT d = box;
@@ -466,6 +556,57 @@ void win_close(void)
 	win_h = -1;
 }
 
+/* hours to scroll for one WM_ARROWED: a page is 6, a line 1 */
+static short arrow_hours(const short *msg)
+{
+	switch (msg[4]) {
+	case 0: return -6;
+	case 1: return 6;
+	case 2: return -1;
+	case 3: return 1;
+	}
+	return 0;
+}
+
+/* Scrolling the hours: one click on an arrow often comes as two or more
+   WM_ARROWED (the AES repeats while the button is down, and while the
+   view is drawn). Each only adds to scroll_pend; the main loop draws once
+   when no more are waiting (win_scroll_flush), or every 150 ms while
+   they keep coming, so the view moves by all of them at once. */
+static short scroll_pend, scroll_n;
+static unsigned long scroll_since;
+
+int win_scroll_pending(void)
+{
+	return scroll_n;
+}
+
+int win_scroll_due(void)
+{
+	return scroll_n && pf_ms() - scroll_since >= 150UL;
+}
+
+void win_scroll_flush(void)
+{
+	long vis;
+	short ns;
+	if (!scroll_n)
+		return;
+	vis = views_hours_visible();
+	ns = day_scroll + scroll_pend;
+	scroll_pend = scroll_n = 0;
+	if (cur_view != V_DAY && cur_view != V_WEEK)
+		return;
+	if (ns > 24 - vis)
+		ns = (short)(24 - vis);
+	if (ns < 0)
+		ns = 0;
+	if (ns != day_scroll && win_h > 0) {
+		views_scroll_to(ns);
+		win_redraw(&r_view);
+	}
+}
+
 void win_message(short *msg)
 {
 	GRECT r;
@@ -542,17 +683,9 @@ void win_message(short *msg)
 	case WM_ARROWED:
 		/* 0 page up, 1 page down, 2 line up, 3 line down */
 		if (cur_view == V_DAY || cur_view == V_WEEK) {
-			short d = msg[4] == 0 ? -6 : msg[4] == 1 ? 6 : msg[4] == 2 ? -1 : msg[4] == 3 ? 1 : 0;
-			long vis = views_hours_visible();
-			short ns = day_scroll + d;
-			if (ns > 24 - vis)
-				ns = (short)(24 - vis);
-			if (ns < 0)
-				ns = 0;
-			if (ns != day_scroll) {
-				views_scroll_to(ns);
-				win_redraw(&r_view);
-			}
+			if (!scroll_n++)
+				scroll_since = pf_ms();
+			scroll_pend += arrow_hours(msg);
 		} else if (msg[4] <= 3) {
 			views_step(msg[4] == 0 || msg[4] == 2 ? -1 : 1);
 		}

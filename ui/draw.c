@@ -17,6 +17,13 @@ static short next_text_color = 1;
    setting them again for every piece of text cost more than the text */
 static short c_wr = -1, c_fint = -1, c_fsty = -1, c_fcol = -1, c_lcol = -1, c_tcol = -1, c_teff = -1, c_per = -1;
 
+/* the attributes above are set again at the next use: after drawing
+   with another VDI handle (win.c's off-screen bitmap) */
+void draw_forget(void)
+{
+	c_wr = c_fint = c_fsty = c_fcol = c_lcol = c_tcol = c_teff = c_per = -1;
+}
+
 void set_wrmode(short m)
 {
 	if (m != c_wr)
