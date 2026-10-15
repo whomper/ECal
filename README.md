@@ -177,10 +177,13 @@ Everything is 68000 code except BearSSL, which is built for the 68030.
 (e.g. 1.97), and the build never changes it. A release build
 (`RELEASE=1`) shows it as it is in the About box and the User-Agent ECal
 sends; any other build shows `1.97-dev`. To release: `tools/bump.py`,
-commit, `git tag -a v1.98 -m "what is new"` and push the tag:
-[`.github/workflows/release.yml`](.github/workflows/release.yml) tests,
-builds the programs and the help file, and publishes them as a GitHub
-Release, with the tag's message as its notes.
+commit and push, then run the Release workflow (Actions > Release > Run
+workflow, on main) with what is new:
+[`.github/workflows/release.yml`](.github/workflows/release.yml) tags the
+commit `v1.98`, tests, builds the programs and the help file, and
+publishes them as a GitHub Release with those notes. Pushing a tag
+`v1.98` made with `git tag -a` does the same, with the tag's message as
+the notes.
 
 ## Source
 
