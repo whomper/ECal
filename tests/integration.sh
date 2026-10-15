@@ -18,6 +18,22 @@ cd "$(dirname "$0")/.."
 # the Atari clock runs in its home zone: so does this one
 export TZ=Asia/Jerusalem
 CLI=$PWD/build/cal-cli
+# The events were written for October to December 2026. ECal copies
+# nothing from the past and only FUTURE_DAYS (400) ahead, so they are
+# moved by whole weeks (weekdays stay as they were) to start after today:
+# d 20261013 gives the moved date, the same weekday. (The time goes
+# first: date(1) reads "12:00 + 21 days" as a zone, +21, and no days.)
+SHIFT=$(( ( ($(date -d "tomorrow 12:00" +%s) - $(date -d "2026-10-01 12:00" +%s)) / 86400 + 6) / 7 * 7 ))
+[ "$SHIFT" -lt 0 ] && SHIFT=0
+d() { date -d "12:00 ${1:0:4}-${1:4:2}-${1:6:2} + $SHIFT days" +%Y%m%d; }
+# HH:MM in zone $1 of $2 (a date and time with its zone, as date(1) reads it)
+hm() { TZ=$1 date -d "$2" +%H:%M; }
+# the last weekday (Monday to Friday) of the month that starts on $1 (YYYY-MM-01)
+lastwd() {
+  local x; x=$(date -d "12:00 $1 + 1 month - 1 day" +%Y-%m-%d)
+  while [ "$(date -d "12:00 $x" +%u)" -gt 5 ]; do x=$(date -d "12:00 $x - 1 day" +%Y-%m-%d); done
+  echo "${x//-/}"
+}
 W=$(mktemp -d)
 PIDS=()
 cleanup() { for p in "${PIDS[@]:-}"; do kill "$p" 2>/dev/null || true; done; rm -rf "$W"; }
@@ -116,8 +132,8 @@ END:VTIMEZONE
 BEGIN:VEVENT
 UID:weekly-hebrew@test
 DTSTAMP:20261001T000000Z
-DTSTART;TZID=Asia/Jerusalem:20261004T100000
-DTEND;TZID=Asia/Jerusalem:20261004T110000
+DTSTART;TZID=Asia/Jerusalem:$(d 20261004)T100000
+DTEND;TZID=Asia/Jerusalem:$(d 20261004)T110000
 RRULE:FREQ=WEEKLY;BYDAY=SU
 SUMMARY:ישיבת צוות
 ATTENDEE;CN=Dana:mailto:dana@example.com
@@ -132,8 +148,8 @@ PRODID:test
 BEGIN:VEVENT
 UID:review@test
 DTSTAMP:20261001T000000Z
-DTSTART:20261013T120000Z
-DTEND:20261013T130000Z
+DTSTART:$(d 20261013)T120000Z
+DTEND:$(d 20261013)T130000Z
 SUMMARY:Design review
 END:VEVENT
 END:VCALENDAR
@@ -147,8 +163,8 @@ VERSION:2.0
 X-WR-CALNAME:Holidays in Israel
 BEGIN:VEVENT
 UID:sukkot-2026
-DTSTART;VALUE=DATE:20261026
-DTEND;VALUE=DATE:20261027
+DTSTART;VALUE=DATE:$(d 20261026)
+DTEND;VALUE=DATE:$(d 20261027)
 SUMMARY:Sukkot test day
 END:VEVENT
 BEGIN:VEVENT
@@ -214,12 +230,13 @@ out=$("$CLI" "$D" calendars)
 expect "the Hebrew calendar found" "בית" "$out"
 expect "the work calendar found" "Work" "$out"
 absent "the task list left out" "Tasks" "$out"
-out=$("$CLI" "$D" list 20261001 20261101)
-expect "weekly meeting in Hebrew, 10:00 Jerusalem" "20261004 10:00-11:00 [" "$out"
-expect "it repeats" "20261025 10:00-11:00" "$out"
+out=$("$CLI" "$D" list $(d 20261001) $(d 20261101))
+expect "weekly meeting in Hebrew, 10:00 Jerusalem" "$(d 20261004) 10:00-11:00 [" "$out"
+expect "it repeats" "$(d 20261025) 10:00-11:00" "$out"
 absent "a cancelled series isn't shown" "Called-off series" "$("$CLI" "$D" list $(date +%Y%m%d) $(date -d "+40 days" +%Y%m%d))"
 absent "a one-off event before today isn't copied" "Old dinner" "$("$CLI" "$D" list $(date -d "-30 days" +%Y%m%d) $(date -d "+30 days" +%Y%m%d))"
-expect "a UTC event shown in Israel time" "20261013 15:00-16:00 [Work] Design review" "$out"
+R=$(d 20261013); RD="${R:0:4}-${R:4:2}-${R:6:2}"
+expect "a UTC event shown in Israel time" "$R $(hm Asia/Jerusalem "$RD 12:00 UTC")-$(hm Asia/Jerusalem "$RD 13:00 UTC") [Work] Design review" "$out"
 
 echo "== nothing changed: nothing fetched"
 out=$("$CLI" "$D" sync)
@@ -227,12 +244,12 @@ expect "second sync is quiet" "0 calendars changed" "$out"
 
 echo "== new event from the Atari"
 WORK=$("$CLI" "$D" calendars | awk '/ Work /{print $1}')
-"$CLI" "$D" add "$WORK" "Lunch with Avi" 20261014T1230 45 || bad "add"
+"$CLI" "$D" add "$WORK" "Lunch with Avi" $(d 20261014)T1230 45 || bad "add"
 srv=$("${CURL[@]}" "$BASE/alice/work/")
 expect "on the server" "SUMMARY:Lunch with Avi" "$srv"
-expect "with its zone" "DTSTART;TZID=Asia/Jerusalem:20261014T123000" "$srv"
+expect "with its zone" "DTSTART;TZID=Asia/Jerusalem:$(d 20261014)T123000" "$srv"
 expect "and its reminder" "TRIGGER:-PT10M" "$srv"
-out=$("$CLI" "$D" list 20261014 20261015)
+out=$("$CLI" "$D" list $(d 20261014) $(d 20261015))
 expect "in the local copy" "12:30-13:15 [Work] Lunch with Avi" "$out"
 
 echo "== a Hebrew title, renaming a series"
@@ -243,22 +260,22 @@ expect "the attendee kept" "ATTENDEE;CN=Dana:mailto:dana@example.com" "$srv"
 expect "the iPhone's property kept" "X-APPLE-TRAVEL-ADVISORY-BEHAVIOR:AUTOMATIC" "$srv"
 
 echo "== moving one occurrence"
-"$CLI" "$D" move-one "ישיבת צוות שבועית" 20261018T1000 20261018T1400 || bad "move-one"
+"$CLI" "$D" move-one "ישיבת צוות שבועית" $(d 20261018)T1000 $(d 20261018)T1400 || bad "move-one"
 srv=$("${CURL[@]}" "$BASE/alice/home/weekly.ics")
-expect "an exception on the server" "RECURRENCE-ID;TZID=Asia/Jerusalem:20261018T100000" "$srv"
-out=$("$CLI" "$D" list 20261018 20261019)
-expect "shown at the new time" "20261018 14:00-15:00" "$out"
-absent "not at the old time" "20261018 10:00" "$out"
+expect "an exception on the server" "RECURRENCE-ID;TZID=Asia/Jerusalem:$(d 20261018)T100000" "$srv"
+out=$("$CLI" "$D" list $(d 20261018) $(d 20261019))
+expect "shown at the new time" "$(d 20261018) 14:00-15:00" "$out"
+absent "not at the old time" "$(d 20261018) 10:00" "$out"
 
 echo "== changing the same occurrence again: one exception, not two"
-"$CLI" "$D" move-one "ישיבת צוות שבועית" 20261018T1400 20261018T1600 || bad "move the moved one"
+"$CLI" "$D" move-one "ישיבת צוות שבועית" $(d 20261018)T1400 $(d 20261018)T1600 || bad "move the moved one"
 srv=$("${CURL[@]}" "$BASE/alice/home/weekly.ics")
 n=$(grep -c "RECURRENCE-ID" <<<"$srv" || true)
 if [ "$n" = 1 ]; then ok "still one exception on the server"; else bad "$n exceptions on the server"; fi
-expect "it starts at 16:00" "DTSTART;TZID=Asia/Jerusalem:20261018T160000" "$srv"
-out=$("$CLI" "$D" list 20261018 20261019)
-expect "shown at 16:00" "20261018 16:00-17:00" "$out"
-absent "not at 14:00 any more" "20261018 14:00" "$out"
+expect "it starts at 16:00" "DTSTART;TZID=Asia/Jerusalem:$(d 20261018)T160000" "$srv"
+out=$("$CLI" "$D" list $(d 20261018) $(d 20261019))
+expect "shown at 16:00" "$(d 20261018) 16:00-17:00" "$out"
+absent "not at 14:00 any more" "$(d 20261018) 14:00" "$out"
 
 echo "== a server's change to this and all future occurrences"
 put home/future.ics <<ICS >/dev/null
@@ -268,21 +285,26 @@ PRODID:test
 BEGIN:VEVENT
 UID:future@test
 DTSTAMP:20261001T000000Z
-DTSTART;TZID=Asia/Jerusalem:20261005T080000
-DTEND;TZID=Asia/Jerusalem:20261005T083000
+DTSTART;TZID=Asia/Jerusalem:$(d 20261005)T080000
+DTEND;TZID=Asia/Jerusalem:$(d 20261005)T083000
 RRULE:FREQ=WEEKLY;COUNT=6
 SUMMARY:Gym
 END:VEVENT
 BEGIN:VEVENT
 UID:future@test
 DTSTAMP:20261001T000000Z
-RECURRENCE-ID;RANGE=THISANDFUTURE;TZID=Asia/Jerusalem:20261019T080000
-DTSTART;TZID=Asia/Jerusalem:20261019T070000
-DTEND;TZID=Asia/Jerusalem:20261019T074500
+RECURRENCE-ID;RANGE=THISANDFUTURE;TZID=Asia/Jerusalem:$(d 20261019)T080000
+DTSTART;TZID=Asia/Jerusalem:$(d 20261019)T070000
+DTEND;TZID=Asia/Jerusalem:$(d 20261019)T074500
 SUMMARY:Gym (earlier)
 END:VEVENT
 END:VCALENDAR
 ICS
+M1=$(date -d "12:00 $(d 20261001 | sed 's/\(....\)\(..\)\(..\)/\1-\2-\3/') + 7 days" +%Y-%m-01)
+M2=$(date -d "$M1 + 1 month" +%Y-%m-01)
+M3=$(date -d "$M1 + 2 months" +%Y-%m-01)
+M4=$(date -d "$M1 + 3 months" +%Y%m%d)
+L1=$(lastwd "$M1"); L2=$(lastwd "$M2"); L3=$(lastwd "$M3")
 put work/lastday.ics <<ICS >/dev/null
 BEGIN:VCALENDAR
 VERSION:2.0
@@ -290,40 +312,40 @@ PRODID:test
 BEGIN:VEVENT
 UID:lastday@test
 DTSTAMP:20261001T000000Z
-DTSTART;TZID=Asia/Jerusalem:20261030T170000
-DTEND;TZID=Asia/Jerusalem:20261030T180000
+DTSTART;TZID=Asia/Jerusalem:${L1}T170000
+DTEND;TZID=Asia/Jerusalem:${L1}T180000
 RRULE:FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1;COUNT=3
 SUMMARY:Month-end report
 END:VEVENT
 END:VCALENDAR
 ICS
 "$CLI" "$D" sync >/dev/null
-out=$("$CLI" "$D" list 20261005 20261110)
-expect "before the change: 8:00" "20261012 08:00-08:30 [בית] Gym" "$out"
-expect "from the change on: 7:00, longer, new title" "20261019 07:00-07:45 [בית] Gym (earlier)" "$out"
-expect "...and the weeks after it too" "20261102 07:00-07:45 [בית] Gym (earlier)" "$out"
-absent "no old 8:00 after the change" "20261026 08:00" "$out"
-out=$("$CLI" "$D" list 20261001 20270101)
-expect "last weekday of October" "20261030 17:00-18:00 [Work] Month-end report" "$out"
-expect "last weekday of November (the 30th, a Monday)" "20261130 17:00-18:00 [Work] Month-end report" "$out"
-expect "last weekday of December" "20261231 17:00-18:00 [Work] Month-end report" "$out"
+out=$("$CLI" "$D" list $(d 20261005) $(d 20261110))
+expect "before the change: 8:00" "$(d 20261012) 08:00-08:30 [בית] Gym" "$out"
+expect "from the change on: 7:00, longer, new title" "$(d 20261019) 07:00-07:45 [בית] Gym (earlier)" "$out"
+expect "...and the weeks after it too" "$(d 20261102) 07:00-07:45 [בית] Gym (earlier)" "$out"
+absent "no old 8:00 after the change" "$(d 20261026) 08:00" "$out"
+out=$("$CLI" "$D" list $(d 20261001) $M4)
+expect "last weekday of the month" "$L1 17:00-18:00 [Work] Month-end report" "$out"
+expect "last weekday of the next" "$L2 17:00-18:00 [Work] Month-end report" "$out"
+expect "last weekday of the one after" "$L3 17:00-18:00 [Work] Month-end report" "$out"
 
 echo "== deleting one occurrence, then the rest of the series"
-"$CLI" "$D" delete "ישיבת צוות שבועית" this 20261018T1600 || bad "delete the moved one"
+"$CLI" "$D" delete "ישיבת צוות שבועית" this $(d 20261018)T1600 || bad "delete the moved one"
 srv=$("${CURL[@]}" "$BASE/alice/home/weekly.ics")
-expect "the moved one becomes an EXDATE" "EXDATE;TZID=Asia/Jerusalem:20261018T100000" "$srv"
+expect "the moved one becomes an EXDATE" "EXDATE;TZID=Asia/Jerusalem:$(d 20261018)T100000" "$srv"
 absent "and its exception goes" "RECURRENCE-ID" "$srv"
-"$CLI" "$D" delete "ישיבת צוות שבועית" this 20261011T1000 || bad "delete this"
+"$CLI" "$D" delete "ישיבת צוות שבועית" this $(d 20261011)T1000 || bad "delete this"
 srv=$("${CURL[@]}" "$BASE/alice/home/weekly.ics")
-expect "an EXDATE on the server" "EXDATE;TZID=Asia/Jerusalem:20261011T100000" "$srv"
-out=$("$CLI" "$D" list 20261001 20261101)
-absent "11 October gone" "20261011 10:00" "$out"
-expect "4 October still there" "20261004 10:00" "$out"
-"$CLI" "$D" delete "ישיבת צוות שבועית" future 20261101T1000 || bad "delete future"
-out=$("$CLI" "$D" list 20261025 20261026)
-expect "25 October still there" "20261025 10:00" "$out"
-out=$("$CLI" "$D" list 20261101 20261201)
-absent "November gone" "ישיבת צוות" "$out"
+expect "an EXDATE on the server" "EXDATE;TZID=Asia/Jerusalem:$(d 20261011)T100000" "$srv"
+out=$("$CLI" "$D" list $(d 20261001) $(d 20261101))
+absent "the second Sunday gone" "$(d 20261011) 10:00" "$out"
+expect "the first still there" "$(d 20261004) 10:00" "$out"
+"$CLI" "$D" delete "ישיבת צוות שבועית" future $(d 20261101)T1000 || bad "delete future"
+out=$("$CLI" "$D" list $(d 20261025) $(d 20261026))
+expect "the Sunday before still there" "$(d 20261025) 10:00" "$out"
+out=$("$CLI" "$D" list $(d 20261101) $(d 20261201))
+absent "from then on gone" "ישיבת צוות" "$out"
 
 echo "== a change made elsewhere comes in"
 put work/review.ics <<ICS >/dev/null
@@ -333,16 +355,16 @@ PRODID:test
 BEGIN:VEVENT
 UID:review@test
 DTSTAMP:20261002T000000Z
-DTSTART:20261013T130000Z
-DTEND:20261013T140000Z
+DTSTART:$(d 20261013)T130000Z
+DTEND:$(d 20261013)T140000Z
 SUMMARY:Design review (moved)
 END:VEVENT
 END:VCALENDAR
 ICS
 out=$("$CLI" "$D" sync)
 expect "one calendar changed" "1 calendar changed" "$out"
-out=$("$CLI" "$D" list 20261013 20261014)
-expect "the new time" "16:00-17:00 [Work] Design review (moved)" "$out"
+out=$("$CLI" "$D" list $(d 20261013) $(d 20261014))
+expect "the new time" "$(hm Asia/Jerusalem "$RD 13:00 UTC")-$(hm Asia/Jerusalem "$RD 14:00 UTC") [Work] Design review (moved)" "$out"
 
 echo "== deleting an event"
 "$CLI" "$D" delete "Lunch with Avi" || bad "delete"
@@ -352,15 +374,16 @@ absent "gone from the server" "Lunch with Avi" "$srv"
 
 echo "== time zone support: the same events seen from New York"
 "$CLI" "$D" zone Asia/Jerusalem America/New_York
-out=$("$CLI" "$D" list 20261004 20261005)
-expect "10:00 Jerusalem is 3:00 in New York" "20261004 03:00-04:00" "$out"
+out=$("$CLI" "$D" list $(d 20261004) $(d 20261005))
+N=$(d 20261004); ND="TZ=\"Asia/Jerusalem\" ${N:0:4}-${N:4:2}-${N:6:2}"
+expect "10:00 Jerusalem in New York time" "$N $(hm America/New_York "$ND 10:00")-$(hm America/New_York "$ND 11:00")" "$out"
 "$CLI" "$D" zone Asia/Jerusalem
 
 echo "== a subscription"
 out=$("$CLI" "$D" subscribe "http://127.0.0.1:$FEEDPORT/holidays.ics" 2>&1) || bad "subscribe: $out"
 expect "named after the feed" "Holidays in Israel" "$out"
-out=$("$CLI" "$D" list 20261026 20261027)
-expect "its events shown" "20261026 all-day   [Holidays in Israel] Sukkot test day" "$out"
+out=$("$CLI" "$D" list $(d 20261026) $(d 20261027))
+expect "its events shown" "$(d 20261026) all-day   [Holidays in Israel] Sukkot test day" "$out"
 out=$("$CLI" "$D" calendars)
 expect "read-only" "Holidays in Israel (Subscription, 1 events, read-only)" "$out"
 
@@ -369,7 +392,7 @@ echo "== an On My Atari calendar, and importing into it"
 n=$("$CLI" "$D" calendars | grep -c "")
 out=$("$CLI" "$D" import $((n - 1)) "$W/feed/holidays.ics")
 expect "imported" "2 imported" "$out"
-out=$("$CLI" "$D" list 20261026 20261027)
+out=$("$CLI" "$D" list $(d 20261026) $(d 20261027))
 expect "shown from the local calendar" "[Atari] Sukkot test day" "$out"
 
 if [ -n "${FALCON:-}" ]; then
