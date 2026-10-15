@@ -95,7 +95,7 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
   less memory and sync faster.
 - **Connection**: how ECal reaches the servers:
   - **Pi gateway**: the Pi's address and port (8180). Set the Pi up
-    with `gateway/install.sh`; see [gateway/README.md](../gateway/README.md).
+    with `gateway/aera-gateway install dav`; see [gateway/README.md](../gateway/README.md).
     Any Atari can use it, and a Falcon can too, to save time.
   - **Falcon mode**: ECal makes the secure connections itself. Needs a
     68030 (Falcon or TT), `ECAL.ACC`, and `CACERT.PEM` and `ROOTS.DAT` in

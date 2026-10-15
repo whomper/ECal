@@ -42,9 +42,10 @@ file on its own, or all of them in `ECAL-x.y.zip`.
 2. For Falcon mode, make a folder `C:\ECAL` and put `CACERT.PEM` and `ROOTS.DAT` in it. ECal keeps
    its own files there too. The folder can be anywhere: `FOLDER=` in the settings, `C:\ECAL.INF`, says
    where. Start `ECAL.PRG` from the folder once, or show the accessory where it is when it asks.
-3. On an ST or STE, set up the gateway on a Raspberry Pi: clone this repository there and run
-   `sudo gateway/install.sh` (see [gateway/README.md](gateway/README.md)). It prints the address to
-   type into ECal.
+3. On an ST or STE, set up the gateway on a Raspberry Pi: clone this repository (or
+   [AERA-Gateway](https://github.com/whomper/AERA-Gateway)) there and run
+   `sudo gateway/aera-gateway install dav` (see [gateway/README.md](gateway/README.md)). It prints
+   the address to type into ECal.
 4. Reboot and choose **ECal** in the Desk menu. Open **Settings...** (^, or the ≡ menu at the right of
    the toolbar):
    - **Connection**: type the Pi's IP address (e.g. 192.168.1.x, not its name) and port 8180 into
@@ -200,10 +201,12 @@ common/   code shared with the other AERA programs (from AERA-Atari): the TOS ru
           C library, STinG, TLS and connections, BearSSL, the DSP RSA program, charsets,
           bidi, dates and the Hebrew calendar (ctime.c), time zones (tz.c), passwords,
           GEM building blocks (menus, alerts, help, AV, iconify), build tools
-gateway/  ecalgate.py, the Raspberry Pi gateway, and its installer
+gateway/  the Raspberry Pi gateways (ecalgate.py is ECal's) and aera-gateway, their installer:
+          a copy of AERA-Gateway's
 tests/    unit tests, fuzz targets, CalDAV integration tests, Hatari tests
 tools/    bump.py (a release), guide2stg.py (the help file), icon/ (the icons),
-          fakesting/ (the Hatari tests' network), sync-common.sh (common/ from AERA-Atari)
+          fakesting/ (the Hatari tests' network), sync-common.sh (common/ from AERA-Atari),
+          sync-gateway.sh (gateway/ from AERA-Gateway)
 docs/     the user guide (GUIDE.md, the source of ECAL.HYP) and its pictures
 ```
 
@@ -213,7 +216,7 @@ docs/     the user guide (GUIDE.md, the source of ECAL.HYP) and its pictures
 make test                    # the core: dates, Hebrew dates, zones, iCalendar, repeats,
                              # repeat rules with all of RFC 5545's examples, XML, URLs
                              # (241 checks); the fuzz inputs again (tests/fuzz/seeds,
-                             # and found/: what once broke a parser); the gateway (8 tests)
+                             # and found/: what once broke a parser); the gateway's tests
 make fuzz                    # the CalDAV answers, iCalendar, repeat rules, XML and
                              # inflate from libFuzzer (clang), FUZZTIME seconds each
 make itest                   # cal-cli against a real CalDAV server (Radicale): sync,

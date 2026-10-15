@@ -53,7 +53,10 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
   radicale`; also `GATEWAY=1` and `FALCON=1` when the connection code
   changes), and `make` with no warnings. When the GEM side changes, the
   Hatari rigs in `tests/hatari/` with EmuTOS.
-- `gateway/ecalgate.py` is standard Python; keep it that way.
+- `gateway/` is a read-only copy of [AERA-Gateway](https://github.com/whomper/AERA-Gateway)'s
+  (ecalgate, the other gateways, `aera-gateway`): change it there, with that repository's owner
+  session, and bring it here with `tools/sync-gateway.sh`. ECal decides ecalgate's protocol
+  (feed trimming, texts, port 8180): review changes to it there.
 - EContact's `integration/ECAL.patch` makes EContact ECal's address
   book: when ECal changes, make that patch again in EContact (see its
   CLAUDE.md) and check it still applies and builds.

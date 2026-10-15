@@ -242,7 +242,8 @@ test: $(OBJDIR)/unit $(addprefix $(OBJDIR)/replay_,$(FUZZERS))
 	@for f in $(FUZZERS); do \
 	  $(OBJDIR)/replay_$$f tests/fuzz/seeds/$$f $$(ls -d tests/fuzz/found/$$f 2>/dev/null) || exit 1; \
 	done
-	python3 -m unittest discover -s gateway -p 'test_*.py'
+	python3 -m unittest discover -s gateway -p 'test_aeragate.py'
+	python3 -m unittest discover -s gateway -p 'test_ecalgate.py'
 
 itest: $(OBJDIR)/cal-cli
 	tests/integration.sh

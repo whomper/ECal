@@ -165,7 +165,9 @@ def main():
             check("no gateway used", "PUT" not in open(os.path.join(work, "ecalgate.log")).read())
         else:
             log = open(os.path.join(work, "ecalgate.log")).read()
-            check("it went through ecalgate", "PUT http://127.0.0.1:%d/alice/home/" % RAD in log)
+            # ecalgate logs the server, never the path (a feed's path can be its password)
+            check("it went through ecalgate", "PUT http://127.0.0.1:%d -> 201" % RAD in log)
+            check("no path in its log", "/alice/home/" not in log)
     finally:
         r.stop()
         for p in procs:
