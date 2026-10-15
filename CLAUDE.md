@@ -1,14 +1,53 @@
 # Notes for working on ECal
 
-- **Releases carry the programs.** `binary/` and `dist/` are build output,
-  never committed. `VERSION` holds the last release and `make` never
-  writes it (a build shows `x.y-dev`; `RELEASE=1` shows `x.y`). A
-  release: `tools/bump.py`, commit, push, then run the Release workflow
-  on main with the notes (or push a tag `vX.Y` made with `git tag -a`);
-  `.github/workflows/release.yml` tags vX.Y, tests, builds the programs and
-  `ECAL.HYP` (hcp from `common/tools/build-hcp.sh`) and publishes each
-  file and the zip as a GitHub Release. Never reuse a number. The icons
-  are committed in `icons/` (`make icons`).
+ECal is one of the AERA Atari apps (ECal, EContact, EMail, EFTP, EHypView, ClaudeST). They are meant to
+look and behave as one family.
+
+## For every AERA app
+
+These come from AERA-Atari's repo template and are the same in every app's CLAUDE.md.
+
+- **Follow the AERA Atari app guidelines** ([ATARI-APP-GUIDELINES.md](https://github.com/whomper/AERA-Atari/blob/main/standards/ATARI-APP-GUIDELINES.md)). Pay most
+  attention to:
+  - About box
+  - family shortcuts
+  - PRG/ACC rules
+  - context menus
+  - VA_START, help, alerts
+  - INF location
+
+  When a change touches one of these, do it the guideline's way, even if the old code here did it
+  differently.
+- **Shared code lives in [AERA-Atari](https://github.com/whomper/AERA-Atari).** Files under `common/` come from it. Change them
+  there, not here, and pull them in with `tools/sync-common.sh`. A fix made only in this repo will drift
+  again.
+- **Build and test before every push:** `make` with no warnings and `make test`, plus this repo's
+  own checks (below): `make itest` when network code changed, the Hatari rigs in `tests/hatari/` when
+  the GEM side changed.
+- **Versions and releases:** `VERSION` changes only in a release commit. A release: `tools/bump.py`,
+  commit, push, then run the Release workflow on `main` with the notes (or push a tag `vX.Y` made with
+  `git tag -a`); it tests, builds with `RELEASE=1`, tags vX.Y and publishes each file and the zip as a
+  GitHub Release. A normal build must leave every tracked file unchanged (it shows `x.y-dev`). Don't
+  commit built programs, help files or certificates (`binary/`, `dist/`). Never reuse a number.
+- **Every new source file starts with the SPDX line and copyright** (see any `.c` file); a generator
+  writes them into the files it makes.
+- **The name** reads "AERA | Erez Yaary" wherever it is given: copyright lines
+  (`Copyright (C) 2026 AERA | Erez Yaary`), the About box, the help file's `@author`, the docs, and as
+  the author of every commit: `git commit --author="AERA | Erez Yaary <yaary@me.com>"`, with Claude as
+  the signing committer, so GitHub shows the commits as Verified (AERA-Atari,
+  `standards/GITHUB-IDENTITY.md`).
+- **Never commit:**
+  - real addresses from the owner's network: use `192.168.1.x`, `PI_IP`, `ATARI_IP`
+  - passwords, session keys, `.KEY` / `.INF` files from a test run
+  - photos that still carry EXIF/GPS data
+- **README:** keep the section order from the template (Highlights, Getting started, How it reaches the
+  servers, Building, Source, Tests, Licence, family footer). Use British English.
+
+## ECal
+
+- **A release** carries `ECAL.ACC`, `ECAL.PRG`, `ECALST.ACC`, `ECAL.HYP` and `.REF` (hcp from
+  `common/tools/build-hcp.sh`), `CACERT.PEM`, `ROOTS.DAT` and the icon. The icons are committed in
+  `icons/` (`make icons`).
 - Before pushing: `make test` (the core, the fuzz inputs again, the
   gateway), `make itest` (cal-cli against Radicale: `pip install
   radicale`; also `GATEWAY=1` and `FALCON=1` when the connection code
@@ -18,13 +57,3 @@
 - EContact's `integration/ECAL.patch` makes EContact ECal's address
   book: when ECal changes, make that patch again in EContact (see its
   CLAUDE.md) and check it still applies and builds.
-- `common/` is shared AERA code (BearSSL, the DSP RSA, bidi, dates,
-  passwords, the GEM building blocks, libc headers, build tools), a git
-  subtree of github.com/whomper/AERA-Atari. Don't edit it here: change it
-  in AERA-Atari, then run `tools/sync-common.sh`. Follow the AERA Atari
-  app guidelines (AERA-Atari, `standards/ATARI-APP-GUIDELINES.md`).
-- **The name** reads "AERA | Erez Yaary" wherever it is given: copyright
-  lines (`Copyright (C) 2026 AERA | Erez Yaary`), the About box, the help
-  file's `@author`, the docs, and as the author of every commit:
-  `git commit --author="AERA | Erez Yaary <yaary@me.com>"`, with Claude as
-  the signing committer (AERA-Atari, `standards/GITHUB-IDENTITY.md`).

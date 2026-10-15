@@ -6,3 +6,11 @@ tools/fakesting/*.elf
 tools/fakesting/FAKESTNG.PRG
 binary/
 dist/
+
+# from the AERA repo template
+*.o
+.venv/
+*.KEY
+CRASH.LOG
+tests/**/work/
+*.log
