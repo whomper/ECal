@@ -122,6 +122,27 @@ same as before.
 | `ui/twin.c/.h` | | NAME.PRG and NAME.ACC on one machine (guidelines 2.3), one in use at a time: `twin_handover(av_command())` at the PRG's start hands the command line to the ACC (VA_START, then AV_STARTED) where the AES lists its programs (`appl_search`: MagiC, XaAES, N.AES) and the PRG quits; `twin_prg()` tells the ACC its PRG runs (under single TOS the program in front, asked with TWIN_ASK, which `av_message()` answers), and `twin_pass(s)` hands it the ACC's AC_OPEN or VA_START. `tests/twin` checks it on the build machine with a stand-in AES |
 | `tests/xaaes/` | | FreeMiNT 1.17.0 with XaAES in Hatari: an AES that iconifies, multitasks and does drag and drop, where EmuTOS's can't. `make base` fetches FreeMiNT from the Sparemint archive (checked against its SHA-256; it isn't kept here) and makes the C: drive, an IDE disk image (`fatimg.py`), since FreeMiNT can't read Hatari's emulated drive. `run.py WORK EMUTOS.IMG APP.PRG --steps "..."` starts an app there and drives it: clicks, drags, keys, screenshots, and waits for what it says through NatFeats. `app_icon.py` checks an app's iconify with XaAES's own gadgets (guidelines 5.1); `--later S` starts the app S seconds after XaAES (`LATER.PRG`), once the accessories are in, for the PRG/ACC hand-over; `make check TOS=...` checks the rig itself |
 
+## Layer 4: network security (October 2026, the guidelines' section 7)
+
+| File | What it does |
+|---|---|
+| `atari/dns.h` | the answer in a nameserver's reply, for `net_tos.c`'s DNS client (MiNTnet): every count and length checked against what came, positions in `long`s (a reply claiming 32767 questions used to wrap a `short` and read before the buffer). `tests/dns` checks it and fuzzes it on the build machine. `net_tos.c` also refuses a host name too long for its query, and waits for a STinG connection a second at a time, so Esc can stop it |
+| `ui/busy.c/.h` | the busy bee, and Esc or Undo to stop the network meanwhile (guidelines 7.1): `busy_bee(on)` for the app's `busy()`, `pf_idle = busy_idle` (while the bee shows it reads the keys: Esc and Undo set `conn_stop`, any other key is kept), and in the main loop `conn_stop = 0` and `busy_key(&ev)` before `evnt_multi_`, so a key typed while busy comes through afterwards. `conn.c` then opens nothing more and says "stopped" (logged as `!! stopped`) |
+| `src/secret.c/.h` | `secret_encode()` returns 0 when it has to write a password as it is (no `NAME.KEY` to be had, too long), and calls `secret_warn(keyfile)` the first time in a run: the app's alert (guidelines 7.2). `tests/secret` checks it |
+| `src/util.c`, `src/tz.c` | an `SBUF` grows to 1 GB at most, and refuses sizes that would overflow; a time zone offset's digits stop at four (both found by fuzzing) |
+| `tests/fuzz/fuzz_net.c/.h` | the network for an app's fuzz targets: `fuzz_net_set(data, n)`, and the program's own protocol code hears the input, in pieces of 1 to 97 bytes. `FUZZ_NET_NEXT` splits the input into one part per connection, in the order they are opened (FTP's commands and data); without it, every connection carries on where the last one stopped |
+| `tests/fuzz/replay.c` | runs a fuzz target on files, without libFuzzer: an app's `make test` runs its seeds and `tests/fuzz/found` (what once broke a parser) under AddressSanitizer and UBSan with the build machine's compiler, 10 s at most each |
+
+Each networked app has `make fuzz` (clang with libFuzzer, `FUZZTIME` seconds per target) and
+`tests/fuzz/` with its targets, `mkseeds.py`, `seeds/` and `found/`:
+
+| App | Targets | What fuzzing found |
+|---|---|---|
+| ECal | `dav`, `ics`, `rrule`, `xml`, `inflate` | a repeated `BYMONTHDAY`/`BYYEARDAY`/`BYWEEKNO`/`BYSETPOS` writing past its array; overflows in `BYDAY` ordinals, durations and alarm triggers; XML with no text |
+| EContact | `dav`, `vcard`, `jpeg`, `xml`, `inflate` | a JPEG with a second SOF leaking; a cut-short scan read for ever; a DQT read past its segment; TJpgDec's IDCT overflowing (now built with `-fwrapv`) |
+| EMail | `imap`, `pop3`, `smtp`, `mime` | an IMAP literal of minus five bytes (memmove of -1) or of gigabytes; a POP3 `STAT` count sizing three arrays past 32 bits; EHLO extensions one byte past their buffer |
+| EFTP | `ftp`, `list` | nothing; a multi-line reply is now kept to 8 KB |
+
 ## Coming next
 
 | Area | Files | Plan |
