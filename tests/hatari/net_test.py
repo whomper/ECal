@@ -11,6 +11,11 @@ EMail). The accessory syncs, shows the server's Hebrew event, and an
 event added on the Atari must arrive on the server.
 
     TZ=Asia/Jerusalem tests/hatari/net_test.py WORKDIR etos512us.img [--acc ECAL.ACC --machine falcon]
+
+With --prg it is ECAL.PRG instead, started from C:\\ECAL: the program is
+where the crash catcher is, so this is the run that shows STinG's way
+into supervisor mode (FAKESTNG does it as STinG does) isn't taken for a
+crash.
 """
 import argparse
 import base64
@@ -51,6 +56,7 @@ def main():
     ap.add_argument("tos")
     ap.add_argument("--acc", default="ECALST.ACC")
     ap.add_argument("--machine", default="st")
+    ap.add_argument("--prg", action="store_true", help="ECAL.PRG instead of the accessory")
     ap.add_argument("--falcon-mode", action="store_true",
                     help="TLS on the Falcon itself (RSA on the DSP), no gateway")
     a = ap.parse_args()
@@ -107,7 +113,10 @@ def main():
          "DTEND;TZID=Asia/Jerusalem:20200105T120000\r\nRRULE:FREQ=WEEKLY\r\nSUMMARY:\u05de\u05e8\u05d5\u05d1\u05d4 \u05d4\u05e9\u05e8\u05ea\r\n"
          "END:VEVENT\r\nEND:VCALENDAR\r\n").encode(), "text/calendar")
 
-    shutil.copy(os.path.join(ROOT, "binary", a.acc), os.path.join(hd, "ECAL.ACC"))
+    if a.prg:
+        shutil.copy(os.path.join(ROOT, "binary", "ECAL.PRG"), os.path.join(hd, "ECAL", "ECAL.PRG"))
+    else:
+        shutil.copy(os.path.join(ROOT, "binary", a.acc), os.path.join(hd, "ECAL.ACC"))
     shutil.copy(os.path.join(ROOT, "tools", "fakesting", "FAKESTNG.PRG"), os.path.join(hd, "AUTO"))
     if a.falcon_mode:
         # the Mozilla roots ECal ships, plus the test certificate, decoded here
@@ -133,12 +142,14 @@ def main():
         extra += ["--monitor", "mono"]
     if a.falcon_mode:
         extra += ["--dsp", "emu"]
-    r = rig.Rig(work, a.tos, machine=a.machine, serial=(fifo_out, fifo_in), extra=extra, auto=None)
+    r = rig.Rig(work, a.tos, machine=a.machine, serial=(fifo_out, fifo_in), extra=extra,
+                auto="C:\\ECAL\\ECAL.PRG" if a.prg else None)
     try:
         time.sleep(18)
-        r.click(18, 8)
-        time.sleep(1)
-        r.click(60, 8 + 3 * 16 + 8)
+        if not a.prg:
+            r.click(18, 8)
+            time.sleep(1)
+            r.click(60, 8 + 3 * 16 + 8)
         time.sleep(150 if a.falcon_mode else 60)   # the first sync, over a serial line (and TLS)
         r.shot("n1-synced")
         cache = ""
@@ -168,6 +179,10 @@ def main():
             # ecalgate logs the server, never the path (a feed's path can be its password)
             check("it went through ecalgate", "PUT http://127.0.0.1:%d -> 201" % RAD in log)
             check("no path in its log", "/alice/home/" not in log)
+        crash = [os.path.join(d, f) for d, _, fs in os.walk(hd) for f in fs if f.upper() == "CRASH.LOG"]
+        check("no crash (CRASH.LOG)", not crash)
+        for c in crash:
+            print(open(c, "rb").read().decode("latin-1"))
     finally:
         r.stop()
         for p in procs:
