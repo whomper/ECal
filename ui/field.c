@@ -172,11 +172,12 @@ static void draw_text_field(FIELD *f, int focus)
 		short n = (short)strlen(s), vis, rtl;
 		if (f->cur > n)
 			f->cur = n;
-		/* scroll so the cursor shows */
+		/* scroll so the cursor shows; it fits after the last
+		   character, so a field typed full doesn't scroll */
 		if (f->cur < f->first)
 			f->first = f->cur;
-		if (f->cur > f->first + f->w - 1)
-			f->first = f->cur - f->w + 1;
+		if (f->cur > f->first + f->w)
+			f->first = f->cur - f->w;
 		if (f->first > n)
 			f->first = n;
 		if (f->first < 0)

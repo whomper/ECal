@@ -141,6 +141,14 @@ static int is_long(const OCC *o)
 	       ct_days(o->start) != ct_days(o->end - 1);
 }
 
+/* a bar in the all-day row: in the month view every long event, in the
+   day and week views only all-day ones, as the timed ones run down the
+   grid from their start to their end, over midnight into the next days */
+static int in_lane(const OCC *o)
+{
+	return cur_view == V_MONTH ? is_long(o) : o->ev->allday;
+}
+
 static long occ_first_day(const OCC *o)
 {
 	return ct_days(o->start);
@@ -179,7 +187,7 @@ static short assign_lanes(long d0, long n, short *lane, short maxl)
 		long a, b;
 		short l;
 		lane[i] = -1;
-		if (!is_long(o))
+		if (!in_lane(o))
 			continue;
 		a = occ_first_day(o) - d0;
 		b = occ_last_day(o) - d0;
@@ -301,16 +309,26 @@ static void layout_month(void)
 	}
 }
 
-/* timed events of one day column, side by side where they overlap */
+/* timed events of one day column, side by side where they overlap; one
+   that goes on over midnight has a part in each day's column */
 static void layout_column(long day, GRECT *col)
 {
 	short idx[80], colof[80], ncol[80], n = 0, i, j;
 	CTIME d0 = day * MIN_PER_DAY;
 	for (i = 0; i < occ.n && n < 80; i++) {
 		OCC *o = &occ.o[i];
-		if (is_long(o) || ct_days(o->start) != day)
+		if (o->ev->allday)
+			continue;
+		if (ct_days(o->start) != day && !(o->start < d0 && o->end > d0))
 			continue;
 		idx[n++] = i;
+	}
+	/* by start: the list has the events of a day or more first */
+	for (i = 1; i < n; i++) {
+		short k = idx[i];
+		for (j = i; j > 0 && occ.o[idx[j - 1]].start > occ.o[k].start; j--)
+			idx[j] = idx[j - 1];
+		idx[j] = k;
 	}
 	/* greedy columns within clusters of overlapping events */
 	i = 0;
@@ -342,7 +360,9 @@ static void layout_column(long day, GRECT *col)
 		OCC *o = &occ.o[idx[i]];
 		GRECT box;
 		long s = o->start - d0, e = o->end - d0;
-		short w = (col->w - 3) / ncol[i];
+		short w = (col->w - 3) / ncol[i], cont = s < 0;
+		if (s < 0)
+			s = 0;		/* from the day before */
 		if (e - s < 20)
 			e = s + 20;	/* short ones stay readable */
 		if (e > 1440)
@@ -353,7 +373,7 @@ static void layout_column(long day, GRECT *col)
 		box.h = (short)((e - s) * hour_h / 60) - 1;
 		if (box.h < ch / 2)
 			box.h = ch / 2;
-		if (add_item(&box, IT_EVENT, idx[i], day, 0))
+		if (add_item(&box, IT_EVENT, idx[i], day, cont))
 			items[nitems - 1].timed = 1;
 	}
 }
@@ -492,7 +512,7 @@ static void event_box(const ITEM *it, GRECT *clip, int bar)
 	if (sel) {
 		fill(&r, p.color == 6 || p.color == 14 || p.color == 8 ? 1 : p.color);
 		fl = TX_INVERSE;
-	} else if (is_long(o)) {
+	} else if (bar && is_long(o)) {
 		/* all-day and multi-day bars keep their tint, as on the Mac */
 		fill(&r, 0);
 		fill_pat(&r, p.color, p.interior, p.style);
@@ -1267,7 +1287,16 @@ static int drag_event(int it, short mx, short my)
 		if (d >= first_day && d < first_day + ndays)
 			to_day = d;
 		ghost = item->r;
-		if (timed) {
+		if (timed && item->cont) {
+			/* the part after midnight of an event from the day before:
+			   it moves by as much as the mouse does */
+			long dm = (long)(y - my) * 60 / hour_h;
+			dm = (dm + (dm >= 0 ? 7 : -7)) / 15 * 15;
+			to = o.start + (to_day - grab_day) * MIN_PER_DAY + dm;
+			ghost.x = grid.x + (short)(to_day - first_day) * cell_w + 1;
+			ghost.w = cell_w - 2;
+			ghost.y = item->r.y + (short)(dm * hour_h / 60);
+		} else if (timed) {
 			short mins = start_min + (short)((long)(y - my) * 60 / hour_h);
 			mins = (short)((mins + (mins >= 0 ? 7 : -7)) / 15 * 15);	/* the nearest quarter */
 			if (mins < 0)
