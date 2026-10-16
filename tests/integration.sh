@@ -136,6 +136,7 @@ DTSTART;TZID=Asia/Jerusalem:$(d 20261004)T100000
 DTEND;TZID=Asia/Jerusalem:$(d 20261004)T110000
 RRULE:FREQ=WEEKLY;BYDAY=SU
 SUMMARY:ישיבת צוות
+ORGANIZER;CN=Avi:mailto:avi@example.com
 ATTENDEE;CN=Dana:mailto:dana@example.com
 X-APPLE-TRAVEL-ADVISORY-BEHAVIOR:AUTOMATIC
 END:VEVENT
@@ -270,6 +271,7 @@ echo "== a Hebrew title, renaming a series"
 "$CLI" "$D" rename "ישיבת צוות" "ישיבת צוות שבועית" || bad "rename"
 srv=$("${CURL[@]}" "$BASE/alice/home/weekly.ics")
 expect "renamed on the server" "ישיבת צוות שבועית" "$srv"
+expect "the organizer kept" "ORGANIZER;CN=Avi:mailto:avi@example.com" "$srv"
 expect "the attendee kept" "ATTENDEE;CN=Dana:mailto:dana@example.com" "$srv"
 expect "the iPhone's property kept" "X-APPLE-TRAVEL-ADVISORY-BEHAVIOR:AUTOMATIC" "$srv"
 
@@ -277,6 +279,8 @@ echo "== moving one occurrence"
 "$CLI" "$D" move-one "ישיבת צוות שבועית" $(d 20261018)T1000 $(d 20261018)T1400 || bad "move-one"
 srv=$("${CURL[@]}" "$BASE/alice/home/weekly.ics")
 expect "an exception on the server" "RECURRENCE-ID;TZID=Asia/Jerusalem:$(d 20261018)T100000" "$srv"
+n=$(grep -c "^ORGANIZER" <<<"$srv" || true)
+if [ "$n" = 2 ]; then ok "the series and the exception keep the organizer"; else bad "$n ORGANIZER lines"; fi
 out=$("$CLI" "$D" list $(d 20261018) $(d 20261019))
 expect "shown at the new time" "$(d 20261018) 14:00-15:00" "$out"
 absent "not at the old time" "$(d 20261018) 10:00" "$out"
@@ -287,6 +291,10 @@ srv=$("${CURL[@]}" "$BASE/alice/home/weekly.ics")
 n=$(grep -c "RECURRENCE-ID" <<<"$srv" || true)
 if [ "$n" = 1 ]; then ok "still one exception on the server"; else bad "$n exceptions on the server"; fi
 expect "it starts at 16:00" "DTSTART;TZID=Asia/Jerusalem:$(d 20261018)T160000" "$srv"
+n=$(grep -c "^ORGANIZER\|^ATTENDEE" <<<"$srv" || true)
+if [ "$n" = 4 ]; then ok "the exception keeps its organizer and attendee"; else bad "$n ORGANIZER and ATTENDEE lines"; fi
+n=$(grep -c "^RRULE:FREQ=WEEKLY" <<<"$srv" || true)
+if [ "$n" = 1 ]; then ok "the rule only in the series"; else bad "$n RRULE lines"; fi
 out=$("$CLI" "$D" list $(d 20261018) $(d 20261019))
 expect "shown at 16:00" "$(d 20261018) 16:00-17:00" "$out"
 absent "not at 14:00 any more" "$(d 20261018) 14:00" "$out"

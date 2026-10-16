@@ -870,12 +870,14 @@ static int wanted(const char *s, long n)
 		return !(up(s, n, 1) == 'T' && up(s, n, 4) == 'A' && up(s, n, 5) == 'M');
 	case 'L':	/* LOCATION; not LAST-MODIFIED */
 		return up(s, n, 1) == 'O';
+	case 'O':	/* ORGANIZER: ECal leaves it alone, EContact's patch reads it */
+		return 1;
 	case 'T':	/* TRIGGER, TZID, TZOFFSET...; not TRANSP */
 		return up(s, n, 1) == 'Z' || up(s, n, 2) == 'I';
 	case 'X':	/* X-WR-CALNAME; not X-APPLE-... */
 		return up(s, n, 2) == 'W' && up(s, n, 3) == 'R';
 	}
-	return 0;	/* CREATED, CLASS, PRODID, VERSION, CALSCALE, METHOD, ORGANIZER... */
+	return 0;	/* CREATED, CLASS, PRODID, VERSION, CALSCALE, METHOD... */
 }
 
 void ics_line(ICSP *p, const char *s, long n)
@@ -1189,6 +1191,9 @@ typedef struct {
 	int is_exc;		/* it has a RECURRENCE-ID */
 	CTIME exc_at;
 	int mode;		/* 0 build, 1 drop exceptions */
+	SBUF keep_master;	/* writing an exception: what of the series' it keeps, */
+	SBUF keep_exc;		/* or of the exception it replaces */
+	int had_exc;
 } BUILD;
 
 static int prop_is(const char *line, const char *name)
@@ -1209,6 +1214,51 @@ static CTIME recur_of(const char *line)
 	memset(&t, 0, sizeof(t));
 	tval(&t, params, value);
 	return resolve(&t, &x, 0, 0) ? x : CT_NONE;
+}
+
+/* the properties of a VEVENT (comp, CRLF lines) that ECal doesn't edit,
+   to go into the one written in its place; not its alarms */
+static void keep_props(SBUF *keep, char *s)
+{
+	int in_alarm = 0;
+	while (s && *s) {
+		char *nl = strstr(s, "\r\n"), save;
+		if (!nl)
+			break;
+		/* folded continuation lines belong to the previous one */
+		while (nl[2] == ' ' || nl[2] == '\t') {
+			char *n2 = strstr(nl + 2, "\r\n");
+			if (!n2)
+				break;
+			nl = n2;
+		}
+		save = nl[2];
+		nl[2] = 0;
+		if (!strncasecmp(s, "BEGIN:VALARM", 12))
+			in_alarm = 1;
+		if (!in_alarm && strncasecmp(s, "BEGIN:VEVENT", 12) && strncasecmp(s, "END:VEVENT", 10) &&
+		    !prop_is(s, "UID") && !prop_is(s, "DTSTAMP") && !prop_is(s, "LAST-MODIFIED") &&
+		    !prop_is(s, "SEQUENCE") && !prop_is(s, "SUMMARY") && !prop_is(s, "LOCATION") &&
+		    !prop_is(s, "DESCRIPTION") && !prop_is(s, "URL") && !prop_is(s, "DTSTART") &&
+		    !prop_is(s, "DTEND") && !prop_is(s, "DURATION") && !prop_is(s, "RRULE") &&
+		    !prop_is(s, "EXDATE") && !prop_is(s, "STATUS") && !prop_is(s, "CREATED") &&
+		    !prop_is(s, "RDATE") && !prop_is(s, "EXRULE") && !prop_is(s, "RECURRENCE-ID"))
+			sb_adds(keep, s);
+		if (!strncasecmp(s, "END:VALARM", 10))
+			in_alarm = 0;
+		nl[2] = save;
+		s = nl + 2;
+	}
+}
+
+/* keep, before the END:VEVENT that out_event() just wrote */
+static void put_kept(SBUF *o, const SBUF *keep)
+{
+	if (!keep->len)
+		return;
+	o->len -= 12;
+	sb_add(o, keep->s, keep->len);
+	sb_adds(o, "END:VEVENT\r\n");
 }
 
 static void build_line(char *line, void *ud)
@@ -1246,45 +1296,10 @@ static void build_line(char *line, void *ud)
 			if (!b->is_exc && !b->done) {
 				/* the master: ours instead, keeping what we don't edit */
 				SBUF keep;
-				char *s = b->comp.s;
-				int in_alarm = 0;
 				sb_init(&keep);
 				out_event(b->o, b->e);
-				/* re-insert unknown properties of the old master before its END */
-				while (s && *s) {
-					char *nl = strstr(s, "\r\n"), save;
-					if (!nl)
-						break;
-					/* folded continuation lines belong to the previous one */
-					while (nl[2] == ' ' || nl[2] == '\t') {
-						char *n2 = strstr(nl + 2, "\r\n");
-						if (!n2)
-							break;
-						nl = n2;
-					}
-					save = nl[2];
-					nl[2] = 0;
-					if (!strncasecmp(s, "BEGIN:VALARM", 12))
-						in_alarm = 1;
-					if (!in_alarm && strncasecmp(s, "BEGIN:VEVENT", 12) && strncasecmp(s, "END:VEVENT", 10) &&
-					    !prop_is(s, "UID") && !prop_is(s, "DTSTAMP") && !prop_is(s, "LAST-MODIFIED") &&
-					    !prop_is(s, "SEQUENCE") && !prop_is(s, "SUMMARY") && !prop_is(s, "LOCATION") &&
-					    !prop_is(s, "DESCRIPTION") && !prop_is(s, "URL") && !prop_is(s, "DTSTART") &&
-					    !prop_is(s, "DTEND") && !prop_is(s, "DURATION") && !prop_is(s, "RRULE") &&
-					    !prop_is(s, "EXDATE") && !prop_is(s, "STATUS") && !prop_is(s, "CREATED") &&
-					    !prop_is(s, "RDATE") && !prop_is(s, "EXRULE"))
-						sb_adds(&keep, s);
-					if (!strncasecmp(s, "END:VALARM", 10))
-						in_alarm = 0;
-					nl[2] = save;
-					s = nl + 2;
-				}
-				if (keep.len) {
-					/* before our END:VEVENT */
-					b->o->len -= 12;
-					sb_add(b->o, keep.s, keep.len);
-					sb_adds(b->o, "END:VEVENT\r\n");
-				}
+				keep_props(&keep, b->comp.s);
+				put_kept(b->o, &keep);
 				sb_free(&keep);
 				b->done = 1;
 				return;
@@ -1292,9 +1307,19 @@ static void build_line(char *line, void *ud)
 			sb_add(b->o, b->comp.s, b->comp.len);
 			return;
 		}
-		/* writing an exception: an old one for the same start goes */
-		if (b->is_exc && b->exc_at == b->e->recurid)
+		/* writing an exception: an old one for the same start goes,
+		   and what it had that we don't edit (ORGANIZER, ATTENDEE...)
+		   goes into the new one; a first exception takes the series' */
+		if (b->is_exc && b->exc_at == b->e->recurid) {
+			sb_reset(&b->keep_exc);
+			keep_props(&b->keep_exc, b->comp.s);
+			b->had_exc = 1;
 			return;
+		}
+		if (!b->is_exc) {
+			sb_reset(&b->keep_master);
+			keep_props(&b->keep_master, b->comp.s);
+		}
 		sb_add(b->o, b->comp.s, b->comp.len);
 		return;
 	}
@@ -1303,6 +1328,8 @@ static void build_line(char *line, void *ud)
 			if (!b->has_tz)
 				out_tz(b->o, b->e);
 			out_event(b->o, b->e);
+			if (b->e->recurid != CT_NONE)
+				put_kept(b->o, b->had_exc ? &b->keep_exc : &b->keep_master);
 			b->done = 1;
 		}
 	}
@@ -1334,6 +1361,8 @@ char *ics_build(const EVENT *e, const char *orig, long origlen, long *outlen)
 		b.e = e;
 		b.drop = CT_NONE;
 		sb_init(&b.comp);
+		sb_init(&b.keep_master);
+		sb_init(&b.keep_exc);
 		if (e->tz && !e->allday && !e->floating && e->tz != tz_utc()) {
 			/* does orig define the zone already? */
 			char want[60];
@@ -1360,6 +1389,8 @@ char *ics_build(const EVENT *e, const char *orig, long origlen, long *outlen)
 		each_line(orig, origlen, build_line, &b);
 done:
 		sb_free(&b.comp);
+		sb_free(&b.keep_master);
+		sb_free(&b.keep_exc);
 	}
 	if (outlen)
 		*outlen = o.len;
