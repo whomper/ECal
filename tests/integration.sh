@@ -252,6 +252,20 @@ expect "and its reminder" "TRIGGER:-PT10M" "$srv"
 out=$("$CLI" "$D" list $(d 20261014) $(d 20261015))
 expect "in the local copy" "12:30-13:15 [Work] Lunch with Avi" "$out"
 
+echo "== moving an event to another calendar"
+# iCloud keeps one event per UID in an account, so the copy in the new
+# calendar is refused until the old one is gone (gzproxy.py does the same)
+HOMEC=$("$CLI" "$D" calendars | awk '/ בית /{print $1}')
+"$CLI" "$D" add "$HOMEC" "Dentist" $(d 20261015)T0900 30 || bad "add to Home"
+"$CLI" "$D" move-to "Dentist" "$WORK" || bad "move-to"
+expect "now in Work on the server" "SUMMARY:Dentist" "$("${CURL[@]}" "$BASE/alice/work/")"
+absent "and gone from Home" "SUMMARY:Dentist" "$("${CURL[@]}" "$BASE/alice/home/")"
+out=$("$CLI" "$D" list $(d 20261015) $(d 20261016))
+expect "and in the local copy" "09:00-09:30 [Work] Dentist" "$out"
+absent "only once" "[בית] Dentist" "$out"
+out=$("$CLI" "$D" sync)
+expect "still there after a sync" "09:00-09:30 [Work] Dentist" "$("$CLI" "$D" list $(d 20261015) $(d 20261016))"
+
 echo "== a Hebrew title, renaming a series"
 "$CLI" "$D" rename "ישיבת צוות" "ישיבת צוות שבועית" || bad "rename"
 srv=$("${CURL[@]}" "$BASE/alice/home/weekly.ics")

@@ -50,6 +50,7 @@ int caldav_multiget(const char *url, const DAVAUTH *a, char **hrefs, int n,
 /* store an event at href (relative to the calendar url): etag NULL for
    a new one (fails if it exists), else only if unchanged since. The
    new etag comes back in newetag ("" if the server didn't say) */
+extern int caldav_status;	/* HTTP status of the last PUT or DELETE; 0: no answer */
 int caldav_put(const char *url, const char *href, const DAVAUTH *a, const char *data, long len,
 	       const char *etag, char *newetag, int size, char *err, int errlen);
 int caldav_delete(const char *url, const char *href, const DAVAUTH *a, const char *etag,

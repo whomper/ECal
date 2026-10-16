@@ -445,6 +445,8 @@ int caldav_multiget(const char *url, const DAVAUTH *a, char **hrefs, int n,
 	return ok;
 }
 
+int caldav_status;
+
 int caldav_put(const char *url, const char *href, const DAVAUTH *a, const char *data, long len,
 	       const char *etag, char *newetag, int size, char *err, int errlen)
 {
@@ -468,10 +470,12 @@ int caldav_put(const char *url, const char *href, const DAVAUTH *a, const char *
 		snprintf(hdr, sizeof(hdr), "If-None-Match: *\r\n");
 	rq.headers = hdr;
 	sb_init(&out);
+	caldav_status = 0;
 	ok = http_request(&rq, &rs, &out, err, errlen);
 	sb_free(&out);
 	if (!ok)
 		return 0;
+	caldav_status = rs.status;
 	if (rs.status != 200 && rs.status != 201 && rs.status != 204) {
 		snprintf(err, errlen, "%s (HTTP %d)", caldav_status_text(rs.status), rs.status);
 		return 0;
@@ -499,10 +503,12 @@ int caldav_delete(const char *url, const char *href, const DAVAUTH *a, const cha
 		rq.headers = hdr;
 	}
 	sb_init(&out);
+	caldav_status = 0;
 	ok = http_request(&rq, &rs, &out, err, errlen);
 	sb_free(&out);
 	if (!ok)
 		return 0;
+	caldav_status = rs.status;
 	if (rs.status == 404 || rs.status == 410)
 		return 1;		/* gone already */
 	if (rs.status != 200 && rs.status != 204) {

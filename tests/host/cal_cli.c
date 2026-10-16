@@ -17,6 +17,7 @@
  *   cal-cli DIR add CAL TITLE START MINUTES [RRULE]   START as YYYYMMDDTHHMM, view zone
  *   cal-cli DIR rename TITLE NEWTITLE         every occurrence
  *   cal-cli DIR move-one TITLE OCCSTART NEWSTART       just one occurrence
+ *   cal-cli DIR move-to TITLE CAL             to another calendar
  *   cal-cli DIR delete TITLE [this|future OCCSTART]
  *   cal-cli DIR import CAL FILE
  * Titles are UTF-8 on the command line and in the output.
@@ -265,6 +266,18 @@ int main(int argc, char **argv)
 		{ char *t_ = to_atari(argv[4]); ev_set(&c->summary, t_); free(t_); }
 		if (!ev_save(c, c->cal, SAVE_ALL, CT_NONE))
 			return fail("rename");
+		ev_free(c);
+		return 0;
+	}
+	if (!strcmp(cmd, "move-to") && argc == 5) {
+		/* an event to another calendar (its number in "calendars") */
+		EVENT *e = find(argv[3], CT_NONE, 0), *m, *c;
+		if (!e)
+			return fail("no such event");
+		m = ev_master(e);
+		c = ev_dup(m ? m : e);
+		if (!ev_save(c, atoi(argv[4]), SAVE_ALL, CT_NONE))
+			return fail("move-to");
 		ev_free(c);
 		return 0;
 	}

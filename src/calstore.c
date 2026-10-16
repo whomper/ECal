@@ -1657,6 +1657,60 @@ static CTIME until_before(const EVENT *m, CTIME occ)
 	return m->allday ? w - MIN_PER_DAY : w - 1;
 }
 
+/* An event to another calendar: made there, then deleted here, so that a
+   failure leaves it where it was. iCloud keeps one event per UID in an
+   account, all its calendars together: the copy is refused while the
+   original is there (412). Then, within one account, the other way
+   round: deleted here, then made there, and if that fails it is put
+   back here. */
+static int move_event(EVENT *e, int ci)
+{
+	CALENDAR *from = &cals[e->cal], *to = &cals[ci];
+	EVENT *copy = ev_dup(e);
+	char *raw, *text = 0, href[120], *oldhref = 0;
+	long rawlen = 0, len;
+	int ok = 0, r = e->res;
+	if (!copy)
+		return 0;
+	raw = ev_raw(e, &rawlen);
+	copy->res = -1;
+	copy->recurid = CT_NONE;
+	if (raw) {
+		new_href(copy->uid, href, sizeof(href));
+		text = ics_build(copy, raw, rawlen, &len);
+	}
+	ev_free(copy);
+	if (!raw || !text) {
+		if (!raw)
+			str_copy(cal_err, "the event's data is missing from the cache: refresh and try again", sizeof(cal_err));
+		free(raw);
+		free(text);
+		return 0;
+	}
+	if (put_resource(to, -1, href, text, len)) {
+		ok = delete_resource(from, r);
+	} else if (from->acct == to->acct && accts[to->acct].kind == AK_CALDAV &&
+		   (caldav_status == 412 || caldav_status == 409 || caldav_status == 403) &&
+		   (oldhref = strdup(from->res[r].href)) != 0) {
+		char why[sizeof(cal_err)];
+		if (delete_resource(from, r)) {
+			ok = put_resource(to, -1, href, text, len);
+			if (!ok) {
+				str_copy(why, cal_err, sizeof(why));
+				if (put_resource(from, -1, oldhref, raw, rawlen))
+					snprintf(cal_err, sizeof(cal_err), "%s; it stays in %s", why, from->name);
+				else
+					snprintf(cal_err, sizeof(cal_err), "%s, and it couldn't be put back in %s: "
+						 "refresh to see where it is", why, from->name);
+			}
+		}
+	}
+	free(oldhref);
+	free(text);
+	free(raw);
+	return ok;
+}
+
 int ev_save(EVENT *e, int ci, int how, CTIME occ)
 {
 	CALENDAR *c;
@@ -1675,27 +1729,8 @@ int ev_save(EVENT *e, int ci, int how, CTIME occ)
 	res = e->res;
 	m = ev_master(e);
 	/* moving to another calendar: new there, then gone here */
-	if (ci != e->cal) {
-		EVENT *copy = ev_dup(e);
-		int r = res;
-		CALENDAR *from = c;
-		if (!copy)
-			return 0;
-		raw = ev_raw(e, &rawlen);
-		copy->res = -1;
-		copy->recurid = CT_NONE;
-		ok = 0;
-		if (raw) {
-			char href[120];
-			new_href(copy->uid, href, sizeof(href));
-			text = ics_build(copy, raw, rawlen, &len);
-			ok = text && put_resource(&cals[ci], -1, href, text, len);
-			free(text);
-		}
-		ev_free(copy);
-		free(raw);
-		return ok && delete_resource(from, r);
-	}
+	if (ci != e->cal)
+		return move_event(e, ci);
 	raw = ev_raw(e, &rawlen);
 	if (!raw) {
 		str_copy(cal_err, "the event's data is missing from the cache: refresh and try again", sizeof(cal_err));
