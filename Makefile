@@ -43,7 +43,7 @@ BSSLCF  := -m68030 -O2 -fomit-frame-pointer -ffreestanding -fno-builtin -fno-pic
 BSSLOBJ  = $(patsubst $(BSSL)/src/%.c,$(OBJDIR)/bssl/%.o,$(BSSLSRC))
 HBSSLOBJ = $(patsubst $(BSSL)/src/%.c,$(OBJDIR)/hbssl/%.o,$(BSSLSRC))
 
-CORE    := util charset conn tls bidi secret futil ctime tz ics rrule xml inflate http caldav calstore people
+CORE    := util charset conn tls bidi secret futil ctime tz ics rrule xml inflate http caldav calstore people alarms
 ATARI   := libc tos plat_tos net_tos sting gem dsprsa
 UI      := main win draw popup dsp views sidebar editor dialogs field about font help av alert aboutbox iconify clip dd mbar twin busy
 
@@ -236,8 +236,9 @@ REPLAYSRC   := common/tests/fuzz/fuzz_net.c common/tests/fuzz/replay.c
 $(OBJDIR)/replay_%: tests/fuzz/fuzz_%.c $(HOSTSRC) $(HDRS) $(HOSTLIB) $(REPLAYSRC) | $(OBJDIR)
 	$(HOSTCC) $(REPLAYFLAGS) -o $@ $< $(HOSTSRC) $(REPLAYSRC) $(HOSTLIB)
 
-test: $(OBJDIR)/unit $(addprefix $(OBJDIR)/replay_,$(FUZZERS))
+test: $(OBJDIR)/unit $(addprefix $(OBJDIR)/replay_,$(FUZZERS)) $(OBJDIR)/cal-cli
 	$(OBJDIR)/unit
+	CLI=$(OBJDIR)/cal-cli tests/alarms.sh
 	@for f in $(FUZZERS); do \
 	  $(OBJDIR)/replay_$$f tests/fuzz/seeds/$$f $$(ls -d tests/fuzz/found/$$f 2>/dev/null) || exit 1; \
 	done

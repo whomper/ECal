@@ -118,6 +118,8 @@ const TZONE *home_zone(void);
 const TZONE *view_zone(void);
 CTIME now_utc(void);			/* from the Atari clock and the home zone */
 CTIME now_view(void);			/* in the view zone's wall time */
+CTIME now_clock(void);		/* the Atari's clock: the home zone's wall time */
+CTIME view_to_clock(CTIME t);	/* the view's wall time -> the clock's */
 
 /* accounts */
 ACCOUNT  *acct_add(int kind);

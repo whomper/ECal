@@ -1068,7 +1068,14 @@ static int excluded(XP *x, CTIME c, CTIME rep)
 /* one occurrence at wall time c (in the event's zone); 1 when past the range */
 static int emit(XP *x, CTIME c, CTIME dur)
 {
-	CTIME rep = x->ez ? tz_to_utc(x->ez, c) : c, vs, ve;
+	CTIME rep, vs, ve;
+	/* well before the range: no time-zone maths. Two zones' clocks are
+	   at most 26 hours apart, so an occurrence ending more than 27 hours
+	   before the range in its own zone's time ends before it in any
+	   (a birthday from 1960 is walked year by year, every minute) */
+	if (c + (dur > 0 ? dur : 0) + 27 * 60L < x->from)
+		return 0;
+	rep = x->ez ? tz_to_utc(x->ez, c) : c;
 	if (x->ez) {
 		vs = tz_to_local(x->view, rep);
 		ve = tz_to_local(x->view, rep + dur);

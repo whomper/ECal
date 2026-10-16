@@ -14,6 +14,8 @@
 #include "http.h"
 #include "charset.h"
 #include "util.h"
+#include "alarms.h"
+#include "plat.h"
 #include "inflate.h"
 #include "inflate_vec.h"	/* made with Python's gzip and zlib */
 
@@ -625,6 +627,48 @@ static void unfold(char *t)
 
 /* invitations (EContact): the invitees written as ATTENDEEs with this
    user as ORGANIZER, read back, and kept or replaced on a change */
+static void alarm_count(const ALARM *a, void *ud)
+{
+	(void)a;
+	(*(int *)ud)++;
+}
+
+/* the reminder queue and ALARMS.IDX: what is saved comes back, and not
+   once a file it was made from has changed or it no longer reaches ahead */
+static void test_alarms_idx(void)
+{
+	const char *idx = "/tmp/ecal-unit-alarms.idx", *dep = "/tmp/ecal-unit-alarms.dat";
+	const char *files[1];
+	CTIME b = ct_make(2026, 10, 16, 8, 0);
+	int on = 0, h24 = 0, n = 0;
+	files[0] = dep;
+	CHECK(pf_save(dep, "one", 3) == 0);
+	alarms_begin_build();
+	alarms_add(b + 120, b + 130, 0, "Standup\twith a tab", "Room 2");
+	alarms_add(b + 60, b + 70, 0, "Coffee", 0);
+	alarms_add(b + 24 * 60, b + 25 * 60, 1, "Birthday", "");
+	alarms_end_build(b);
+	CHECK_EQ(alarm_n, 3);
+	CHECK(alarm_q[0].fire == b + 60 && alarm_q[2].fire == b + 24 * 60);
+	alarms_due(b + 60, b + 120, alarm_count, &n);	/* after 60, up to 120: one */
+	CHECK_EQ(n, 1);
+	CHECK(alarms_save(idx, files, 1, 1, 1));
+	alarm_n = 0;
+	CHECK(alarms_load(idx, b + 10, &on, &h24));
+	CHECK_EQ(alarm_n, 3);
+	CHECK(on == 1 && h24 == 1);
+	CHECK_STR(alarm_q[1].title, "Standup with a tab");
+	CHECK_STR(alarm_q[1].place, "Room 2");
+	CHECK(alarm_q[2].allday);
+	/* a week on: it doesn't reach far enough */
+	CHECK(!alarms_load(idx, b + 7 * MIN_PER_DAY, &on, &h24));
+	/* a calendar written since: out of date */
+	CHECK(pf_save(dep, "two!", 4) == 0);
+	CHECK(!alarms_load(idx, b + 10, &on, &h24));
+	pf_remove(dep);
+	pf_remove(idx);
+}
+
 static void test_invitees(void)
 {
 	static const char invite[] =
@@ -1058,6 +1102,7 @@ int main(void)
 	test_rfc5545();
 	test_ics_build();
 	test_invitees();
+	test_alarms_idx();
 	test_learned_zone();
 	test_xml();
 	test_urls();

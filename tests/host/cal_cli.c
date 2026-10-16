@@ -20,6 +20,8 @@
  *   cal-cli DIR move-to TITLE CAL             to another calendar
  *   cal-cli DIR invite TITLE "Name <a@b>, c@d"   who is invited ("" nobody)
  *   cal-cli DIR people TITLE                  who is invited, and by whom
+ *   cal-cli DIR alarms                        the reminders of the next days, checked
+ *                                             against expanding every event
  *   cal-cli DIR delete TITLE [this|future OCCSTART]
  *   cal-cli DIR import CAL FILE
  * Titles are UTF-8 on the command line and in the output.
@@ -28,6 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "calstore.h"
+#include "alarms.h"
 #include "charset.h"
 #include "conn.h"
 #include "tls.h"
@@ -270,6 +273,51 @@ int main(int argc, char **argv)
 			return fail("rename");
 		ev_free(c);
 		return 0;
+	}
+	if (!strcmp(cmd, "alarms") && argc == 3) {
+		/* the queue, and the old way: every event over nine days */
+		OCCLIST l;
+		CTIME now = now_view();
+		int i, n = 0, bad = 0;
+		unsigned long t0 = pf_ms();
+		alarms_changed();
+		while (alarms_step())
+			;
+		printf("queue: %d reminders in %lu ms\n", alarm_n, pf_ms() - t0);
+		memset(&l, 0, sizeof(l));
+		t0 = pf_ms();
+		occ_collect(&l, now - MIN_PER_DAY, now + 9 * MIN_PER_DAY);
+		for (i = 0; i < l.n; i++) {
+			EVENT *e = l.o[i].ev;
+			CTIME fire;
+			int k, found = 0;
+			if (e->alarm == -1 || !cals[e->cal].alarms)
+				continue;
+			fire = l.o[i].start - e->alarm;
+			if (fire <= now - MIN_PER_DAY || fire > now + ALARM_DAYS * MIN_PER_DAY)
+				continue;
+			n++;
+			for (k = 0; k < alarm_n && !found; k++)
+				found = alarm_q[k].fire == view_to_clock(fire) && alarm_q[k].start == l.o[i].start;
+			if (!found) {
+				char *t = to_utf8(e->summary ? e->summary : "");
+				printf("missing: %s at %ld\n", t, (long)l.o[i].start);
+				free(t);
+				bad++;
+			}
+		}
+		printf("expanded: %d reminders in %lu ms\n", n, pf_ms() - t0);
+		occ_free(&l);
+		for (i = 0; i < alarm_n; i++) {
+			char *t = to_utf8(alarm_q[i].title);
+			DT d;
+			ct_split(alarm_q[i].start, &d);
+			printf("%04d%02d%02d %02d:%02d %s\n", d.year, d.mon, d.day, d.hour, d.min, t);
+			free(t);
+		}
+		if (n != alarm_n)
+			bad++;
+		return bad ? fail("the queue and the expansion differ") : 0;
 	}
 	if (!strcmp(cmd, "invite") && argc == 5) {
 		EVENT *e = find(argv[3], CT_NONE, 0), *m, *c;

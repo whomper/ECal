@@ -18,6 +18,7 @@
 #include <ctype.h>
 #include <stdarg.h>
 #include "calstore.h"
+#include "alarms.h"
 #include "caldav.h"
 #include "http.h"
 #include "conn.h"
@@ -101,6 +102,20 @@ CTIME now_utc(void)
 CTIME now_view(void)
 {
 	return tz_to_local(view_zone(), now_utc());
+}
+
+/* the Atari's clock as it is (the home zone's wall time) */
+CTIME now_clock(void)
+{
+	PFTIME t;
+	pf_now(&t);
+	return ct_make(t.year, t.mon, t.day, t.hour, t.min);
+}
+
+/* a wall time in the view's zone, by the Atari's clock */
+CTIME view_to_clock(CTIME t)
+{
+	return tz_to_local(home_zone(), tz_to_utc(view_zone(), t));
 }
 
 /* the stretch of time kept from the servers, UTC */
@@ -1442,6 +1457,74 @@ static int occ_skip(EVENT *m, CTIME orig, void *ud)
 		if (x->recurid == orig && x->uid && !strcmp(x->uid, m->uid))
 			return 1;
 	}
+	return 0;
+}
+
+/* ---------------- reminders: the queue (alarms.h) ---------------- */
+
+static int ab_active, ab_ci, ab_ei;
+static CTIME ab_now;
+static const TZONE *ab_vz;
+
+static void alarm_occ(EVENT *e, CTIME s, CTIME en, void *ud)
+{
+	CTIME fire;
+	(void)en;
+	(void)ud;
+	if ((e->hasexc & 2) && e->recurid == CT_NONE) {
+		/* moved by a "this and all future" change: as that one is */
+		EVENT *x = future_exception(e, ev_from_wall(e, s, ab_vz));
+		if (x) {
+			s += x->start - x->recurid;
+			e = x;
+		}
+	}
+	if (e->alarm == -1 || e->status == ST_CANCELLED || e->gone)
+		return;
+	fire = s - e->alarm;
+	if (fire > ab_now - MIN_PER_DAY && fire <= ab_now + ALARM_DAYS * MIN_PER_DAY)
+		alarms_add(view_to_clock(fire), s, e->allday, e->summary ? e->summary : "Event", e->location);
+}
+
+/* one event of the calendars that remind, expanded over the days whose
+   reminders it can have; 0 once all have been */
+int alarms_step(void)
+{
+	if (!ab_active) {
+		if (!alarms_pending())
+			return 0;
+		alarms_begin_build();
+		ab_active = 1;
+		ab_ci = ab_ei = 0;
+		ab_now = now_view();
+		ab_vz = view_zone();
+	}
+	while (ab_ci < ncals) {
+		CALENDAR *c = &cals[ab_ci];
+		EVENT *e;
+		CTIME from, to;
+		if (!c->visible || !c->alarms || ab_ei >= c->nev) {
+			ab_ci++;
+			ab_ei = 0;
+			continue;
+		}
+		e = c->ev[ab_ei++];
+		if (e->status == ST_CANCELLED || e->gone || (e->alarm == -1 && !(e->hasexc & 2)))
+			continue;	/* nothing to remind of: no step spent on it */
+		if (e->hasexc & 2) {
+			/* its later part may remind differently */
+			from = ab_now - 2 * MIN_PER_DAY;
+			to = ab_now + 2 * ALARM_DAYS * MIN_PER_DAY;
+		} else {
+			/* fire = start - alarm, within the next ALARM_DAYS days */
+			from = ab_now - MIN_PER_DAY + e->alarm - 1;
+			to = ab_now + ALARM_DAYS * MIN_PER_DAY + e->alarm + 1;
+		}
+		ics_expand(e, from, to, ab_vz, alarm_occ, occ_skip, 0);
+		return 1;
+	}
+	alarms_end_build(now_clock());
+	ab_active = 0;
 	return 0;
 }
 
