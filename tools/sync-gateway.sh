@@ -7,5 +7,8 @@
 # again.
 set -e
 cd "$(dirname "$0")/.."
+before=$(git rev-parse HEAD)
 git subtree pull --prefix=gateway https://github.com/whomper/AERA-Gateway gateway --squash \
     -m "Update gateway/ from AERA-Gateway"
+# the squash commit git subtree makes is unsigned: made again, signed
+[ ! -f common/tools/sign-subtree.sh ] || sh common/tools/sign-subtree.sh "$before"
