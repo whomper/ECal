@@ -801,6 +801,8 @@ static void load_settings(void)
 		conn_log("ECal", "--", m, (long)strlen(m));
 		snprintf(m, sizeof(m), "the window is drawn %s", win_drawing());
 		conn_log("ECal", "--", m, (long)strlen(m));
+		if (*tos_clock())
+			conn_log("ECal", "--", tos_clock(), (long)strlen(tos_clock()));
 		conn_log_flush();
 	}
 	settings_ready = 1;

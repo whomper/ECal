@@ -108,7 +108,7 @@ void pf_now(PFTIME *t)
 
 unsigned long pf_ms(void)
 {
-	return tos_hz200() * 5;
+	return tos_ms();	/* right even where timer C runs fast */
 }
 
 /* Timer jitter: the MFP's timer C counts every 26 us and the video
