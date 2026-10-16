@@ -54,6 +54,9 @@ enum { ST_CONFIRMED, ST_TENTATIVE, ST_CANCELLED };
 typedef struct {
 	char *uid;
 	char *summary, *location, *notes, *url;	/* Atari text, may be NULL */
+	/* the people invited, "Name <a@b>, Name <c@d>" (Atari text), and who
+	   invited them, "Name <e@f>"; NULL: none */
+	char *attendees, *organizer;
 	const TZONE *tz;	/* zone of the times; NULL: floating or all-day */
 	/* timed events: UTC, or the wall clock when floating; all-day:
 	   00:00 of the first day and of the day after the last */
@@ -75,6 +78,7 @@ typedef struct {
 	unsigned char gone;	/* not shown: "Canceled:" in the title, or an invitation declined
 				   (read only; the event is written back as it was) */
 	short seq;
+	unsigned char att_edited;	/* the invitees were changed: written anew (ATTENDEE, ORGANIZER) */
 	short cal;		/* the calendar it belongs to (calstore.c) */
 	short res;		/* its resource in that calendar */
 } EVENT;
@@ -105,6 +109,17 @@ int   ics_parse_file(const char *path, ICS_CB cb, void *ud, CTIME from, CTIME to
 extern CTIME ics_now_utc;
 /* the calendar's own name (X-WR-CALNAME) seen by the last parse, Atari text */
 extern char ics_calname[64];
+
+/* 1: the parser reads the people invited (attendees, organizer) into
+   the events; 0 (reading calendars) leaves them out, to save memory and
+   time: calstore's ev_people() reads them for the one being edited */
+extern int ics_people;
+
+/* the addresses in "Name <a@b>, c@d": calls fn with each name (may be
+   "") and email; how many */
+int  ics_each_address(const char *list, void (*fn)(const char *name, const char *email, void *ud), void *ud);
+/* whether the organizer is someone else: the event is an invitation to this user */
+int  ev_invited(const EVENT *e);
 
 /* RRULE value -> rule; 0 if it can't be understood */
 int  rrule_parse(const char *s, RRULE *r);

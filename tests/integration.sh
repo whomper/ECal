@@ -267,6 +267,33 @@ absent "only once" "[בית] Dentist" "$out"
 out=$("$CLI" "$D" sync)
 expect "still there after a sync" "09:00-09:30 [Work] Dentist" "$("$CLI" "$D" list $(d 20261015) $(d 20261016))"
 
+echo "== inviting people"
+"$CLI" "$D" invite "Dentist" "Dana Levi <dana@example.org>, sam@example.net" || bad "invite"
+srv=$("${CURL[@]}" "$BASE/alice/work/" | sed -e ':a' -e 'N' -e '$!ba' -e 's/\r\n //g')
+dana=$(grep "mailto:dana@example.org" <<<"$srv" || true)
+expect "Dana invited on the server, by name" 'CN=' "$dana"
+expect "waiting for her answer" "PARTSTAT=NEEDS-ACTION" "$dana"
+expect "and Sam" "mailto:sam@example.net" "$srv"
+out=$("$CLI" "$D" people "Dentist")
+expect "read back" "invited: Dana Levi <dana@example.org>, sam@example.net" "$out"
+# Dana answers (her calendar server writes it into the event)
+href=""
+for h in $("${CURL[@]}" -X PROPFIND -H "Depth: 1" "$BASE/alice/work/" | grep -o '/alice/work/[^<]*\.ics'); do
+  if [[ "$("${CURL[@]}" "$BASE$h")" == *"SUMMARY:Dentist"* ]]; then href=$h; break; fi
+done
+ics=$("${CURL[@]}" "$BASE$href" | sed -e ':a' -e 'N' -e '$!ba' -e 's/\r\n //g' | sed '/mailto:dana/s/PARTSTAT=NEEDS-ACTION/PARTSTAT=ACCEPTED/')
+printf '%s\n' "$ics" | sed 's/$/\r/' | "${CURL[@]}" -X PUT -H "Content-Type: text/calendar" --data-binary @- -o /dev/null "$BASE$href"
+"$CLI" "$D" sync >/dev/null
+"$CLI" "$D" invite "Dentist" "Dana Levi <dana@example.org>, kim@example.net" || bad "change the invitees"
+srv=$("${CURL[@]}" "$BASE$href" | sed -e ':a' -e 'N' -e '$!ba' -e 's/\r\n //g')
+expect "Dana's answer kept" "PARTSTAT=ACCEPTED" "$(grep "mailto:dana@example.org" <<<"$srv" || true)"
+absent "Sam taken away" "sam@example.net" "$srv"
+expect "Kim added" "mailto:kim@example.net" "$srv"
+n=$(grep -c "dana@example.org" <<<"$srv" || true)
+if [ "$n" = 1 ]; then ok "Dana once"; else bad "Dana $n times"; fi
+"$CLI" "$D" invite "Dentist" "" || bad "uninvite all"
+absent "nobody invited any more" "ATTENDEE" "$("${CURL[@]}" "$BASE$href")"
+
 echo "== a Hebrew title, renaming a series"
 "$CLI" "$D" rename "ישיבת צוות" "ישיבת צוות שבועית" || bad "rename"
 srv=$("${CURL[@]}" "$BASE/alice/home/weekly.ics")

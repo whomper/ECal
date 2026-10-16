@@ -758,6 +758,14 @@ static void set_me(CALENDAR *c)
 	str_copy(ics_me, strchr(u, '@') ? u : "", sizeof(ics_me));
 }
 
+void cal_me(int ci)
+{
+	if (ci >= 0 && ci < ncals)
+		set_me(&cals[ci]);
+	else
+		ics_me[0] = 0;
+}
+
 /* While a cache file is read, its events by href: each record must
    replace an older copy of itself, and looking through all the others
    for it (live_res) made reading a big calendar quadratic: 1500 events
@@ -1549,6 +1557,45 @@ char *ev_raw(const EVENT *e, long *len)
 	return buf;
 }
 
+/* the people invited to e and who invited them, read from its text in
+   the cache (not kept with every event read: see ics_people) */
+typedef struct {
+	const EVENT *want;
+	EVENT *got;
+} PEOPLECTX;
+
+static int people_of(EVENT *e, void *ud)
+{
+	PEOPLECTX *p = ud;
+	if (!p->got && e->recurid == p->want->recurid && e->uid && p->want->uid && !strcmp(e->uid, p->want->uid)) {
+		p->got = e;
+		return 0;	/* that's all */
+	}
+	ev_free(e);
+	return 1;
+}
+
+void ev_people(EVENT *e)
+{
+	PEOPLECTX p;
+	char *raw;
+	long len;
+	if (e->attendees || e->organizer || !(raw = ev_raw(e, &len)))
+		return;
+	p.want = e;
+	p.got = 0;
+	ics_people = 1;
+	ics_parse(raw, len, people_of, &p, CT_NONE, CT_NONE);
+	ics_people = 0;
+	if (p.got) {
+		e->attendees = p.got->attendees;
+		e->organizer = p.got->organizer;
+		p.got->attendees = p.got->organizer = 0;
+		ev_free(p.got);
+	}
+	free(raw);
+}
+
 EVENT *ev_master(const EVENT *e)
 {
 	CALENDAR *c = &cals[e->cal];
@@ -1640,6 +1687,7 @@ static int save_new(EVENT *e, int ci)
 	e->seq = 0;
 	new_href(e->uid, href, sizeof(href));
 	ics_now_utc = now_utc();
+	set_me(c);		/* the organizer of its invitations */
 	text = ics_build(e, 0, 0, &len);
 	if (!text) {
 		str_copy(cal_err, "out of memory", sizeof(cal_err));
@@ -1723,6 +1771,7 @@ int ev_save(EVENT *e, int ci, int how, CTIME occ)
 		return 0;
 	}
 	ics_now_utc = now_utc();
+	set_me(&cals[ci]);	/* the organizer of its invitations */
 	if (e->res < 0)
 		return save_new(e, ci);
 	c = &cals[e->cal];

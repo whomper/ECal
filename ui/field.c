@@ -19,6 +19,7 @@
 #include "bidi.h"
 #include "util.h"
 #include "clip.h"
+#include "../src/plat.h"
 
 static GRECT box;		/* the dialog on screen */
 static short rh;		/* pixels per row */
@@ -41,6 +42,8 @@ static int focusable(const FIELD *f)
 {
 	if (!shown_now(f))
 		return 0;
+	if (f->type == FT_PEOPLE)
+		return f->nitems > 0 && !(f->flags & FF_DISABLED);
 	return (f->type == FT_TEXT || f->type == FT_PASS || f->type == FT_MULTI) && !(f->flags & FF_DISABLED);
 }
 
@@ -49,7 +52,7 @@ static void field_rect(const FIELD *f, GRECT *r)
 	r->x = FX(f) - 2;
 	r->y = FY(f) - 2;
 	r->w = f->w * cw + 4;
-	r->h = (f->type == FT_MULTI ? f->h : 1) * ch + 4;
+	r->h = (f->type == FT_MULTI || f->type == FT_PEOPLE ? f->h : 1) * ch + 4;
 	if (f->type == FT_BUTTON || f->type == FT_POPUP) {
 		r->y--;
 		r->h += 2;
@@ -273,6 +276,255 @@ static int eye_hit(const FIELD *f, short mx, short my)
 	return rect_hit(&e, mx, my);
 }
 
+/* ---- people: an event's invitees, one after the other ("Dana Levi,
+   Sam Cohen, kim@x.org") on as many lines as the field is high, from
+   the first shown (first); "+3 more" when they don't all fit, and a «
+   before them when the first ones are scrolled away ---- */
+static void set_focus(DLG *d, short i);
+
+#define PMAX 48
+typedef struct {
+	GRECT r[PMAX];		/* each one shown: items[first + k] */
+	short n;
+	short more;		/* how many more after them */
+	GRECT more_r, back_r;	/* "+3 more", and the « (w 0: none) */
+} PLAY;
+
+static void people_layout(const FIELD *f, PLAY *p)
+{
+	short x0 = FX(f), x = x0, line = 0, w = f->w * cw, i, last_y = FY(f) + (f->h - 1) * ch;
+	short mw = 9 * cw;	/* "+99 more" */
+	memset(p, 0, sizeof(*p));
+	if (f->first > 0) {
+		p->back_r.x = x;
+		p->back_r.y = FY(f);
+		p->back_r.w = 2 * cw;
+		p->back_r.h = ch;
+		x += 2 * cw;
+	}
+	for (i = f->first; i < f->nitems && p->n < PMAX; i++) {
+		short cwid = (short)strlen(f->items[i]) * cw;
+		GRECT *r = &p->r[p->n];
+		if (cwid > w)
+			cwid = w;
+		if (x > x0 && x + cwid > x0 + w) {
+			line++;
+			x = x0;
+		}
+		if (line >= f->h)
+			break;
+		r->x = x;
+		r->y = FY(f) + line * ch;
+		r->w = cwid;
+		r->h = ch;
+		x += cwid + 2 * cw;	/* ", " */
+		p->n++;
+	}
+	if (f->first + p->n < f->nitems) {
+		/* room for "+3 more" at the end of the last line */
+		while (p->n > 0) {
+			GRECT *l = &p->r[p->n - 1];
+			if (l->y < last_y || l->x + l->w + 2 * cw + mw <= x0 + w)
+				break;
+			p->n--;
+		}
+		p->more = f->nitems - f->first - p->n;
+		if (p->n && p->r[p->n - 1].y == last_y)
+			p->more_r.x = p->r[p->n - 1].x + p->r[p->n - 1].w + 2 * cw;
+		else
+			p->more_r.x = x0;
+		p->more_r.y = last_y;
+		p->more_r.w = mw;
+		p->more_r.h = ch;
+	}
+}
+
+/* what is at mx, my: a person (its index), -2 "+3 more", -3 the «, -1 nothing */
+static short people_at(const FIELD *f, short mx, short my)
+{
+	PLAY p;
+	short k;
+	people_layout(f, &p);
+	for (k = 0; k < p.n; k++)
+		if (rect_hit(&p.r[k], mx, my))
+			return f->first + k;
+	if (p.more && rect_hit(&p.more_r, mx, my))
+		return -2;
+	if (p.back_r.w && rect_hit(&p.back_r, mx, my))
+		return -3;
+	return -1;
+}
+
+/* the chosen one scrolled into sight */
+static void people_show(FIELD *f)
+{
+	PLAY p;
+	if (f->first >= f->nitems)
+		f->first = f->nitems ? f->nitems - 1 : 0;
+	if (f->val < 0 || f->val >= f->nitems)
+		return;
+	if (f->val < f->first) {
+		f->first = f->val;
+		return;
+	}
+	people_layout(f, &p);
+	if (f->val >= f->first + p.n)
+		f->first = f->val;
+}
+
+static void draw_people(FIELD *f, int focus)
+{
+	PLAY p;
+	GRECT r;
+	short k, dis = (f->flags & FF_DISABLED) ? TX_DIM : 0;
+	field_rect(f, &r);
+	fill(&r, 0);
+	frame(&r, dis ? grey_color() : 1);
+	if (focus) {
+		GRECT r2 = r;
+		r2.x++;
+		r2.y++;
+		r2.w -= 2;
+		r2.h -= 2;
+		frame(&r2, 1);
+	}
+	people_layout(f, &p);
+	if (p.back_r.w)
+		text_at(p.back_r.x, p.back_r.y, "\xAE", 1, 1, TX_LTR | dis);
+	for (k = 0; k < p.n; k++) {
+		const char *l = f->items[f->first + k];
+		long n = (long)strlen(l);
+		short sel = f->first + k == f->val;
+		if (sel) {
+			GRECT b = p.r[k];
+			b.x -= 2;
+			b.w += 4;
+			fill(&b, 1);
+		}
+		text_at(p.r[k].x, p.r[k].y, l, n, p.r[k].w / cw,
+			(line_rtl(l, n) ? TX_RIGHT : TX_LTR) | (sel ? TX_INVERSE : 0) | dis);
+		if (k < p.n - 1 || p.more)
+			text_at(p.r[k].x + p.r[k].w, p.r[k].y, ",", 1, 1, TX_LTR | dis);
+	}
+	if (p.more) {
+		char t[16];
+		snprintf(t, sizeof(t), "+%d more", p.more);
+		text_at(p.more_r.x, p.more_r.y, t, (long)strlen(t), 9, TX_LTR | dis);
+	}
+}
+
+/* a click in a people field: one chosen, or scrolled by "+3 more" or « */
+static void people_click(DLG *d, short i, short mx, short my)
+{
+	FIELD *f = &d->f[i];
+	short k = people_at(f, mx, my);
+	if (k == -2) {
+		PLAY p;
+		people_layout(f, &p);
+		f->first += p.n ? p.n : 1;
+	} else if (k == -3) {
+		f->first = 0;
+	} else if (k >= 0) {
+		f->val = k;
+	}
+	if (d->focus != i)
+		set_focus(d, i);
+	else
+		dlg_redraw_field(d, i);
+	if (d->changed)
+		d->changed(d, i);
+}
+
+/* keys in a people field: left and right choose, Delete takes the
+   chosen one away (removed()); 1 if taken */
+static int people_key(DLG *d, short i, short key)
+{
+	FIELD *f = &d->f[i];
+	short scan = KEY_SCAN(key);
+	if (scan == 0x53 || scan == 0x0e) {
+		if (f->val >= 0 && d->removed)
+			d->removed(d, i);
+		return 1;
+	}
+	if (scan == 0x4b || scan == 0x4d) {
+		short v = f->val < 0 ? f->first : f->val + (scan == 0x4b ? -1 : 1);
+		if (v >= 0 && v < f->nitems) {
+			f->val = v;
+			people_show(f);
+			dlg_redraw_field(d, i);
+			if (d->changed)
+				d->changed(d, i);
+		}
+		return 1;
+	}
+	return 0;
+}
+
+/* ---- a tip for what the mouse points at in a people field (the
+   address); taken away by drawing that part of the dialog again ---- */
+static GRECT tip_r;
+static int tip_up;
+
+static void draw_all_in(DLG *d, const GRECT *clip);
+
+static void tip_put(const char *s, short mx, short my)
+{
+	GRECT r;
+	short n = (short)strlen(s);
+	if (n > 60)
+		n = 60;
+	r.w = (n + 2) * cw;
+	r.h = ch + 6;
+	r.x = mx + cw;
+	r.y = my + ch + 2;
+	if (r.x + r.w > box.x + box.w - 3)
+		r.x = box.x + box.w - 3 - r.w;
+	if (r.x < box.x + 3)
+		r.x = box.x + 3;
+	if (r.y + r.h > box.y + box.h - 3)
+		r.y = my - r.h - 2;
+	graf_mouse(M_OFF, 0);
+	clip_on(&box);
+	fill(&r, 0);
+	frame(&r, 1);
+	text_at(r.x + cw, r.y + 3, s, n, n, (line_rtl(s, n) ? TX_RIGHT : TX_LTR));
+	graf_mouse(M_ON, 0);
+	tip_r = r;
+	tip_r.w++;
+	tip_r.h++;
+	tip_up = 1;
+}
+
+static void tip_take(DLG *d)
+{
+	if (!tip_up)
+		return;
+	tip_up = 0;
+	draw_all_in(d, &tip_r);
+}
+
+/* the tip for what is under the mouse, if there is one */
+static int tip_for(DLG *d, short mx, short my)
+{
+	short i;
+	for (i = 0; i < d->n; i++) {
+		FIELD *f = &d->f[i];
+		GRECT r;
+		short k;
+		if (f->type != FT_PEOPLE || !f->tips || !shown_now(f))
+			continue;
+		field_rect(f, &r);
+		if (!rect_hit(&r, mx, my))
+			continue;
+		k = people_at(f, mx, my);
+		if (k >= 0 && f->tips[k] && *f->tips[k]) {
+			tip_put(f->tips[k], mx, my);
+			return 1;
+		}
+	}
+	return 0;
+}
+
 static void draw_field(DLG *d, short i)
 {
 	FIELD *f = &d->f[i];
@@ -283,6 +535,9 @@ static void draw_field(DLG *d, short i)
 	case FT_HEAD:
 		text_at(FX(f), FY(f), f->label, (long)strlen(f->label), f->w ? f->w : (short)strlen(f->label),
 			(f->type == FT_HEAD ? TX_BOLD : 0) | (line_rtl(f->label, (long)strlen(f->label)) ? TX_RIGHT : TX_LTR) | dis);
+		break;
+	case FT_PEOPLE:
+		draw_people(f, d->focus == i);
 		break;
 	case FT_TEXT:
 	case FT_PASS:
@@ -437,10 +692,18 @@ static void set_page(DLG *d, short p)
 
 static void draw_all(DLG *d)
 {
-	GRECT t;
+	draw_all_in(d, &box);
+}
+
+/* the dialog, or the part of it in clip */
+static void draw_all_in(DLG *d, const GRECT *clip)
+{
+	GRECT t, c = *clip;
 	short i;
 	char title[80];
-	clip_on(&box);
+	if (!rect_and(&c, &box))
+		return;
+	clip_on(&c);
 	graf_mouse(M_OFF, 0);
 	fill(&box, 0);
 	frame(&box, 1);
@@ -722,7 +985,8 @@ void dlg_redraw(DLG *d)
 
 short dlg_run(DLG *d)
 {
-	short result = -2, i, mx, my, mb, ks, m[8];
+	short result = -2, i, mx, my, mb, ks, m[8], tips = 0, hx = -1, hy = -1, tip_tried = 1;
+	unsigned long hover_at = 0;
 	AEVENT e;
 	GRECT outer = box;		/* the dialog under this one, if any */
 	short outer_rh = rh, outer_pad = pad;
@@ -759,8 +1023,31 @@ short dlg_run(DLG *d)
 	form_dial(FMD_START, box.x, box.y, box.w + 2, box.h + 2);
 	graf_mouse(ARROW, 0);
 	draw_all(d);
+	/* a people field: what the mouse rests on tells its address */
+	for (i = 0; i < d->n; i++)
+		if (d->f[i].type == FT_PEOPLE && d->f[i].tips)
+			tips = 1;
+	if (tips)
+		graf_mkstate(&hx, &hy, &mb, &ks);
+	tip_up = 0;
 	while (result == -2) {
-		evnt_multi_(MU_KEYBD | MU_BUTTON, 0x102, 3, 0, 0, m, &e);
+		if (tips) {
+			evnt_set_m1(1, hx, hy, 1, 1);
+			evnt_multi_(MU_KEYBD | MU_BUTTON | MU_M1 | MU_TIMER, 0x102, 3, 0, 100, m, &e);
+			if (e.which & (MU_KEYBD | MU_BUTTON | MU_M1))
+				tip_take(d);
+			if (e.which & MU_M1) {
+				hx = e.mx;
+				hy = e.my;
+				hover_at = pf_ms();
+				tip_tried = 0;
+			} else if (!(e.which & (MU_KEYBD | MU_BUTTON)) && !tip_tried && pf_ms() - hover_at >= 500UL) {
+				tip_tried = 1;
+				tip_for(d, hx, hy);
+			}
+		} else {
+			evnt_multi_(MU_KEYBD | MU_BUTTON, 0x102, 3, 0, 0, m, &e);
+		}
 		if (e.which & MU_KEYBD) {
 			short scan = KEY_SCAN(e.kreturn);
 			FIELD *f = d->focus >= 0 ? &d->f[d->focus] : 0;
@@ -775,6 +1062,8 @@ short dlg_run(DLG *d)
 				short dir = (scan == 0x48 || (scan == 0x0f && (e.kstate & (K_LSHIFT | K_RSHIFT)))) ? -1 : 1;
 				if (d->focus >= 0)
 					set_focus(d, next_focus(d, d->focus, dir));
+			} else if (f && f->type == FT_PEOPLE && people_key(d, d->focus, e.kreturn)) {
+				/* chosen, or one to take away */
 			} else if (f && edit_key(d, f, e.kstate, e.kreturn)) {
 				/* typed */
 			} else if (scan == 0x1c || scan == 0x72) {	/* Return */
@@ -801,6 +1090,9 @@ short dlg_run(DLG *d)
 			if (hit >= 0 && !(d->f[hit].flags & FF_DISABLED)) {
 				FIELD *f = &d->f[hit];
 				switch (f->type) {
+				case FT_PEOPLE:
+					people_click(d, hit, e.mx, e.my);
+					break;
 				case FT_TEXT:
 				case FT_PASS:
 				case FT_MULTI:
@@ -814,7 +1106,10 @@ short dlg_run(DLG *d)
 					break;
 				case FT_BUTTON:
 					press_effect(d, hit);
-					result = hit;
+					if (!(f->flags & FF_ACTION))
+						result = hit;
+					else if (d->changed)
+						d->changed(d, hit);
 					break;
 				case FT_CHECK:
 					f->val = !f->val;
@@ -854,6 +1149,7 @@ short dlg_run(DLG *d)
 			} while (mb & 3);
 		}
 	}
+	tip_take(d);
 	clip_off();
 	form_dial(FMD_FINISH, box.x, box.y, box.w + 2, box.h + 2);
 	wind_update(2);
@@ -885,6 +1181,8 @@ short dlg_pick(const char *title, const char *const *items, short n, short sel)
 			w = (short)strlen(items[i]);
 	if ((short)strlen(title) > w)
 		w = (short)strlen(title);
+	if (w < 29)
+		w = 29;		/* the hint at the bottom */
 	w += 4;
 	if (sel < 0)
 		sel = 0;
@@ -988,7 +1286,9 @@ int dlg_ask(const char *title, const char *label, char *buf, short len)
 {
 	FIELD f[4];
 	DLG d;
-	short w = len + (short)strlen(label) + 4, r;
+	/* the field 30 wide at most (longer text scrolls in it): narrower
+	   than the dialog it is asked from, so nothing of it is left over */
+	short fw = len < 30 ? len : 30, w = fw + (short)strlen(label) + 4, r;
 	if (w < 36)
 		w = 36;
 	memset(f, 0, sizeof(f));
@@ -1000,7 +1300,7 @@ int dlg_ask(const char *title, const char *label, char *buf, short len)
 	f[1].type = FT_TEXT;
 	f[1].x = (short)strlen(label) + 1;
 	f[1].y = 2;
-	f[1].w = len < w - f[1].x - 1 ? len : w - f[1].x - 1;
+	f[1].w = fw < w - f[1].x - 1 ? fw : w - f[1].x - 1;
 	f[1].buf = buf;
 	f[1].max = len + 1;
 	f[2].type = FT_BUTTON;

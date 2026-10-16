@@ -609,6 +609,146 @@ static void test_rfc5545(void)
 	}
 }
 
+/* the text with its folded lines joined again */
+static void unfold(char *t)
+{
+	char *r = t, *w = t;
+	while (*r) {
+		if (r[0] == '\r' && r[1] == '\n' && r[2] == ' ') {
+			r += 3;
+			continue;
+		}
+		*w++ = *r++;
+	}
+	*w = 0;
+}
+
+/* invitations (EContact): the invitees written as ATTENDEEs with this
+   user as ORGANIZER, read back, and kept or replaced on a change */
+static void test_invitees(void)
+{
+	static const char invite[] =
+		"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:inv-1\r\n"
+		"DTSTART:20261020T090000Z\r\nDTEND:20261020T100000Z\r\nSUMMARY:Lunch\r\n"
+		"ORGANIZER;CN=\"Dana Levi\":mailto:dana@example.org\r\n"
+		"ATTENDEE;CN=\"Dana Levi\";PARTSTAT=ACCEPTED:mailto:dana@example.org\r\n"
+		"ATTENDEE;CN=\"Erez Yaary\";PARTSTAT=NEEDS-ACTION:mailto:erez@example.com\r\n"
+		"END:VEVENT\r\nEND:VCALENDAR\r\n";
+	EVENT *e = ev_new(), *r;
+	EVS s;
+	char *text, *t2;
+	long len, len2;
+	str_copy(ics_me, "erez@example.com", sizeof(ics_me));
+	ics_people = 1;		/* as the editor reads them */
+	ics_now_utc = ct_make(2026, 10, 10, 12, 0);
+	e->uid = strdup("new-inv@atari");
+	e->summary = strdup("Atari meet");
+	e->start = ct_make(2026, 10, 21, 18, 0);
+	e->end = e->start + 120;
+	e->tz = tz_utc();
+	e->alarm = -1;
+	ev_set(&e->attendees, "Maya Carter <maya@pixelpress.example>, \"Smith, Hannah\" <hannah@example.com>, sam@example.net");
+	e->att_edited = 1;
+	text = ics_build(e, 0, 0, &len);
+	unfold(text);
+	len = (long)strlen(text);
+	CHECK(strstr(text, "ORGANIZER:mailto:erez@example.com\r\n") != 0);
+	CHECK(strstr(text, "ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=CHAIR;PARTSTAT=ACCEPTED:mailto:erez@example.com") != 0);
+	CHECK(strstr(text, "ATTENDEE;CN=\"Maya Carter\";CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:maya@pixelpress.example") != 0);
+	CHECK(strstr(text, "CN=\"Smith, Hannah\"") != 0);
+	CHECK(strstr(text, "RSVP=TRUE:mailto:sam@example.net") != 0);
+	memset(&s, 0, sizeof(s));
+	ics_parse(text, len, keep, &s, CT_NONE, CT_NONE);
+	CHECK_EQ(s.n, 1);
+	if (s.n) {
+		r = s.ev[0];
+		CHECK(r->attendees && strstr(r->attendees, "Maya Carter <maya@pixelpress.example>"));
+		CHECK(r->organizer && !strcmp(r->organizer, "erez@example.com"));
+		CHECK(!ev_invited(r));
+		/* a change that leaves the invitees alone keeps them as they were */
+		ev_set(&r->summary, "Atari meet, moved");
+		t2 = ics_build(r, text, len, &len2);
+		CHECK(strstr(t2, "SUMMARY:Atari meet\\, moved") != 0);
+		CHECK(strstr(t2, "mailto:maya@pixelpress.example") != 0);
+		free(t2);
+		/* one taken away: the others written anew, the old lines gone */
+		ev_set(&r->attendees, "sam@example.net");
+		r->att_edited = 1;
+		t2 = ics_build(r, text, len, &len2);
+		unfold(t2);
+		CHECK(strstr(t2, "maya@pixelpress.example") == 0);
+		CHECK(strstr(t2, "mailto:sam@example.net") != 0);
+		{
+			/* one ORGANIZER only */
+			char *o = strstr(t2, "ORGANIZER");
+			CHECK(o && !strstr(o + 1, "ORGANIZER"));
+		}
+		free(t2);
+	}
+	free_evs(&s);
+	free(text);
+	/* an invitation from someone else */
+	memset(&s, 0, sizeof(s));
+	ics_parse(invite, (long)strlen(invite), keep, &s, CT_NONE, CT_NONE);
+	CHECK_EQ(s.n, 1);
+	if (s.n) {
+		CHECK(ev_invited(s.ev[0]));
+		CHECK_STR(s.ev[0]->organizer, "Dana Levi <dana@example.org>");
+	}
+	free_evs(&s);
+	ev_free(e);
+	/* a change to the invitees keeps the answers of those still invited:
+	   their own lines stay, the new one is added, the one taken away goes */
+	{
+		static const char mine[] =
+			"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:inv-2\r\n"
+			"DTSTART:20261020T090000Z\r\nDTEND:20261020T100000Z\r\nSUMMARY:Meet\r\n"
+			"ORGANIZER;CN=Erez:mailto:erez@example.com\r\n"
+			"ATTENDEE;ROLE=CHAIR;PARTSTAT=ACCEPTED:mailto:erez@example.com\r\n"
+			"ATTENDEE;CN=\"Dana Levi\";PARTSTAT=ACCEPTED;SCHEDULE-STATUS=2.0:mailto:\r\n dana@example.org\r\n"
+			"ATTENDEE;CN=Sam;PARTSTAT=DECLINED:mailto:sam@example.net\r\n"
+			"END:VEVENT\r\nEND:VCALENDAR\r\n";
+		long ml = (long)strlen(mine);
+		memset(&s, 0, sizeof(s));
+		ics_parse(mine, ml, keep, &s, CT_NONE, CT_NONE);
+		CHECK_EQ(s.n, 1);
+		if (s.n) {
+			char *o;
+			r = s.ev[0];
+			CHECK(!ev_invited(r));
+			ev_set(&r->attendees, "Dana Levi <dana@example.org>, kim@example.net");
+			r->att_edited = 1;
+			t2 = ics_build(r, mine, ml, &len2);
+			unfold(t2);
+			CHECK(strstr(t2, "PARTSTAT=ACCEPTED;SCHEDULE-STATUS=2.0:mailto:dana@example.org") != 0);
+			CHECK(strstr(t2, "sam@example.net") == 0);
+			CHECK(strstr(t2, "PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:kim@example.net") != 0);
+			o = strstr(t2, "ORGANIZER;CN=Erez");
+			CHECK(o && !strstr(o + 1, "ORGANIZER"));
+			o = strstr(t2, "ROLE=CHAIR");
+			CHECK(o && !strstr(o + 1, "ROLE=CHAIR"));
+			o = strstr(t2, "dana@example.org");
+			CHECK(o && !strstr(o + 1, "dana@example.org"));
+			free(t2);
+			/* everyone taken away: no invitation left */
+			ev_set(&r->attendees, "");
+			t2 = ics_build(r, mine, ml, &len2);
+			CHECK(strstr(t2, "ATTENDEE") == 0 && strstr(t2, "ORGANIZER") == 0);
+			free(t2);
+		}
+		free_evs(&s);
+	}
+	/* reading calendars: who is invited isn't kept, a declined invitation still hides */
+	ics_people = 0;
+	memset(&s, 0, sizeof(s));
+	ics_parse(invite, (long)strlen(invite), keep, &s, CT_NONE, CT_NONE);
+	CHECK_EQ(s.n, 1);
+	if (s.n)
+		CHECK(!s.ev[0]->attendees && !s.ev[0]->organizer);
+	free_evs(&s);
+	ics_me[0] = 0;
+}
+
 static void test_ics_build(void)
 {
 	EVENT *e = ev_new();
@@ -917,6 +1057,7 @@ int main(void)
 	test_rrules();
 	test_rfc5545();
 	test_ics_build();
+	test_invitees();
 	test_learned_zone();
 	test_xml();
 	test_urls();

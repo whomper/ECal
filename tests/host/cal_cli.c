@@ -18,6 +18,8 @@
  *   cal-cli DIR rename TITLE NEWTITLE         every occurrence
  *   cal-cli DIR move-one TITLE OCCSTART NEWSTART       just one occurrence
  *   cal-cli DIR move-to TITLE CAL             to another calendar
+ *   cal-cli DIR invite TITLE "Name <a@b>, c@d"   who is invited ("" nobody)
+ *   cal-cli DIR people TITLE                  who is invited, and by whom
  *   cal-cli DIR delete TITLE [this|future OCCSTART]
  *   cal-cli DIR import CAL FILE
  * Titles are UTF-8 on the command line and in the output.
@@ -267,6 +269,29 @@ int main(int argc, char **argv)
 		if (!ev_save(c, c->cal, SAVE_ALL, CT_NONE))
 			return fail("rename");
 		ev_free(c);
+		return 0;
+	}
+	if (!strcmp(cmd, "invite") && argc == 5) {
+		EVENT *e = find(argv[3], CT_NONE, 0), *m, *c;
+		if (!e)
+			return fail("no such event");
+		m = ev_master(e);
+		c = ev_dup(m ? m : e);
+		{ char *t_ = to_atari(argv[4]); ev_set(&c->attendees, t_); free(t_); }
+		c->att_edited = 1;
+		if (!ev_save(c, c->cal, SAVE_ALL, CT_NONE))
+			return fail("invite");
+		ev_free(c);
+		return 0;
+	}
+	if (!strcmp(cmd, "people") && argc == 4) {
+		EVENT *e = find(argv[3], CT_NONE, 0);
+		if (!e)
+			return fail("no such event");
+		cal_me(e->cal);
+		ev_people(e);
+		printf("organizer: %s\ninvited: %s\ninvitation: %s\n", e->organizer ? e->organizer : "",
+		       e->attendees ? e->attendees : "", ev_invited(e) ? "yes" : "no");
 		return 0;
 	}
 	if (!strcmp(cmd, "move-to") && argc == 5) {

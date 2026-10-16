@@ -181,10 +181,10 @@ def main():
             r.key(SCAN["n"])
             r.wait(2)
             r.shot("10-new")
-            r.click(276, 235)                  # Repeat
+            r.click(276, 257)                  # Repeat
             r.wait(1)
             r.shot("11-repeat-menu")
-            r.click(276, 401)                  # Custom...
+            r.click(276, 423)                  # Custom...
             r.wait(2)
             r.shot("12-custom")
             # monthly, on the last Friday, by the fields
@@ -216,9 +216,9 @@ def main():
             # a rule typed as text
             r.key(SCAN["n"])
             r.wait(2)
-            r.click(276, 235)
+            r.click(276, 257)
             r.wait(1)
-            r.click(276, 401)
+            r.click(276, 423)
             r.wait(2)
             r.click(340, 355)                  # the Rule line
             r.key(0x61)                        # Undo: empty it

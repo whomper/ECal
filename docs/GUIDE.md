@@ -221,6 +221,7 @@ date as the title. Reminders still come while it is iconified.
 - **Title**, **Location**, **Notes** take Hebrew: press **F10** for the
   Israeli keyboard (in every text field, as in EMail), F10 again for
   English. Text is laid out right to left when it starts in Hebrew.
+- **People**: who is invited (see [Inviting people](#inviting-people)).
 - **Starts / Ends**: dates as day.month.year (`12.10.2026`, `12.10`,
   `12/10/26`), times as `9:30`, `930` or `9:30pm`.
 - **all-day** for birthdays, holidays, trips.
@@ -263,12 +264,44 @@ send them), and invitations you declined.
 Events from iPhones, Macs, Outlook and Google with extra dates, excluded
 dates or rules, or "this and future" changes show as they should.
 
-ECal keeps what it doesn't edit: invitations' attendees, other
-programs' settings, attachments, exceptions made on an iPhone all stay as
-they were when it saves an event.
+ECal keeps what it doesn't edit: other programs' settings, attachments,
+exceptions made on an iPhone all stay as they were when it saves an
+event, and so do the answers of the people invited.
 
 **Find** (^F) looks through titles, places and notes, from as far back as
 ECal keeps to two years ahead.
+
+## Inviting people
+
+**People** in the event lists who is invited, one after another. Someone
+in your contacts in [EContact](https://github.com/whomper/EContact) shows
+by name, anyone else by address; rest the mouse on a name for a moment to
+see the address. Two lines hold six or so; "+3 more" shows the rest, and
+« goes back to the start.
+
+- **Add...** asks for a name or an address. An address (or several, with
+  commas: `Dana Levi <dana@example.org>, sam@example.net`) is added as it
+  is. A name, or part of one, picks from EContact's contacts: one that
+  matches is added at once, more than one are listed to choose from, and
+  nothing typed lists them all. A group adds everyone in it.
+- Click a name to choose it, or Tab to the list and use the arrow keys;
+  **Remove** or Delete takes the chosen one away.
+
+When you save, the people are written into the event with you as the
+organiser, and iCloud (or another server that schedules, RFC 6638) emails
+them the invitation and later their answers. You are your account's
+user name, so it needs to be an address: an Apple ID is. Those you leave
+on the list keep their answers when you add or remove someone else.
+
+An invitation from someone else shows who sent it first, marked
+"(organizer)", then the others invited; only the organiser can change
+who comes. Invitations you declined aren't shown at all.
+
+EContact keeps your contacts; ECal reads them from the file EContact
+writes (`CONTACTS.TXT`, in the folder `ECONTACT.INF` in the root of the
+boot drive names), so EContact needn't be running. **Contacts...** (the
+File menu in `ECAL.PRG`, the ≡ menu in the accessory) opens EContact's
+window when it's loaded.
 
 ## From other programs
 

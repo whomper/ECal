@@ -38,6 +38,8 @@ void ev_free(EVENT *e)
 	free(e->location);
 	free(e->notes);
 	free(e->url);
+	free(e->attendees);
+	free(e->organizer);
 	free(e->rr);
 	free(e->exdate);
 	free(e->rdate);
@@ -62,6 +64,8 @@ EVENT *ev_dup(const EVENT *s)
 	e->location = dup0(s->location);
 	e->notes = dup0(s->notes);
 	e->url = dup0(s->url);
+	e->attendees = dup0(s->attendees);
+	e->organizer = dup0(s->organizer);
 	if (s->rr) {
 		e->rr = malloc(sizeof(RRULE));
 		if (e->rr)
@@ -653,6 +657,7 @@ static void finish_tz(ICSP *p)
 #define VALUE_IS(lit) ((value[0] | 32) == ((lit)[0] | 32) && !strcasecmp(value, (lit)))
 
 char ics_me[100];
+int ics_people;
 
 static void logical_line(ICSP *p, char *s)
 {
@@ -831,13 +836,41 @@ static void logical_line(ICSP *p, char *s)
 				VALUE_IS("TENTATIVE") ? ST_TENTATIVE : ST_CONFIRMED;
 	} else if (NAME_IS("SEQUENCE")) {
 		p->ev->seq = (short)atoi(value);
-	} else if (NAME_IS("ATTENDEE") && ics_me[0]) {
-		/* this user, having declined: as on the Mac, not shown */
-		char ps[20];
+	} else if (NAME_IS("ATTENDEE") || NAME_IS("ORGANIZER")) {
+		char ps[20], cn[100];
 		const char *addr = !strncasecmp(value, "mailto:", 7) ? value + 7 : value;
-		param(params, "PARTSTAT", ps, sizeof(ps));
-		if (!strcasecmp(ps, "DECLINED") && !strcasecmp(addr, ics_me))
-			p->ev->gone = 1;
+		/* this user, having declined: as on the Mac, not shown */
+		if (name[0] == 'A' && ics_me[0]) {
+			param(params, "PARTSTAT", ps, sizeof(ps));
+			if (!strcasecmp(ps, "DECLINED") && !strcasecmp(addr, ics_me))
+				p->ev->gone = 1;
+		}
+		if (!ics_people)
+			return;		/* who they are: only for the editor (ev_people) */
+		/* "Name <a@b>" for the editor (the name in the font's letters) */
+		param(params, "CN", cn, sizeof(cn));
+		{
+			char one[300], *a = 0;
+			long n;
+			if (cn[0])
+				a = cs_to_atari(cn, (long)strlen(cn), CS_UTF8, &n);
+			if (a && *a && !strchr(a, ',') && !strchr(a, '<'))
+				snprintf(one, sizeof(one), "%s <%s>", a, addr);
+			else
+				snprintf(one, sizeof(one), "%s", addr);
+			free(a);
+			if (name[0] == 'O') {
+				free(p->ev->organizer);
+				p->ev->organizer = strdup(one);
+			} else {
+				char *old = p->ev->attendees, *nw = malloc((old ? strlen(old) + 2 : 0) + strlen(one) + 1);
+				if (nw) {
+					sprintf(nw, "%s%s%s", old ? old : "", old ? ", " : "", one);
+					free(old);
+					p->ev->attendees = nw;
+				}
+			}
+		}
 	}
 }
 
@@ -1051,6 +1084,164 @@ static void out_time(SBUF *o, const char *name, const EVENT *e, CTIME t)
 	out_str(o, line);
 }
 
+/* "Name <a@b>, c@d" -> each name and address */
+int ics_each_address(const char *list, void (*fn)(const char *name, const char *email, void *ud), void *ud)
+{
+	const char *p = list;
+	int n = 0;
+	while (p && *p) {
+		const char *s = p, *e;
+		int q = 0, a = 0;
+		char one[300], name[200], email[120], *lt, *gt, *t;
+		for (e = p; *e && (q || a || *e != ','); e++) {
+			if (*e == '"')
+				q = !q;
+			else if (*e == '<')
+				a = 1;
+			else if (*e == '>')
+				a = 0;
+		}
+		p = *e ? e + 1 : e;
+		if (e - s > (long)sizeof(one) - 1)
+			continue;
+		memcpy(one, s, e - s);
+		one[e - s] = 0;
+		t = str_trim(one);		/* the start after the spaces */
+		if (!*t)
+			continue;
+		lt = strchr(t, '<');
+		gt = lt ? strchr(lt, '>') : 0;
+		if (lt && gt) {
+			*gt = 0;
+			str_copy(email, str_trim(lt + 1), sizeof(email));
+			*lt = 0;
+			str_copy(name, str_trim(t), sizeof(name));
+		} else {
+			str_copy(email, t, sizeof(email));
+			name[0] = 0;
+		}
+		/* "Maya Carter" without its quotes */
+		if (name[0] == '"') {
+			int k = (int)strlen(name);
+			memmove(name, name + 1, k);
+			if (k > 1 && name[k - 2] == '"')
+				name[k - 2] = 0;
+		}
+		if (!strchr(email, '@'))
+			continue;
+		fn(name, email, ud);
+		n++;
+	}
+	return n;
+}
+
+static void email_of(const char *addr, char *out, int size)
+{
+	const char *lt = strchr(addr, '<');
+	str_copy(out, lt ? lt + 1 : addr, size);
+	if (strchr(out, '>'))
+		*strchr(out, '>') = 0;
+}
+
+int ev_invited(const EVENT *e)
+{
+	char org[120];
+	if (!e->organizer || !ics_me[0])
+		return 0;
+	email_of(e->organizer, org, sizeof(org));
+	return strcasecmp(org, ics_me) != 0;
+}
+
+/* what a change to the invitees keeps of the old ones: their own
+   ATTENDEE lines (and answers), set by keep_props() before out_event()
+   writes the rest; ",a@b,c@d," in lower case */
+typedef struct {
+	SBUF lines;		/* the properties kept, CRLF lines */
+	SBUF had;		/* the attendees among them */
+	int org;		/* and an ORGANIZER */
+} KEPT;
+static const KEPT *att_kept;
+
+static int kept_has(const KEPT *k, const char *email)
+{
+	char want[130];
+	if (!k || !k->had.len)
+		return 0;
+	snprintf(want, sizeof(want), ",%s,", email);
+	return str_istr(k->had.s, want) != 0;
+}
+
+typedef struct {
+	const char *email;
+	int found;
+} FINDA;
+
+static void find_one(const char *name, const char *email, void *ud)
+{
+	FINDA *f = ud;
+	(void)name;
+	if (!strcasecmp(email, f->email))
+		f->found = 1;
+}
+
+/* whether email is in "Name <a@b>, c@d" */
+static int in_list(const char *list, const char *email)
+{
+	FINDA f;
+	f.email = email;
+	f.found = 0;
+	ics_each_address(list, find_one, &f);
+	return f.found;
+}
+
+typedef struct {
+	SBUF *o;
+	const char *me;
+} ATT;
+
+static void out_one_attendee(const char *name, const char *email, void *ud)
+{
+	ATT *a = ud;
+	SBUF b;
+	if (a->me && !strcasecmp(email, a->me))
+		return;			/* the organizer is written on its own */
+	if (kept_has(att_kept, email))
+		return;			/* invited before: its line, with the answer, stays */
+	sb_init(&b);
+	sb_adds(&b, "ATTENDEE");
+	if (*name) {
+		long n;
+		char *u = atari_to_utf8(name, (long)strlen(name), &n), *q;
+		for (q = u; q && *q; q++)
+			if (*q == '"')
+				*q = '\'';
+		sb_printf(&b, ";CN=\"%s\"", u ? u : "");
+		free(u);
+	}
+	sb_printf(&b, ";CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:%s", email);
+	out_line(a->o, b.s, b.len);
+	sb_free(&b);
+}
+
+/* the invitations: this user organizes them (iCloud and other CalDAV
+   servers that schedule send them out by email, RFC 6638) */
+static void out_attendees(SBUF *o, const EVENT *e)
+{
+	ATT a;
+	char line[200];
+	a.o = o;
+	a.me = ics_me[0] ? ics_me : 0;
+	if (a.me && !(att_kept && att_kept->org)) {
+		snprintf(line, sizeof(line), "ORGANIZER:mailto:%s", a.me);
+		out_str(o, line);
+	}
+	if (a.me && !kept_has(att_kept, a.me)) {
+		snprintf(line, sizeof(line), "ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=CHAIR;PARTSTAT=ACCEPTED:mailto:%s", a.me);
+		out_str(o, line);
+	}
+	ics_each_address(e->attendees, out_one_attendee, &a);
+}
+
 static void out_event(SBUF *o, const EVENT *e)
 {
 	char line[400], v[24];
@@ -1104,6 +1295,8 @@ static void out_event(SBUF *o, const EVENT *e)
 		snprintf(line, sizeof(line), "EXRULE:%s", rr);
 		out_str(o, line);
 	}
+	if (e->att_edited && e->attendees && *e->attendees)
+		out_attendees(o, e);
 	if (e->status == ST_TENTATIVE)
 		out_str(o, "STATUS:TENTATIVE");
 	else if (e->status == ST_CANCELLED)
@@ -1191,8 +1384,8 @@ typedef struct {
 	int is_exc;		/* it has a RECURRENCE-ID */
 	CTIME exc_at;
 	int mode;		/* 0 build, 1 drop exceptions */
-	SBUF keep_master;	/* writing an exception: what of the series' it keeps, */
-	SBUF keep_exc;		/* or of the exception it replaces */
+	KEPT keep_master;	/* writing an exception: what of the series' it keeps, */
+	KEPT keep_exc;		/* or of the exception it replaces */
 	int had_exc;
 } BUILD;
 
@@ -1216,11 +1409,51 @@ static CTIME recur_of(const char *line)
 	return resolve(&t, &x, 0, 0) ? x : CT_NONE;
 }
 
-/* the properties of a VEVENT (comp, CRLF lines) that ECal doesn't edit,
-   to go into the one written in its place; not its alarms */
-static void keep_props(SBUF *keep, char *s)
+/* the address of an ATTENDEE or ORGANIZER line (maybe folded) */
+static void line_email(const char *line, char *out, int size)
 {
-	int in_alarm = 0;
+	char buf[600];
+	const char *m;
+	int i = 0;
+	for (; *line && i < (int)sizeof(buf) - 1; line++)
+		if (!(line[0] == '\r' && line[1] == '\n' && (line[2] == ' ' || line[2] == '\t')))
+			buf[i++] = *line;
+		else
+			line += 2;
+	buf[i] = 0;
+	m = str_istr(buf, "mailto:");
+	m = m ? m + 7 : (strrchr(buf, ':') ? strrchr(buf, ':') + 1 : buf);
+	str_copy(out, m, size);
+	out[strcspn(out, "\r\n")] = 0;
+}
+
+static void kept_init(KEPT *k)
+{
+	sb_init(&k->lines);
+	sb_init(&k->had);
+	k->org = 0;
+}
+
+static void kept_reset(KEPT *k)
+{
+	sb_reset(&k->lines);
+	sb_reset(&k->had);
+	k->org = 0;
+}
+
+static void kept_free(KEPT *k)
+{
+	sb_free(&k->lines);
+	sb_free(&k->had);
+}
+
+/* the properties of a VEVENT (comp, CRLF lines) that ECal doesn't edit,
+   to go into the one written in its place; not its alarms. When e's
+   invitees were changed, of the old ATTENDEEs only those still invited
+   (and this user) stay, with their answers; none when nobody is */
+static void keep_props(KEPT *k, char *s, const EVENT *e)
+{
+	int in_alarm = 0, anyone = e->attendees && *e->attendees;
 	while (s && *s) {
 		char *nl = strstr(s, "\r\n"), save;
 		if (!nl)
@@ -1242,8 +1475,21 @@ static void keep_props(SBUF *keep, char *s)
 		    !prop_is(s, "DESCRIPTION") && !prop_is(s, "URL") && !prop_is(s, "DTSTART") &&
 		    !prop_is(s, "DTEND") && !prop_is(s, "DURATION") && !prop_is(s, "RRULE") &&
 		    !prop_is(s, "EXDATE") && !prop_is(s, "STATUS") && !prop_is(s, "CREATED") &&
-		    !prop_is(s, "RDATE") && !prop_is(s, "EXRULE") && !prop_is(s, "RECURRENCE-ID"))
-			sb_adds(keep, s);
+		    !prop_is(s, "RDATE") && !prop_is(s, "EXRULE") && !prop_is(s, "RECURRENCE-ID")) {
+			int keep = 1;
+			if (e->att_edited && prop_is(s, "ATTENDEE")) {
+				char em[120];
+				line_email(s, em, sizeof(em));
+				keep = anyone && (in_list(e->attendees, em) || (ics_me[0] && !strcasecmp(em, ics_me)));
+				if (keep)
+					sb_printf(&k->had, "%s%s,", k->had.len ? "" : ",", em);
+			} else if (e->att_edited && prop_is(s, "ORGANIZER")) {
+				keep = anyone;
+				k->org |= keep;
+			}
+			if (keep)
+				sb_adds(&k->lines, s);
+		}
 		if (!strncasecmp(s, "END:VALARM", 10))
 			in_alarm = 0;
 		nl[2] = save;
@@ -1252,12 +1498,12 @@ static void keep_props(SBUF *keep, char *s)
 }
 
 /* keep, before the END:VEVENT that out_event() just wrote */
-static void put_kept(SBUF *o, const SBUF *keep)
+static void put_kept(SBUF *o, const KEPT *keep)
 {
-	if (!keep->len)
+	if (!keep->lines.len)
 		return;
 	o->len -= 12;
-	sb_add(o, keep->s, keep->len);
+	sb_add(o, keep->lines.s, keep->lines.len);
 	sb_adds(o, "END:VEVENT\r\n");
 }
 
@@ -1295,12 +1541,14 @@ static void build_line(char *line, void *ud)
 		if (b->e->recurid == CT_NONE) {
 			if (!b->is_exc && !b->done) {
 				/* the master: ours instead, keeping what we don't edit */
-				SBUF keep;
-				sb_init(&keep);
+				KEPT keep;
+				kept_init(&keep);
+				keep_props(&keep, b->comp.s, b->e);
+				att_kept = &keep;
 				out_event(b->o, b->e);
-				keep_props(&keep, b->comp.s);
+				att_kept = 0;
 				put_kept(b->o, &keep);
-				sb_free(&keep);
+				kept_free(&keep);
 				b->done = 1;
 				return;
 			}
@@ -1311,14 +1559,14 @@ static void build_line(char *line, void *ud)
 		   and what it had that we don't edit (ORGANIZER, ATTENDEE...)
 		   goes into the new one; a first exception takes the series' */
 		if (b->is_exc && b->exc_at == b->e->recurid) {
-			sb_reset(&b->keep_exc);
-			keep_props(&b->keep_exc, b->comp.s);
+			kept_reset(&b->keep_exc);
+			keep_props(&b->keep_exc, b->comp.s, b->e);
 			b->had_exc = 1;
 			return;
 		}
 		if (!b->is_exc) {
-			sb_reset(&b->keep_master);
-			keep_props(&b->keep_master, b->comp.s);
+			kept_reset(&b->keep_master);
+			keep_props(&b->keep_master, b->comp.s, b->e);
 		}
 		sb_add(b->o, b->comp.s, b->comp.len);
 		return;
@@ -1327,9 +1575,12 @@ static void build_line(char *line, void *ud)
 		if (!b->done) {
 			if (!b->has_tz)
 				out_tz(b->o, b->e);
-			out_event(b->o, b->e);
 			if (b->e->recurid != CT_NONE)
-				put_kept(b->o, b->had_exc ? &b->keep_exc : &b->keep_master);
+				att_kept = b->had_exc ? &b->keep_exc : &b->keep_master;
+			out_event(b->o, b->e);
+			if (att_kept)
+				put_kept(b->o, att_kept);
+			att_kept = 0;
 			b->done = 1;
 		}
 	}
@@ -1361,8 +1612,8 @@ char *ics_build(const EVENT *e, const char *orig, long origlen, long *outlen)
 		b.e = e;
 		b.drop = CT_NONE;
 		sb_init(&b.comp);
-		sb_init(&b.keep_master);
-		sb_init(&b.keep_exc);
+		kept_init(&b.keep_master);
+		kept_init(&b.keep_exc);
 		if (e->tz && !e->allday && !e->floating && e->tz != tz_utc()) {
 			/* does orig define the zone already? */
 			char want[60];
@@ -1389,8 +1640,8 @@ char *ics_build(const EVENT *e, const char *orig, long origlen, long *outlen)
 		each_line(orig, origlen, build_line, &b);
 done:
 		sb_free(&b.comp);
-		sb_free(&b.keep_master);
-		sb_free(&b.keep_exc);
+		kept_free(&b.keep_master);
+		kept_free(&b.keep_exc);
 	}
 	if (outlen)
 		*outlen = o.len;

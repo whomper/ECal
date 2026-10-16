@@ -165,6 +165,11 @@ enum { SAVE_ALL, SAVE_THIS, SAVE_FUTURE };
 /* save e (new: e->res < 0) into calendar cal. For a repeating event,
    how says which occurrences change; occ is the original start of the
    one being edited (event representation) */
+/* e's attendees and organizer, read from the cache (the editor) */
+void ev_people(EVENT *e);
+/* ics_me: the address of calendar ci's account (the organizer of the
+   invitations made there; "" when its user name isn't one) */
+void cal_me(int ci);
 int  ev_save(EVENT *e, int cal, int how, CTIME occ);
 /* delete; for repeating ones how/occ as above */
 int  ev_delete(EVENT *e, int how, CTIME occ);

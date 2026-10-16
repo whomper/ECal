@@ -16,6 +16,8 @@ CalDAV server.
 - **Hebrew** throughout: right-to-left text, the Israeli keyboard (F10), Hebrew dates and
   Hebrew-calendar repeats.
 - **Every repeat:** all of RFC 5545's rules, with "only this one" or "all future ones" edits.
+- **Invitations:** invite people by name from [EContact](https://github.com/whomper/EContact) or by
+  address; iCloud sends the invitations, and their answers are kept.
 - **Always to hand:** reminders over any program, time zones, and its own copy on disk, so it works
   offline.
 - **Makes the most of the machine:** TT RAM when there is some, GDOS fonts, hover tooltips.

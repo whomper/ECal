@@ -43,7 +43,7 @@ BSSLCF  := -m68030 -O2 -fomit-frame-pointer -ffreestanding -fno-builtin -fno-pic
 BSSLOBJ  = $(patsubst $(BSSL)/src/%.c,$(OBJDIR)/bssl/%.o,$(BSSLSRC))
 HBSSLOBJ = $(patsubst $(BSSL)/src/%.c,$(OBJDIR)/hbssl/%.o,$(BSSLSRC))
 
-CORE    := util charset conn tls bidi secret futil ctime tz ics rrule xml inflate http caldav calstore
+CORE    := util charset conn tls bidi secret futil ctime tz ics rrule xml inflate http caldav calstore people
 ATARI   := libc tos plat_tos net_tos sting gem dsprsa
 UI      := main win draw popup dsp views sidebar editor dialogs field about font help av alert aboutbox iconify clip dd mbar twin busy
 

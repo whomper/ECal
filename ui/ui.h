@@ -123,7 +123,7 @@ int  side_click(short mx, short my, short clicks, short button);
 int  side_instant(short mx, short my);	/* over a tick box: no double click to wait for */
 
 /* ---- dialogs drawn by us (field.c) ---- */
-enum { FT_LABEL, FT_TEXT, FT_PASS, FT_BUTTON, FT_CHECK, FT_POPUP, FT_MULTI, FT_HEAD, FT_COLOR };
+enum { FT_LABEL, FT_TEXT, FT_PASS, FT_BUTTON, FT_CHECK, FT_POPUP, FT_MULTI, FT_HEAD, FT_COLOR, FT_PEOPLE };
 #define FF_DEFAULT  1	/* Return presses it */
 #define FF_CANCEL   2	/* Esc presses it */
 #define FF_DISABLED 4
@@ -131,6 +131,7 @@ enum { FT_LABEL, FT_TEXT, FT_PASS, FT_BUTTON, FT_CHECK, FT_POPUP, FT_MULTI, FT_H
 #define FF_DANGER  16	/* the Delete button */
 #define FF_SHOWN   32	/* a password field shown in clear (its eye clicked) */
 #define FF_DIGITS  64	/* a number field: only digits can be typed */
+#define FF_ACTION 128	/* a button that acts in the dialog (changed()), leaving it open */
 typedef struct {
 	short type, flags;
 	short x, y, w, h;	/* in characters */
@@ -138,8 +139,9 @@ typedef struct {
 	char *buf;		/* text fields */
 	short max;		/* its size */
 	short val;		/* check: 0/1; popup: chosen item; color: index */
-	const char *const *items;	/* popup labels */
+	const char *const *items;	/* popup labels; people: their names */
 	short nitems;
+	const char *const *tips;	/* people: what pointing at each shows (the address) */
 	short cur, first;	/* cursor and scroll (text fields) */
 	short page;		/* in a dialog with sections: its section, 1...; 0 on all */
 } FIELD;
@@ -150,8 +152,11 @@ struct DLG {
 	FIELD *f;
 	short n;
 	short focus;
-	/* called when a popup, check or color changes; may redraw */
+	/* called when a popup, check, color or people field changes, or an
+	   FF_ACTION button is pressed; may redraw */
 	void (*changed)(DLG *d, short i);
+	/* Delete pressed in people field i: take its chosen one (val) away */
+	void (*removed)(DLG *d, short i);
 	void *ud;
 	/* sections, as in EMail's Settings: their names in a list on the
 	   left (side characters wide), the chosen one's fields on the right

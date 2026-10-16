@@ -20,6 +20,7 @@
 #include "secret.h"
 #include "busy.h"
 #include "tls.h"
+#include "../src/people.h"
 #include "../src/http.h"
 #include "../src/plat.h"
 #include "util.h"
@@ -399,10 +400,18 @@ static void import_file(int cal, const char *path)
 	after_change();
 }
 
+/* EContact's window (github.com/whomper/EContact), where invitees are
+   picked from: an empty VA_START opens it (common/ui/av.c) */
+static void open_contacts(void)
+{
+	if (!av_send("ECONTACT", "") && !av_send("ECONTST ", ""))
+		alert(1, "[1][EContact isn't loaded: put ECONTACT.ACC|in the root of the boot drive|and restart.][ OK ]");
+}
+
 /* the commands of the menu bar (the program) and the toolbar's menu */
 enum { C_NONE, C_ABOUT, C_NEW, C_ADD, C_REFRESH, C_REFRESH_ALL, C_QUIT, C_COPY, C_DAY, C_WEEK,
        C_MONTH, C_YEAR, C_TODAY, C_GOTO, C_FIND, C_SIDE, C_HEB, C_SET, C_FONT, C_OFFL, C_FALC,
-       C_LOG, C_KBD, C_HELP, C_KEYS };
+       C_LOG, C_KBD, C_HELP, C_KEYS, C_CONTACTS };
 
 static const MBAR_ITEM m_desk[] = {
 	{ "About ECal...", 0, C_ABOUT },
@@ -411,6 +420,7 @@ static const MBAR_ITEM m_desk[] = {
 static const MBAR_ITEM m_file[] = {
 	{ "New event", "^N", C_NEW },
 	{ "Add account or calendar...", 0, C_ADD },
+	{ "Contacts...", 0, C_CONTACTS },
 	{ "-", 0, 0 },
 	{ "Refresh", "^R", C_REFRESH },
 	{ "Refresh everything", "\x01^R", C_REFRESH_ALL },
@@ -537,6 +547,7 @@ static void command(int c)
 	case C_FONT: font_menu(); break;
 	case C_HELP: help_open(); break;
 	case C_KEYS: dlg_keys(); break;
+	case C_CONTACTS: open_contacts(); break;
 	case C_QUIT:
 		quit_now = 1;
 		win_close();
@@ -559,6 +570,7 @@ void cmd_menu(short x, short y)
 		{ "  Go to date...       ^G", C_GOTO },
 		{ "  Find...             ^F", C_FIND },
 		{ "  Today                T", C_TODAY },
+		{ "  Contacts...", C_CONTACTS },
 		{ "-", 0 },
 		{ "  Calendar list      \x01^S", C_SIDE },
 		{ "  Hebrew dates", C_HEB },
@@ -1175,6 +1187,7 @@ int main(void)
 	crash_cleanup = crash_quit;
 	alert_hebrew = alert_heb;
 	crash_report = conn_log_append;	/* the report in ECAL.LOG too */
+	people_drive((char)('A' + boot_drive()));	/* EContact's people, for invitations */
 	st_ram_init();
 	win_buffer_init();
 	help_init();
