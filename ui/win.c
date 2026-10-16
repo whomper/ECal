@@ -126,23 +126,25 @@ void win_layout(void)
 	views_invalidate();
 }
 
+static long sl_size = -1, sl_pos = -1;	/* as last set */
+
 void win_sliders(void)
 {
-	long vis, size, pos;
+	long size, pos;
 	if (win_h <= 0)
 		return;
-	if (cur_view == V_DAY || cur_view == V_WEEK) {
-		vis = views_hours_visible();
-		if (vis > 24)
-			vis = 24;
-		size = vis * 1000 / 24;
-		pos = vis >= 24 ? 0 : (long)day_scroll * 1000 / (24 - vis);
-	} else {
-		size = 1000;
-		pos = 0;
-	}
-	wind_set(win_h, WF_VSLSIZE, (short)(size < 30 ? 30 : size), 0, 0, 0);
-	wind_set(win_h, WF_VSLIDE, (short)(pos > 1000 ? 1000 : pos), 0, 0, 0);
+	views_slider(&size, &pos);
+	/* only when they change: the AES draws them each time */
+	if (size < 30)
+		size = 30;
+	if (pos > 1000)
+		pos = 1000;
+	if (size != sl_size)
+		wind_set(win_h, WF_VSLSIZE, (short)size, 0, 0, 0);
+	if (pos != sl_pos)
+		wind_set(win_h, WF_VSLIDE, (short)pos, 0, 0, 0);
+	sl_size = size;
+	sl_pos = pos;
 }
 
 static void draw_button(int i)
@@ -515,6 +517,7 @@ void win_open(void)
 		x = sx;
 	}
 	wind_open(win_h, x, y, w, h);
+	sl_size = sl_pos = -1;	/* a new window's sliders */
 	if (is_acc)		/* the desktop drops files on it (VA_DRAGACCWIND) */
 		av_window(win_h, 1);
 	win_layout();
@@ -556,55 +559,43 @@ void win_close(void)
 	win_h = -1;
 }
 
-/* hours to scroll for one WM_ARROWED: a page is 6, a line 1 */
-static short arrow_hours(const short *msg)
+/* the content of a (in the view) moves up by dy pixels, down when dy <
+   0: copied on the screen when all of a shows, then only the strip that
+   comes in is drawn; otherwise a is drawn again */
+void win_scroll(const GRECT *a, short dy)
 {
-	switch (msg[4]) {
-	case 0: return -6;
-	case 1: return 6;
-	case 2: return -1;
-	case 3: return 1;
-	}
-	return 0;
-}
-
-/* Scrolling the hours: one click on an arrow often comes as two or more
-   WM_ARROWED (the AES repeats while the button is down, and while the
-   view is drawn). Each only adds to scroll_pend; the main loop draws once
-   when no more are waiting (win_scroll_flush), or every 150 ms while
-   they keep coming, so the view moves by all of them at once. */
-static short scroll_pend, scroll_n;
-static unsigned long scroll_since;
-
-int win_scroll_pending(void)
-{
-	return scroll_n;
-}
-
-int win_scroll_due(void)
-{
-	return scroll_n && pf_ms() - scroll_since >= 150UL;
-}
-
-void win_scroll_flush(void)
-{
-	long vis;
-	short ns;
-	if (!scroll_n)
+	GRECT box, strip = *a;
+	short ady = dy < 0 ? -dy : dy, whole = 0;
+	if (win_h <= 0 || win_iconified)
 		return;
-	vis = views_hours_visible();
-	ns = day_scroll + scroll_pend;
-	scroll_pend = scroll_n = 0;
-	if (cur_view != V_DAY && cur_view != V_WEEK)
-		return;
-	if (ns > 24 - vis)
-		ns = (short)(24 - vis);
-	if (ns < 0)
-		ns = 0;
-	if (ns != day_scroll && win_h > 0) {
-		views_scroll_to(ns);
-		win_redraw(&r_view);
+	wind_update(BEG_UPDATE);
+	if (ady < a->h) {
+		wind_get(win_h, WF_FIRSTXYWH, &box.x, &box.y, &box.w, &box.h);
+		while (box.w && box.h && !whole) {
+			whole = box.x <= a->x && box.y <= a->y && box.x + box.w >= a->x + a->w &&
+				box.y + box.h >= a->y + a->h;
+			wind_get(win_h, WF_NEXTXYWH, &box.x, &box.y, &box.w, &box.h);
+		}
 	}
+	if (whole) {
+		MFDB scr;
+		short pxy[8];
+		memset(&scr, 0, sizeof(scr));
+		pxy[0] = pxy[4] = a->x;
+		pxy[2] = pxy[6] = a->x + a->w - 1;
+		pxy[1] = a->y + (dy > 0 ? ady : 0);
+		pxy[3] = pxy[1] + a->h - ady - 1;
+		pxy[5] = a->y + (dy > 0 ? 0 : ady);
+		pxy[7] = pxy[5] + a->h - ady - 1;
+		graf_mouse(M_OFF, 0);
+		vro_cpyfm(vdi_h, 3, pxy, &scr, &scr);	/* S_ONLY */
+		graf_mouse(M_ON, 0);
+		strip.h = ady;
+		if (dy > 0)
+			strip.y = a->y + a->h - ady;
+	}
+	wind_update(END_UPDATE);
+	win_redraw(&strip);
 }
 
 void win_message(short *msg)
@@ -682,23 +673,11 @@ void win_message(short *msg)
 	}
 	case WM_ARROWED:
 		/* 0 page up, 1 page down, 2 line up, 3 line down */
-		if (cur_view == V_DAY || cur_view == V_WEEK) {
-			if (!scroll_n++)
-				scroll_since = pf_ms();
-			scroll_pend += arrow_hours(msg);
-		} else if (msg[4] <= 3) {
-			views_step(msg[4] == 0 || msg[4] == 2 ? -1 : 1);
-		}
+		if (msg[4] <= 3)
+			views_arrow(msg[4]);
 		break;
 	case WM_VSLID:
-		if (cur_view == V_DAY || cur_view == V_WEEK) {
-			long vis = views_hours_visible();
-			short ns = vis >= 24 ? 0 : (short)((long)msg[4] * (24 - vis) / 1000);
-			if (ns != day_scroll) {
-				views_scroll_to(ns);
-				win_redraw(&r_view);
-			}
-		}
+		views_slide(msg[4]);
 		break;
 	}
 }

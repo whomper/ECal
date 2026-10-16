@@ -134,8 +134,12 @@ void draw_mark(short x, short y, short n, int which, short color, const GRECT *c
 	MFDB src, dst;
 	short pxy[8], colors[2];
 	unsigned short *bits = st_ram(32);
-	/* the VDI's raster copy may not clip: only marks wholly inside */
-	if (!bits || x < clip->x || y < clip->y || x + n > clip->x + clip->w || y + n > clip->y + clip->h)
+	/* the VDI's raster copy may not clip: only the part inside is copied,
+	   so a scroll that draws a strip draws its piece of the mark */
+	short x0 = x > clip->x ? x : clip->x, y0 = y > clip->y ? y : clip->y;
+	short x1 = x + n < clip->x + clip->w ? x + n : clip->x + clip->w;
+	short y1 = y + n < clip->y + clip->h ? y + n : clip->y + clip->h;
+	if (!bits || x0 >= x1 || y0 >= y1)
 		return;
 	memcpy(bits, n == 16 ? ic16[which] : ic8[which], n * 2);
 	memset(&src, 0, sizeof(src));
@@ -145,14 +149,14 @@ void draw_mark(short x, short y, short n, int which, short color, const GRECT *c
 	src.fd_h = n;
 	src.fd_wdwidth = 1;
 	src.fd_nplanes = 1;
-	pxy[0] = 0;
-	pxy[1] = 0;
-	pxy[2] = n - 1;
-	pxy[3] = n - 1;
-	pxy[4] = x;
-	pxy[5] = y;
-	pxy[6] = x + n - 1;
-	pxy[7] = y + n - 1;
+	pxy[0] = x0 - x;
+	pxy[1] = y0 - y;
+	pxy[2] = x1 - x - 1;
+	pxy[3] = y1 - y - 1;
+	pxy[4] = x0;
+	pxy[5] = y0;
+	pxy[6] = x1 - 1;
+	pxy[7] = y1 - 1;
 	colors[0] = color;
 	colors[1] = 0;
 	vrt_cpyfm(vdi_h, 2, pxy, &src, &dst, colors);	/* transparent */

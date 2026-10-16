@@ -14,11 +14,15 @@
 #include "ui.h"
 #include "util.h"
 #include "clip.h"
+#include "../src/plat.h"
 
 long cur_day;
 short cur_view = V_MONTH;
 OCC sel_occ;
-short day_scroll = 8;
+/* the day and week grids are scrolled by scroll_y pixels (hour_h a
+   row); want_hour, when set, is where the next layout puts them */
+static long scroll_y;
+static short scroll_hh, want_hour = 8;
 
 static OCCLIST occ;
 static int occ_valid;
@@ -60,7 +64,7 @@ static long week_start(long d)
 
 void views_scroll_to(short hour)
 {
-	day_scroll = hour;
+	want_hour = hour;
 	laid_out = 0;		/* the event boxes were placed for the old hour */
 }
 
@@ -75,10 +79,10 @@ void views_select_none(void)
 	memset(&sel_occ, 0, sizeof(sel_occ));
 }
 
-long views_hours_visible(void)
+static long scroll_max(void)
 {
-	long h = hour_h > 0 ? (r_view.h - head_h - allday_h) / hour_h : 12;
-	return h < 1 ? 1 : h;
+	long m = 24L * hour_h - grid.h;
+	return m < 0 ? 0 : m;
 }
 
 /* ---------------- the range and its occurrences ---------------- */
@@ -221,7 +225,7 @@ static short *lane_buf(void)
 {
 	static short *buf;
 	static int cap;
-	if (occ.n > cap) {
+	if (!buf || occ.n > cap) {	/* a week with no events too */
 		free(buf);
 		cap = occ.n + 32;
 		buf = malloc(cap * sizeof(short));
@@ -369,7 +373,7 @@ static void layout_column(long day, GRECT *col)
 			e = 1440;
 		box.x = col->x + 1 + colof[i] * w;
 		box.w = w - 1;
-		box.y = col->y + (short)((s - day_scroll * 60L) * hour_h / 60);
+		box.y = col->y + (short)(s * hour_h / 60 - scroll_y);
 		box.h = (short)((e - s) * hour_h / 60) - 1;
 		if (box.h < ch / 2)
 			box.h = ch / 2;
@@ -382,7 +386,6 @@ static void layout_days(void)
 {
 	short c, line_h = ch + 2, lanes, maxl = 3;
 	short *lane = lane_buf();
-	long vis;
 	head_h = (opt.hebdates ? 2 : 1) * ch + 6;
 	gutter = 7 * cw;
 	hour_h = ch >= 16 ? 2 * ch + 4 : 2 * ch + 4;
@@ -400,18 +403,21 @@ static void layout_days(void)
 		grid.w -= detail.w;
 	}
 	cell_w = grid.w / cols;
-	if (!lane)
-		return;
-	lanes = assign_lanes(first_day, ndays, lane, maxl);
+	lanes = lane ? assign_lanes(first_day, ndays, lane, maxl) : 0;
 	allday_h = (lanes ? lanes : 1) * line_h + 4;
 	grid.y = r_view.y + head_h + allday_h;
 	grid.h = r_view.h - head_h - allday_h;
-	vis = views_hours_visible();
-	if (day_scroll > 24 - vis)
-		day_scroll = (short)(24 - vis);
-	if (day_scroll < 0)
-		day_scroll = 0;
-	{
+	if (want_hour >= 0)
+		scroll_y = (long)want_hour * hour_h;
+	else if (scroll_hh && scroll_hh != hour_h)
+		scroll_y = scroll_y * hour_h / scroll_hh;	/* another font */
+	want_hour = -1;
+	scroll_hh = hour_h;
+	if (scroll_y > scroll_max())
+		scroll_y = scroll_max();
+	if (scroll_y < 0)
+		scroll_y = 0;
+	if (lane) {
 		int i;
 		for (i = 0; i < occ.n; i++) {
 			OCC *o = &occ.o[i];
@@ -822,9 +828,10 @@ static void draw_days(GRECT *clip)
 	long t = today();
 	CTIME now = now_view();
 	GRECT g;
+	short cy0 = clip->y, cy1 = clip->y + clip->h;	/* what is drawn, from row to row */
 	clip_on(clip);
-	/* the day headers */
-	for (c = 0; c < cols; c++) {
+	/* the day headers; a scroll draws only a strip of the hours */
+	for (c = 0; c < cols && cy0 < grid.y; c++) {
 		long day = first_day + c;
 		DT d;
 		char s[40];
@@ -865,21 +872,26 @@ static void draw_days(GRECT *clip)
 		if (c)
 			line_col(x, r_view.y, x, r_view.y + r_view.h - 1, grey_color());
 	}
-	line_col(r_view.x, r_view.y + head_h - 1, grid.x + grid.w - 1, r_view.y + head_h - 1, 1);
-	text_at(r_view.x + 2, r_view.y + head_h + 2, "all-day", 7, gutter / cw, TX_GREY | TX_LTR);
-	line_col(r_view.x, grid.y - 1, grid.x + grid.w - 1, grid.y - 1, 1);
+	if (cy0 < grid.y) {
+		line_col(r_view.x, r_view.y + head_h - 1, grid.x + grid.w - 1, r_view.y + head_h - 1, 1);
+		text_at(r_view.x + 2, r_view.y + head_h + 2, "all-day", 7, gutter / cw, TX_GREY | TX_LTR);
+		line_col(r_view.x, grid.y - 1, grid.x + grid.w - 1, grid.y - 1, 1);
+	}
 	/* hours */
 	g = grid;
 	g.x = r_view.x;
 	g.w = gutter + grid.w;
 	if (rect_and(&g, clip)) {
 		clip_on(&g);
-		for (h = day_scroll; h <= 24; h++) {
-			short y = grid.y + (h - day_scroll) * hour_h;
+		/* drawn the same wherever the hours are scrolled to, so
+		   what a scroll copies matches what it draws new */
+		long top = scroll_y + (cy0 > grid.y ? cy0 - grid.y : 0) - ch;
+		for (h = (short)((top < 0 ? 0 : top) / hour_h); h <= 24; h++) {
+			short y = grid.y + (short)((long)h * hour_h - scroll_y);
 			char s[12];
-			if (y > grid.y + grid.h)
+			if (y > grid.y + grid.h + ch || y - ch > cy1)
 				break;
-			if (h < 24 && h > day_scroll) {
+			if (h > 0 && h < 24) {
 				fmt_time(h, 0, opt.h24, s, sizeof(s));
 				text_at(r_view.x + 2, y - ch / 2, s, (long)strlen(s), gutter / cw - 1, TX_LTR | TX_GREY);
 			}
@@ -893,9 +905,9 @@ static void draw_days(GRECT *clip)
 	draw_items(clip, 0);
 	/* now: a red line across today */
 	if (t >= first_day && t < first_day + ndays) {
-		long m = now - t * MIN_PER_DAY - day_scroll * 60L;
-		short y = grid.y + (short)(m * hour_h / 60), x = grid.x + (short)(t - first_day) * cell_w;
-		if (m >= 0 && y < grid.y + grid.h) {
+		long m = now - t * MIN_PER_DAY;
+		short y = grid.y + (short)(m * hour_h / 60 - scroll_y), x = grid.x + (short)(t - first_day) * cell_w;
+		if (y >= grid.y - 2 && y < grid.y + grid.h + 2) {
 			GRECT dot, cc = grid;
 			if (rect_and(&cc, clip)) {
 				clip_on(&cc);
@@ -909,7 +921,8 @@ static void draw_days(GRECT *clip)
 			}
 		}
 	}
-	if (detail.w)
+	g = detail;
+	if (detail.w && rect_and(&g, clip))
 		draw_details(clip);
 }
 
@@ -1112,9 +1125,9 @@ void views_today(void)
 	CTIME now = now_view();
 	if (cur_view == V_DAY || cur_view == V_WEEK) {
 		short h = (short)((now - t * MIN_PER_DAY) / 60) - 1;
-		long vis = views_hours_visible();
-		if (h < day_scroll || h >= day_scroll + vis - 1)
-			day_scroll = h < 0 ? 0 : h;
+		long y = (long)h * hour_h;
+		if (!hour_h || y < scroll_y || y + 2 * hour_h > scroll_y + grid.h)
+			views_scroll_to(h < 0 ? 0 : h);
 	}
 	views_goto(t, cur_view);
 }
@@ -1230,7 +1243,7 @@ static long day_at(short mx, short my, short *minute)
 		if (mx < grid.x || c < 0 || c >= cols)
 			return -1;
 		if (minute && my >= grid.y)
-			*minute = (short)(day_scroll * 60L + (long)(my - grid.y) * 60 / hour_h) / 30 * 30;
+			*minute = (short)((scroll_y + my - grid.y) * 60 / hour_h) / 30 * 30;
 		return first_day + c;
 	}
 }
@@ -1306,7 +1319,7 @@ static int drag_event(int it, short mx, short my)
 			to = (CTIME)to_day * MIN_PER_DAY + mins;
 			ghost.x = grid.x + (short)(to_day - first_day) * cell_w + 1;
 			ghost.w = cell_w - 2;
-			ghost.y = grid.y + (short)(((long)mins - day_scroll * 60L) * hour_h / 60);
+			ghost.y = grid.y + (short)((long)mins * hour_h / 60 - scroll_y);
 		} else {
 			/* whole days: the outline jumps from cell to cell */
 			long dd = to_day - grab_day;
@@ -1574,6 +1587,126 @@ static void select_next(int dir)
 	}
 }
 
+/* ---------------- scrolling the hours ---------------- */
+
+/* the hours by dy pixels: what is on the screen is moved, and only the
+   strip that comes in is drawn; 0 at the end */
+static int scroll_by(long dy)
+{
+	long ny = scroll_y + dy;
+	GRECT a;
+	if (ny > scroll_max())
+		ny = scroll_max();
+	if (ny < 0)
+		ny = 0;
+	dy = ny - scroll_y;
+	if (!dy)
+		return 0;
+	scroll_y = ny;
+	laid_out = 0;		/* the boxes move */
+	a = grid;
+	a.x = r_view.x;		/* the hours on the left too */
+	a.w = gutter + grid.w;
+	win_scroll(&a, (short)dy);
+	return 1;
+}
+
+static int button_held(void)
+{
+	short x, y, b, k;
+	graf_mkstate(&x, &y, &b, &k);
+	return b & 1;
+}
+
+/* an hour up (dir -1) or down, gliding; with hold, on for as long as
+   the mouse button stays down. Five hours a second, each step as far as
+   the time the one before took to draw, so a slow machine takes bigger
+   steps rather than longer */
+static void glide(int dir, int hold)
+{
+	long moved = 0, step;
+	unsigned long last, now;
+	layout();
+	last = pf_ms() - 40;
+	for (;;) {
+		int held = hold && button_held();
+		if (!held && moved >= hour_h)
+			break;
+		while ((now = pf_ms()) - last < 20UL)
+			;		/* no more than 50 steps a second */
+		step = (long)(now - last) * hour_h * 5 / 1000;
+		last = now;
+		if (step < 1)
+			step = 1;
+		if (step > hour_h)
+			step = hour_h;
+		if (!held && moved + step > hour_h)
+			step = hour_h - moved;	/* a click: just the hour */
+		if (!scroll_by(dir * step))
+			break;
+		moved += step;
+	}
+}
+
+/* the AES sends WM_ARROWED again while an arrow is held: those that
+   came while we scrolled are left alone */
+static unsigned long arrow_done;
+static int arrow_was;
+
+/* the window's scroll bar: 0 page up, 1 page down, 2 line up, 3 line
+   down. The hours glide while an arrow is held, and go a page at a time
+   while the bar is */
+void views_arrow(short what)
+{
+	int dir = what == 1 || what == 3 ? 1 : -1;
+	if (cur_view != V_DAY && cur_view != V_WEEK) {
+		if (what <= 3)
+			views_step(dir);
+		return;
+	}
+	if (arrow_was && pf_ms() - arrow_done < 250UL)
+		return;
+	layout();
+	if (what >= 2) {
+		glide(dir, 1);
+	} else {
+		while (scroll_by(dir * (long)(grid.h - hour_h))) {
+			unsigned long t = pf_ms();
+			while (button_held() && pf_ms() - t < 250UL)
+				;
+			if (!button_held())
+				break;
+		}
+	}
+	arrow_was = 1;
+	arrow_done = pf_ms();
+}
+
+/* the slider moved to pos (0..1000) */
+void views_slide(short pos)
+{
+	layout();
+	if (cur_view == V_DAY || cur_view == V_WEEK)
+		scroll_by(scroll_max() * pos / 1000 - scroll_y);
+}
+
+/* the slider's size and place, 0..1000 */
+void views_slider(long *size, long *pos)
+{
+	*size = 1000;
+	*pos = 0;
+	if (cur_view != V_DAY && cur_view != V_WEEK)
+		return;
+	layout();
+	if (hour_h <= 0)
+		return;
+	*size = grid.h * 1000L / (24L * hour_h);
+	if (*size > 1000)
+		*size = 1000;
+	if (scroll_max())
+		*pos = scroll_y * 1000 / scroll_max();
+}
+
 int views_key(short kstate, short key)
 {
 	short scan = KEY_SCAN(key);
@@ -1596,13 +1729,7 @@ int views_key(short kstate, short key)
 	case 0x48:		/* up */
 	case 0x50:		/* down */
 		if (cur_view == V_DAY || cur_view == V_WEEK) {
-			long vis = views_hours_visible();
-			short ns = day_scroll + (scan == 0x48 ? -1 : 1);
-			if (ns >= 0 && ns <= 24 - vis) {
-				day_scroll = ns;
-				laid_out = 0;
-				win_redraw(&r_view);
-			}
+			glide(scan == 0x48 ? -1 : 1, 0);
 		} else {
 			views_select_none();
 			cur_day += scan == 0x48 ? -7 : 7;

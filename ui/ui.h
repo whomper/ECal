@@ -82,9 +82,7 @@ void win_redraw(GRECT *area);	/* NULL: everything */
 void win_buffer_init(void);
 const char *win_drawing(void);	/* how the window is drawn, for the log */
 void draw_forget(void);		/* the VDI attributes set again at the next use */
-int  win_scroll_pending(void);	/* hours to scroll, waiting to be drawn */
-int  win_scroll_due(void);
-void win_scroll_flush(void);	/* at start-up: the buffer windows are drawn in */
+void win_scroll(const GRECT *a, short dy);	/* a's content up by dy pixels */
 void win_message(short *msg);
 void win_status(const char *s);	/* the info line */
 void win_frame_refresh(void);
@@ -102,7 +100,6 @@ extern GRECT r_tool, r_side, r_view;
 extern long cur_day;		/* the selected day (days since 1970, view zone) */
 extern short cur_view;
 extern OCC sel_occ;		/* the selected occurrence (ev NULL: none) */
-extern short day_scroll;	/* first hour shown in day and week views */
 void views_scroll_to(short hour);	/* scroll there: the events move too */
 int  views_tip(short mx, short my, char *title, int tn, char *when, int wn);	/* the event under the mouse */
 void views_copy(void);				/* ^C: the event chosen, to the clipboard */
@@ -115,7 +112,9 @@ void views_step(int dir);	/* previous / next period */
 void views_today(void);
 void views_goto(long day, short view);
 void views_select_none(void);
-long views_hours_visible(void);
+void views_arrow(short what);	/* WM_ARROWED: 0 page up .. 3 line down */
+void views_slide(short pos);	/* WM_VSLID, 0..1000 */
+void views_slider(long *size, long *pos);	/* the slider's, 0..1000 */
 int  occ_find_again(void);	/* after a reload, find the selected one again */
 
 /* ---- the sidebar (sidebar.c) ---- */
