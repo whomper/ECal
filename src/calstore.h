@@ -38,6 +38,7 @@ typedef struct {
 	CTIME synced;		/* UTC; 0 = never */
 	EVENT **ev;
 	int nev, maxev;
+	int lost;		/* events read but not kept: no memory left (-1: some, the rest unread) */
 	RESOURCE *res;
 	int nres, maxres;
 	int ndead;		/* superseded records in the cache file (rewritten when many) */
@@ -75,6 +76,8 @@ typedef struct {
 	short refresh;		/* minutes between automatic refreshes of all; 0 = by hand */
 	short sync_open;	/* refresh when the window opens */
 	short bgsync;		/* the accessory refreshes with its window closed too */
+	char start[12];		/* when the accessory reads the calendars: "now", "opened",
+				   or seconds after boot (common/ui/bgwork.h) */
 	short offline;		/* Work offline: no connections */
 	short hebrew;		/* start with the Hebrew keyboard */
 	short heapkb;		/* the accessory's memory, KB (read at boot by main.c); 0: chosen */
@@ -102,6 +105,9 @@ extern int store_plain_passwords;
 /* start-up: settings and the cached calendars from dir */
 /* the settings from inf (NULL: dir\ECAL.INF); the rest of ECal's files in dir */
 void store_init(const char *dir, const char *inf);
+/* the same in steps: begin, then store_init_step() until 0 */
+void store_init_begin(const char *dir, const char *inf);
+int  store_init_step(void);
 void store_save_settings(void);
 /* the accessory and ECAL.PRG (the AERA guidelines, 2.3): with store_watch
    set, our own writes are noted (store_mark), and store_changed() says
@@ -113,6 +119,20 @@ int  store_changed(void);
 void store_release(void);
 void cal_load_all(void);
 void cal_load(CALENDAR *c);
+/* the same in steps, between event calls: begin, then one cached event
+   (or a few lines of a subscription) per step until it returns 0 */
+void cal_load_begin(CALENDAR *c);
+int  cal_load_step(void);
+int  cal_loading(void);		/* a calendar is being read in steps */
+void cal_load_stop(void);
+/* 1: a refresh that brings changes only begins reading the calendar
+   again (cal_load_begin), for the caller to go on in steps */
+extern int cal_defer_load;
+/* the files the calendars are read from (ECAL.INF, the caches): for
+   ALARMS.IDX's stamp; paths in a static table, how many */
+int  store_files(const char **out, int max);
+/* store_mark() a file at a time: 0 when done */
+int  store_mark_step(void);
 /* the zones now in use */
 const TZONE *home_zone(void);
 const TZONE *view_zone(void);

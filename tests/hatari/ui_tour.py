@@ -25,10 +25,10 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 CLI = os.path.join(ROOT, "build", "cal-cli")
 
 
-def seed(hd, english=False):
+def seed(hd, english=False, more=None):
     """An On My Atari calendar with this week's events, written by cal-cli.
     english: no Hebrew titles or dates and a New York clock, for the
-    screenshots in docs/"""
+    screenshots in docs/. more(cli): adds more events with cli(...)"""
     d = os.path.join(hd, "seed")
     shutil.rmtree(d, ignore_errors=True)
 
@@ -48,6 +48,8 @@ def seed(hd, english=False):
     cli("add", "2", "Dana's birthday" if english else "יום הולדת לדנה", tomorrow + "T0000", "0", "FREQ=YEARLY")
     cli("add", "0", "Atari club", in3 + "T1900", "120", "FREQ=MONTHLY")
     cli("add", "1", "Standup", today + "T0915", "15", "FREQ=DAILY;COUNT=20")
+    if more:
+        more(cli)
     # the files as the Atari keeps them: ECAL.INF and CACHE\ next to the program
     shutil.copy(os.path.join(d, "ECAL.INF"), os.path.join(hd, "ECAL.INF"))
     shutil.copy(os.path.join(d, "ECAL.KEY"), os.path.join(hd, "ECAL.KEY"))

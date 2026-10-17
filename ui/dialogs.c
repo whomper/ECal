@@ -15,6 +15,7 @@
 #include "../src/version.h"
 #include "../src/plat.h"
 #include "tls.h"
+#include "bgwork.h"
 
 static void put(FIELD *f, short type, short flags, short x, short y, short w, const char *label)
 {
@@ -164,6 +165,13 @@ static const char *const refresh_items[] = {
 	"  Never", "  Every 15 minutes", "  Every hour", "  Every day", "  Every week"
 };
 static const short refresh_min[] = { 0, 15, 60, 1440, 10080 };
+
+/* when the accessory reads the calendars (START=, common/ui/bgwork.h);
+   the last item is another number of seconds typed into ECAL.INF */
+static const char *start_items[5] = {
+	"  At start", "  After a minute", "  After 5 minutes", "  When opened", 0
+};
+static const char *const start_val[4] = { "now", "60", "300", "opened" };
 
 static int edit_subscription(ACCOUNT *a, CALENDAR *c, int is_new)
 {
@@ -446,7 +454,7 @@ static void settings(short first)
 	enum { L1, F1, L2, F2, F3, F4, L13, F13, F14,
 	       L5, F5, L6, F6, F7,
 	       L8, F8, F9, L10, F10,
-	       L11, F11, F12, F17, H3, L15, F15, L16, F16,
+	       L11, F11, F12, F17, L18, F18, H3, L15, F15, L16, F16,
 	       C1, C2, N1, L3, C3, L4, C4, N2, C7,
 	       BCAN, BOK, N };
 	FIELD f[N];
@@ -556,6 +564,22 @@ static void settings(short first)
 	row++;
 	put(&f[F17], FT_CHECK, is_acc ? 0 : FF_DISABLED, VX, row, 30, "With the window closed");
 	f[F17].val = opt.bgsync;
+	row++;
+	put(&f[L18], FT_LABEL, is_acc ? 0 : FF_DISABLED, CX, row, 0, "Read calendars:");
+	put(&f[F18], FT_POPUP, is_acc ? 0 : FF_DISABLED, VX, row, 22, 0);
+	{
+		static char other[30];
+		long st = bg_parse(opt.start);
+		f[F18].items = start_items;
+		f[F18].nitems = 4;
+		f[F18].val = st == BG_NOW ? 0 : st == BG_OPENED ? 3 : st == 300 ? 2 : 1;
+		if (st > 0 && st != 60 && st != 300) {
+			snprintf(other, sizeof(other), "  After %ld s", st);
+			start_items[4] = other;
+			f[F18].nitems = 5;
+			f[F18].val = 4;
+		}
+	}
 	row += 2;
 	put(&f[H3], FT_LABEL, 0, CX, row, 0, "Keep on this Atari:");
 	row++;
@@ -625,6 +649,8 @@ static void settings(short first)
 	opt.refresh = refresh_min[f[F11].val];
 	opt.sync_open = f[F12].val;
 	opt.bgsync = f[F17].val;
+	if (f[F18].val < 4)
+		str_copy(opt.start, start_val[f[F18].val], sizeof(opt.start));
 	/* 0 days back: from today; at most ten years either way */
 	opt.past_days = (short)(atoi(past) < 0 ? 0 : atoi(past) > 3650 ? 3650 : atoi(past));
 	opt.future_days = (short)(atoi(future) < 7 ? 400 : atoi(future) > 3650 ? 3650 : atoi(future));

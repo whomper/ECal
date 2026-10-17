@@ -140,6 +140,11 @@ typedef void (*OCC_CB)(EVENT *e, CTIME start, CTIME end, void *ud);
 typedef int  (*SKIP_CB)(EVENT *master, CTIME orig_start, void *ud);
 void ics_expand(EVENT *e, CTIME from, CTIME to, const TZONE *view,
 		OCC_CB add, SKIP_CB skip, void *ud);
+/* tz_offset, tz_to_local, tz_to_utc with each zone's year worked out
+   once (rrule.c): the same answers, a comparison or two each */
+int   tzm_offset(const TZONE *z, CTIME utc);
+CTIME tzm_to_local(const TZONE *z, CTIME utc);
+CTIME tzm_to_utc(const TZONE *z, CTIME local);
 /* the start of e in the wall time of view (for the editor and lists) */
 CTIME ev_wall(const EVENT *e, CTIME t, const TZONE *view);
 /* wall time in view -> the event's own representation */

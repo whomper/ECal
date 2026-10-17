@@ -32,6 +32,8 @@
 #include "aboutbox.h"
 #include "mbar.h"
 #include "twin.h"
+#include "bgwork.h"
+#include "../src/alarms.h"
 
 short vdi_h, cw, ch, scr_w, scr_h, desk_x, desk_y, desk_w, desk_h, planes;
 short gl_wchar, gl_hchar, ap_id, is_acc, ncolors, hebrew_kbd, quit_now;
@@ -39,10 +41,14 @@ extern short _is_acc;		/* crt0.S */
 
 static short menu_id = -1;
 static int data_ready;
+static int settings_ready;	/* ECAL.INF read: at the first opening, or in the background */
+static int fonts_ready;		/* the window's font set up (at the first opening only:
+				   GDOS fonts loaded at boot would be the program in front's) */
 static char workdir[160];	/* ECal's folder: calendars, keys, certificates, log */
 static char inf_file[40];	/* ECAL.INF, in the root of the boot drive */
 static unsigned long last_refresh, last_minute;
-static CTIME alarm_checked;
+static CTIME alarm_checked;	/* the clock's time the reminders were last looked at */
+static long alarm_day;
 static long shown_today = -1;
 
 /* ---------------- small things ---------------- */
@@ -60,11 +66,14 @@ void settings_later(void)
 	settings_at = pf_ms();
 }
 
+static void save_alarms(void);
+
 void settings_flush(void)
 {
 	if (settings_dirty) {
 		settings_dirty = 0;
 		store_save_settings();
+		save_alarms();		/* ALARMS.IDX's stamp: ECAL.INF changed (in steps) */
 	}
 }
 
@@ -164,6 +173,7 @@ void set_hebrew_kbd(short on)
 
 void after_change(void)
 {
+	alarms_changed();	/* the reminders built again, in the background */
 	views_select_none();
 	views_invalidate();
 	win_redraw(0);
@@ -278,11 +288,40 @@ static void auto_refresh(void)
 
 /* ---------------- reminders ---------------- */
 
+static void open_window(void);
+
+static void show_alarm(const ALARM *a, void *ud)
+{
+	char t[16], line[100];
+	DT d;
+	long days = ct_days(a->start) - ct_days(now_clock());
+	short b;
+	(void)ud;
+	ct_split(a->start, &d);
+	fmt_time(d.hour, d.min, opt.h24, t, sizeof(t));
+	if (a->allday)
+		snprintf(line, sizeof(line), "%s", days == 0 ? "today" : days == 1 ? "tomorrow" : "all day");
+	else if (days == 0)
+		snprintf(line, sizeof(line), "today at %s", t);
+	else if (days == 1)
+		snprintf(line, sizeof(line), "tomorrow at %s", t);
+	else
+		snprintf(line, sizeof(line), "%s %d %s, %s", wday_short[d.wday], d.day, month_short[d.mon - 1], t);
+	Bconout(2, 7);
+	b = alert(1, "[1][%s|%s%s%s][ OK |Show]", a->title, line, a->place[0] ? "|" : "", a->place);
+	if (b == 2) {
+		if (win_h <= 0)
+			open_window();
+		if (win_h > 0)
+			views_goto(ct_days(a->start), V_DAY);
+	}
+}
+
+/* the reminders whose time came since the last look: a clock
+   comparison with the queue (src/alarms.c), built in the background */
 static void check_alarms(void)
 {
-	OCCLIST l;
-	CTIME now = now_view();
-	int i;
+	CTIME now = now_clock(), from;
 	if (!opt.alarms)
 		return;
 	if (alarm_checked == 0 || now - alarm_checked > 2 * MIN_PER_DAY || now < alarm_checked) {
@@ -291,42 +330,59 @@ static void check_alarms(void)
 	}
 	if (now == alarm_checked)
 		return;
-	memset(&l, 0, sizeof(l));
-	occ_collect(&l, now - MIN_PER_DAY, now + 8 * MIN_PER_DAY);
-	for (i = 0; i < l.n; i++) {
-		EVENT *e = l.o[i].ev;
-		CTIME when;
-		if (e->alarm == -1 || !cals[e->cal].alarms)
-			continue;
-		when = l.o[i].start - e->alarm;
-		if (when > alarm_checked && when <= now) {
-			char t[16], line[100], title[70];
-			DT d;
-			long days = ct_days(l.o[i].start) - ct_days(now);
-			short b;
-			ct_split(l.o[i].start, &d);
-			fmt_time(d.hour, d.min, opt.h24, t, sizeof(t));
-			str_copy(title, e->summary ? e->summary : "Event", sizeof(title));
-			if (e->allday)
-				snprintf(line, sizeof(line), "%s", days == 0 ? "today" : days == 1 ? "tomorrow" : "all day");
-			else if (days == 0)
-				snprintf(line, sizeof(line), "today at %s", t);
-			else if (days == 1)
-				snprintf(line, sizeof(line), "tomorrow at %s", t);
-			else
-				snprintf(line, sizeof(line), "%s %d %s, %s", wday_short[d.wday], d.day, month_short[d.mon - 1], t);
-			Bconout(2, 7);
-			b = alert(1, "[1][%s|%s%s%s][ OK |Show]", title, line, e->location ? "|" : "",
-				  e->location ? e->location : "");
-			if (b == 2) {
-				if (win_h <= 0)
-					win_open();
-				views_goto(ct_days(l.o[i].start), V_DAY);
-			}
-		}
+	from = alarm_checked;
+	alarm_checked = now;		/* before the alerts: they wait for the user */
+	alarms_due(from, now, show_alarm, 0);
+}
+
+/* ALARMS.IDX next to the caches: the accessory's reminders at boot.
+   Written in steps: each file's stamp is a directory search */
+static const char *idx_files[MAXCAL + 1];
+static int idx_n, idx_i = -1;		/* idx_i: the next file to stamp; -1 none */
+static unsigned long idx_stamp;
+
+static void save_alarms(void)
+{
+	if (!workdir[0] || !settings_ready || !alarm_built)
+		return;
+	idx_n = store_files(idx_files, MAXCAL + 1);
+	idx_i = 0;
+	idx_stamp = ALARM_STAMP0;
+}
+
+static int save_alarms_pending(void)
+{
+	return idx_i >= 0;
+}
+
+static void save_alarms_step(void)
+{
+	char p[200];
+	if (idx_i < idx_n) {
+		idx_stamp = alarms_stamp_add(idx_stamp, idx_files[idx_i++]);
+		return;
 	}
-	occ_free(&l);
-	alarm_checked = now;
+	if (idx_i == idx_n) {
+		path_join(p, sizeof(p), workdir, "ALARMS.IDX");
+		alarms_save_begin(p, idx_files, idx_n, idx_stamp, opt.alarms, opt.h24);
+		idx_i++;
+		return;
+	}
+	if (alarms_save_step() <= 0)
+		idx_i = -1;	/* written */
+}
+
+static void alarms_boot(void)
+{
+	char p[200];
+	int on = 1, h24 = opt.h24;
+	if (!workdir[0])
+		return;
+	path_join(p, sizeof(p), workdir, "ALARMS.IDX");
+	if (alarms_load(p, now_clock(), &on, &h24)) {
+		opt.alarms = (short)on;
+		opt.h24 = (short)h24;
+	}
 }
 
 /* ---------------- commands ---------------- */
@@ -616,13 +672,14 @@ void cmd_menu(short x, short y)
    it from there, and asks when it is missing (locate_folder). */
 
 /* FOLDER= from a settings file, "" when it has none */
-static void inf_folder(const char *inf, char *out, int size)
+/* KEY= from the start of ECAL.INF, read without malloc: the accessory
+   asks before its heap is taken. ECAL.PRG and ECAL.ACC write FOLDER= and
+   START= near the top */
+static void inf_value(const char *inf, const char *key, char *out, int size)
 {
-	/* read without malloc: the accessory calls this before its heap is
-	   taken. ECAL.PRG and ECAL.ACC write FOLDER= near the top */
 	static char t[4096];
 	char *k;
-	int h = pf_open(inf, PF_READ);
+	int h = pf_open(inf, PF_READ), kl = (int)strlen(key);
 	long n;
 	out[0] = 0;
 	if (h < 0)
@@ -630,13 +687,18 @@ static void inf_folder(const char *inf, char *out, int size)
 	n = pf_read(h, t, sizeof(t) - 1);
 	pf_close(h);
 	t[n > 0 ? n : 0] = 0;
-	for (k = t; (k = (char *)str_istr(k, "folder=")); k += 7)
+	for (k = t; (k = (char *)str_istr(k, key)); k += kl)
 		if (k == t || k[-1] == '\n') {
-			char *e = k + 7 + strcspn(k + 7, "\r\n");
+			char *e = k + kl + strcspn(k + kl, "\r\n");
 			*e = 0;
-			str_copy(out, k + 7, size);
+			str_copy(out, k + kl, size);
 			break;
 		}
+}
+
+static void inf_folder(const char *inf, char *out, int size)
+{
+	inf_value(inf, "folder=", out, size);
 	{
 		int n = (int)strlen(out);
 		while (n > 3 && (out[n - 1] == '\\' || out[n - 1] == ' '))
@@ -768,26 +830,53 @@ static void acc_heap(void)
 
 static void files_check(void);
 
-/* the settings, at the first opening: quick, so the window can open at once */
-static int settings_ready;
 static int sync_pending;	/* the first refresh, once the window is drawn */
 
-static void load_settings(void)
+/* the settings in three steps (the accessory reads them in the
+   background): ECAL.INF and the keys, the files' stamps, the rest */
+static int settings_stage;
+
+static int settings_step(void)
 {
-	if (!workdir[0])
-		locate_folder();
-	secret_warn = warn_plain;	/* before anything is saved */
-	move_inf();
-	store_init(workdir, inf_file);
-	store_mark();			/* the files as we found them */
-	if (strcasecmp(opt.folder, workdir))
-		store_save_settings();	/* FOLDER= as it is now */
-	path_join(conn_cacert, sizeof(conn_cacert), workdir, "CACERT.PEM");
-	path_join(tls_roots_cache, sizeof(tls_roots_cache), workdir, "ROOTS.DAT");
-	path_join(tls_seed_path, sizeof(tls_seed_path), workdir, "SEED.DAT");
-	tls_tz_minutes = tz_offset(home_zone(), now_utc());
-	set_logging();
-	net_init();
+	if (settings_stage == 0) {
+		if (!workdir[0])
+			locate_folder();
+		secret_warn = warn_plain;	/* before anything is saved */
+		move_inf();
+		store_init_begin(workdir, inf_file);
+		settings_stage = 3;
+		return 1;
+	}
+	if (settings_stage == 3) {
+		/* ECAL.INF, a few lines a step */
+		if (!store_init_step())
+			settings_stage = 1;
+		return 1;
+	}
+	if (settings_stage == 1) {
+		/* the files as we found them: a file a step */
+		if (store_mark_step())
+			return 1;
+		if (strcasecmp(opt.folder, workdir))
+			store_save_settings();	/* FOLDER= as it is now */
+		settings_stage = 2;
+		return 1;
+	}
+	if (settings_stage == 2) {
+		path_join(conn_cacert, sizeof(conn_cacert), workdir, "CACERT.PEM");
+		path_join(tls_roots_cache, sizeof(tls_roots_cache), workdir, "ROOTS.DAT");
+		path_join(tls_seed_path, sizeof(tls_seed_path), workdir, "SEED.DAT");
+		tls_tz_minutes = tz_offset(home_zone(), now_utc());
+		set_logging();
+		settings_stage = 4;
+		return 1;
+	}
+	if (settings_stage == 4) {
+		net_init();
+		settings_stage = 5;
+		return 1;
+	}
+	settings_stage = 0;
 	pf_idle = busy_idle;
 	cal_status = status;
 	tls_note = status;
@@ -800,14 +889,13 @@ static void load_settings(void)
 	if (store_plain_passwords && !store_lost_passwords)
 		store_save_settings();
 	hebrew_kbd = opt.hebrew;
-	font_apply();
 	{
 		/* where TOS put us: TT/Fast RAM starts at 16 MB */
 		char m[100];
 		void *h = malloc(16);
 		snprintf(m, sizeof(m), "ECal %s: program at %08lx (%s RAM), memory at %08lx (%s RAM)",
-			 cal_version, (unsigned long)load_settings,
-			 (unsigned long)load_settings >= 0x01000000UL ? "TT" : "ST",
+			 cal_version, (unsigned long)settings_step,
+			 (unsigned long)settings_step >= 0x01000000UL ? "TT" : "ST",
 			 (unsigned long)h, (unsigned long)h >= 0x01000000UL ? "TT" : "ST");
 		free(h);
 		conn_log("ECal", "--", m, (long)strlen(m));
@@ -818,21 +906,74 @@ static void load_settings(void)
 		conn_log_flush();
 	}
 	settings_ready = 1;
+	return 0;
+}
+
+static void load_settings(void)
+{
+	while (settings_step())
+		;
 }
 
 /* the calendars from the copies on disk, with the window already open */
 static int bg_loaded;		/* calendars read so far (the accessory, after boot) */
 
+static int lost_told;
+
+/* one step of reading the calendars: 0 when all are read */
+static int load_step(void)
+{
+	if (cal_loading()) {
+		cal_load_step();
+		return 1;
+	}
+	if (bg_loaded < ncals) {
+		cal_load_begin(&cals[bg_loaded++]);
+		return 1;
+	}
+	if (!data_ready) {
+		views_invalidate();
+		data_ready = 1;
+		lost_told = 0;
+		alarms_changed();
+	}
+	return 0;
+}
+
+/* events read but not kept for want of memory (a 1 MB ST): said once,
+   with the window open */
+static void tell_lost(void)
+{
+	int i, n = 0, some = 0;
+	char which[80] = "";
+	if (lost_told || win_h <= 0)
+		return;
+	lost_told = 1;
+	for (i = 0; i < ncals; i++)
+		if (cals[i].lost) {
+			if (cals[i].lost < 0)
+				some = 1;
+			else
+				n += cals[i].lost;
+			if (!which[0])
+				str_copy(which, cals[i].name, sizeof(which));
+		}
+	if (!n && !some)
+		return;
+	if (some)
+		alert(1, "[1][Memory is full: not all of|%s and maybe others could be|read. Give ECal more memory|(HEAPKB= in ECAL.INF) or keep|fewer days (Settings).][ OK ]", which);
+	else
+		alert(1, "[1][Memory is full: %d event%s could|not be read (in %s and maybe|others). Give ECal more memory|(HEAPKB= in ECAL.INF) or keep|fewer days (Settings).][ OK ]", n, n == 1 ? "" : "s", which);
+}
+
 static void load_calendars(void)
 {
 	busy(1);
 	status("Reading your calendars...");
-	for (; bg_loaded < ncals; bg_loaded++)
-		cal_load(&cals[bg_loaded]);
+	while (load_step())
+		;
 	status("");
-	views_invalidate();
 	busy(0);
-	data_ready = 1;
 	if (store_lost_passwords)
 		alert(1, "[1][ECAL.KEY is missing or new: type the passwords again (right-click an account).][ OK ]");
 }
@@ -844,10 +985,15 @@ static void open_window(void)
 	if (!screen_check("ECal", scr_w))	/* not in ST low (the accessory) */
 		return;
 	int first = win_h <= 0;
+	bg_opened();			/* the user is here: work may go on */
 	if (first)
 		files_check();
 	if (!settings_ready)
 		load_settings();
+	if (!fonts_ready) {
+		font_apply();
+		fonts_ready = 1;
+	}
 	win_open();
 	if (win_h <= 0 || !first)
 		return;
@@ -857,6 +1003,7 @@ static void open_window(void)
 	}
 	after_change();			/* today's events, from what is kept here */
 	updated_status();
+	tell_lost();
 	if (!naccts) {
 		alert(1, "[1][Welcome to ECal!||Let's add your iCloud or other calendar.][ OK ]");
 		dlg_add_account();
@@ -1009,13 +1156,10 @@ static void tip_show(void)
 	tip_on = 1;
 }
 
-/* The accessory, its window closed. A few seconds after boot it reads
-   the calendars kept on disk, one per timer tick so the program in front
-   keeps going between them, and so it can remind of events without
-   having been opened. With BGSYNC it also refreshes them when they are
-   due, again one calendar per tick, quietly. */
-static unsigned long bg_start;
-static int bg_next = -1;		/* the next calendar to refresh, -1 none */
+/* The accessory, its window closed: see work_step() */
+static int bg_next = -1;
+static unsigned long step_max[6];	/* the longest step seen of each kind of work */
+static unsigned long slice_ms = BG_SLICE_030;	/* bgwork's slice (BG_SLICE_000 on a 68000) */		/* the next calendar to refresh, -1 none */
 
 /* The accessory stands aside while ECAL.PRG runs (twin.h; the AERA
    guidelines, 2.3): it doesn't sync, show reminders or open its window,
@@ -1032,9 +1176,11 @@ static void files_check(void)
 	conn_log("ECal", "--", m, (long)(sizeof(m) - 1));
 	http_close_all();
 	views_select_none();
+	cal_load_stop();
 	store_release();
 	views_invalidate();
 	settings_ready = 0;
+	settings_stage = 0;
 	data_ready = 0;
 	bg_loaded = 0;
 	bg_next = -1;
@@ -1043,8 +1189,13 @@ static void files_check(void)
 
 static int prg_runs(void)
 {
+	static unsigned long asked;
+	unsigned long now = pf_ms();
 	if (!is_acc)
 		return 0;
+	if (asked && now - asked < 1000UL)
+		return prg_was;		/* asked the AES (appl_find) a moment ago */
+	asked = now ? now : 1;
 	if (twin_prg() >= 0) {
 		prg_was = 1;
 		return 1;
@@ -1056,55 +1207,101 @@ static int prg_runs(void)
 	return 0;
 }
 
-static void background(void)
+/* a background refresh due (BGSYNC, the accessory with its window closed) */
+static int bg_sync_due(void)
 {
 	unsigned long now = pf_ms();
-	if (!is_acc || win_h > 0 || prg_runs())
-		return;
-	if (!data_ready) {
-		if (now - bg_start < 8000UL)
-			return;		/* let the desktop come up first */
-		if (!settings_ready) {
-			if (!workdir[0])
-				return;	/* the folder is asked for at the first opening */
-			load_settings();
-			return;
-		}
-		if (bg_loaded < ncals) {
-			cal_load(&cals[bg_loaded++]);
-			return;
-		}
-		views_invalidate();
-		data_ready = 1;
+	int i, due;
+	if (!is_acc || win_h > 0 || !opt.bgsync || opt.offline || !naccts || !data_ready)
+		return 0;
+	if (bg_next >= 0)
+		return 1;
+	due = opt.refresh > 0 && now - last_refresh > (unsigned long)opt.refresh * 60000UL;
+	for (i = 0; i < ncals && !due; i++) {
+		ACCOUNT *a = &accts[cals[i].acct];
+		due = a->refresh > 0 && cals[i].synced && now_utc() - cals[i].synced >= a->refresh &&
+		      now - last_refresh > 60000UL;
+	}
+	return due;
+}
+
+/* Work done in the background, in slices between event calls
+   (common/ui/bgwork.c): the settings, then the calendars an event at a
+   time, then the reminders an event at a time, then (BGSYNC) a refresh
+   a calendar at a time. The accessory starts it START= after boot, or
+   when it is opened; reminders come from ALARMS.IDX meanwhile. */
+static int work_pending(void)
+{
+	/* (while ECAL.PRG runs, bg_may_work() says no: the work is its) */
+	if (!settings_ready)
+		return workdir[0] != 0;	/* the folder is asked for at the first opening */
+	return !data_ready || alarms_pending() || save_alarms_pending() || bg_sync_due();
+}
+
+/* what the next step does: 1 settings, 2 calendars, 3 reminders, 4 ALARMS.IDX, 5 refresh */
+static int work_kind(void)
+{
+	if (!settings_ready)
+		return 1;
+	if (!data_ready || cal_loading())
+		return 2;
+	if (alarms_pending())
+		return 3;
+	if (save_alarms_pending())
+		return 4;
+	return 5;
+}
+
+static void work_step(void)
+{
+	if (!settings_ready) {
+		aes_profile_tag(settings_stage == 0 || settings_stage == 3 ? "work: settings (ECAL.INF)" :
+				settings_stage == 1 ? "work: settings (stamps)" :
+				settings_stage == 2 ? "work: settings (log)" :
+				settings_stage == 4 ? "work: settings (network)" : "work: settings (the rest)");
+		settings_step();
 		return;
 	}
-	if (!opt.bgsync || opt.offline || !naccts)
+	aes_profile_tag("work: calendars");
+	if (load_step())
+		return;
+	if (alarms_pending()) {
+		aes_profile_tag("work: reminders");
+		if (!alarms_step())
+			save_alarms();	/* the next steps write it */
+		return;
+	}
+	if (save_alarms_pending()) {
+		aes_profile_tag("work: ALARMS.IDX");
+		save_alarms_step();
+		return;
+	}
+	aes_profile_tag("work: refresh");
+	if (!bg_sync_due())
 		return;
 	if (bg_next < 0) {
-		int i, due = opt.refresh > 0 && now - last_refresh > (unsigned long)opt.refresh * 60000UL;
-		for (i = 0; i < ncals && !due; i++) {
-			ACCOUNT *a = &accts[cals[i].acct];
-			due = a->refresh > 0 && cals[i].synced && now_utc() - cals[i].synced >= a->refresh &&
-			      now - last_refresh > 60000UL;
-		}
-		if (due) {
-			files_check();		/* before anything is written */
-			if (data_ready)
-				bg_next = 0;
-		}
+		files_check();		/* before anything is written */
+		if (data_ready)
+			bg_next = 0;
 		return;
 	}
 	if (bg_next < ncals) {
-		/* errors stay in the account (shown at the next opening) */
+		/* errors stay in the account (shown at the next opening); a
+		   calendar that changed is read again in steps (load_step) */
+		cal_defer_load = 1;
 		sync_calendar(&cals[bg_next++], 0);
+		cal_defer_load = 0;
+		if (cal_loading())
+			data_ready = 0;
 		return;
 	}
 	bg_next = -1;
-	last_refresh = now;
+	last_refresh = pf_ms();
 	http_close_all();
 	conn_log_flush();
 	settings_later();
 	views_invalidate();
+	alarms_changed();
 }
 
 /* after a click that was acted on at once: a second press near it
@@ -1165,7 +1362,6 @@ int main(void)
 		appl_exit();		/* ECAL.ACC runs, and has it */
 		return 0;
 	}
-	bg_start = pf_ms();
 	if (is_acc)
 		menu_id = menu_register(ap_id, "  ECal");
 	vdi_h = graf_handle(&gl_wchar, &gl_hchar, &d, &d);
@@ -1198,6 +1394,16 @@ int main(void)
 		appl_exit();
 		return 1;
 	}
+	{
+		/* when work may start: the accessory START= after boot (ECAL.INF,
+		   read before its heap is taken), the program at once */
+		char st[16];
+		inf_value(inf_file, "start=", st, sizeof(st));
+		bg_init(is_acc ? bg_parse(st) : BG_NOW);
+		slice_ms = get_cookie(0x5F435055L) >= 20 ? BG_SLICE_030 : BG_SLICE_000;	/* _CPU */
+		if (!is_acc)
+			bg_opened();
+	}
 	if (is_acc) {
 		acc_heap();
 	} else {
@@ -1210,6 +1416,10 @@ int main(void)
 			open_window();
 		menu_update();		/* the settings are read now */
 	}
+	alarms_boot();			/* reminders at once, the calendars read later */
+#ifdef AES_PROFILE
+	nf_debug("AESPROF ECal: timing the stretches between event calls\n");
+#endif
 	crash_offer("ECal", "next to ECAL.PRG");
 
 	while (!quit_now) {
@@ -1224,6 +1434,7 @@ int main(void)
 		hovering = win_h > 0 && !win_iconified && !tip_tried && hover_x >= 0;
 		if (hovering && wait > 100)
 			wait = 100;
+		wait = bg_timer(work_pending(), wait);
 		/* a click comes at once; where a double click means something,
 		   click_count() waits for the second one before anything is done */
 		/* a refresh waiting: shortly, once the redraws are done */
@@ -1346,22 +1557,51 @@ int main(void)
 			menu_update();
 		if ((which & MU_TIMER) && settings_dirty && pf_ms() - settings_at >= 3000UL)
 			settings_flush();
-		if (which & MU_TIMER)
-			background();
+		aes_profile_tag("events");
+		bg_tick();
+		if (which & MU_TIMER) {
+			prg_runs();		/* ECAL.PRG ended: what it changed is read again */
+			alarms_verify_step();	/* ALARMS.IDX's files at boot: one a tick until checked */
+		}
+		if (work_pending() && bg_may_work()) {
+			/* steps while the slice has room for one more as long as
+			   the longest of its kind so far, and a tick of the 200 Hz
+			   clock that times them to spare: one begun at its end
+			   would overrun */
+			unsigned long s0 = pf_ms(), t;
+			int k;
+			bg_begin();
+			do {
+				aes_profile_tag("work");
+				k = work_kind();
+				t = pf_ms();
+				work_step();
+				t = pf_ms() - t;
+				if (t > step_max[k])
+					step_max[k] = t;
+			} while (work_pending() && bg_more() && pf_ms() - s0 + step_max[work_kind()] + 5 <= slice_ms);
+		}
 		if ((which & MU_TIMER) && sync_pending && win_h > 0) {
 			sync_pending = 0;
 			refresh(0, 0);
 		}
-		if ((which & MU_TIMER) && data_ready) {
+		if (which & MU_TIMER) {
 			unsigned long now = pf_ms();
-			long t = ct_days(now_view());
 			if (now - last_minute >= 30000UL) {
+				long t, day = ct_days(now_clock());
 				last_minute = now;
+				aes_profile_tag("reminder check");
 				if (prg_was)		/* ECAL.PRG shows them */
-					alarm_checked = now_view();
+					alarm_checked = now_clock();
 				else
 					check_alarms();
-				if (win_h > 0) {
+				if (day != alarm_day) {
+					if (alarm_day)
+						alarms_changed();	/* a new day: the queue reaches a day further */
+					alarm_day = day;
+				}
+				if (data_ready && win_h > 0) {
+					t = ct_days(now_view());
 					if (t != shown_today) {
 						/* midnight: today moved */
 						if (cur_day == shown_today)

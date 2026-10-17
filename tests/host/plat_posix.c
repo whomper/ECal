@@ -50,6 +50,12 @@ unsigned long pf_stamp(const char *path)
 	return (unsigned long)st.st_mtime ^ (unsigned long)st.st_mtim.tv_nsec;
 }
 
+unsigned long pf_info(const char *path, long *size)
+{
+	*size = pf_size(path);
+	return pf_stamp(path);
+}
+
 int pf_exists(const char *path)
 {
 	struct stat st;

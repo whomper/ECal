@@ -101,7 +101,7 @@ CTIME now_utc(void)
 
 CTIME now_view(void)
 {
-	return tz_to_local(view_zone(), now_utc());
+	return tzm_to_local(view_zone(), now_utc());
 }
 
 /* the Atari's clock as it is (the home zone's wall time) */
@@ -115,7 +115,10 @@ CTIME now_clock(void)
 /* a wall time in the view's zone, by the Atari's clock */
 CTIME view_to_clock(CTIME t)
 {
-	return tz_to_local(home_zone(), tz_to_utc(view_zone(), t));
+	const TZONE *v = view_zone(), *h = home_zone();
+	if (v == h)
+		return t;		/* the usual: the clock shows the view's time */
+	return tzm_to_local(h, tzm_to_utc(v, t));
 }
 
 /* the stretch of time kept from the servers, UTC */
@@ -147,13 +150,14 @@ static void defaults(void)
 	opt.future_days = 400;
 	opt.duration = 60;
 	opt.sync_open = 1;
+	str_copy(opt.start, "60", sizeof(opt.start));
 }
 
 static void set_opt(const char *k, const char *v)
 {
 #define S(name) if (!strcasecmp(k, #name)) { str_copy(opt.name, v, sizeof(opt.name)); return; }
 #define I(name) if (!strcasecmp(k, #name)) { opt.name = (short)atoi(v); return; }
-	S(home_tz) S(view_tz) S(gate) S(folder)
+	S(home_tz) S(view_tz) S(gate) S(folder) S(start)
 	I(tzsupport) I(falcon) I(dsp) I(weekstart) I(h24) I(hebdates) I(view) I(daystart)
 	I(alarms) I(alarm_default) I(log) I(font_id) I(font_pt) I(hebfont) I(win_x) I(win_y)
 	I(win_w) I(win_h) I(sidebar) I(past_days) I(future_days) I(duration) I(refresh) I(sync_open) I(bgsync) I(offline) I(hebrew) I(heapkb)
@@ -213,12 +217,20 @@ static void set_cal(CALENDAR *c, const char *k, const char *v)
 		c->synced = atol(v);
 }
 
-void store_init(const char *dir, const char *inf)
+/* Reading the settings, in steps for the accessory (common/ui/bgwork.c):
+   the paths and the key, then ECAL.INF, a few lines at a time */
+static char *si_text, *si_line;
+static ACCOUNT *si_a;
+static CALENDAR *si_c;
+static int si_open;		/* ECAL.INF still to be loaded */
+
+void store_init_begin(const char *dir, const char *inf)
 {
-	char key[200], *text, *line;
-	long len;
-	ACCOUNT *a = 0;
-	CALENDAR *c = 0;
+	char key[200];
+	free(si_text);
+	si_text = si_line = 0;
+	si_a = 0;
+	si_c = 0;
 	defaults();
 	str_copy(opt.workdir, dir, sizeof(opt.workdir));
 	if (inf)
@@ -229,52 +241,73 @@ void store_init(const char *dir, const char *inf)
 	pf_mkdir(cache_dir);
 	path_join(key, sizeof(key), dir, "ECAL.KEY");
 	secret_init(key);
-	text = pf_load(inf_path, &len);
-	if (!text)
-		return;
-	for (line = text; line && *line;) {
-		char *nl = strchr(line, '\n'), *eq;
+	si_open = 1;
+}
+
+static void init_line(char *line)
+{
+	char *eq;
+	if (!strcasecmp(line, "[options]")) {
+		si_a = 0;
+		si_c = 0;
+	} else if (!strcasecmp(line, "[account]")) {
+		si_a = naccts < MAXACCT ? &accts[naccts++] : 0;
+		if (si_a)
+			memset(si_a, 0, sizeof(*si_a));
+		si_c = 0;
+	} else if (!strcasecmp(line, "[calendar]")) {
+		si_c = (si_a && ncals < MAXCAL) ? &cals[ncals++] : 0;
+		if (si_c) {
+			memset(si_c, 0, sizeof(*si_c));
+			si_c->acct = (short)(si_a - accts);
+			si_c->visible = 1;
+			si_c->alarms = 1;
+		}
+	} else if ((eq = strchr(line, '='))) {
+		*eq = 0;
+		if (si_c)
+			set_cal(si_c, line, eq + 1);
+		else if (si_a)
+			set_acct(si_a, line, eq + 1);
+		else {
+			/* a note after a setting: "7  ; a week" (not in names,
+			   addresses or passwords, which may hold a ';') */
+			char *v = eq + 1, *sc = strchr(v, ';');
+			if (sc && sc > v && (sc[-1] == ' ' || sc[-1] == '\t')) {
+				while (sc > v && (sc[-1] == ' ' || sc[-1] == '\t'))
+					sc--;
+				*sc = 0;
+			}
+			set_opt(line, v);
+		}
+	}
+}
+
+/* 1 while there is more */
+int store_init_step(void)
+{
+	int k;
+	if (si_open) {
+		long len;
+		si_open = 0;
+		si_line = si_text = pf_load(inf_path, &len);
+		if (si_text)
+			return 1;
+	}
+	for (k = 0; k < 16 && si_line && *si_line; k++) {
+		char *line = si_line, *nl = strchr(line, '\n');
 		if (nl)
 			*nl = 0;
 		if (nl && nl > line && nl[-1] == '\r')
 			nl[-1] = 0;
-		if (!strcasecmp(line, "[options]")) {
-			a = 0;
-			c = 0;
-		} else if (!strcasecmp(line, "[account]")) {
-			a = naccts < MAXACCT ? &accts[naccts++] : 0;
-			if (a)
-				memset(a, 0, sizeof(*a));
-			c = 0;
-		} else if (!strcasecmp(line, "[calendar]")) {
-			c = (a && ncals < MAXCAL) ? &cals[ncals++] : 0;
-			if (c) {
-				memset(c, 0, sizeof(*c));
-				c->acct = (short)(a - accts);
-				c->visible = 1;
-				c->alarms = 1;
-			}
-		} else if ((eq = strchr(line, '='))) {
-			*eq = 0;
-			if (c)
-				set_cal(c, line, eq + 1);
-			else if (a)
-				set_acct(a, line, eq + 1);
-			else {
-				/* a note after a setting: "7  ; a week" (not in names,
-				   addresses or passwords, which may hold a ';') */
-				char *v = eq + 1, *sc = strchr(v, ';');
-				if (sc && sc > v && (sc[-1] == ' ' || sc[-1] == '\t')) {
-					while (sc > v && (sc[-1] == ' ' || sc[-1] == '\t'))
-						sc--;
-					*sc = 0;
-				}
-				set_opt(line, v);
-			}
-		}
-		line = nl ? nl + 1 : 0;
+		si_line = nl ? nl + 1 : 0;
+		if (*line && *line != ';')
+			init_line(line);
 	}
-	free(text);
+	if (si_line && *si_line)
+		return 1;
+	free(si_text);
+	si_text = si_line = 0;
 	/* 92 days back was the first default: what a file still says from
 	   then moves to the new one (past events aren't copied) */
 	if (opt.past_days == 92)
@@ -283,6 +316,14 @@ void store_init(const char *dir, const char *inf)
 	http_cfg.gateport = opt.gateport;
 	http_cfg.falcon = opt.falcon;
 	http_cfg.offline = opt.offline;
+	return 0;
+}
+
+void store_init(const char *dir, const char *inf)
+{
+	store_init_begin(dir, inf);
+	while (store_init_step())
+		;
 }
 
 /* each setting with a note, so the file explains itself (as EMail's) */
@@ -321,6 +362,8 @@ void store_save_settings(void)
 	sb_printf(&b, "; ECal's folder, with its calendars, keys and certificates; ECAL.PRG\r\n"
 		    "; writes where it was started from, the accessory asks when it's missing\r\nFOLDER=%s\r\n\r\n",
 		  opt.workdir);
+	S("START", start, "when the accessory reads the calendars: now (at boot), opened (when you first\r\n"
+	  "; open it) or seconds after boot; reminders come from ALARMS.IDX meanwhile")
 	I("HEAPKB", heapkb, "memory the accessory takes at boot, in KB; 0: 1.5 MB on a Falcon/TT, 256 KB on an ST")
 	S("HOME_TZ", home_tz, "the time zone the Atari's clock is set to (Settings > Time zones)")
 	S("VIEW_TZ", view_tz, "the zone times are shown in, with time zone support on")
@@ -436,28 +479,70 @@ static void cal_free_events(CALENDAR *c)
 
 /* ECAL.INF, ECAL.KEY and the calendars' caches as they are now: their
    sizes and when they were written */
-static unsigned long store_stamp(void)
+static unsigned long stamp_one(unsigned long h, int i)
 {
 	char p[200];
+	long size;
+	if (i == -2)
+		str_copy(p, inf_path, sizeof(p));
+	else if (i == -1)
+		path_join(p, sizeof(p), opt.workdir, "ECAL.KEY");
+	else
+		cache_path(&cals[i], accts[cals[i].acct].kind == AK_SUBSCR ? "ICS" : "DAT", p, sizeof(p));
+	h = (h * 33) ^ pf_info(p, &size);	/* one directory look for both */
+	return (h * 33) ^ (unsigned long)size;
+}
+
+static unsigned long store_stamp(void)
+{
 	unsigned long h = 5381;
 	int i;
-	for (i = -2; i < ncals; i++) {
-		if (i == -2)
-			str_copy(p, inf_path, sizeof(p));
-		else if (i == -1)
-			path_join(p, sizeof(p), opt.workdir, "ECAL.KEY");
-		else
-			cache_path(&cals[i], accts[cals[i].acct].kind == AK_SUBSCR ? "ICS" : "DAT", p, sizeof(p));
-		h = (h * 33) ^ pf_stamp(p);
-		h = (h * 33) ^ (unsigned long)pf_size(p);
-	}
+	for (i = -2; i < ncals; i++)
+		h = stamp_one(h, i);
 	return h;
+}
+
+int store_files(const char **out, int max)
+{
+	static char p[MAXCAL + 1][200];
+	int i, n = 0;
+	if (max > MAXCAL + 1)
+		max = MAXCAL + 1;
+	for (i = -1; i < ncals && n < max; i++) {
+		if (i < 0)
+			str_copy(p[n], inf_path, sizeof(p[n]));
+		else
+			cache_path(&cals[i], accts[cals[i].acct].kind == AK_SUBSCR ? "ICS" : "DAT", p[n], sizeof(p[n]));
+		out[n] = p[n];
+		n++;
+	}
+	return n;
 }
 
 void store_mark(void)
 {
 	if (store_watch)
 		known = store_stamp();
+}
+
+/* the same a file at a time (a directory search each); 0 when done */
+static int mk_i = -3;
+static unsigned long mk_h;
+
+int store_mark_step(void)
+{
+	if (!store_watch)
+		return 0;
+	if (mk_i == -3) {
+		mk_i = -2;
+		mk_h = 5381;
+	}
+	mk_h = stamp_one(mk_h, mk_i++);
+	if (mk_i < ncals)
+		return 1;
+	known = mk_h;
+	mk_i = -3;
+	return 0;
 }
 
 int store_changed(void)
@@ -710,7 +795,10 @@ static int add_event(EVENT *e, void *ud)
 		int max = c->maxev ? c->maxev * 2 : 64;
 		n = realloc(c->ev, max * sizeof(EVENT *));
 		if (!n) {
+			/* no memory left: counted, and the user told (cal_lost) */
 			ev_free(e);
+			if (c->lost >= 0)
+				c->lost++;
 			return 0;
 		}
 		c->ev = n;
@@ -848,39 +936,112 @@ static void hx_done(void)
 	hx_cap = 0;
 }
 
-static void load_cal(CALENDAR *c)
-{
-	char path[200], line[700];
-	CTIME from, to;
+/* Reading a calendar in steps, so the accessory can do it between event
+   calls: one cached event (or a few lines of a subscription) per step */
+static struct {
+	CALENDAR *c;		/* NULL: none being read */
+	FR f;			/* 16 KB: not on the accessory's stack */
+	char *rawbuf;		/* one buffer for all, grown as needed */
+	long rawcap;
 	LOADCTX l;
-	static FR f;		/* 16 KB: not on the accessory's stack */
-	char *rawbuf = 0;
-	long rawcap = 0;
+	CTIME from, to;
+	ICSP *p;		/* a subscription: its parser */
+	unsigned long t0;
+} ld;
+static char ld_line[8192];	/* a subscription's line (as long as ics.c takes) */
+
+static void load_done(void)
+{
+	CALENDAR *c = ld.c;
+	char m[120];
+	unsigned long t = pf_ms() - ld.t0;
+	if (ld.p)
+		ics_end(ld.p);
+	if (ld.f.h >= 0)
+		pf_close(ld.f.h);
+	free(ld.rawbuf);
+	ld.rawbuf = 0;
+	ld.rawcap = 0;
+	ld.p = 0;
+	ld.c = 0;
+	hx_done();
+	mark_exceptions(c);
+	if (c->lost > 0 && accts[c->acct].kind == AK_SUBSCR)
+		c->lost = -1;		/* its parser stopped there: the rest unread */
+	snprintf(m, sizeof(m), "read %s: %d events in %lu.%02lu s%s", c->name, c->nev, t / 1000, t % 1000 / 10,
+		 c->lost ? " (not all: no memory left)" : "");
+	conn_log("ECal", "--", m, (long)strlen(m));
+}
+
+void cal_load_begin(CALENDAR *c)
+{
+	char path[200];
+	if (ld.c)
+		while (cal_load_step())
+			;		/* the one before, to its end */
 	cal_free_events(c);
-	window(&from, &to);
+	c->lost = 0;
+	window(&ld.from, &ld.to);
 	set_me(c);
-	l.c = c;
-	l.res = -1;
+	memset(&ld.f, 0, sizeof(ld.f));
+	ld.f.h = -1;
+	ld.c = c;
+	ld.p = 0;
+	ld.l.c = c;
+	ld.l.res = -1;
+	ld.t0 = pf_ms();
 	if (accts[c->acct].kind == AK_SUBSCR) {
 		cache_path(c, "ICS", path, sizeof(path));
-		if (pf_exists(path))
-			ics_parse_file(path, add_event, &l, from, to);
-		mark_exceptions(c);
+		ld.f.h = pf_open(path, PF_READ);
+		if (ld.f.h >= 0)
+			ld.p = ics_begin(add_event, &ld.l, ld.from, ld.to);
 		return;
 	}
 	cache_path(c, "DAT", path, sizeof(path));
-	memset(&f, 0, sizeof(f));
-	f.h = pf_open(path, PF_READ);
-	if (f.h < 0)
-		return;
-	if (!fr_line(&f, line, sizeof(line)) || strncmp(line, "CALCACHE 1", 10)) {
-		pf_close(f.h);
-		return;
+	ld.f.h = pf_open(path, PF_READ);
+	if (ld.f.h >= 0 && (!fr_line(&ld.f, ld_line, 700) || strncmp(ld_line, "CALCACHE 1", 10))) {
+		pf_close(ld.f.h);
+		ld.f.h = -1;
 	}
-	while (fr_line(&f, line, sizeof(line))) {
+}
+
+int cal_loading(void)
+{
+	return ld.c != 0;
+}
+
+/* a reading in steps given up (the calendars are about to be freed) */
+void cal_load_stop(void)
+{
+	if (ld.c)
+		load_done();
+}
+
+/* a subscription: forty lines, about an event */
+static int load_ics_step(void)
+{
+	int k;
+	for (k = 0; k < 40; k++) {
+		long n;
+		if (!fr_line(&ld.f, ld_line, sizeof(ld_line)))
+			return 0;
+		n = (long)strlen(ld_line);
+		ics_line(ld.p, ld_line, n);
+	}
+	return 1;
+}
+
+/* a cache file: the next record, an event as the server sent it */
+static int load_dat_step(void)
+{
+	CALENDAR *c = ld.c;
+	char *line = ld_line;
+	for (;;) {
 		char *tab1, *tab2, *raw;
 		long len;
 		RESOURCE *r;
+		if (!fr_line(&ld.f, line, 700))
+			return 0;
 		if (line[0] == 'C' && line[1] == ' ')
 			continue;		/* the ctag lives in ECAL.INF */
 		if (line[0] == 'X' && line[1] == ' ') {
@@ -891,11 +1052,11 @@ static void load_cal(CALENDAR *c)
 			continue;
 		}
 		if (line[0] != 'R' || line[1] != ' ')
-			break;
+			return 0;
 		tab1 = strchr(line + 2, '\t');
 		tab2 = tab1 ? strchr(tab1 + 1, '\t') : 0;
 		if (!tab2)
-			break;
+			return 0;
 		*tab1 = *tab2 = 0;
 		len = atol(tab2 + 1);
 		{
@@ -908,8 +1069,10 @@ static void load_cal(CALENDAR *c)
 			RESOURCE *n;
 			int max = c->maxres ? c->maxres * 2 : 64;
 			n = realloc(c->res, max * sizeof(RESOURCE));
-			if (!n)
-				break;
+			if (!n) {
+				c->lost = -1;	/* the rest can't be kept */
+				return 0;
+			}
 			c->res = n;
 			c->maxres = max;
 		}
@@ -918,46 +1081,62 @@ static void load_cal(CALENDAR *c)
 		r = &c->res[c->nres];
 		r->etag = strdup(line + 2);
 		r->href = strdup(tab1 + 1);
-		r->off = f.off;
+		r->off = ld.f.off;
 		r->len = len;
 		r->dead = 0;
-		l.res = c->nres++;
+		ld.l.res = c->nres++;
 		if (hx && r->href)
-			hx_put(c, l.res);
-		/* one buffer for all, grown as needed: not a malloc and free
-		   for each event */
-		if (len < 65536L && len + 1 > rawcap) {
-			free(rawbuf);
-			rawcap = len + 1 > 4096 ? len + 1 : 4096;
-			if (!(rawbuf = malloc(rawcap)))
-				rawcap = 0;
+			hx_put(c, ld.l.res);
+		/* one buffer for all: not a malloc and free for each event */
+		if (len < 65536L && len + 1 > ld.rawcap) {
+			free(ld.rawbuf);
+			ld.rawcap = len + 1 > 4096 ? len + 1 : 4096;
+			if (!(ld.rawbuf = malloc(ld.rawcap)))
+				ld.rawcap = 0;
 		}
-		raw = len < 65536L && rawbuf ? rawbuf : 0;
+		raw = len < 65536L && ld.rawbuf ? ld.rawbuf : 0;
 		if (raw) {
-			if (!fr_bytes(&f, raw, len))
-				break;
+			if (!fr_bytes(&ld.f, raw, len))
+				return 0;
 			raw[len] = 0;
-			ics_parse(raw, len, add_event, &l, from, to);
-		} else if (!fr_bytes(&f, 0, len)) {
-			break;
+			ics_parse(raw, len, add_event, &ld.l, ld.from, ld.to);
+		} else if (!fr_bytes(&ld.f, 0, len)) {
+			return 0;
 		}
-		fr_bytes(&f, 0, 1);		/* the newline after it */
+		fr_bytes(&ld.f, 0, 1);		/* the newline after it */
+		return 1;
 	}
-	pf_close(f.h);
-	free(rawbuf);
-	hx_done();
-	mark_exceptions(c);
 }
 
-/* reading a calendar's cache, with how long it took in the log */
+int cal_load_step(void)
+{
+	int more;
+	if (!ld.c)
+		return 0;
+	more = ld.f.h >= 0 && (ld.p ? load_ics_step() : accts[ld.c->acct].kind != AK_SUBSCR && load_dat_step());
+	if (!more)
+		load_done();
+	return more;
+}
+
+/* reading a calendar's cache at once, with how long it took in the log */
 void cal_load(CALENDAR *c)
 {
-	unsigned long t0 = pf_ms(), t;
-	char m[120];
-	load_cal(c);
-	t = pf_ms() - t0;
-	snprintf(m, sizeof(m), "read %s: %d events in %lu.%02lu s", c->name, c->nev, t / 1000, t % 1000 / 10);
-	conn_log("ECal", "--", m, (long)strlen(m));
+	cal_load_begin(c);
+	while (cal_load_step())
+		;
+}
+
+/* after a refresh brought changes: read at once, or (the accessory's
+   background refresh, cal_defer_load) only begun, the rest in steps */
+int cal_defer_load;
+
+static void reload(CALENDAR *c)
+{
+	if (cal_defer_load)
+		cal_load_begin(c);
+	else
+		cal_load(c);
 }
 
 void cal_load_all(void)
@@ -1155,6 +1334,8 @@ static int sync_caldav(CALENDAR *c, int force)
 	int n, i, j, nneed = 0, nkept;
 	CTIME from, to;
 	CW w;
+	while (cal_load_step())
+		;			/* a reading in steps first: the index is its */
 	status("%s: checking...", c->name);
 	if (!caldav_ctag(c->url, &au, ctag, sizeof(ctag), cal_err, sizeof(cal_err)))
 		return -1;
@@ -1175,18 +1356,18 @@ static int sync_caldav(CALENDAR *c, int force)
 		str_copy(cal_err, "out of memory", sizeof(cal_err));
 		return -1;
 	}
+	/* what the server has, against what is kept: by href through the
+	   index (comparing each with each was n x m string compares) */
+	hx_done();
+	hx_room(c, c->nres + 1);	/* no memory: hx_live looks the slow way */
 	for (i = 0; i < n; i++) {
-		int found = -1;
-		for (j = 0; j < c->nres; j++)
-			if (!c->res[j].dead && !strcmp(c->res[j].href, items[i].href)) {
-				found = j;
-				break;
-			}
+		int found = hx_live(c, items[i].href);
 		if (found >= 0 && same_etag(c->res[found].etag, items[i].etag))
 			keep[found] = 1;
 		else
 			need[nneed++] = items[i].href;
 	}
+	hx_done();
 	if (!cw_open(&w, c)) {
 		free(keep);
 		free(need);
@@ -1230,7 +1411,7 @@ static int sync_caldav(CALENDAR *c, int force)
 		return -1;
 	str_copy(c->ctag, ctag, sizeof(c->ctag));
 	c->synced = now_utc();
-	cal_load(c);
+	reload(c);
 	return 1;
 }
 
@@ -1317,7 +1498,7 @@ static int sync_subscription(CALENDAR *c, int force)
 	str_copy(c->lastmod, rs.lastmod, sizeof(c->lastmod));
 	c->synced = now_utc();
 	status("%s: reading...", c->name);
-	cal_load(c);
+	reload(c);
 	/* a new subscription takes the feed's own name */
 	if ((!c->name[0] || !strcmp(c->name, "Subscription")) && ics_calname[0])
 		str_copy(c->name, ics_calname, sizeof(c->name));
@@ -1463,7 +1644,7 @@ static int occ_skip(EVENT *m, CTIME orig, void *ud)
 /* ---------------- reminders: the queue (alarms.h) ---------------- */
 
 static int ab_active, ab_ci, ab_ei;
-static CTIME ab_now;
+static CTIME ab_now, ab_from, ab_to;	/* this step's day of the event's range */
 static const TZONE *ab_vz;
 
 static void alarm_occ(EVENT *e, CTIME s, CTIME en, void *ud)
@@ -1481,46 +1662,82 @@ static void alarm_occ(EVENT *e, CTIME s, CTIME en, void *ud)
 	}
 	if (e->alarm == -1 || e->status == ST_CANCELLED || e->gone)
 		return;
+	if (s < ab_from || s >= ab_to)
+		return;			/* another step's day (or one before the range) */
 	fire = s - e->alarm;
 	if (fire > ab_now - MIN_PER_DAY && fire <= ab_now + ALARM_DAYS * MIN_PER_DAY)
 		alarms_add(view_to_clock(fire), s, e->allday, e->summary ? e->summary : "Event", e->location);
 }
 
-/* one event of the calendars that remind, expanded over the days whose
-   reminders it can have; 0 once all have been */
+/* One day of one event's range per step (an event of the calendars that
+   remind, over the days whose reminders it can have), so no step holds
+   the machine long: a daily meeting is a few occurrences, each with its
+   time zones worked out. 0 once all have been */
+static CTIME ab_end;		/* the end of this event's range; CT_NONE: the next event */
+
 int alarms_step(void)
 {
+	int skipped = 0;
+	if (ab_active && alarms_stale())
+		ab_active = 0;		/* changed meanwhile (read again, say): from the start */
 	if (!ab_active) {
 		if (!alarms_pending())
 			return 0;
 		alarms_begin_build();
 		ab_active = 1;
 		ab_ci = ab_ei = 0;
+		ab_end = CT_NONE;
 		ab_now = now_view();
 		ab_vz = view_zone();
 	}
 	while (ab_ci < ncals) {
 		CALENDAR *c = &cals[ab_ci];
 		EVENT *e;
-		CTIME from, to;
-		if (!c->visible || !c->alarms || ab_ei >= c->nev) {
-			ab_ci++;
-			ab_ei = 0;
+		if (ab_end == CT_NONE) {
+			/* the next event: its range */
+			if (!c->visible || !c->alarms || ab_ei >= c->nev) {
+				ab_ci++;
+				ab_ei = 0;
+				continue;
+			}
+			e = c->ev[ab_ei];
+			if (e->status == ST_CANCELLED || e->gone || (e->alarm == -1 && !(e->hasexc & 2))) {
+				ab_ei++;
+				if (++skipped >= 64)
+					return 1;	/* a long run of them is a step too */
+				continue;	/* nothing to remind of: no step spent on it */
+			}
+			if (e->hasexc & 2) {
+				/* its later part may remind differently */
+				ab_from = ab_now - 2 * MIN_PER_DAY;
+				ab_end = ab_now + 2 * ALARM_DAYS * MIN_PER_DAY;
+			} else {
+				/* fire = start - alarm, within the next ALARM_DAYS days */
+				ab_from = ab_now - MIN_PER_DAY + e->alarm - 1;
+				ab_end = ab_now + ALARM_DAYS * MIN_PER_DAY + e->alarm + 1;
+			}
+			if ((!e->rr && !e->nrdate) || (e->rr && (e->rr->freq == F_MONTHLY || e->rr->freq == F_YEARLY) && !e->nrdate)) {
+				/* once, or monthly or less: the whole range in one look
+				   (a month's days are worked out once, not each day) */
+				ab_to = ab_end;
+			} else {
+				ab_to = ab_from + MIN_PER_DAY;
+			}
+		} else if (ab_ei < c->nev) {
+			e = c->ev[ab_ei];
+		} else {
+			ab_end = CT_NONE;
 			continue;
 		}
-		e = c->ev[ab_ei++];
-		if (e->status == ST_CANCELLED || e->gone || (e->alarm == -1 && !(e->hasexc & 2)))
-			continue;	/* nothing to remind of: no step spent on it */
-		if (e->hasexc & 2) {
-			/* its later part may remind differently */
-			from = ab_now - 2 * MIN_PER_DAY;
-			to = ab_now + 2 * ALARM_DAYS * MIN_PER_DAY;
+		/* the occurrences starting this day (ab_from..ab_to) */
+		ics_expand(e, ab_from, ab_to, ab_vz, alarm_occ, occ_skip, 0);
+		ab_from = ab_to;
+		if (ab_from >= ab_end) {
+			ab_end = CT_NONE;
+			ab_ei++;
 		} else {
-			/* fire = start - alarm, within the next ALARM_DAYS days */
-			from = ab_now - MIN_PER_DAY + e->alarm - 1;
-			to = ab_now + ALARM_DAYS * MIN_PER_DAY + e->alarm + 1;
+			ab_to = ab_from + MIN_PER_DAY < ab_end ? ab_from + MIN_PER_DAY : ab_end;
 		}
-		ics_expand(e, from, to, ab_vz, alarm_occ, occ_skip, 0);
 		return 1;
 	}
 	alarms_end_build(now_clock());

@@ -29,6 +29,11 @@ CFLAGS  := -m68000 -Os -fomit-frame-pointer -ffreestanding -fno-builtin \
            -DCAL_TOS -nostdinc -isystem $(GCCINC) -Iatari/include -Icommon/atari/include \
            -Isrc -Icommon/src -Iatari -Icommon/atari -Iui -Icommon/ui -Icommon/third_party/bearssl/inc \
            -DTLS_FULL_EDITION=\"ECAL.ACC\"
+# make AESPROF=50: every stretch of 50 ms or more between event calls
+# goes to the emulator's console (common/atari/gem.c; make profile)
+ifdef AESPROF
+CFLAGS  += -DAES_PROFILE=$(AESPROF)
+endif
 LDFLAGS := -m68000 -nostdlib -static -no-pie -Wl,--emit-relocs -Wl,-T,common/atari/link.ld \
            -Wl,--build-id=none -Wl,-z,noexecstack -Wl,--no-warn-rwx-segments
 
@@ -45,7 +50,7 @@ HBSSLOBJ = $(patsubst $(BSSL)/src/%.c,$(OBJDIR)/hbssl/%.o,$(BSSLSRC))
 
 CORE    := util charset conn tls bidi secret futil ctime tz ics rrule xml inflate http caldav calstore people alarms
 ATARI   := libc tos plat_tos net_tos sting gem dsprsa
-UI      := main win draw popup dsp views sidebar editor dialogs field about font help av alert aboutbox iconify clip dd mbar twin busy
+UI      := main win draw popup dsp views sidebar editor dialogs field about font help av alert aboutbox iconify clip dd mbar twin busy bgwork
 
 OBJDIR  := build
 OBJS0   := $(OBJDIR)/crt0.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o $(OBJDIR)/crash.o $(OBJDIR)/crash_s.o \
@@ -245,10 +250,15 @@ test: $(OBJDIR)/unit $(addprefix $(OBJDIR)/replay_,$(FUZZERS)) $(OBJDIR)/cal-cli
 	python3 -m unittest discover -s gateway -p 'test_aeragate.py'
 	python3 -m unittest discover -s gateway -p 'test_ecalgate.py'
 
+# the programs built to time themselves, in build/prof/bin, for
+# tests/hatari/quiet_test.py (binary/ stays as it is)
+profile:
+	$(MAKE) OBJDIR=build/prof BIN=build/prof/bin AESPROF=50 all
+
 itest: $(OBJDIR)/cal-cli
 	tests/integration.sh
 
 clean:
 	rm -rf $(OBJDIR) $(BIN) dist
 
-.PHONY: icons fakeguide all help dist test itest fuzz clean FORCE
+.PHONY: icons fakeguide all help dist test itest fuzz clean profile FORCE

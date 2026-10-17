@@ -28,6 +28,11 @@ int alarms_pending(void)
 	return dirty || building;
 }
 
+int alarms_stale(void)
+{
+	return dirty;
+}
+
 void alarms_begin_build(void)
 {
 	nn = 0;
@@ -63,9 +68,13 @@ void alarms_add(CTIME fire, CTIME start, int allday, const char *title, const ch
 	clean(a->place, sizeof(a->place), place);
 }
 
+/* sorted by an index of them: the library's qsort swaps byte by byte,
+   and an ALARM is 124 bytes (tens of milliseconds on a 68000) */
+static const ALARM *sort_base;
+
 static int by_fire(const void *x, const void *y)
 {
-	const ALARM *a = x, *b = y;
+	const ALARM *a = &sort_base[*(const short *)x], *b = &sort_base[*(const short *)y];
 	if (a->fire != b->fire)
 		return a->fire < b->fire ? -1 : 1;
 	return a->start < b->start ? -1 : a->start > b->start;
@@ -73,18 +82,29 @@ static int by_fire(const void *x, const void *y)
 
 void alarms_end_build(CTIME built)
 {
-	ALARM *t;
-	int m;
-	if (nn > 1)
-		qsort(nq, nn, sizeof(ALARM), by_fire);
-	/* the new one in; the old one's memory is the next build's */
-	t = alarm_q;
-	alarm_q = nq;
-	nq = t;
-	m = qmax;
-	qmax = nmax;
-	nmax = m;
-	alarm_n = nn;
+	short *ix = malloc((nn + 1) * sizeof(short));
+	int i;
+	if (qmax < nn) {
+		ALARM *t = realloc(alarm_q, nn * sizeof(ALARM));
+		if (t) {
+			alarm_q = t;
+			qmax = nn;
+		}
+	}
+	if (ix && qmax >= nn) {
+		/* in order into the old queue's memory, one copy each */
+		for (i = 0; i < nn; i++)
+			ix[i] = (short)i;
+		sort_base = nq;
+		if (nn > 1)
+			qsort(ix, nn, sizeof(short), by_fire);
+		for (i = 0; i < nn; i++)
+			alarm_q[i] = nq[ix[i]];
+		alarm_n = nn;
+	} else {
+		alarm_n = 0;		/* no memory: no reminders until the next build */
+	}
+	free(ix);
 	nn = 0;
 	alarm_built = built;
 	building = 0;
@@ -107,43 +127,75 @@ void alarms_due(CTIME after, CTIME upto, void (*fn)(const ALARM *a, void *ud), v
 
 /* ---- ALARMS.IDX ---- */
 
-static unsigned long stamp(const char *const *files, int n)
+#define MAXF 40
+static char vfiles[MAXF][160];	/* the loaded file's: to check, a step each */
+static int vn, vi;
+static unsigned long vstamp, vh;
+
+unsigned long alarms_stamp_add(unsigned long h, const char *file)
 {
-	unsigned long h = 5381;
-	int i;
-	for (i = 0; i < n; i++) {
-		h = (h * 33) ^ pf_stamp(files[i]);
-		h = (h * 33) ^ (unsigned long)pf_size(files[i]);
-	}
-	return h;
+	long size;
+	h = (h * 33) ^ pf_info(file, &size);	/* one directory look for both */
+	return (h * 33) ^ (unsigned long)size;
 }
 
-int alarms_save(const char *path, const char *const *files, int nfiles, int on, int h24)
+/* written in steps too: the text eight reminders a step, then the file */
+static SBUF sv;
+static int sv_i = -1;
+static char sv_path[160];
+
+void alarms_save_begin(const char *path, const char *const *files, int nfiles, unsigned long stamp, int on, int h24)
 {
-	SBUF b;
-	int i, ok;
-	sb_init(&b);
-	sb_printf(&b, "ECAL ALARMS 1\r\nbuilt %ld\r\non %d\r\nh24 %d\r\nstamp %lu\r\n",
-		  (long)alarm_built, on, h24, stamp(files, nfiles));
+	int i;
+	sb_free(&sv);
+	sb_init(&sv);
+	str_copy(sv_path, path, sizeof(sv_path));
+	sb_printf(&sv, "ECAL ALARMS 1\r\nbuilt %ld\r\non %d\r\nh24 %d\r\nstamp %lu\r\n",
+		  (long)alarm_built, on, h24, stamp);
 	for (i = 0; i < nfiles; i++)
-		sb_printf(&b, "F %s\r\n", files[i]);
-	for (i = 0; i < alarm_n; i++) {
-		ALARM *a = &alarm_q[i];
-		sb_printf(&b, "A %ld\t%ld\t%d\t%s\t%s\r\n", (long)a->fire, (long)a->start, a->allday, a->title, a->place);
+		sb_printf(&sv, "F %s\r\n", files[i]);
+	sv_i = 0;
+}
+
+int alarms_save_step(void)
+{
+	int k, ok = 0, h;
+	if (sv_i < 0)
+		return 0;
+	for (k = 0; k < 8 && sv_i < alarm_n; k++, sv_i++) {
+		ALARM *a = &alarm_q[sv_i];
+		sb_printf(&sv, "A %ld\t%ld\t%d\t%s\t%s\r\n", (long)a->fire, (long)a->start, a->allday, a->title, a->place);
 	}
-	ok = b.s && pf_save(path, b.s, b.len) == 0;
-	sb_free(&b);
-	return ok;
+	if (sv_i < alarm_n)
+		return 1;
+	/* straight over the old one: only a copy, and one that is cut short
+	   or out of date is noticed (its stamp) and made again */
+	if (sv.s && (h = pf_open(sv_path, PF_WRITE)) >= 0) {
+		ok = pf_write(h, sv.s, sv.len) == sv.len;
+		pf_close(h);
+	}
+	sb_free(&sv);
+	sv_i = -1;
+	return ok ? 0 : -1;
+}
+
+int alarms_save(const char *path, const char *const *files, int nfiles, unsigned long stamp, int on, int h24)
+{
+	int r;
+	alarms_save_begin(path, files, nfiles, stamp, on, h24);
+	while ((r = alarms_save_step()) > 0)
+		;
+	return r == 0;
 }
 
 int alarms_load(const char *path, CTIME now, int *on, int *h24)
 {
 	long len;
 	char *t = pf_load(path, &len), *line, *next;
-	const char *files[64];
-	int nf = 0, ok = 0;
+	int ok = 0;
 	unsigned long st = 0;
 	CTIME built = 0;
+	vn = vi = 0;
 	if (!t)
 		return 0;
 	if (strncmp(t, "ECAL ALARMS 1", 13))
@@ -162,8 +214,8 @@ int alarms_load(const char *path, CTIME now, int *on, int *h24)
 			*h24 = atoi(line + 4);
 		else if (!strncmp(line, "stamp ", 6))
 			st = strtoul(line + 6, 0, 10);
-		else if (line[0] == 'F' && line[1] == ' ' && nf < 64)
-			files[nf++] = line + 2;
+		else if (line[0] == 'F' && line[1] == ' ' && vn < MAXF)
+			str_copy(vfiles[vn++], line + 2, sizeof(vfiles[0]));
 		else if (line[0] == 'A' && line[1] == ' ') {
 			char *f[5];
 			int k;
@@ -178,14 +230,34 @@ int alarms_load(const char *path, CTIME now, int *on, int *h24)
 				alarms_add(atol(f[0]), atol(f[1]), atoi(f[2]), f[3], f[4]);
 		}
 	}
-	/* made from the files as they are now, and reaching past today */
-	ok = built && nf && stamp(files, nf) == st && now < built + (ALARM_DAYS - 1) * MIN_PER_DAY;
-	if (ok)
+	/* reaching past today: in use at once, its files checked after */
+	ok = built && vn && now < built + (ALARM_DAYS - 1) * MIN_PER_DAY;
+	if (ok) {
 		alarms_end_build(built);
-	else
+		vstamp = st;
+		vh = ALARM_STAMP0;
+	} else {
 		building = 0;
+		vn = 0;
+	}
 	dirty = 1;		/* built again once the calendars are read */
 out:
 	free(t);
 	return ok;
+}
+
+int alarms_verify_step(void)
+{
+	if (vi >= vn)
+		return 0;
+	vh = alarms_stamp_add(vh, vfiles[vi++]);
+	if (vi < vn)
+		return 1;
+	if (vh != vstamp) {
+		/* a calendar changed since it was made: no reminders from it */
+		alarm_n = 0;
+		alarm_built = 0;
+	}
+	vn = vi = 0;
+	return 0;
 }

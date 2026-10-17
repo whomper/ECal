@@ -37,6 +37,7 @@ extern CTIME alarm_built;	/* when the queue was built, by the clock (0: none yet
 /* the queue is out of date: the next steps build it again */
 void alarms_changed(void);
 int  alarms_pending(void);	/* a build to start or to go on with */
+int  alarms_stale(void);	/* changed since the build in progress began */
 /* one step of the build (calstore.c: one event); 0 when the queue is done */
 int  alarms_step(void);
 /* the reminders due after "after" up to "upto" (the clock's times), in order */
@@ -49,9 +50,21 @@ void alarms_end_build(CTIME built);
 
 /* ALARMS.IDX: the queue, the reminder settings (on, 24-hour clock), and
    the files it was built from with a stamp of them (sizes, times), so a
-   change made since is noticed without reading them. alarms_load: 1 if
-   the file is there, matches its files and still reaches past now */
-int  alarms_save(const char *path, const char *const *files, int nfiles, int on, int h24);
+   change made since is noticed without reading them. Each file's look at
+   the disk is a step of its own (one directory search each), so neither
+   the stamp nor the check at boot holds the machine:
+     h = ALARM_STAMP0; for each file: h = alarms_stamp_add(h, file);
+     alarms_save(path, files, n, h, on, h24);
+   alarms_load: the queue at once, if the file is there and still reaches
+   past now; then alarms_verify_step() until 0 checks its files, one per
+   call, and empties the queue if one changed since */
+#define ALARM_STAMP0 5381UL
+unsigned long alarms_stamp_add(unsigned long h, const char *file);
+int  alarms_save(const char *path, const char *const *files, int nfiles, unsigned long stamp, int on, int h24);
+/* the same in steps: begin, then alarms_save_step() until it isn't 1 (0 written, -1 not) */
+void alarms_save_begin(const char *path, const char *const *files, int nfiles, unsigned long stamp, int on, int h24);
+int  alarms_save_step(void);
 int  alarms_load(const char *path, CTIME now, int *on, int *h24);
+int  alarms_verify_step(void);
 
 #endif

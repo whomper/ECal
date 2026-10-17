@@ -627,6 +627,35 @@ static void unfold(char *t)
 
 /* invitations (EContact): the invitees written as ATTENDEEs with this
    user as ORGANIZER, read back, and kept or replaced on a change */
+/* rrule.c's quick time zones give tz.c's answers: every hour of three
+   years in zones north and south, and each minute around the changes */
+static void test_tzm(void)
+{
+	static const char *const zones[] = { "Asia/Jerusalem", "America/New_York", "Australia/Sydney",
+					     "Europe/London", "UTC", "America/Sao_Paulo" };
+	unsigned i;
+	int bad = 0;
+	for (i = 0; i < sizeof(zones) / sizeof(zones[0]); i++) {
+		const TZONE *z = tz_find(zones[i]);
+		CTIME t, t0 = ct_make(2025, 1, 1, 0, 0), t1 = ct_make(2028, 1, 1, 0, 0);
+		if (!z)
+			continue;
+		for (t = t0; t < t1; t += 60) {
+			if (tzm_offset(z, t) != tz_offset(z, t) || tzm_to_utc(z, t) != tz_to_utc(z, t))
+				bad++;
+			if (tz_offset(z, t) != tz_offset(z, t + 60)) {
+				/* a change within the hour: each minute around it */
+				CTIME m;
+				for (m = t - 120; m < t + 180; m++)
+					if (tzm_offset(z, m) != tz_offset(z, m) || tzm_to_local(z, m) != tz_to_local(z, m) ||
+					    tzm_to_utc(z, m) != tz_to_utc(z, m))
+						bad++;
+			}
+		}
+	}
+	CHECK_EQ(bad, 0);
+}
+
 static void alarm_count(const ALARM *a, void *ud)
 {
 	(void)a;
@@ -652,7 +681,7 @@ static void test_alarms_idx(void)
 	CHECK(alarm_q[0].fire == b + 60 && alarm_q[2].fire == b + 24 * 60);
 	alarms_due(b + 60, b + 120, alarm_count, &n);	/* after 60, up to 120: one */
 	CHECK_EQ(n, 1);
-	CHECK(alarms_save(idx, files, 1, 1, 1));
+	CHECK(alarms_save(idx, files, 1, alarms_stamp_add(ALARM_STAMP0, dep), 1, 1));
 	alarm_n = 0;
 	CHECK(alarms_load(idx, b + 10, &on, &h24));
 	CHECK_EQ(alarm_n, 3);
@@ -660,11 +689,18 @@ static void test_alarms_idx(void)
 	CHECK_STR(alarm_q[1].title, "Standup with a tab");
 	CHECK_STR(alarm_q[1].place, "Room 2");
 	CHECK(alarm_q[2].allday);
+	while (alarms_verify_step())
+		;
+	CHECK_EQ(alarm_n, 3);		/* its file as it was */
 	/* a week on: it doesn't reach far enough */
 	CHECK(!alarms_load(idx, b + 7 * MIN_PER_DAY, &on, &h24));
-	/* a calendar written since: out of date */
+	/* a calendar written since: in use at once, then dropped by the check */
 	CHECK(pf_save(dep, "two!", 4) == 0);
-	CHECK(!alarms_load(idx, b + 10, &on, &h24));
+	CHECK(alarms_load(idx, b + 10, &on, &h24));
+	CHECK_EQ(alarm_n, 3);
+	while (alarms_verify_step())
+		;
+	CHECK_EQ(alarm_n, 0);
 	pf_remove(dep);
 	pf_remove(idx);
 }
@@ -1103,6 +1139,7 @@ int main(void)
 	test_ics_build();
 	test_invitees();
 	test_alarms_idx();
+	test_tzm();
 	test_learned_zone();
 	test_xml();
 	test_urls();
