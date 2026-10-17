@@ -25,7 +25,7 @@ CC      := $(CROSS)gcc
 GCCINC  := $(shell $(CC) -print-file-name=include 2>/dev/null)
 CFLAGS  := -m68000 -Os -fomit-frame-pointer -ffreestanding -fno-builtin \
            -fno-pic -fno-pie -fno-tree-loop-distribute-patterns -fno-store-merging \
-           -fno-asynchronous-unwind-tables -Wall -Wno-pointer-sign \
+           -fno-expensive-optimizations -fno-asynchronous-unwind-tables -Wall -Wno-pointer-sign \
            -DCAL_TOS -nostdinc -isystem $(GCCINC) -Iatari/include -Icommon/atari/include \
            -Isrc -Icommon/src -Iatari -Icommon/atari -Iui -Icommon/ui -Icommon/third_party/bearssl/inc \
            -DTLS_FULL_EDITION=\"ECAL.ACC\"
@@ -78,12 +78,15 @@ $(BIN)/ECALST.ACC: $(OBJDIR)/ecalst.elf common/tools/elf2tos.py | $(BIN)
 $(OBJDIR)/ecalst.elf: $(STOBJS) common/atari/link.ld
 	$(CC) $(LDFLAGS) -o $@ $(STOBJS) -lgcc
 
+# as 68000 code: no stores or loads joined into words (an odd address
+# would be an address error), as in CFLAGS
+STBSSLCF = $(subst -m68030,-m68000 -fno-store-merging -fno-expensive-optimizations,$(BSSLCF))
 $(OBJDIR)/st/%.o: $(BSSL)/src/hash/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(subst -m68030,-m68000,$(BSSLCF)) -c -o $@ $<
+	$(CC) $(STBSSLCF) -c -o $@ $<
 $(OBJDIR)/st/%.o: $(BSSL)/src/codec/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(subst -m68030,-m68000,$(BSSLCF)) -c -o $@ $<
+	$(CC) $(STBSSLCF) -c -o $@ $<
 
 # one program, two names: it sees at start-up whether TOS loaded it as
 # an accessory or started it as an application
