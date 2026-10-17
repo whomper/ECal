@@ -5,11 +5,12 @@
 in Hatari on a Falcon: ECAL.PRG, and EContact's accessory with the
 contacts of its tests/hatari/sample.vcf.
 
-    tests/hatari/people_test.py WORK etos512us.img ECONTACT_DIR [--acc]
+    tests/hatari/people_test.py WORK etos512us.img [--acc] [--econtact v1.43]
 
-ECONTACT_DIR is a checkout of github.com/whomper/EContact with
-build/card-cli built (make build/card-cli) and the accessory to test in
-binary/ECONTACT.ACC (a release's, or make). A new event's Add... with
+EContact is its latest release (the guidelines, 1.2), or the one given:
+ECONTACT.ACC from common/tools/getrelease.py, and card-cli and
+sample.vcf from its source at the same tag, to write the contacts. The
+release is printed, for the report. A new event's Add... with
 "Grace" typed closes the editor and opens EContact's window to choose;
 Return chooses Grace Baker and the editor comes back with her, by name.
 Saved, the event invites her with her name and address; opened again,
@@ -35,6 +36,22 @@ def check(what, ok):
     print(("  ok   " if ok else "  FAIL ") + what)
     if not ok:
         fails.append(what)
+
+
+def fetch_econtact(work, want):
+    """EContact's release: its accessory, and its source at that tag with
+    card-cli built; the directory, and the release's tag"""
+    ec = os.path.join(work, "econtact")
+    app = "EContact@" + want if want else "EContact"
+    subprocess.run([sys.executable, os.path.join(ROOT, "common", "tools", "getrelease.py"),
+                    app, os.path.join(ec, "binary"), "ECONTACT.ACC"], check=True)
+    tag = open(os.path.join(ec, "binary", "ECONTACT.VERSION")).read().strip()
+    subprocess.run(["git", "clone", "-q", "--depth", "1", "--branch", tag,
+                    "https://github.com/whomper/EContact", os.path.join(ec, "src")], check=True)
+    subprocess.run(["make", "-s", "-C", os.path.join(ec, "src"), "build/card-cli"], check=True)
+    for d in ("build", "tests"):
+        os.symlink(os.path.join(ec, "src", d), os.path.join(ec, d))
+    return ec, tag
 
 
 def econtact(hd, ec):
@@ -74,11 +91,14 @@ def menu_entry_width(shot, y):
 
 
 def main():
-    work, tos, ec = os.path.abspath(sys.argv[1]), sys.argv[2], os.path.abspath(sys.argv[3])
-    acc = "--acc" in sys.argv[4:]
+    work, tos = os.path.abspath(sys.argv[1]), sys.argv[2]
+    acc = "--acc" in sys.argv[3:]
+    want = sys.argv[sys.argv.index("--econtact") + 1] if "--econtact" in sys.argv else None
     shutil.rmtree(work, ignore_errors=True)
     hd = os.path.join(work, "hd")
     os.makedirs(hd)
+    ec, tag = fetch_econtact(work, want)
+    print("EContact", tag)
     if acc:
         shutil.copy(os.path.join(ROOT, "binary", "ECAL.ACC"), os.path.join(hd, "ECAL.ACC"))
         os.makedirs(os.path.join(hd, "ECAL"))
@@ -151,7 +171,7 @@ def main():
     crash = [os.path.join(d, f) for d, _, fs in os.walk(hd) for f in fs if f.upper() == "CRASH.LOG"]
     check("no crash (CRASH.LOG)", not crash)
     print("screenshots in", os.path.join(work, "shots"))
-    print("people test:", "all passed" if not fails else "%d failed" % len(fails))
+    print("people test, with EContact %s:" % tag, "all passed" if not fails else "%d failed" % len(fails))
     return 1 if fails else 0
 
 

@@ -247,10 +247,8 @@ tests/hatari/quiet_test.py WORK etos512us.img [--machine st]
                                                            # quiet start, timed between event calls
 tests/hatari/esc_test.py WORK etos512us.img                # Esc and Undo cancel dialogs and
                                                            # alerts, and nothing is written
-tests/hatari/people_test.py WORK etos512us.img ECONTACT_DIR [--acc]
-                                                           # inviting from EContact (PEOPLE):
-                                                           # a checkout with card-cli built and
-                                                           # binary/ECONTACT.ACC
+tests/hatari/people_test.py WORK etos512us.img [--acc]   # inviting from EContact (PEOPLE),
+                                                           # its latest release
 tests/hatari/bgsync_test.py WORK etos512us.img [--machine st] [--falcon-mode]
                                                            # make profile first: a background
                                                            # refresh with the window closed, timed
@@ -258,6 +256,8 @@ tests/hatari/stop_test.py WORK etos512us.img               # on an ST: Esc stops
                                                            # says nothing
 tests/hatari/twin_test.py WORK etos512us.img               # ECAL.PRG and ECAL.ACC on one machine
 tests/hatari/help_test.py WORK etos512us.img               # the Help key (make fakeguide first)
+tests/hatari/hypview_test.py WORK etos512us.img            # the guide in EHypView's latest
+                                                           # release (make help first), VGA and mono
 tests/hatari/ui_tour.py WORK etos512us.img                 # screenshots of every view
 TZ=America/New_York tests/hatari/docs_shots.py WORK etos512us.img --update
                                                            # the screenshots in docs/ (Falcon,
@@ -267,6 +267,9 @@ TZ=America/New_York tests/hatari/docs_shots.py WORK etos512us.img --update
 The network tests use the family's `FAKESTNG.PRG` (`make -C common/tools/fakesting`), which carries
 the emulated Atari's TCP over its serial port to `common/tools/fakesting/serial_bridge.py`; it's for
 the emulator only, never for a real Atari.
+
+A test that needs another AERA program (EContact, EHypView) uses that program's latest release, what
+you run, fetched with `common/tools/getrelease.py`; the test prints which release it used.
 
 ## Licence
 
