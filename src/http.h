@@ -67,6 +67,9 @@ typedef struct {
 int  http_request(const HTTPREQ *rq, HTTPRESP *rs, SBUF *body, char *err, int errlen);
 void http_close_all(void);	/* drop the kept-open connection */
 void http_kept_host(char *out, int size);	/* its host, "" if none */
+/* called with 1 before a new connection is opened (with TLS, its
+   handshake) and 0 after: the accessory's profile build times it apart */
+extern void (*http_connecting)(int begins);
 
 /* base64 of "user:pass" for Basic */
 void http_basic(const char *user, const char *pass, char *out, int size);

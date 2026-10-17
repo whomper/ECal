@@ -108,6 +108,9 @@ The gateway's own README, with its options and how to keep it private:
   or this and all future ones, as on the Mac. Changes made on an iPhone to one occurrence or to "this
   and future" show as they should.
 - **Reminders** pop up over any program, even with the window closed.
+- **Syncs in the background**: with its window closed the accessory brings the calendars up to date a
+  little at a time while the machine is idle, fetching only what changed, so new events and their
+  reminders arrive without opening ECal.
 - **Time zones**: events keep their zone; with time zone support on, see your calendar as it looks
   from another city. Summer time rules for Israel (the Friday before the last Sunday of March),
   Europe, the Americas, Australia and more are built in; others are learned from the calendar data.
@@ -240,6 +243,12 @@ tests/hatari/edit_test.py WORK etos512us.img --machine st --acc ECALST.ACC
                                                            # the same on an ST, up to delete
 tests/hatari/net_test.py WORK etos512us.img                # an ST syncing through ecalgate
 tests/hatari/net_test.py WORK etos512us.img --falcon-mode  # TLS on the Falcon, RSA on the DSP
+tests/hatari/quiet_test.py WORK etos512us.img [--machine st]
+                                                           # make profile first: the accessory's
+                                                           # quiet start, timed between event calls
+tests/hatari/bgsync_test.py WORK etos512us.img [--machine st] [--falcon-mode]
+                                                           # make profile first: a background
+                                                           # refresh with the window closed, timed
 tests/hatari/stop_test.py WORK etos512us.img               # on an ST: Esc stops a server that
                                                            # says nothing
 tests/hatari/twin_test.py WORK etos512us.img               # ECAL.PRG and ECAL.ACC on one machine

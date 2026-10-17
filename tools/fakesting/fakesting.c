@@ -50,9 +50,52 @@ static struct {
 	long head, tail;	/* ring buffer of received bytes */
 } conn[NCONN];
 
+/* what common/atari/tos.c takes from a C library (there is none here) */
+unsigned long strlen(const char *s)
+{
+	const char *p = s;
+	while (*p)
+		p++;
+	return p - s;
+}
+
+char *strcpy(char *d, const char *s)
+{
+	char *r = d;
+	while ((*d++ = *s++))
+		;
+	return r;
+}
+
 static u32 get_long(const short *a) { return ((u32)(u16)a[0] << 16) | (u16)a[1]; }
 
-static void out(int c) { Bconout(1, c & 0xff); }
+/* What goes to the bridge waits in a queue and leaves a little at each
+   call, as real STinG sends from its own queue: writing a request out
+   of the serial port before returning held the machine for it */
+#define TXSIZE 8192
+static unsigned char txq[TXSIZE];
+static long tx_head, tx_tail;
+
+static long tx_room(void)
+{
+	return TXSIZE - 1 - (tx_head - tx_tail + TXSIZE) % TXSIZE;
+}
+
+static void flush(long n)
+{
+	while (n-- > 0 && tx_tail != tx_head) {
+		Bconout(1, txq[tx_tail]);
+		tx_tail = (tx_tail + 1) % TXSIZE;
+	}
+}
+
+static void out(int c)
+{
+	if (!tx_room())
+		flush(TXSIZE);
+	txq[tx_head] = (unsigned char)c;
+	tx_head = (tx_head + 1) % TXSIZE;
+}
 
 static int in_ready(void) { return (int)Bconstat(1); }
 
@@ -61,32 +104,62 @@ static int in_byte(void)
 	return (int)(Bconin(1) & 0xff);
 }
 
-/* read and file one frame from the bridge, if one has started */
-static void pump(void)
+/* File what the bridge has sent, byte by byte as it has come, keeping
+   its place in a frame between calls: waiting for the rest of one held
+   the machine (a frame takes 100 ms over an ST's serial line), which
+   real STinG doesn't, and spoilt tests/hatari/bgsync_test.py's timings */
+static int rx_type = -1, rx_pos, rx_cn;	/* the frame begun, and how far */
+static long rx_left;				/* 'D': data bytes still to come */
+
+static void rx_byte(int c)
 {
-	while (in_ready()) {
-		int type = in_byte(), cn = in_byte();
-		if (cn < 0 || cn >= NCONN)
-			continue;
-		if (type == 'S') {
-			int ok = in_byte();
-			conn[cn].open = ok == 1;
-			conn[cn].refused = ok != 1;
-		} else if (type == 'E') {
-			conn[cn].eof = 1;
-		} else if (type == 'D') {
-			int len = in_byte() << 8;
-			len |= in_byte();
-			while (len-- > 0) {
-				int c = in_byte();
-				long next = (conn[cn].head + 1) % RXSIZE;
-				if (next != conn[cn].tail) {
-					conn[cn].buf[conn[cn].head] = (unsigned char)c;
-					conn[cn].head = next;
-				}
+	if (rx_type < 0) {
+		if (c == 'S' || c == 'D' || c == 'E') {
+			rx_type = c;
+			rx_pos = 0;
+		}
+		return;
+	}
+	rx_pos++;
+	if (rx_pos == 1) {
+		rx_cn = c < NCONN ? c : NCONN;	/* NCONN: not ours, read past */
+		if (rx_type == 'E') {
+			if (rx_cn < NCONN)
+				conn[rx_cn].eof = 1;
+			rx_type = -1;
+		}
+	} else if (rx_type == 'S') {
+		if (rx_cn < NCONN) {
+			conn[rx_cn].open = c == 1;
+			conn[rx_cn].refused = c != 1;
+		}
+		rx_type = -1;
+	} else if (rx_pos == 2) {
+		rx_left = (long)c << 8;
+	} else if (rx_pos == 3) {
+		rx_left |= c;
+		if (!rx_left)
+			rx_type = -1;
+	} else {
+		if (rx_cn < NCONN) {
+			long next = (conn[rx_cn].head + 1) % RXSIZE;
+			if (next != conn[rx_cn].tail) {
+				conn[rx_cn].buf[conn[rx_cn].head] = (unsigned char)c;
+				conn[rx_cn].head = next;
 			}
 		}
+		if (--rx_left == 0)
+			rx_type = -1;
 	}
+}
+
+/* a few bytes a call: two BIOS calls each, 0.75 ms on an ST */
+static void pump(void)
+{
+	int n = 0;
+	flush(16);
+	while (n++ < 32 && in_ready())
+		rx_byte(in_byte());
 }
 
 long c_unsupported(const short *a) { (void)a; return -32; }
@@ -143,12 +216,18 @@ long c_TCP_send(const short *a)
 	const unsigned char *buf = (const unsigned char *)get_long(a + 1);
 	if (cn < 0 || cn >= NCONN || !conn[cn].open)
 		return -9;
+	if (tx_room() < len + 4L) {
+		pump();
+		return -1;	/* E_OBUFFULL: the caller tries again */
+	}
 	out('D');
 	out(cn);
 	out(len >> 8);
 	out(len);
-	for (i = 0; i < len; i++)
-		out(buf[i]);
+	for (i = 0; i < len; i++) {	/* (room checked above) */
+		txq[tx_head] = buf[i];
+		tx_head = (tx_head + 1) % TXSIZE;
+	}
 	return 0;
 }
 
@@ -188,6 +267,7 @@ long c_TCP_close(const short *a)
 		return -9;
 	out('C');
 	out(cn);
+	flush(TXSIZE);
 	conn[cn].used = 0;
 	return 0;
 }

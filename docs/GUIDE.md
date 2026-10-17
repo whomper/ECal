@@ -88,10 +88,15 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
   **Show alerts** turns all reminders on or off.
 - **Time zones**: see [Time zones](#time-zones).
 - **Refresh**: how often every calendar is brought up to date, and
-  whether opening the window does it. **With the window closed** (the
-  accessory only, off at first) refreshes them when they're due even
-  while you work in another program, quietly and one calendar at a
-  time; problems show in the calendar list the next time you open ECal.
+  whether opening the window does it. **Also with the window closed**
+  (the accessory only, on at first) refreshes them in the background
+  while you work in another program: once after it has read the
+  calendars at start, then as often as **Refresh all** says. It works a
+  little at a time while the machine is idle and fetches only what
+  changed; problems show in the calendar list the next time you open
+  ECal. (Through the Pi gateway that costs the Atari next to nothing;
+  in Falcon mode each new connection's TLS handshake holds the machine
+  for a second or two, so it starts one only while you aren't working.)
   **Read calendars** (the accessory only): when it reads the calendars
   kept on disk: **After a minute** (as at first), at once (**At start**),
   after five minutes, or only **When opened**; its reminders come from
@@ -355,8 +360,9 @@ clock with them every half minute, which takes no time at all.
 An accessory only runs while the program in front waits for GEM (the
 desktop and most GEM programs do): during a TOS program or a game the
 reminders wait, and come when you're back, if that's within two days.
-Events added elsewhere arrive with the next refresh: open ECal, or turn
-on Settings > Refresh > **With the window closed**.
+Events added elsewhere arrive with the next refresh: the accessory
+fetches them in the background (Settings > Refresh > **Also with the
+window closed**) and their reminders come too, or open ECal.
 
 ## Time zones
 
@@ -432,6 +438,8 @@ next time ECal saves its settings.
 `ALARMS.IDX`, next to the calendars, is ECal's own copy of the coming
 reminders and of what they were made from; it can be deleted at any
 time, and is made again once the calendars are read.
+`SYNC_CLOSED=` is **Also with the window closed** (`1` at first; the
+`BGSYNC=` of ECal before 2.7, off by default, is no longer read).
 
 ## The desktop icon
 

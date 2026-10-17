@@ -204,6 +204,39 @@ int main(int argc, char **argv)
 		printf("%d calendar%s changed\n", r, r == 1 ? "" : "s");
 		return 0;
 	}
+	if (!strcmp(cmd, "bgsync") && argc >= 3) {
+		/* the accessory's background refresh, in steps; then (with
+		   FROM TO) the events in memory, to compare with a fresh read;
+		   with STOP, stopped after that many steps (the window opened) */
+		int i, n = 0, steps = 0, stop = argc == 6 ? atoi(argv[5]) : -1;
+		for (i = 0; i < naccts; i++)
+			accts[i].err[0] = 0;
+		for (i = 0; i < ncals; i++) {
+			sync_changes = 0;
+			if (sync_begin(&cals[i], 0)) {
+				while (steps != stop && sync_step())
+					steps++;
+				if (steps == stop)
+					sync_stop();
+				n += sync_changes & 1;
+			} else if (sync_calendar(&cals[i], 0) > 0) {
+				n++;
+			}
+			if (accts[cals[i].acct].err[0])
+				return fail(accts[cals[i].acct].err);
+		}
+		store_save_settings();
+		printf("%d calendar%s changed in %d steps\n", n, n == 1 ? "" : "s", steps);
+		if (argc >= 5) {
+			OCCLIST l;
+			memset(&l, 0, sizeof(l));
+			occ_collect(&l, parse_view(argv[3]), parse_view(argv[4]));
+			for (i = 0; i < l.n; i++)
+				print_occ(&l.o[i]);
+			occ_free(&l);
+		}
+		return 0;
+	}
 	if (!strcmp(cmd, "calendars")) {
 		int i;
 		for (i = 0; i < ncals; i++) {

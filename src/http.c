@@ -203,6 +203,8 @@ void http_close_all(void)
 	kept_key[0] = 0;
 }
 
+void (*http_connecting)(int begins);
+
 /* the host of the kept-open connection ("" when there is none) */
 void http_kept_host(char *out, int size)
 {
@@ -247,7 +249,11 @@ static CONN *get_conn(const URL *u, int gw, int *reused, char *err, int errlen)
 		return kept;
 	}
 	http_close_all();
+	if (http_connecting)
+		http_connecting(1);
 	kept = conn_open("HTTP", host, port, 0, sec, err, errlen);
+	if (http_connecting)
+		http_connecting(0);
 	if (!kept) {
 		if (gw && !conn_stop) {		/* (Esc: "stopped", nothing more) */
 			char e2[200];

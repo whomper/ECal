@@ -150,6 +150,7 @@ static void defaults(void)
 	opt.future_days = 400;
 	opt.duration = 60;
 	opt.sync_open = 1;
+	opt.bgsync = 1;
 	str_copy(opt.start, "60", sizeof(opt.start));
 }
 
@@ -160,7 +161,11 @@ static void set_opt(const char *k, const char *v)
 	S(home_tz) S(view_tz) S(gate) S(folder) S(start)
 	I(tzsupport) I(falcon) I(dsp) I(weekstart) I(h24) I(hebdates) I(view) I(daystart)
 	I(alarms) I(alarm_default) I(log) I(font_id) I(font_pt) I(hebfont) I(win_x) I(win_y)
-	I(win_w) I(win_h) I(sidebar) I(past_days) I(future_days) I(duration) I(refresh) I(sync_open) I(bgsync) I(offline) I(hebrew) I(heapkb)
+	I(win_w) I(win_h) I(sidebar) I(past_days) I(future_days) I(duration) I(refresh) I(sync_open) I(offline) I(hebrew) I(heapkb)
+	if (!strcasecmp(k, "sync_closed")) {
+		opt.bgsync = (short)atoi(v);	/* (BGSYNC= before 2.7, off then: left behind) */
+		return;
+	}
 	if (!strcasecmp(k, "gateport")) {
 		opt.gateport = (unsigned short)atoi(v);
 		return;
@@ -327,37 +332,55 @@ void store_init(const char *dir, const char *inf)
 }
 
 /* each setting with a note, so the file explains itself (as EMail's) */
+/* (without printf: ECAL.INF's seventy lines and notes took 55 ms on a
+   Falcon that way, written in the accessory's background) */
 static void note(SBUF *b, const char *text)
 {
-	if (*text)
-		sb_printf(b, "; %s\r\n", text);
+	if (*text) {
+		sb_adds(b, "; ");
+		sb_adds(b, text);
+		sb_adds(b, "\r\n");
+	}
 }
 
-/* KEY=value with its note and a blank line after, for accounts and calendars */
+/* KEY=value with its note and a blank line after */
 static void kv(SBUF *b, const char *text, const char *key, const char *value)
 {
 	note(b, text);
-	sb_printf(b, "%s=%s\r\n\r\n", key, value);
+	sb_adds(b, key);
+	sb_addc(b, '=');
+	sb_adds(b, value);
+	sb_adds(b, "\r\n\r\n");
 }
 
 static void kn(SBUF *b, const char *text, const char *key, long value)
 {
-	char v[16];
-	snprintf(v, sizeof(v), "%ld", value);
-	kv(b, text, key, v);
+	char v[16], *p = v + sizeof(v) - 1;
+	unsigned long u = value < 0 ? -(unsigned long)value : (unsigned long)value;
+	*p = 0;
+	do
+		*--p = (char)('0' + u % 10);
+	while ((u /= 10) != 0);
+	if (value < 0)
+		*--p = '-';
+	kv(b, text, key, p);
 }
 
-void store_save_settings(void)
+/* ECAL.INF's text, in b (sb_init'ed): part 0 the options, 1 the
+   accounts and calendars, -1 both */
+void store_settings_text(SBUF *bp, int part)
 {
-	SBUF b;
+#define b (*bp)
 	int i, j;
 	char enc[200];
-	sb_init(&b);
+	if (part == 1)
+		goto accounts;
+	sb_reserve(&b, 8192);
 	sb_adds(&b, "; ECal settings, written by ECAL.ACC / ECAL.PRG. Lines starting with ; are notes.\r\n"
 		    "; Most of these are set in the menu > Settings; see docs/GUIDE.md.\r\n"
 		    "; 1 means on, 0 means off. Keys may be in any case.\r\n\r\n[OPTIONS]\r\n");
-#define S(key, name, text) note(&b, text); sb_printf(&b, key "=%s\r\n\r\n", opt.name);
-#define I(key, name, text) note(&b, text); sb_printf(&b, key "=%d\r\n\r\n", opt.name);
+#define S(key, name, text) kv(&b, text, key, opt.name);
+#define I(key, name, text) kn(&b, text, key, opt.name);
 	/* first: the accessory reads it at boot from the start of the file */
 	sb_printf(&b, "; ECal's folder, with its calendars, keys and certificates; ECAL.PRG\r\n"
 		    "; writes where it was started from, the accessory asks when it's missing\r\nFOLDER=%s\r\n\r\n",
@@ -378,7 +401,8 @@ void store_save_settings(void)
 	I("FUTURE_DAYS", future_days, "days ahead kept on this Atari")
 	I("REFRESH", refresh, "minutes between refreshes of all calendars; 0: only by hand")
 	I("SYNC_OPEN", sync_open, "refresh when the window opens")
-	I("BGSYNC", bgsync, "the accessory refreshes with its window closed too, a calendar at a time")
+	I("SYNC_CLOSED", bgsync, "the accessory refreshes with its window closed too, in the background (REFRESH\r\n"
+	  "; minutes apart, and once after START=)")
 	I("WEEKSTART", weekstart, "first day of the week: 0 Sunday, 1 Monday, 6 Saturday")
 	I("DAYSTART", daystart, "first hour shown in the day and week views")
 	I("H24", h24, "24-hour clock")
@@ -398,6 +422,9 @@ void store_save_settings(void)
 	I("WIN_H", win_h, "the window's height, in pixels")
 #undef S
 #undef I
+	if (part == 0)
+		return;
+accounts:
 	for (i = 0; i < naccts; i++) {
 		ACCOUNT *a = &accts[i];
 		sb_adds(&b, "[ACCOUNT]\r\n");
@@ -429,13 +456,32 @@ void store_save_settings(void)
 			kn(&b, "last brought up to date (minutes since 1970, UTC); 0: never", "SYNCED", (long)c->synced);
 		}
 	}
-	pf_save(inf_path, b.s, b.len);
-	sb_free(&b);
-	store_mark();
+#undef b
+}
+
+/* ECAL.INF written with that text (b freed) */
+void store_write_text(SBUF *b)
+{
+	pf_save(inf_path, b->s, b->len);
+	sb_free(b);
 	str_copy(http_cfg.gate, opt.gate, sizeof(http_cfg.gate));
 	http_cfg.gateport = opt.gateport;
 	http_cfg.falcon = opt.falcon;
 	http_cfg.offline = opt.offline;
+}
+
+void store_write_settings(void)
+{
+	SBUF b;
+	sb_init(&b);
+	store_settings_text(&b, -1);
+	store_write_text(&b);
+}
+
+void store_save_settings(void)
+{
+	store_write_settings();
+	store_mark();
 }
 
 /* ---------------- accounts and calendars ---------------- */
@@ -548,6 +594,26 @@ int store_mark_step(void)
 int store_changed(void)
 {
 	return store_watch && store_stamp() != known;
+}
+
+/* the same a file a step: 1 while there is more, then *changed */
+int store_changed_step(int *changed)
+{
+	static int i = -3;
+	static unsigned long h;
+	*changed = 0;
+	if (!store_watch)
+		return 0;
+	if (i == -3) {
+		i = -2;
+		h = 5381;
+	}
+	h = stamp_one(h, i++);
+	if (i < ncals)
+		return 1;
+	i = -3;
+	*changed = h != known;
+	return 0;
 }
 
 void store_release(void)
@@ -885,6 +951,7 @@ void cal_me(int ci)
    took over a million string compares, seconds on a Falcon. */
 static int *hx;			/* resource numbers, -1 for empty; hx_cap a power of 2 */
 static int hx_cap;
+static CALENDAR *hx_c;		/* whose */
 
 static unsigned long hx_hash(const char *s)
 {
@@ -904,11 +971,9 @@ static void hx_put(CALENDAR *c, int r)
 
 /* room for n resources, the table at most half full; 0 if no memory
    (then hx_live falls back to live_res) */
-static int hx_room(CALENDAR *c, int n)
+static int hx_alloc(CALENDAR *c, int n)
 {
-	int cap = hx_cap ? hx_cap : 256, i, *t;
-	if (hx && n * 2 < hx_cap)
-		return 1;
+	int cap = hx_cap && hx_c == c ? hx_cap : 256, i, *t;
 	while (n * 2 >= cap)
 		cap *= 2;
 	t = malloc(cap * sizeof(int));
@@ -917,18 +982,33 @@ static int hx_room(CALENDAR *c, int n)
 	free(hx);
 	hx = t;
 	hx_cap = cap;
+	hx_c = c;
 	for (i = 0; i < cap; i++)
 		hx[i] = -1;
-	for (i = 0; i < c->nres; i++)
-		if (!c->res[i].dead && c->res[i].href)
-			hx_put(c, i);
+	return 1;
+}
+
+static void hx_fill(CALENDAR *c, int from, int to)
+{
+	for (; from < to; from++)
+		if (!c->res[from].dead && c->res[from].href)
+			hx_put(c, from);
+}
+
+static int hx_room(CALENDAR *c, int n)
+{
+	if (hx && hx_c == c && n * 2 < hx_cap)
+		return 1;
+	if (!hx_alloc(c, n))
+		return 0;
+	hx_fill(c, 0, c->nres);
 	return 1;
 }
 
 static int hx_live(CALENDAR *c, const char *href)
 {
 	unsigned long i;
-	if (!hx)
+	if (!hx || hx_c != c)
 		return live_res(c, href);
 	i = hx_hash(href) & (hx_cap - 1);
 	for (; hx[i] >= 0; i = (i + 1) & (hx_cap - 1)) {
@@ -944,6 +1024,7 @@ static void hx_done(void)
 	free(hx);
 	hx = 0;
 	hx_cap = 0;
+	hx_c = 0;
 }
 
 /* Reading a calendar in steps, so the accessory can do it between event
@@ -1120,7 +1201,7 @@ static int load_dat_step(void)
 		r->len = len;
 		r->dead = 0;
 		ld.l.res = c->nres++;
-		if (hx && r->href)
+		if (hx && hx_c == c && r->href)
 			hx_put(c, ld.l.res);
 		/* one buffer for all: not a malloc and free for each event */
 		if (len < 65536L && len + 1 > ld.rawcap) {
@@ -1265,6 +1346,96 @@ static int cache_rewrite(CALENDAR *c, int drop, const char *href, const char *et
 	return 1;
 }
 
+/* a new copy of an event at the end of its cache file (h, *size
+   long), replacing the one in memory: 1, 0 if the disk refused, -1 no
+   memory. Its events are read with parse_res (resource c->nres - 1) */
+/* the resource in memory for a record whose data starts at off in the
+   cache file, replacing an older copy: its number, -1 if no memory.
+   With *oldp, the older copy is left for the caller to drop (kill_res;
+   freeing its events is slow on an ST), its number there, or -1 */
+static int add_res_old(CALENDAR *c, long off, const char *href, const char *etag, long len, int *oldp)
+{
+	int old = hx_live(c, href);
+	RESOURCE *r;
+	if (c->nres >= c->maxres) {
+		int max = c->maxres ? c->maxres * 2 : 64;
+		RESOURCE *nr = realloc(c->res, max * sizeof(RESOURCE));
+		if (!nr)
+			return -1;
+		c->res = nr;
+		c->maxres = max;
+	}
+	if (oldp)
+		*oldp = old;
+	else if (old >= 0)
+		kill_res(c, old);
+	r = &c->res[c->nres];
+	r->etag = strdup(etag ? etag : "");
+	r->href = strdup(href);
+	r->off = off;
+	r->len = len;
+	r->dead = 0;
+	if (hx && hx_c == c && !hx_room(c, c->nres + 1))
+		hx_done();		/* no memory: the slow way */
+	c->nres++;
+	if (hx && hx_c == c && r->href)
+		hx_put(c, c->nres - 1);
+	return c->nres - 1;
+}
+
+static int add_res(CALENDAR *c, long off, const char *href, const char *etag, long len)
+{
+	return add_res_old(c, off, href, etag, len, 0);
+}
+
+static int res_head(char *head, int size, const char *href, const char *etag, long len)
+{
+	return snprintf(head, size, "R %s\t%s\t%ld\n", etag ? etag : "", href, len);
+}
+
+static int write_res(CALENDAR *c, int h, long *size, const char *href, const char *etag,
+		     const char *raw, long len)
+{
+	char head[700];
+	int n = res_head(head, sizeof(head), href, etag, len), ok;
+	char *rec;
+	if (add_res(c, *size + n, href, etag, len) < 0)
+		return -1;
+	/* one write, not three (each a GEMDOS call) */
+	rec = malloc(n + len + 1);
+	if (rec) {
+		memcpy(rec, head, n);
+		memcpy(rec + n, raw, len);
+		rec[n + len] = '\n';
+		ok = pf_write(h, rec, n + len + 1) == n + len + 1;
+		free(rec);
+	} else {
+		ok = pf_write(h, head, n) == n && pf_write(h, raw, len) == len && pf_write(h, "\n", 1) == 1;
+	}
+	*size += n + len + 1;
+	return ok;
+}
+
+static void parse_res(CALENDAR *c, int res, const char *raw, long len)
+{
+	LOADCTX l;
+	CTIME from, to;
+	l.c = c;
+	l.res = res;
+	window(&from, &to);
+	set_me(c);
+	ics_parse(raw, len, add_event, &l, from, to);
+}
+
+static int append_res(CALENDAR *c, int h, long *size, const char *href, const char *etag,
+		      const char *raw, long len)
+{
+	int ok = write_res(c, h, size, href, etag, raw, len);
+	if (ok >= 0)
+		parse_res(c, c->nres - 1, raw, len);
+	return ok;
+}
+
 /* One event changed (or gone): the new copy is added to the end of the
    cache file, and only that event is read again. Writing the whole file
    and reading every event back took seconds on a 68030 for a change of
@@ -1289,35 +1460,11 @@ static int cache_change(CALENDAR *c, int drop, const char *href, const char *eta
 		kill_res(c, drop);
 	}
 	if (ok && href) {
-		int old = live_res(c, href);
-		RESOURCE *r;
-		LOADCTX l;
-		CTIME from, to;
-		if (old >= 0)
-			kill_res(c, old);
-		if (c->nres >= c->maxres) {
-			int max = c->maxres ? c->maxres * 2 : 64;
-			RESOURCE *nr = realloc(c->res, max * sizeof(RESOURCE));
-			if (!nr) {
-				pf_close(h);
-				return cache_rewrite(c, -1, href, etag, raw, len);
-			}
-			c->res = nr;
-			c->maxres = max;
+		ok = append_res(c, h, &size, href, etag, raw, len);
+		if (ok < 0) {
+			pf_close(h);
+			return cache_rewrite(c, -1, href, etag, raw, len);
 		}
-		n = snprintf(head, sizeof(head), "R %s\t%s\t%ld\n", etag ? etag : "", href, len);
-		ok = pf_write(h, head, n) == n && pf_write(h, raw, len) == len && pf_write(h, "\n", 1) == 1;
-		r = &c->res[c->nres];
-		r->etag = strdup(etag ? etag : "");
-		r->href = strdup(href);
-		r->off = size + n;
-		r->len = len;
-		r->dead = 0;
-		l.c = c;
-		l.res = c->nres++;
-		window(&from, &to);
-		set_me(c);
-		ics_parse(raw, len, add_event, &l, from, to);
 	}
 	pf_close(h);
 	if (!ok) {
@@ -1552,6 +1699,463 @@ int sync_calendar(CALENDAR *c, int force)
 	return r;
 }
 
+/* ---------------- a refresh in steps ---------------- */
+
+/* The accessory's background refresh of a CalDAV calendar, in steps
+   between event calls (common/ui/bgwork.c). The requests wait for the
+   network as they always have (the waits yield); what is done with the
+   answers is cut small: the server's list compared a few entries a
+   step, the events that changed fetched a few at a time, and each read
+   in its own step and added to the end of the cache file, the way an
+   edit is (cache_change). Nothing else is read again. Stopped half way
+   (the window opened, ECAL.PRG wrote the files), what was done stays
+   and the ctag isn't stored, so the next refresh finishes it. */
+enum { SJ_CTAG = 1, SJ_LIST, SJ_INDEX, SJ_MATCH, SJ_GONE, SJ_FETCH, SJ_ADD, SJ_WRITE, SJ_PARSE, SJ_END, SJ_PACK,
+       SJ_MARK };
+#define SJ_BATCH 8		/* events asked for at a time */
+
+int sync_changes;
+
+static struct {
+	CALENDAR *c;
+	int phase, force, changed, failed;
+	char ctag[100];
+	DAVREAD *d;
+	unsigned char *keep;	/* by resource: 1 on the server as it is, 2 changed there */
+	int nres;		/* resources when the list came */
+	int at;			/* the next resource (SJ_INDEX, SJ_GONE) */
+	char **need;		/* hrefs to fetch */
+	int nneed, maxneed, next;
+	long size;		/* the cache file's, -1 not looked at yet */
+	int fresh;		/* the cache file still to be made */
+	SBUF rec;		/* SJ_ADD: the batch's records, as written */
+	struct {
+		int res, old;	/* old: the copy it replaces, to drop first; -1 */
+		long off, len;	/* its data in rec */
+	} pend[SJ_BATCH + 8];	/* SJ_PARSE: the events written, to read */
+	int npend, ipend;
+	CW w;			/* SJ_PACK: the file written anew */
+	long *off;		/* where each resource goes in it */
+} sj;
+
+static void sj_free(void)
+{
+	int i;
+	caldav_close(sj.d);
+	free(sj.keep);
+	for (i = 0; i < sj.nneed; i++)
+		free(sj.need[i]);
+	free(sj.need);
+	sb_free(&sj.rec);
+	if (sj.off) {
+		/* the new file unfinished: the old one stays */
+		if (sj.w.old >= 0)
+			pf_close(sj.w.old);
+		pf_close(sj.w.h);
+		pf_remove(sj.w.tmp);
+		free(sj.off);
+	}
+	if (sj.c && hx_c == sj.c)
+		hx_done();
+	memset(&sj, 0, sizeof(sj));
+}
+
+int sync_begin(CALENDAR *c, int force)
+{
+	int k = accts[c->acct].kind;
+	sj_free();
+	if (k == AK_LOCAL || k == AK_SUBSCR)
+		return 0;		/* (a subscription: sync_calendar, read in steps) */
+	cal_err[0] = 0;
+	sj.c = c;
+	sj.force = force;
+	sj.phase = SJ_CTAG;
+	sj.size = -1;
+	return 1;
+}
+
+int sync_busy(void)
+{
+	return sj.c != 0;
+}
+
+/* what the next step does (the profile build's label) */
+const char *sync_phase_name(void)
+{
+	static const char *const n[] = { "", "ctag", "list", "index", "compare", "gone", "fetch", "take",
+					 "write", "read", "end", "pack", "stamps" };
+	return sj.c && sj.phase > 0 && sj.phase <= SJ_MARK ? n[sj.phase] : "";
+}
+
+int sync_net_step(void)
+{
+	return sj.phase == SJ_CTAG || sj.phase == SJ_LIST || sj.phase == SJ_FETCH;
+}
+
+static int sj_write(void);
+
+void sync_stop(void)
+{
+	/* the events taken from the answer: written (their places in
+	   memory are in the file) and read */
+	if (sj.c && sj.npend && (sj.phase == SJ_ADD || sj.phase == SJ_WRITE)) {
+		sj_write();
+		sj.phase = SJ_PARSE;
+	}
+	for (; sj.c && sj.phase == SJ_PARSE && sj.ipend < sj.npend; sj.ipend++) {
+		if (sj.pend[sj.ipend].old >= 0)
+			kill_res(sj.c, sj.pend[sj.ipend].old);
+		parse_res(sj.c, sj.pend[sj.ipend].res, sj.rec.s + sj.pend[sj.ipend].off, sj.pend[sj.ipend].len);
+	}
+	sj_free();
+}
+
+/* the end before the end: nothing new, or failed (the error kept in
+   the account, shown at the next opening) */
+static int sj_end(void)
+{
+	CALENDAR *c = sj.c;
+	if (sj.failed)
+		str_copy(accts[c->acct].err, cal_err, sizeof(accts[c->acct].err));
+	sync_changes |= sj.changed;
+	sj_free();
+	return 0;
+}
+
+/* the cache file's size (where the next record goes) */
+static void sj_size(void)
+{
+	char path[200];
+	if (sj.size >= 0)
+		return;
+	cache_path(sj.c, "DAT", path, sizeof(path));
+	sj.size = pf_size(path);
+	if (sj.size <= 0) {
+		sj.fresh = 1;
+		sj.size = 11;		/* after the header it starts with */
+	}
+}
+
+/* the cache file, opened to add to its end */
+static int sj_open(void)
+{
+	char path[200];
+	int h;
+	sj_size();
+	cache_path(sj.c, "DAT", path, sizeof(path));
+	if (sj.fresh) {
+		h = pf_open(path, PF_WRITE);
+		if (h >= 0 && pf_write(h, "CALCACHE 1\n", 11) != 11) {
+			pf_close(h);
+			h = -1;
+		}
+		sj.fresh = 0;
+	} else {
+		h = pf_open(path, PF_APPEND);
+	}
+	if (h < 0) {
+		str_copy(cal_err, "can't write the calendar's cache (disk full or locked?)", sizeof(cal_err));
+		sj.failed = 1;
+	}
+	return h;
+}
+
+/* the batch's records at the end of the cache file: 0 if it failed */
+static int sj_write(void)
+{
+	int h;
+	if (!sj.rec.len)
+		return 1;
+	if ((h = sj_open()) < 0)
+		return 0;
+	if (pf_write(h, sj.rec.s, sj.rec.len) != sj.rec.len) {
+		str_copy(cal_err, "couldn't write the calendar's cache (disk full?)", sizeof(cal_err));
+		sj.failed = 1;
+	}
+	pf_close(h);
+	sj.size += sj.rec.len;
+	return 1;
+}
+
+/* one step; 1 while there is more */
+int sync_step(void)
+{
+	CALENDAR *c = sj.c;
+	DAVAUTH au;
+	const char *href, *etag, *data;
+	long len;
+	int i, h;
+	if (!c)
+		return 0;
+	if (sj.failed)
+		return sj_end();
+	au = auth_of(c->acct);
+	switch (sj.phase) {
+	case SJ_CTAG:
+		if (!caldav_ctag(c->url, &au, sj.ctag, sizeof(sj.ctag), cal_err, sizeof(cal_err))) {
+			sj.failed = 1;
+			return 1;
+		}
+		if (!sj.force && sj.ctag[0] && !strcmp(sj.ctag, c->ctag) && c->synced)
+			return sj_end();	/* nothing new */
+		sj.phase = SJ_LIST;
+		return 1;
+	case SJ_LIST: {
+		CTIME from, to;
+		window(&from, &to);
+		from = tz_to_utc(view_zone(), from);
+		to = tz_to_utc(view_zone(), to);
+		sj.d = caldav_list_open(c->url, &au, from, to, cal_err, sizeof(cal_err));
+		sj.nres = c->nres;
+		sj.keep = calloc(sj.nres + 1, 1);
+		if (!sj.d || !sj.keep) {
+			if (sj.d)
+				str_copy(cal_err, "out of memory", sizeof(cal_err));
+			sj.failed = 1;
+			return 1;
+		}
+		/* what is kept, by href (hx_live): the index made first, a
+		   few hundred a step */
+		if (!hx_alloc(c, sj.nres + 16))
+			hx_done();	/* no memory: hx_live looks the slow way */
+		sj.at = 0;
+		sj.phase = hx ? SJ_INDEX : SJ_MATCH;
+		return 1;
+	}
+	case SJ_INDEX:
+		i = sj.at + 200 < sj.nres ? sj.at + 200 : sj.nres;
+		hx_fill(c, sj.at, i);
+		sj.at = i;
+		if (sj.at >= sj.nres)
+			sj.phase = SJ_MATCH;
+		return 1;
+	case SJ_MATCH:
+		for (i = 0; i < 2; i++) {
+			int found;
+			if (!caldav_next(sj.d, &href, &etag, &data, &len)) {
+				caldav_close(sj.d);
+				sj.d = 0;
+				sj.at = 0;
+				sj.phase = SJ_GONE;
+				return 1;
+			}
+			found = hx_live(c, href);
+			if (found >= 0 && found < sj.nres && same_etag(c->res[found].etag, etag)) {
+				sj.keep[found] = 1;
+				continue;
+			}
+			if (found >= 0 && found < sj.nres)
+				sj.keep[found] = 2;	/* its new copy replaces it (append_res) */
+			if (sj.nneed >= sj.maxneed) {
+				int max = sj.maxneed ? sj.maxneed * 2 : 16;
+				char **n = realloc(sj.need, max * sizeof(char *));
+				if (!n)
+					break;
+				sj.need = n;
+				sj.maxneed = max;
+			}
+			if (!(sj.need[sj.nneed] = strdup(href)))
+				break;
+			sj.nneed++;
+		}
+		if (i < 2) {
+			str_copy(cal_err, "out of memory", sizeof(cal_err));
+			sj.failed = 1;
+		}
+		return 1;
+	case SJ_GONE: {
+		/* gone from the server (or out of the window now): an X line
+		   each, a few a step in one write */
+		SBUF x;
+		int n = 0;
+		sb_init(&x);
+		for (; sj.at < sj.nres && n < 2; sj.at++) {
+			if (sj.keep[sj.at] || c->res[sj.at].dead)
+				continue;
+			if (!sb_adds(&x, "X ") || !sb_adds(&x, c->res[sj.at].href) || !sb_addc(&x, '\n'))
+				break;
+			kill_res(c, sj.at);
+			sj.changed = 1;
+			n++;
+		}
+		if (x.len) {
+			if ((h = sj_open()) < 0) {
+				sb_free(&x);
+				return 1;
+			}
+			if (pf_write(h, x.s, x.len) != x.len) {
+				str_copy(cal_err, "couldn't write the calendar's cache (disk full?)", sizeof(cal_err));
+				sj.failed = 1;
+			}
+			pf_close(h);
+			sj.size += x.len;
+		}
+		sb_free(&x);
+		if (sj.at >= sj.nres)
+			sj.phase = sj.nneed ? SJ_FETCH : SJ_END;
+		return 1;
+	}
+	case SJ_FETCH: {
+		int n = sj.nneed - sj.next < SJ_BATCH ? sj.nneed - sj.next : SJ_BATCH;
+		sj.d = caldav_multiget_open(c->url, &au, sj.need + sj.next, n, cal_err, sizeof(cal_err));
+		if (!sj.d) {
+			sj.failed = 1;
+			return 1;
+		}
+		sj.next += n;
+		sj.phase = SJ_ADD;
+		return 1;
+	}
+	case SJ_ADD:
+		/* the batch's events taken from the answer one a step (60 ms
+		   each on an ST), then written to the cache at once (opening
+		   the file and writing to it are GEMDOS calls, 100 ms an event
+		   on an ST one at a time), then each read in a step */
+		sj_size();
+		if (sj.npend < SJ_BATCH + 8 && caldav_next(sj.d, &href, &etag, &data, &len)) {
+			char head[700];
+			int hn, r;
+			if (!data || !len)
+				return 1;
+			hn = res_head(head, sizeof(head), href, etag, len);
+			if ((sj.rec.len + hn) & 1 && hn < (int)sizeof(head) - 1) {
+				/* the text at an even place, so it is copied a long
+				   word at a time on a 68000 (a space after the length
+				   is read past) */
+				head[hn - 1] = ' ';
+				head[hn++] = '\n';
+			}
+			if (!sj.rec.cap)
+				sb_reserve(&sj.rec, 16384);
+			r = add_res_old(c, sj.size + sj.rec.len + hn, href, etag, len, &sj.pend[sj.npend].old);
+			sj.changed = 1;
+			if (r < 0 || !sb_add(&sj.rec, head, hn) || !sb_add(&sj.rec, data, len) || !sb_addc(&sj.rec, '\n')) {
+				str_copy(cal_err, "out of memory", sizeof(cal_err));
+				sj.failed = 1;
+				return 1;
+			}
+			sj.pend[sj.npend].res = r;
+			sj.pend[sj.npend].off = sj.rec.len - len - 1;
+			sj.pend[sj.npend++].len = len;
+			return 1;
+		}
+		caldav_close(sj.d);
+		sj.d = 0;
+		sj.phase = SJ_WRITE;
+		return 1;
+	case SJ_WRITE:
+		if (!sj_write())
+			return 1;
+		sj.phase = sj.npend ? SJ_PARSE : sj.next < sj.nneed ? SJ_FETCH : SJ_END;
+		return 1;
+	case SJ_PARSE:
+		i = sj.ipend;
+		if (sj.pend[i].old >= 0) {
+			kill_res(c, sj.pend[i].old);	/* the copy it replaces: a step of its own */
+			sj.pend[i].old = -1;
+			return 1;
+		}
+		sj.ipend++;
+		parse_res(c, sj.pend[i].res, sj.rec.s + sj.pend[i].off, sj.pend[i].len);
+		if (sj.ipend >= sj.npend) {
+			sb_reset(&sj.rec);
+			sj.npend = sj.ipend = 0;
+			sj.phase = sj.next < sj.nneed ? SJ_FETCH : SJ_END;
+		}
+		return 1;
+	case SJ_END:
+		if (sj.changed)
+			mark_exceptions(c);
+		str_copy(c->ctag, sj.ctag, sizeof(c->ctag));
+		c->synced = now_utc();
+		sync_changes |= sj.changed | 2;
+		if (!sj.changed) {
+			sj_free();
+			return 0;
+		}
+		sj.phase = SJ_MARK;
+		if (c->ndead >= 32) {
+			/* the superseded copies piling up: the file written
+			   anew, an event a step */
+			sj.off = malloc((c->nres + 1) * sizeof(long));
+			if (sj.off && cw_open(&sj.w, c)) {
+				sj.size = 11;
+				sj.at = 0;
+				sj.phase = SJ_PACK;
+			} else {
+				free(sj.off);
+				sj.off = 0;
+			}
+		}
+		return 1;
+	case SJ_PACK:
+		for (; sj.at < c->nres && c->res[sj.at].dead; sj.at++)
+			;
+		if (sj.at < c->nres) {
+			RESOURCE *r = &c->res[sj.at];
+			char head[700];
+			int n = snprintf(head, sizeof(head), "R %s\t%s\t%ld\n", r->etag ? r->etag : "", r->href, r->len);
+			sj.off[sj.at++] = sj.size + n;
+			sj.size += n + r->len + 1;
+			cw_copy(&sj.w, r);
+			if (sj.w.failed) {
+				str_copy(cal_err, "couldn't write the calendar's cache (disk full?)", sizeof(cal_err));
+				sj.failed = 1;
+			}
+			return 1;
+		}
+		{
+			/* the new file in place of the old; the resources
+			   renumbered without the dead ones */
+			char path[200];
+			int *map = malloc((c->nres + 1) * sizeof(int)), n = 0;
+			if (!map) {
+				str_copy(cal_err, "out of memory", sizeof(cal_err));
+				sj.failed = 1;
+				return 1;
+			}
+			if (sj.w.old >= 0)
+				pf_close(sj.w.old);
+			pf_close(sj.w.h);
+			cache_path(c, "DAT", path, sizeof(path));
+			pf_remove(path);
+			pf_rename(sj.w.tmp, path);
+			for (i = 0; i < c->nres; i++) {
+				if (c->res[i].dead) {
+					free(c->res[i].etag);
+					free(c->res[i].href);
+					map[i] = -1;
+					continue;
+				}
+				map[i] = n;
+				c->res[n] = c->res[i];
+				c->res[n++].off = sj.off[i];
+			}
+			for (i = 0; i < c->nev; i++)
+				if (c->ev[i]->res >= 0 && c->ev[i]->res < c->nres)
+					c->ev[i]->res = (short)map[c->ev[i]->res];
+			c->nres = n;
+			c->ndead = 0;
+			free(map);
+			free(sj.off);
+			sj.off = 0;
+			if (hx_c == c)
+				hx_done();
+			sj.phase = SJ_MARK;
+		}
+		return 1;
+	case SJ_MARK:
+		/* the files as written now (a file a step), so that the next
+		   look doesn't take them for ECAL.PRG's */
+		if (store_mark_step())
+			return 1;
+		sj_free();
+		return 0;
+	}
+	sj_free();
+	return 0;
+}
+
 int sync_account(int a, int force)
 {
 	int i, changed = 0, failed = 0;
@@ -1710,6 +2314,12 @@ static void alarm_occ(EVENT *e, CTIME s, CTIME en, void *ud)
    time zones worked out. 0 once all have been */
 static CTIME ab_end;		/* the end of this event's range; CT_NONE: the next event */
 
+/* the next step sorts the queue (the profile build's label) */
+int alarms_sorting(void)
+{
+	return ab_active && ab_ci >= ncals;
+}
+
 int alarms_step(void)
 {
 	int skipped = 0;
@@ -1775,6 +2385,8 @@ int alarms_step(void)
 		}
 		return 1;
 	}
+	if (skipped)
+		return 1;		/* the sorting in a step of its own */
 	alarms_end_build(now_clock());
 	ab_active = 0;
 	return 0;

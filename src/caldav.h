@@ -47,6 +47,16 @@ typedef int (*DAV_CB)(void *ud, const char *href, const char *etag, const char *
 int caldav_multiget(const char *url, const DAVAUTH *a, char **hrefs, int n,
 		    DAV_CB cb, void *ud, char *err, int errlen);
 
+/* The same, read in steps (the accessory's background refresh): the
+   request is made at once, then caldav_next gives one event at a time,
+   valid until the next call (data NULL with a list). multiget: at most
+   20 hrefs */
+typedef struct DAVREAD DAVREAD;
+DAVREAD *caldav_list_open(const char *url, const DAVAUTH *a, CTIME from, CTIME to, char *err, int errlen);
+DAVREAD *caldav_multiget_open(const char *url, const DAVAUTH *a, char **hrefs, int n, char *err, int errlen);
+int caldav_next(DAVREAD *d, const char **href, const char **etag, const char **data, long *len);
+void caldav_close(DAVREAD *d);
+
 /* store an event at href (relative to the calendar url): etag NULL for
    a new one (fails if it exists), else only if unchanged since. The
    new etag comes back in newetag ("" if the server didn't say) */

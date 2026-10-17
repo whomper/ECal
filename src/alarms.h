@@ -40,6 +40,7 @@ int  alarms_pending(void);	/* a build to start or to go on with */
 int  alarms_stale(void);	/* changed since the build in progress began */
 /* one step of the build (calstore.c: one event); 0 when the queue is done */
 int  alarms_step(void);
+int  alarms_sorting(void);	/* the next step sorts the queue (calstore.c) */
 /* the reminders due after "after" up to "upto" (the clock's times), in order */
 void alarms_due(CTIME after, CTIME upto, void (*fn)(const ALARM *a, void *ud), void *ud);
 

@@ -62,76 +62,116 @@ static void trim_copy(char *d, const char *s, long n, int size)
 	d[n] = 0;
 }
 
-static void parse_multistatus(const char *xml, long n, RESP_FN fn, void *ud)
-{
+/* a multistatus answer, read a response at a time */
+typedef struct {
 	XMLP x;
 	char stack[16][48];
-	int depth = 0, t, in_resp = 0;
+	int depth, in_resp;
 	DAVRESP r;
-	memset(&r, 0, sizeof(r));
-	sb_init(&r.data);
-	xml_init(&x, xml, n);
-	while ((t = xml_next(&x)) != X_EOF) {
-		const char *parent = depth > 0 ? stack[depth - 1] : "";
-		const char *gp = depth > 1 ? stack[depth - 2] : "";
+} MSP;
+
+static void ms_init(MSP *m, const char *xml, long n)
+{
+	memset(m, 0, sizeof(*m));
+	sb_init(&m->r.data);
+	xml_init(&m->x, xml, n);
+}
+
+static void ms_done(MSP *m)
+{
+	xml_done(&m->x);
+	sb_free(&m->r.data);
+}
+
+/* the next whole response in m->r: 1, or 0 at the end */
+static int ms_next(MSP *m)
+{
+	XMLP *x = &m->x;
+	DAVRESP *r = &m->r;
+	int t;
+	while ((t = xml_next(x)) != X_EOF) {
+		const char *parent = m->depth > 0 ? m->stack[m->depth - 1] : "";
+		const char *gp = m->depth > 1 ? m->stack[m->depth - 2] : "";
 		if (t == X_START || t == X_EMPTY) {
-			if (!strcmp(x.name, "response")) {
-				in_resp = 1;
-				sb_free(&r.data);
-				memset(&r, 0, sizeof(r));
-				sb_init(&r.data);
+			if (!strcmp(x->name, "response")) {
+				m->in_resp = 1;
+				sb_free(&r->data);
+				memset(r, 0, sizeof(*r));
+				sb_init(&r->data);
 			}
-			if (in_resp) {
-				if (!strcmp(x.name, "calendar") && !strcmp(parent, "resourcetype"))
-					r.is_cal = 1;
-				else if (!strcmp(x.name, "comp") && !strcmp(parent, "supported-calendar-component-set")) {
-					r.comp_seen = 1;
-					if (str_istr(x.attrs, "VEVENT"))
-						r.vevent = 1;
+			if (m->in_resp) {
+				if (!strcmp(x->name, "calendar") && !strcmp(parent, "resourcetype"))
+					r->is_cal = 1;
+				else if (!strcmp(x->name, "comp") && !strcmp(parent, "supported-calendar-component-set")) {
+					r->comp_seen = 1;
+					if (str_istr(x->attrs, "VEVENT"))
+						r->vevent = 1;
 				} else if (!strcmp(parent, "privilege")) {
-					r.priv_seen = 1;
-					if (!strcmp(x.name, "write") || !strcmp(x.name, "write-content") || !strcmp(x.name, "all"))
-						r.writable = 1;
+					r->priv_seen = 1;
+					if (!strcmp(x->name, "write") || !strcmp(x->name, "write-content") || !strcmp(x->name, "all"))
+						r->writable = 1;
 				}
 			}
-			if (t == X_START && depth < 16)
-				str_copy(stack[depth++], x.name, sizeof(stack[0]));
+			if (t == X_START && m->depth < 16)
+				str_copy(m->stack[m->depth++], x->name, sizeof(m->stack[0]));
 			continue;
 		}
 		if (t == X_END) {
-			if (depth > 0)
-				depth--;
-			if (!strcmp(x.name, "response") && in_resp) {
-				in_resp = 0;
-				fn(&r, ud);
+			if (m->depth > 0)
+				m->depth--;
+			if (!strcmp(x->name, "response") && m->in_resp) {
+				m->in_resp = 0;
+				return 1;
 			}
 			continue;
 		}
 		/* text */
-		if (!in_resp)
+		if (!m->in_resp)
 			continue;
 		if (!strcmp(parent, "href")) {
 			if (!strcmp(gp, "response"))
-				trim_copy(r.href, x.text, x.textlen, sizeof(r.href));
+				trim_copy(r->href, x->text, x->textlen, sizeof(r->href));
 			else if (!strcmp(gp, "current-user-principal"))
-				trim_copy(r.principal, x.text, x.textlen, sizeof(r.principal));
+				trim_copy(r->principal, x->text, x->textlen, sizeof(r->principal));
 			else if (!strcmp(gp, "calendar-home-set"))
-				trim_copy(r.home, x.text, x.textlen, sizeof(r.home));
+				trim_copy(r->home, x->text, x->textlen, sizeof(r->home));
 		} else if (!strcmp(parent, "displayname")) {
-			trim_copy(r.name, x.text, x.textlen, sizeof(r.name));
+			trim_copy(r->name, x->text, x->textlen, sizeof(r->name));
 		} else if (!strcmp(parent, "getctag") || !strcmp(parent, "sync-token")) {
-			if (!r.ctag[0] || !strcmp(parent, "getctag"))
-				trim_copy(r.ctag, x.text, x.textlen, sizeof(r.ctag));
+			if (!r->ctag[0] || !strcmp(parent, "getctag"))
+				trim_copy(r->ctag, x->text, x->textlen, sizeof(r->ctag));
 		} else if (!strcmp(parent, "calendar-color")) {
-			trim_copy(r.color, x.text, x.textlen, sizeof(r.color));
+			trim_copy(r->color, x->text, x->textlen, sizeof(r->color));
 		} else if (!strcmp(parent, "getetag")) {
-			trim_copy(r.etag, x.text, x.textlen, sizeof(r.etag));
+			trim_copy(r->etag, x->text, x->textlen, sizeof(r->etag));
 		} else if (!strcmp(parent, "calendar-data")) {
-			sb_add(&r.data, x.text, x.textlen);
+			if (!r->data.len && x->text == x->buf) {
+				/* the parser's buffer taken over, not copied (an
+				   event's text, a pass over it saved on a 68000) */
+				free(r->data.s);
+				r->data.s = x->buf;
+				r->data.len = x->textlen;
+				r->data.cap = x->bufcap;
+				x->buf = 0;
+				x->bufcap = 0;
+			} else {
+				sb_add(&r->data, x->text, x->textlen);
+			}
 		}
 	}
-	xml_done(&x);
-	sb_free(&r.data);
+	return 0;
+}
+
+static void parse_multistatus(const char *xml, long n, RESP_FN fn, void *ud)
+{
+	MSP *m = malloc(sizeof(MSP));
+	if (!m)
+		return;
+	ms_init(m, xml, n);
+	while (ms_next(m))
+		fn(&m->r, ud);
+	ms_done(m);
+	free(m);
 }
 
 static int dav(const char *method, const char *url, const DAVAUTH *a, int depth, const char *body,
@@ -369,21 +409,27 @@ void caldav_free_items(DAVITEM *items, int n)
 	free(items);
 }
 
-int caldav_list(const char *url, const DAVAUTH *a, CTIME from, CTIME to,
-		DAVITEM **items, int *n, char *err, int errlen)
+static void list_query(char *q, int size, CTIME from, CTIME to)
 {
-	char q[700], f[24], t[24];
-	HTTPRESP rs;
-	SBUF out;
-	ITEMS l;
-	int ok;
+	char f[24], t[24];
 	ct_format_ics(from, 3, f, sizeof(f));
 	ct_format_ics(to, 3, t, sizeof(t));
-	snprintf(q, sizeof(q), "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+	snprintf(q, size, "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
 		 "<c:calendar-query " NS "><d:prop><d:getetag/></d:prop>"
 		 "<c:filter><c:comp-filter name=\"VCALENDAR\"><c:comp-filter name=\"VEVENT\">"
 		 "<c:time-range start=\"%s\" end=\"%s\"/></c:comp-filter></c:comp-filter></c:filter>"
 		 "</c:calendar-query>", f, t);
+}
+
+int caldav_list(const char *url, const DAVAUTH *a, CTIME from, CTIME to,
+		DAVITEM **items, int *n, char *err, int errlen)
+{
+	char q[700];
+	HTTPRESP rs;
+	SBUF out;
+	ITEMS l;
+	int ok;
+	list_query(q, sizeof(q), from, to);
 	memset(&l, 0, sizeof(l));
 	sb_init(&out);
 	ok = dav("REPORT", url, a, 1, q, &rs, &out, err, errlen);
@@ -411,6 +457,20 @@ static void got_data(DAVRESP *r, void *ud)
 		m->stop = 1;
 }
 
+static void mget_query(SBUF *q, char **hrefs, int n)
+{
+	int k;
+	sb_init(q);
+	sb_adds(q, "<?xml version=\"1.0\" encoding=\"utf-8\"?><c:calendar-multiget " NS
+		"><d:prop><d:getetag/><c:calendar-data/></d:prop>");
+	for (k = 0; k < n; k++) {
+		char esc[600];
+		xml_escape(hrefs[k], esc, sizeof(esc));
+		sb_printf(q, "<d:href>%s</d:href>", esc);
+	}
+	sb_adds(q, "</c:calendar-multiget>");
+}
+
 int caldav_multiget(const char *url, const DAVAUTH *a, char **hrefs, int n,
 		    DAV_CB cb, void *ud, char *err, int errlen)
 {
@@ -420,16 +480,7 @@ int caldav_multiget(const char *url, const DAVAUTH *a, char **hrefs, int n,
 	for (i = 0; i < n && ok; i += 20) {
 		HTTPRESP rs;
 		MGET m;
-		int k;
-		sb_init(&q);
-		sb_adds(&q, "<?xml version=\"1.0\" encoding=\"utf-8\"?><c:calendar-multiget " NS
-			"><d:prop><d:getetag/><c:calendar-data/></d:prop>");
-		for (k = i; k < n && k < i + 20; k++) {
-			char esc[600];
-			xml_escape(hrefs[k], esc, sizeof(esc));
-			sb_printf(&q, "<d:href>%s</d:href>", esc);
-		}
-		sb_adds(&q, "</c:calendar-multiget>");
+		mget_query(&q, hrefs + i, n - i < 20 ? n - i : 20);
 		ok = dav("REPORT", url, a, 1, q.s, &rs, &out, err, errlen);
 		sb_free(&q);
 		if (!ok)
@@ -443,6 +494,72 @@ int caldav_multiget(const char *url, const DAVAUTH *a, char **hrefs, int n,
 	}
 	sb_free(&out);
 	return ok;
+}
+
+/* ---------------- an answer read in steps ---------------- */
+
+struct DAVREAD {
+	SBUF out;
+	MSP m;
+};
+
+static DAVREAD *read_open(const char *url, const DAVAUTH *a, const char *q, char *err, int errlen)
+{
+	HTTPRESP rs;
+	DAVREAD *d = malloc(sizeof(DAVREAD));
+	if (!d) {
+		str_copy(err, "out of memory", errlen);
+		return 0;
+	}
+	sb_init(&d->out);
+	if (!dav("REPORT", url, a, 1, q, &rs, &d->out, err, errlen)) {
+		sb_free(&d->out);
+		free(d);
+		return 0;
+	}
+	ms_init(&d->m, d->out.s, d->out.len);
+	return d;
+}
+
+DAVREAD *caldav_list_open(const char *url, const DAVAUTH *a, CTIME from, CTIME to, char *err, int errlen)
+{
+	char q[700];
+	list_query(q, sizeof(q), from, to);
+	return read_open(url, a, q, err, errlen);
+}
+
+DAVREAD *caldav_multiget_open(const char *url, const DAVAUTH *a, char **hrefs, int n, char *err, int errlen)
+{
+	SBUF q;
+	DAVREAD *d;
+	mget_query(&q, hrefs, n);
+	d = read_open(url, a, q.s, err, errlen);
+	sb_free(&q);
+	return d;
+}
+
+int caldav_next(DAVREAD *d, const char **href, const char **etag, const char **data, long *len)
+{
+	while (ms_next(&d->m)) {
+		DAVRESP *r = &d->m.r;
+		if (!r->etag[0] || !r->href[0])
+			continue;	/* the collection itself */
+		*href = r->href;
+		*etag = r->etag;
+		*data = r->data.s;
+		*len = r->data.len;
+		return 1;
+	}
+	return 0;
+}
+
+void caldav_close(DAVREAD *d)
+{
+	if (!d)
+		return;
+	ms_done(&d->m);
+	sb_free(&d->out);
+	free(d);
 }
 
 int caldav_status;

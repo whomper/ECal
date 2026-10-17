@@ -562,7 +562,7 @@ static void settings(short first)
 	put(&f[F12], FT_CHECK, 0, VX, row, 30, "When the window opens");
 	f[F12].val = opt.sync_open;
 	row++;
-	put(&f[F17], FT_CHECK, is_acc ? 0 : FF_DISABLED, VX, row, 30, "With the window closed");
+	put(&f[F17], FT_CHECK, is_acc ? 0 : FF_DISABLED, VX, row, 30, "Also with the window closed");
 	f[F17].val = opt.bgsync;
 	row++;
 	put(&f[L18], FT_LABEL, is_acc ? 0 : FF_DISABLED, CX, row, 0, "Read calendars:");

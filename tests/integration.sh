@@ -421,6 +421,109 @@ code=$("${CURL[@]}" -o /dev/null -w "%{http_code}" "$BASE/alice/work/" )
 srv=$("${CURL[@]}" "$BASE/alice/work/")
 absent "gone from the server" "Lunch with Avi" "$srv"
 
+echo "== the accessory's background refresh, in steps"
+# the server changes behind the Atari's back: one event new, one changed,
+# one gone; a copy of the folder takes a whole refresh to compare
+D2="$W/bg"; rm -rf "$D2"; cp -r "$D" "$D2"
+"${CURL[@]}" -X PUT -H "Content-Type: text/calendar" --data-binary @- -o /dev/null "$BASE/alice/work/bg-new.ics" <<ICS
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:test
+BEGIN:VEVENT
+UID:bg-new@test
+DTSTAMP:20261002T000000Z
+DTSTART;TZID=Asia/Jerusalem:$(d 20261016)T080000
+DTEND;TZID=Asia/Jerusalem:$(d 20261016)T083000
+SUMMARY:Came in the background
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT5M
+END:VALARM
+END:VEVENT
+END:VCALENDAR
+ICS
+"${CURL[@]}" -X PUT -H "Content-Type: text/calendar" --data-binary @- -o /dev/null "$BASE/alice/work/review.ics" <<ICS
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:test
+BEGIN:VEVENT
+UID:review@test
+DTSTAMP:20261002T000000Z
+DTSTART:$(d 20261013)T150000Z
+DTEND:$(d 20261013)T160000Z
+SUMMARY:Design review (again)
+END:VEVENT
+END:VCALENDAR
+ICS
+href=""
+for h in $("${CURL[@]}" -X PROPFIND -H "Depth: 1" "$BASE/alice/work/" | grep -o '/alice/work/[^<]*\.ics'); do
+  if [[ "$("${CURL[@]}" "$BASE$h")" == *"SUMMARY:Dentist"* ]]; then href=$h; break; fi
+done
+"${CURL[@]}" -X DELETE -o /dev/null "$BASE$href"
+R1=$(d 20261012); R2=$(d 20261017)
+# stopped half way (the window opened), at each point: what is in memory
+# is what the cache reads back, and the next refresh finishes it
+total=$("$CLI" "$D2" bgsync | sed -n 's/.* in \([0-9]*\) steps/\1/p'); rm -rf "$D2"; cp -r "$D" "$D2"
+stops_bad=0
+for k in $(seq 1 $((total - 1))); do
+  D3="$W/bgstop"; rm -rf "$D3"; cp -r "$D2" "$D3"
+  mem=$("$CLI" "$D3" bgsync $R1 $R2 $k | sed 1d)
+  if [ "$mem" != "$("$CLI" "$D3" list $R1 $R2)" ]; then stops_bad=$((stops_bad + 1)); echo "    stopped after $k steps: the cache reads back differently"; fi
+  "$CLI" "$D3" bgsync >/dev/null
+  after=$("$CLI" "$D3" list $R1 $R2)
+  if [[ "$after" != *"Came in the background"* || "$after" != *"Design review (again)"* || "$after" == *"Dentist"* ]]; then
+    stops_bad=$((stops_bad + 1)); echo "    stopped after $k steps: not finished by the next"
+  fi
+done
+if [ "$stops_bad" = 0 ]; then ok "stopped at each of $total steps: consistent, finished by the next"; else bad "$stops_bad stops went wrong"; fi
+bg=$("$CLI" "$D" bgsync $R1 $R2) || bad "bgsync"
+expect "one calendar changed, in steps" "1 calendar changed in" "$bg"
+expect "the new event" "$(d 20261016) 08:00-08:30 [Work] Came in the background" "$bg"
+expect "the changed one" "Design review (again)" "$bg"
+absent "the old copy gone" "Design review (moved)" "$bg"
+absent "the deleted one gone" "Dentist" "$bg"
+fresh=$("$CLI" "$D" list $R1 $R2)
+if [ "$(sed 1d <<<"$bg")" = "$fresh" ]; then ok "read back from the cache the same"; else bad "the cache reads back differently:
+$(diff <(sed 1d <<<"$bg") <(echo "$fresh"))"; fi
+"$CLI" "$D2" sync >/dev/null
+whole=$("$CLI" "$D2" list $R1 $R2)
+if [ "$whole" = "$fresh" ]; then ok "the same as a whole refresh"; else bad "differs from a whole refresh:
+$(diff <(echo "$whole") <(echo "$fresh"))"; fi
+out=$("$CLI" "$D" bgsync)
+expect "the next one quiet" "0 calendars changed" "$out"
+# many changed: the superseded copies go, the file written anew in steps
+put_many() {
+  for i in $(seq 1 36); do
+    "${CURL[@]}" -X PUT -H "Content-Type: text/calendar" --data-binary @- -o /dev/null "$BASE/alice/work/many-$i.ics" <<ICS
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:test
+BEGIN:VEVENT
+UID:many-$i@test
+DTSTAMP:20261002T000000Z
+DTSTART:$(d 20261125)T$(printf %02d $((i % 20)))0000Z
+DURATION:PT15M
+SUMMARY:$1 $i
+END:VEVENT
+END:VCALENDAR
+ICS
+  done
+}
+put_many "Many"
+"$CLI" "$D" bgsync >/dev/null || bad "bgsync many"
+put_many "Changed"
+bg=$("$CLI" "$D" bgsync $(d 20261125) $(d 20261126)) || bad "bgsync changed"
+n=$(grep -c "Changed" <<<"$bg" || true)
+if [ "$n" = 36 ]; then ok "36 changed in the background"; else bad "$n of 36 changed"; fi
+dat=$(grep -rl "many-1@test" "$D" --include="*.DAT")
+n=$(grep -c "^R .*many-" "$dat" || true)
+if [ "$n" = 36 ]; then ok "the cache written anew, one copy each"; else bad "$n copies in the cache"; fi
+fresh=$("$CLI" "$D" list $(d 20261125) $(d 20261126))
+if [ "$(sed 1d <<<"$bg")" = "$fresh" ]; then ok "and reads back the same"; else bad "reads back differently"; fi
+for i in $(seq 1 36); do "${CURL[@]}" -X DELETE -o /dev/null "$BASE/alice/work/many-$i.ics"; done
+"$CLI" "$D" bgsync >/dev/null || bad "bgsync deleted"
+absent "the many gone again" "Changed" "$("$CLI" "$D" list $(d 20261125) $(d 20261126))"
+
 echo "== time zone support: the same events seen from New York"
 "$CLI" "$D" zone Asia/Jerusalem America/New_York
 out=$("$CLI" "$D" list $(d 20261004) $(d 20261005))

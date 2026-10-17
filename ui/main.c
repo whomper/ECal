@@ -47,6 +47,10 @@ static int fonts_ready;		/* the window's font set up (at the first opening only:
 static char workdir[160];	/* ECal's folder: calendars, keys, certificates, log */
 static char inf_file[40];	/* ECAL.INF, in the root of the boot drive */
 static unsigned long last_refresh, last_minute;
+/* the accessory's background refresh (work_step) */
+static int bg_next = -1;		/* the next calendar to refresh, -1 none */
+static int bg_first = 1;		/* the first refresh after START= still to come */
+static int bg_changed;			/* this round: 1 events changed, 2 ECAL.INF to write */
 static CTIME alarm_checked;	/* the clock's time the reminders were last looked at */
 static long alarm_day;
 static long shown_today = -1;
@@ -68,10 +72,17 @@ void settings_later(void)
 
 static void save_alarms(void);
 
+/* the accessory, its window closed, writes ECAL.INF in the background:
+   1 and 2 its text, 3 the file, 4 the files' stamps a file a step */
+static int inf_stage;
+static SBUF inf_text;
+
 void settings_flush(void)
 {
-	if (settings_dirty) {
+	if (settings_dirty || inf_stage) {
 		settings_dirty = 0;
+		inf_stage = 0;
+		sb_free(&inf_text);
 		store_save_settings();
 		save_alarms();		/* ALARMS.IDX's stamp: ECAL.INF changed (in steps) */
 	}
@@ -243,6 +254,7 @@ static void refresh(int force, int quiet)
 	r = sync_all(force);
 	busy(0);
 	last_refresh = pf_ms();
+	bg_first = 0;
 	after_change();
 	if (r < 0) {
 		status(cal_err);
@@ -831,6 +843,8 @@ static void acc_heap(void)
 static void files_check(void);
 
 static int sync_pending;	/* the first refresh, once the window is drawn */
+static void net_tick(void);
+static void connecting(int begins);
 
 /* the settings in three steps (the accessory reads them in the
    background): ECAL.INF and the keys, the files' stamps, the rest */
@@ -878,6 +892,8 @@ static int settings_step(void)
 	}
 	settings_stage = 0;
 	pf_idle = busy_idle;
+	conn_tick = net_tick;
+	http_connecting = connecting;
 	cal_status = status;
 	tls_note = status;
 	falcon_dsp_init();
@@ -986,6 +1002,12 @@ static void open_window(void)
 		return;
 	int first = win_h <= 0;
 	bg_opened();			/* the user is here: work may go on */
+	if (first && sync_busy()) {
+		sync_stop();		/* a background refresh half way: the window's own finishes it */
+		bg_next = -1;
+		views_select_none();
+		views_invalidate();
+	}
 	if (first)
 		files_check();
 	if (!settings_ready)
@@ -1157,9 +1179,8 @@ static void tip_show(void)
 }
 
 /* The accessory, its window closed: see work_step() */
-static int bg_next = -1;
-static unsigned long step_max[6];	/* the longest step seen of each kind of work */
-static unsigned long slice_ms = BG_SLICE_030;	/* bgwork's slice (BG_SLICE_000 on a 68000) */		/* the next calendar to refresh, -1 none */
+static unsigned long step_max[8];	/* the longest step seen of each kind of work */
+static unsigned long slice_ms = BG_SLICE_030;	/* bgwork's slice (BG_SLICE_000 on a 68000) */
 
 /* The accessory stands aside while ECAL.PRG runs (twin.h; the AERA
    guidelines, 2.3): it doesn't sync, show reminders or open its window,
@@ -1168,12 +1189,11 @@ static unsigned long slice_ms = BG_SLICE_030;	/* bgwork's slice (BG_SLICE_000 on
    anything is written. */
 static int prg_was;
 
-static void files_check(void)
+static void files_reload(void)
 {
 	static const char m[] = "the files changed since ECal last wrote them: reading them again";
-	if (!is_acc || !settings_ready || !store_changed())
-		return;
 	conn_log("ECal", "--", m, (long)(sizeof(m) - 1));
+	sync_stop();
 	http_close_all();
 	views_select_none();
 	cal_load_stop();
@@ -1185,6 +1205,12 @@ static void files_check(void)
 	bg_loaded = 0;
 	bg_next = -1;
 	find_workdir();			/* FOLDER= may name another folder now */
+}
+
+static void files_check(void)
+{
+	if (is_acc && settings_ready && store_changed())
+		files_reload();
 }
 
 static int prg_runs(void)
@@ -1214,7 +1240,7 @@ static int bg_sync_due(void)
 	int i, due;
 	if (!is_acc || win_h > 0 || !opt.bgsync || opt.offline || !naccts || !data_ready)
 		return 0;
-	if (bg_next >= 0)
+	if (bg_next >= 0 || bg_first)
 		return 1;
 	due = opt.refresh > 0 && now - last_refresh > (unsigned long)opt.refresh * 60000UL;
 	for (i = 0; i < ncals && !due; i++) {
@@ -1235,10 +1261,12 @@ static int work_pending(void)
 	/* (while ECAL.PRG runs, bg_may_work() says no: the work is its) */
 	if (!settings_ready)
 		return workdir[0] != 0;	/* the folder is asked for at the first opening */
-	return !data_ready || alarms_pending() || save_alarms_pending() || bg_sync_due();
+	return !data_ready || alarms_pending() || save_alarms_pending() || inf_stage || bg_sync_due();
 }
 
-/* what the next step does: 1 settings, 2 calendars, 3 reminders, 4 ALARMS.IDX, 5 refresh */
+/* what the next step does: 1 settings, 2 calendars, 3 reminders, 4 ALARMS.IDX, 5 refresh,
+   6 refresh waiting for the server (timed apart: a step of it is the network's time),
+   7 writing ECAL.INF */
 static int work_kind(void)
 {
 	if (!settings_ready)
@@ -1249,7 +1277,43 @@ static int work_kind(void)
 		return 3;
 	if (save_alarms_pending())
 		return 4;
+	if (inf_stage)
+		return 7;
+	if (sync_busy() ? sync_net_step() : bg_next >= 0 && bg_next < ncals)
+		return 6;
 	return 5;
+}
+
+/* a long answer coming in with the window closed: the machine handed
+   back now and then while it does (the waits for it already do) */
+static void net_tick(void)
+{
+	static unsigned long last;
+	unsigned long now = pf_ms();
+	if (!is_acc || win_h > 0 || now - last < slice_ms / 2)
+		return;
+	last = now;
+	evnt_timer_(0);
+}
+
+/* a step that waits for the server; the opening of a connection in it
+   (with Falcon mode, the TLS handshake on the Atari) is timed apart,
+   up to an event call once it is open */
+static void net_tag(void)
+{
+	aes_profile_tag("work: refresh (network)");
+}
+
+static void connecting(int begins)
+{
+	if (!is_acc || win_h > 0)
+		return;
+	if (begins) {
+		aes_profile_tag("work: refresh (new connection)");
+	} else {
+		evnt_timer_(0);
+		aes_profile_tag("work: refresh (network)");
+	}
 }
 
 static void work_step(void)
@@ -1266,7 +1330,7 @@ static void work_step(void)
 	if (load_step())
 		return;
 	if (alarms_pending()) {
-		aes_profile_tag("work: reminders");
+		aes_profile_tag(alarms_sorting() ? "work: reminders (sorting)" : "work: reminders");
 		if (!alarms_step())
 			save_alarms();	/* the next steps write it */
 		return;
@@ -1276,20 +1340,73 @@ static void work_step(void)
 		save_alarms_step();
 		return;
 	}
+	if (inf_stage) {
+		aes_profile_tag(inf_stage <= 2 ? "work: ECAL.INF (text)" : inf_stage == 3 ? "work: ECAL.INF (write)" :
+				"work: ECAL.INF (stamps)");
+		if (inf_stage == 1) {
+			sb_init(&inf_text);
+			store_settings_text(&inf_text, 0);
+			inf_stage = 2;
+		} else if (inf_stage == 2) {
+			store_settings_text(&inf_text, 1);
+			inf_stage = 3;
+		} else if (inf_stage == 3) {
+			store_write_text(&inf_text);
+			inf_stage = 4;
+		} else if (!store_mark_step()) {
+			inf_stage = 0;
+			save_alarms();	/* its stamp has ECAL.INF's */
+		}
+		return;
+	}
 	aes_profile_tag("work: refresh");
 	if (!bg_sync_due())
 		return;
 	if (bg_next < 0) {
-		files_check();		/* before anything is written */
-		if (data_ready)
-			bg_next = 0;
+		/* before anything is written: has ECAL.PRG changed the
+		   files? A file a step */
+		int changed, i;
+		aes_profile_tag("work: refresh (files)");
+		if (store_changed_step(&changed))
+			return;
+		if (changed) {
+			files_reload();
+			return;
+		}
+		for (i = 0; i < naccts; i++)
+			accts[i].err[0] = 0;	/* this round's shown at the next opening */
+		bg_first = 0;
+		bg_changed = 0;
+		bg_next = 0;
+		return;
+	}
+	if (sync_busy()) {
+		/* a CalDAV calendar, in steps (calstore.c) */
+		if (sync_net_step()) {
+			net_tag();
+		} else {
+#ifdef AES_PROFILE
+			static char tag[40];
+			snprintf(tag, sizeof(tag), "work: refresh (%s)", sync_phase_name());
+			aes_profile_tag(tag);
+#endif
+		}
+		if (!sync_step()) {
+			bg_changed |= sync_changes;
+			sync_changes = 0;
+		}
 		return;
 	}
 	if (bg_next < ncals) {
-		/* errors stay in the account (shown at the next opening); a
-		   calendar that changed is read again in steps (load_step) */
+		CALENDAR *c = &cals[bg_next++];
+		if (sync_begin(c, 0))
+			return;
+		/* a subscription: fetched in one step, read again in steps
+		   (load_step); errors stay in the account */
+		net_tag();
 		cal_defer_load = 1;
-		sync_calendar(&cals[bg_next++], 0);
+		if (sync_calendar(c, 0) > 0)
+			bg_changed = 3;
 		cal_defer_load = 0;
 		if (cal_loading())
 			data_ready = 0;
@@ -1299,9 +1416,13 @@ static void work_step(void)
 	last_refresh = pf_ms();
 	http_close_all();
 	conn_log_flush();
-	settings_later();
-	views_invalidate();
-	alarms_changed();
+	if (bg_changed & 2)
+		settings_later();	/* the ctags */
+	if (bg_changed & 1) {
+		views_select_none();	/* (it may have been one of the events replaced) */
+		views_invalidate();
+		alarms_changed();	/* the reminders, then ALARMS.IDX, in steps */
+	}
 }
 
 /* after a click that was acted on at once: a second press near it
@@ -1555,8 +1676,15 @@ int main(void)
 		}
 		if (which & (MU_KEYBD | MU_BUTTON | MU_MESAG))
 			menu_update();
-		if ((which & MU_TIMER) && settings_dirty && pf_ms() - settings_at >= 3000UL)
-			settings_flush();
+		if ((which & MU_TIMER) && settings_dirty && pf_ms() - settings_at >= 3000UL) {
+			if (is_acc && win_h <= 0) {
+				settings_dirty = 0;
+				inf_stage = 1;	/* in the background (work_step) */
+			} else {
+				aes_profile_tag("settings: ECAL.INF");
+				settings_flush();
+			}
+		}
 		aes_profile_tag("events");
 		bg_tick();
 		if (which & MU_TIMER) {
@@ -1564,8 +1692,9 @@ int main(void)
 			alarms_verify_step();	/* ALARMS.IDX's files at boot: one a tick until checked */
 		}
 		if (work_pending() && bg_may_work()) {
-			/* steps while the slice has room for one more as long as
-			   the longest of its kind so far, and a tick of the 200 Hz
+			/* steps while the slice has room for one more half as long
+			   again as the longest of its kind so far (one can be
+			   longer than any before it), and a tick of the 200 Hz
 			   clock that times them to spare: one begun at its end
 			   would overrun */
 			unsigned long s0 = pf_ms(), t;
@@ -1577,12 +1706,20 @@ int main(void)
 				t = pf_ms();
 				work_step();
 				t = pf_ms() - t;
+#ifdef AES_PROFILE
+				if (t >= 30) {
+					char b[48];
+					snprintf(b, sizeof(b), "STEPMS %lu kind %d\n", t, k);
+					nf_debug(b);
+				}
+#endif
 				if (t > step_max[k])
 					step_max[k] = t;
 				n++;
 				/* a kind not timed yet only begins a slice */
 				k = work_kind();
-			} while (work_pending() && bg_more() && step_max[k] && pf_ms() - s0 + step_max[k] + 5 <= slice_ms);
+			} while (work_pending() && bg_more() && step_max[k] &&
+				 pf_ms() - s0 + step_max[k] * 3 / 2 + 5 <= slice_ms);
 		}
 		if ((which & MU_TIMER) && sync_pending && win_h > 0) {
 			sync_pending = 0;

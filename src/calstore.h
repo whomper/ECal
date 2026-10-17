@@ -109,6 +109,9 @@ void store_init(const char *dir, const char *inf);
 void store_init_begin(const char *dir, const char *inf);
 int  store_init_step(void);
 void store_save_settings(void);
+void store_write_settings(void);	/* the same without noting the files' stamps (store_mark_step) */
+void store_settings_text(SBUF *b, int part);	/* or in steps: its text in b (sb_init'ed; part 0, 1), */
+void store_write_text(SBUF *b);		/* then the file written (b freed) */
 /* the accessory and ECAL.PRG (the AERA guidelines, 2.3): with store_watch
    set, our own writes are noted (store_mark), and store_changed() says
    whether another program changed ECAL.INF, ECAL.KEY or a calendar's
@@ -116,6 +119,7 @@ void store_save_settings(void);
 extern int store_watch;
 void store_mark(void);
 int  store_changed(void);
+int  store_changed_step(int *changed);	/* the same a file a step: 1 while there is more */
 void store_release(void);
 void cal_load_all(void);
 void cal_load(CALENDAR *c);
@@ -156,6 +160,20 @@ int  acct_discover(int a);
 int  sync_account(int a, int force);
 int  sync_all(int force);
 int  sync_calendar(CALENDAR *c, int force);
+
+/* The accessory's background refresh of a calendar, in steps
+   (calstore.c explains). sync_begin: 0 if it isn't done that way (a
+   subscription: sync_calendar, with cal_defer_load). sync_step: 1 while
+   there is more; sync_net_step: the next step waits for the server.
+   sync_changes (the caller clears it): 1 events changed, 2 a ctag to
+   save in ECAL.INF */
+int  sync_begin(CALENDAR *c, int force);
+int  sync_step(void);
+int  sync_busy(void);
+int  sync_net_step(void);
+const char *sync_phase_name(void);	/* what the next step does, for the profile build */
+void sync_stop(void);
+extern int sync_changes;
 
 /* ---- occurrences in a range (view wall time) ---- */
 typedef struct {
