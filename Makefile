@@ -189,8 +189,10 @@ $(BIN)/ROOTS.DAT: $(BIN)/CACERT.PEM
 # (github.com/th-otto/hypview): make help HCP=/path/to/hcp
 HCP     ?= hcp
 help: $(BIN)/ECAL.HYP
-$(BIN)/ECAL.HYP: docs/GUIDE.md tools/guide2stg.py VERSION | $(OBJDIR) $(BIN)
+$(BIN)/ECAL.HYP: docs/GUIDE.md tools/guide2stg.py VERSION docs/front.json docs/help/WINDOW.IMG \
+                 common/help/ECAL.IMG common/tools/helpfront.py common/tools/gemimg.py | $(OBJDIR) $(BIN)
 	python3 tools/guide2stg.py docs/GUIDE.md $(OBJDIR)/ECAL.STG VERSION
+	python3 common/tools/helpfront.py page docs/front.json $(OBJDIR)/ECAL.STG $(OBJDIR)/ECAL.STG
 	$(HCP) -o $@ $(OBJDIR)/ECAL.STG
 
 # a release's files: each one in dist/, and all of them in
