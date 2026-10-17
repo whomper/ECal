@@ -24,6 +24,7 @@
 
 static char local_name[10], local_out[1024];
 static char *name_buf = local_name, *out_buf;
+int (*av_people_started)(const char *p);
 static char got[2048];			/* the last VA_START's string, ours */
 static short server = -1;		/* the AV server's id, once told */
 static int registered;
@@ -53,14 +54,14 @@ static void alloc(void)
 	name_buf = av_shared(local_name, sizeof(local_name));
 }
 
-static void post(short id, short what, short w3, const char *p)
+void av_post(short id, short what, short w3, const char *p)
 {
 	short msg[8];
 	memset(msg, 0, sizeof(msg));
 	msg[0] = what;
 	msg[1] = appl_id();
 	msg[3] = w3;
-	if (what == VA_START) {
+	if (what == VA_START || what == AV_PEOPLE_MSG) {
 		msg[3] = (short)((unsigned long)p >> 16);
 		msg[4] = (short)(unsigned long)p;
 	} else if (p) {
@@ -144,7 +145,7 @@ static void tell(void)
 	server = find_server();
 	if (server < 0 || server == appl_id())
 		return;
-	post(server, AV_PROTOKOLL, AV_WE_TAKE, name_buf);
+	av_post(server, AV_PROTOKOLL, AV_WE_TAKE, name_buf);
 	registered = 1;
 }
 
@@ -171,7 +172,7 @@ void av_init(const char *names)
 void av_exit(void)
 {
 	if (registered)
-		post(server, AV_EXIT, appl_id(), 0);
+		av_post(server, AV_EXIT, appl_id(), 0);
 	registered = 0;
 	name_buf[0] = 0;		/* and not again, whatever comes now */
 }
@@ -179,7 +180,7 @@ void av_exit(void)
 void av_window(short h, int open)
 {
 	if (registered && h > 0)
-		post(server, open ? AV_ACCWINDOPEN : AV_ACCWINDCLOSED, h, 0);
+		av_post(server, open ? AV_ACCWINDOPEN : AV_ACCWINDCLOSED, h, 0);
 }
 
 int av_message(const short *msg, const char **s)
@@ -195,7 +196,11 @@ int av_message(const short *msg, const char **s)
 		appl_write(msg[1], 16, reply);
 		return AV_DONE;
 	}
-	if (msg[0] != VA_START)
+	if (msg[0] == AV_STARTED && av_people_started &&
+	    av_people_started((const char *)(((unsigned long)(unsigned short)msg[3] << 16) |
+					     (unsigned short)msg[4])))
+		return AV_DONE;		/* our PEOPLE arrived (av_people.c) */
+	if (msg[0] != VA_START && msg[0] != AV_PEOPLE_MSG)
 		return AV_NONE;
 	{
 		const char *p = (const char *)(((unsigned long)(unsigned short)msg[3] << 16) |
@@ -208,7 +213,7 @@ int av_message(const short *msg, const char **s)
 		got[n] = 0;
 	}
 	/* an accessory that started before the desktop: tell it now */
-	if (!registered && name_buf[0])
+	if (msg[0] == VA_START && !registered && name_buf[0])
 		tell();
 	/* the sender may let its copy go now */
 	{
@@ -221,7 +226,33 @@ int av_message(const short *msg, const char **s)
 		appl_write(msg[1], 16, reply);
 	}
 	*s = got;
-	return AV_START;
+	return msg[0] == AV_PEOPLE_MSG ? AV_PEOPLE : AV_START;
+}
+
+void (*av_people_hook)(const char *s, short from);
+
+int av_modal_message(const short *msg)
+{
+	const char *s;
+	int r;
+	if (msg[0] != AV_PEOPLE_MSG && msg[0] != AV_STARTED)
+		return 0;
+	r = av_message(msg, &s);
+	if (r == AV_PEOPLE && av_people_hook)
+		av_people_hook(s, msg[1]);
+	return r == AV_PEOPLE || r == AV_DONE;
+}
+
+const char *av_name(void)
+{
+	static char n[9];
+	int i;
+	alloc();
+	memcpy(n, name_buf, 8);
+	n[8] = 0;
+	for (i = 7; i >= 0 && (n[i] == ' ' || !n[i]); i--)
+		n[i] = 0;
+	return n;
 }
 
 const char *av_arg(const char *p, char *out, long n)
@@ -269,6 +300,6 @@ int av_send(const char *name, const char *text)
 		l = sizeof(local_out) - 1;
 	memcpy(out_buf, text, l);
 	out_buf[l] = 0;
-	post(id, VA_START, 0, out_buf);
+	av_post(id, VA_START, 0, out_buf);
 	return 1;
 }
