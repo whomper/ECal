@@ -25,7 +25,7 @@ CC      := $(CROSS)gcc
 GCCINC  := $(shell $(CC) -print-file-name=include 2>/dev/null)
 CFLAGS  := -m68000 -Os -fomit-frame-pointer -ffreestanding -fno-builtin \
            -fno-pic -fno-pie -fno-tree-loop-distribute-patterns -fno-store-merging \
-           -fno-expensive-optimizations -fno-asynchronous-unwind-tables -Wall -Wno-pointer-sign \
+           -fdisable-tree-bswap -fno-asynchronous-unwind-tables -Wall -Wno-pointer-sign \
            -DCAL_TOS -nostdinc -isystem $(GCCINC) -Iatari/include -Icommon/atari/include \
            -Isrc -Icommon/src -Iatari -Icommon/atari -Iui -Icommon/ui -Icommon/third_party/bearssl/inc \
            -DTLS_FULL_EDITION=\"ECAL.ACC\"
@@ -80,7 +80,7 @@ $(OBJDIR)/ecalst.elf: $(STOBJS) common/atari/link.ld
 
 # as 68000 code: no stores or loads joined into words (an odd address
 # would be an address error), as in CFLAGS
-STBSSLCF = $(subst -m68030,-m68000 -fno-store-merging -fno-expensive-optimizations,$(BSSLCF))
+STBSSLCF = $(subst -m68030,-m68000 -fno-store-merging -fdisable-tree-bswap,$(BSSLCF))
 $(OBJDIR)/st/%.o: $(BSSL)/src/hash/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(STBSSLCF) -c -o $@ $<
