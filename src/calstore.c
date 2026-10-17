@@ -1008,6 +1008,31 @@ void cal_load_begin(CALENDAR *c)
 		return;
 	}
 	cache_path(c, "DAT", path, sizeof(path));
+	{
+		/* room for about as many events as the file holds, at once: the
+		   tables doubling (and the index made again) as they filled were
+		   the longest steps, 90 ms each on an ST */
+		long size = pf_size(path);
+		int est = size > 0 ? (int)(size / 600) + 16 : 0;
+		if (est > 4000)
+			est = 4000;
+		if (est > c->maxres) {
+			RESOURCE *n = realloc(c->res, est * sizeof(RESOURCE));
+			if (n) {
+				c->res = n;
+				c->maxres = est;
+			}
+		}
+		if (est > c->maxev) {
+			EVENT **n = realloc(c->ev, est * sizeof(EVENT *));
+			if (n) {
+				c->ev = n;
+				c->maxev = est;
+			}
+		}
+		if (est)
+			hx_room(c, est);
+	}
 	ld.f.h = pf_open(path, PF_READ);
 	if (ld.f.h >= 0 && (!fr_line(&ld.f, ld_line, 700) || strncmp(ld_line, "CALCACHE 1", 10))) {
 		pf_close(ld.f.h);

@@ -1569,7 +1569,7 @@ int main(void)
 			   clock that times them to spare: one begun at its end
 			   would overrun */
 			unsigned long s0 = pf_ms(), t;
-			int k;
+			int k, n = 0;
 			bg_begin();
 			do {
 				aes_profile_tag("work");
@@ -1579,7 +1579,10 @@ int main(void)
 				t = pf_ms() - t;
 				if (t > step_max[k])
 					step_max[k] = t;
-			} while (work_pending() && bg_more() && pf_ms() - s0 + step_max[work_kind()] + 5 <= slice_ms);
+				n++;
+				/* a kind not timed yet only begins a slice */
+				k = work_kind();
+			} while (work_pending() && bg_more() && step_max[k] && pf_ms() - s0 + step_max[k] + 5 <= slice_ms);
 		}
 		if ((which & MU_TIMER) && sync_pending && win_h > 0) {
 			sync_pending = 0;
