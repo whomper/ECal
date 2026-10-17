@@ -320,8 +320,9 @@ static void show_alarm(const ALARM *a, void *ud)
 	else
 		snprintf(line, sizeof(line), "%s %d %s, %s", wday_short[d.wday], d.day, month_short[d.mon - 1], t);
 	Bconout(2, 7);
-	b = alert(1, "[1][%s|%s%s%s][ OK |Show]", a->title, line, a->place[0] ? "|" : "", a->place);
-	if (b == 2) {
+	/* OK last: Esc only dismisses it (guideline 3.5) */
+	b = alert(2, "[1][%s|%s%s%s][Show| OK ]", a->title, line, a->place[0] ? "|" : "", a->place);
+	if (b == 1) {
 		if (win_h <= 0)
 			open_window();
 		if (win_h > 0)
@@ -758,18 +759,21 @@ static void move_inf(void)
 	free(t);
 }
 
-/* the accessory without its folder: the user shows it where it is */
-static void locate_folder(void)
+/* the accessory without its folder: the user shows it where it is;
+   0 if they cancel (nothing made, asked again at the next opening) */
+static int locate_folder(void)
 {
 	char path[200], name[20] = "", why[200];
 	short button = 0, boot = boot_drive();
 	inf_folder(inf_file, why, sizeof(why));
 	for (;;) {
-		short k = why[0] ? alert(1, "[2][ECal's folder is not at|%s.|Show me where it is?][Locate...|%c:\\ECAL]",
+		short k = why[0] ? alert(1, "[2][ECal's folder is not at|%s.|Show me where it is?][Locate...|Use %c:\\ECAL|Cancel]",
 					 why, 'A' + boot)
-				 : alert(1, "[2][Where is ECal's folder, with|its calendars, keys and|certificates?][Locate...|%c:\\ECAL]",
+				 : alert(1, "[2][Where is ECal's folder, with|its calendars, keys and|certificates?][Locate...|Use %c:\\ECAL|Cancel]",
 					 'A' + boot);
 		char *e;
+		if (k == 3)
+			return 0;	/* Cancel, Esc (guideline 3.5) */
 		if (k != 1)
 			break;
 		snprintf(path, sizeof(path), "%c:\\*.*", 'A' + boot);
@@ -782,11 +786,12 @@ static void locate_folder(void)
 			strcat(path, "\\");
 		if (pf_exists(path) || strlen(path) == 3) {
 			str_copy(workdir, path, sizeof(workdir));
-			return;
+			return 1;
 		}
 	}
 	snprintf(workdir, sizeof(workdir), "%c:\\ECAL", 'A' + boot);
 	pf_mkdir(workdir);
+	return 1;
 }
 
 /* an accessory takes its memory once, now: later it would belong to
@@ -853,8 +858,8 @@ static int settings_stage;
 static int settings_step(void)
 {
 	if (settings_stage == 0) {
-		if (!workdir[0])
-			locate_folder();
+		if (!workdir[0] && !locate_folder())
+			return 0;	/* cancelled: no settings, no window */
 		secret_warn = warn_plain;	/* before anything is saved */
 		move_inf();
 		store_init_begin(workdir, inf_file);
@@ -1036,6 +1041,8 @@ static void open_window(void)
 		files_check();
 	if (!settings_ready)
 		load_settings();
+	if (!settings_ready)
+		return;			/* the folder question cancelled */
 	if (!fonts_ready) {
 		font_apply();
 		fonts_ready = 1;

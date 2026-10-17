@@ -50,6 +50,14 @@ def cache_text(hd):
     return out
 
 
+def empty(r):
+    """the field with the cursor emptied: to its end, then back over it
+    all (Undo cancels the dialog: guideline 3.5)"""
+    r.key(0x47, shift=True)
+    for _ in range(60):
+        r.key(K["BACKSPACE"])
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("work")
@@ -156,7 +164,7 @@ def main():
 
             open_found("Standup")
             r.shot("7-open-occurrence")
-            r.key(0x61)                        # Undo: empty the title
+            empty(r)                           # the title
             r.type("Standup moved")
             r.key(K["RETURN"])                 # OK
             r.wait(1.5)
@@ -167,7 +175,7 @@ def main():
             check("one occurrence changed: an exception", res.count("RECURRENCE-ID") == 1 and "SUMMARY:Standup moved" in res)
             check("the series keeps its title", "SUMMARY:Standup\r\n" in res)
             open_found("Standup moved")
-            r.key(0x61)
+            empty(r)
             r.type("Standup moved twice")
             r.key(K["RETURN"])
             r.wait(1.5)
@@ -221,7 +229,7 @@ def main():
             r.click(276, 423)
             r.wait(2)
             r.click(340, 355)                  # the Rule line
-            r.key(0x61)                        # Undo: empty it
+            empty(r)
             r.type("FREQ=YEARLY;BYMONTH=3;BYDAY=TH")
             r.key(K["RETURN"])
             r.wait(1.5)

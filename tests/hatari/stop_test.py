@@ -8,7 +8,7 @@ after the 60 s timeout, and ECal must carry on: a key typed meanwhile
 (N, a new event) is not lost.
 
 Hatari has no network card: FAKESTNG.PRG carries the Atari's TCP
-connections over the emulated serial port to serial_bridge.py, as in
+connections over the emulated serial port to common/tools/fakesting/serial_bridge.py, as in
 net_test.py.
 
     tests/hatari/stop_test.py WORKDIR etos512us.img
@@ -65,7 +65,7 @@ def main():
     stop = threading.Event()
     threading.Thread(target=silent_server, args=(stop,), daemon=True).start()
     shutil.copy(os.path.join(ROOT, "binary", "ECALST.ACC"), os.path.join(hd, "ECAL.ACC"))
-    shutil.copy(os.path.join(ROOT, "tools", "fakesting", "FAKESTNG.PRG"), os.path.join(hd, "AUTO"))
+    shutil.copy(os.path.join(ROOT, "common", "tools", "fakesting", "FAKESTNG.PRG"), os.path.join(hd, "AUTO"))
     with open(os.path.join(hd, "ECAL", "ECAL.INF"), "w", newline="") as f:
         f.write("home_tz=Asia/Jerusalem\r\nview_tz=Asia/Jerusalem\r\ngate=127.0.0.1\r\ngateport=%d\r\n"
                 "sync_open=1\r\nlog=1\r\n[account]\r\nname=Server\r\nkind=0\r\n"
@@ -73,7 +73,7 @@ def main():
     fifo_out, fifo_in = os.path.join(work, "st_out"), os.path.join(work, "st_in")
     for p in (fifo_out, fifo_in):
         os.mkfifo(p)
-    bridge = subprocess.Popen([sys.executable, os.path.join(HERE, "serial_bridge.py"), fifo_out, fifo_in],
+    bridge = subprocess.Popen([sys.executable, os.path.join(ROOT, "common", "tools", "fakesting", "serial_bridge.py"), fifo_out, fifo_in],
                               stderr=open(os.path.join(work, "bridge.log"), "w"))
     r = rig.Rig(work, tos, machine="st", serial=(fifo_out, fifo_in),
                 extra=["--memsize", "4", "--monitor", "mono"], auto=None)

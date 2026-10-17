@@ -210,8 +210,7 @@ gateway/  the Raspberry Pi gateways (ecalgate.py is ECal's) and aera-gateway, th
           a copy of AERA-Gateway's
 tests/    unit tests, fuzz targets, CalDAV integration tests, Hatari tests
 tools/    bump.py (a release), guide2stg.py (the help file), icon/ (the icons),
-          fakesting/ (the Hatari tests' network), sync-common.sh (common/ from AERA-Atari),
-          sync-gateway.sh (gateway/ from AERA-Gateway)
+          sync-common.sh (common/ from AERA-Atari), sync-gateway.sh (gateway/ from AERA-Gateway)
 docs/     the user guide (GUIDE.md, the source of ECAL.HYP) and its pictures
 ```
 
@@ -246,6 +245,8 @@ tests/hatari/net_test.py WORK etos512us.img --falcon-mode  # TLS on the Falcon, 
 tests/hatari/quiet_test.py WORK etos512us.img [--machine st]
                                                            # make profile first: the accessory's
                                                            # quiet start, timed between event calls
+tests/hatari/esc_test.py WORK etos512us.img                # Esc and Undo cancel dialogs and
+                                                           # alerts, and nothing is written
 tests/hatari/people_test.py WORK etos512us.img ECONTACT_DIR [--acc]
                                                            # inviting from EContact (PEOPLE):
                                                            # a checkout with card-cli built and
@@ -263,8 +264,9 @@ TZ=America/New_York tests/hatari/docs_shots.py WORK etos512us.img --update
                                                            # and a Mega ST in mono)
 ```
 
-The network tests use EMail's `FAKESTNG.PRG` (`make -C tools/fakesting`), which carries the emulated
-Atari's TCP over its serial port; it's for the emulator only, never for a real Atari.
+The network tests use the family's `FAKESTNG.PRG` (`make -C common/tools/fakesting`), which carries
+the emulated Atari's TCP over its serial port to `common/tools/fakesting/serial_bridge.py`; it's for
+the emulator only, never for a real Atari.
 
 ## Licence
 

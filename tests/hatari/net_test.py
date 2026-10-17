@@ -6,8 +6,8 @@ CalDAV server: the way an ST uses it.
 
 Radicale (CalDAV) and gateway/ecalgate.py run on this computer. Hatari has
 no network card, so FAKESTNG.PRG in C:\\AUTO carries the Atari's TCP
-connections over the emulated serial port to serial_bridge.py (from
-EMail). The accessory syncs, shows the server's Hebrew event, and an
+connections over the emulated serial port to serial_bridge.py
+(common/tools/fakesting, make -C common/tools/fakesting). The accessory syncs, shows the server's Hebrew event, and an
 event added on the Atari must arrive on the server.
 
     TZ=Asia/Jerusalem tests/hatari/net_test.py WORKDIR etos512us.img [--acc ECAL.ACC --machine falcon]
@@ -117,7 +117,7 @@ def main():
         shutil.copy(os.path.join(ROOT, "binary", "ECAL.PRG"), os.path.join(hd, "ECAL", "ECAL.PRG"))
     else:
         shutil.copy(os.path.join(ROOT, "binary", a.acc), os.path.join(hd, "ECAL.ACC"))
-    shutil.copy(os.path.join(ROOT, "tools", "fakesting", "FAKESTNG.PRG"), os.path.join(hd, "AUTO"))
+    shutil.copy(os.path.join(ROOT, "common", "tools", "fakesting", "FAKESTNG.PRG"), os.path.join(hd, "AUTO"))
     if a.falcon_mode:
         # the Mozilla roots ECal ships, plus the test certificate, decoded here
         with open(os.path.join(hd, "ECAL", "CACERT.PEM"), "wb") as f:
@@ -135,7 +135,7 @@ def main():
     fifo_out, fifo_in = os.path.join(work, "st_out"), os.path.join(work, "st_in")
     for p in (fifo_out, fifo_in):
         os.mkfifo(p)
-    procs.append(subprocess.Popen([sys.executable, os.path.join(HERE, "serial_bridge.py"), fifo_out, fifo_in],
+    procs.append(subprocess.Popen([sys.executable, os.path.join(ROOT, "common", "tools", "fakesting", "serial_bridge.py"), fifo_out, fifo_in],
                                   stderr=open(os.path.join(work, "bridge.log"), "w")))
     extra = ["--memsize", "4" if a.machine == "st" else "14"]
     if a.machine == "st":

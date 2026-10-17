@@ -391,6 +391,7 @@ instance).
 | Return              | open the selected event (none: a new one) |
 | Delete              | delete the selected event               |
 | Esc                 | nothing selected; while busy: stop      |
+| Esc, Undo           | in a dialog or alert: Cancel            |
 | N, ^N               | new event                               |
 | ^F                  | find                                    |
 | ^G                  | go to a date                            |
@@ -402,6 +403,12 @@ instance).
 | ^W, ^Q              | close the window                        |
 | F10                 | Hebrew keyboard                         |
 | Help                | this guide (see below)                  |
+
+In any dialog box or alert, Esc or Undo is Cancel: the dialog closes,
+what you typed is thrown away and nothing is saved, deleted or sent (in
+an alert without Cancel, it picks the button that does nothing, such as
+OK under a reminder). In a text field too: it doesn't clear the field,
+it closes the dialog.
 
 While the busy bee shows (a refresh, saving an event to the server), Esc
 or Undo stops what ECal is waiting for from the server, at once rather

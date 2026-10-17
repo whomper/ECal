@@ -870,11 +870,6 @@ static int edit_key(DLG *d, FIELD *f, short kstate, short key)
 	case 0x47:		/* Clr/Home: start, with Shift the end */
 		f->cur = (kstate & (K_LSHIFT | K_RSHIFT)) ? n : 0;
 		break;
-	case 0x61:		/* Undo: empty the field */
-		f->buf[0] = 0;
-		f->cur = 0;
-		f->first = 0;
-		break;
 	case 0x48:
 	case 0x50:
 		if (f->type == FT_MULTI) {
@@ -1088,7 +1083,7 @@ short dlg_run(DLG *d)
 			if (scan == 0x44) {			/* F10: the Hebrew keyboard */
 				set_hebrew_kbd(!hebrew_kbd);
 				draw_all(d);
-			} else if (scan == 0x01) {		/* Esc */
+			} else if (scan == 0x01 || scan == 0x61) {	/* Esc, Undo: as Cancel (guideline 3.5) */
 				result = find_flag(d, FF_CANCEL);
 				if (result < 0)
 					result = -1;
@@ -1267,7 +1262,7 @@ short dlg_pick(const char *title, const char *const *items, short n, short sel)
 		if (e.which & MU_KEYBD) {
 			short sc = KEY_SCAN(e.kreturn);
 			unsigned char a = KEY_ASCII(e.kreturn);
-			if (sc == 0x01)
+			if (sc == 0x01 || sc == 0x61)	/* Esc, Undo */
 				res = -1;
 			else if (sc == 0x1c || sc == 0x72)
 				res = sel;

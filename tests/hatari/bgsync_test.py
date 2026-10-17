@@ -203,11 +203,11 @@ def main():
 
         acc = "ECAL.ACC" if a.machine == "falcon" else "ECALST.ACC"
         shutil.copy(os.path.join(PROF, acc), os.path.join(hd, "ECAL.ACC"))
-        shutil.copy(os.path.join(ROOT, "tools", "fakesting", "FAKESTNG.PRG"), os.path.join(hd, "AUTO"))
+        shutil.copy(os.path.join(ROOT, "common", "tools", "fakesting", "FAKESTNG.PRG"), os.path.join(hd, "AUTO"))
         fifo_out, fifo_in = os.path.join(work, "st_out"), os.path.join(work, "st_in")
         for p in (fifo_out, fifo_in):
             os.mkfifo(p)
-        procs.append(subprocess.Popen([sys.executable, os.path.join(HERE, "serial_bridge.py"), fifo_out, fifo_in],
+        procs.append(subprocess.Popen([sys.executable, os.path.join(ROOT, "common", "tools", "fakesting", "serial_bridge.py"), fifo_out, fifo_in],
                                       stderr=open(os.path.join(work, "bridge.log"), "w")))
         extra = ["--memsize", "14" if a.machine == "falcon" else "4"]
         if a.machine == "st":
