@@ -163,11 +163,17 @@ struct DLG {
 	   under its name */
 	const char *const *pages;
 	short npages, page, side;
+	/* names came from EContact (people_ask.c): show them; may redraw */
+	void (*names)(DLG *d);
 };
 short dlg_run(DLG *d);		/* the button pressed (field index), -1 Esc */
 void  dlg_redraw_field(DLG *d, short i);
 void  dlg_redraw(DLG *d);		/* all of it (after a dialog opened from it) */
 extern void (*dlg_after)(void);	/* when the last dialog closes */
+void  dlg_names_came(void);
+/* people_init's picked: the people chosen in EContact's window (editor.c) */
+#include "people_ask.h"
+void  editor_people_picked(const PERSON *list, int n);	/* people_init's names_came: the open dialog's names() */
 #include "alert.h"		/* alert(): common/ui */
 /* a list to pick from (a calendar, a zone): index or -1 */
 short dlg_pick(const char *title, const char *const *items, short n, short sel);

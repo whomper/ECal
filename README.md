@@ -246,6 +246,10 @@ tests/hatari/net_test.py WORK etos512us.img --falcon-mode  # TLS on the Falcon, 
 tests/hatari/quiet_test.py WORK etos512us.img [--machine st]
                                                            # make profile first: the accessory's
                                                            # quiet start, timed between event calls
+tests/hatari/people_test.py WORK etos512us.img ECONTACT_DIR [--acc]
+                                                           # inviting from EContact (PEOPLE):
+                                                           # a checkout with card-cli built and
+                                                           # binary/ECONTACT.ACC
 tests/hatari/bgsync_test.py WORK etos512us.img [--machine st] [--falcon-mode]
                                                            # make profile first: a background
                                                            # refresh with the window closed, timed

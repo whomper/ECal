@@ -20,6 +20,8 @@
 #include "util.h"
 #include "clip.h"
 #include "../src/plat.h"
+#include "av.h"
+#include "people_ask.h"
 
 static GRECT box;		/* the dialog on screen */
 static short rh;		/* pixels per row */
@@ -983,6 +985,35 @@ void dlg_redraw(DLG *d)
 	draw_all(d);
 }
 
+/* Messages while a dialog holds the screen (the guidelines, 4.1): a
+   PEOPLE answer from EContact is taken at once, the rest kept and sent
+   back to us when the last dialog closes, for the main loop */
+static short kept_msg[8][8];
+static int nkept;
+extern short ap_id;
+
+static void dlg_message(const short *m)
+{
+	if (av_modal_message(m))
+		return;
+	if (nkept < 8)
+		memcpy(kept_msg[nkept++], m, sizeof(kept_msg[0]));
+}
+
+static void dlg_resend(void)
+{
+	int i;
+	for (i = 0; i < nkept; i++)
+		appl_write(ap_id, 16, kept_msg[i]);
+	nkept = 0;
+}
+
+void dlg_names_came(void)
+{
+	if (cur_dlg && cur_dlg->names)
+		cur_dlg->names(cur_dlg);
+}
+
 short dlg_run(DLG *d)
 {
 	short result = -2, i, mx, my, mb, ks, m[8], tips = 0, hx = -1, hy = -1, tip_tried = 1;
@@ -1033,7 +1064,7 @@ short dlg_run(DLG *d)
 	while (result == -2) {
 		if (tips) {
 			evnt_set_m1(1, hx, hy, 1, 1);
-			evnt_multi_(MU_KEYBD | MU_BUTTON | MU_M1 | MU_TIMER, 0x102, 3, 0, 100, m, &e);
+			evnt_multi_(MU_KEYBD | MU_BUTTON | MU_M1 | MU_MESAG | MU_TIMER, 0x102, 3, 0, 100, m, &e);
 			if (e.which & (MU_KEYBD | MU_BUTTON | MU_M1))
 				tip_take(d);
 			if (e.which & MU_M1) {
@@ -1046,8 +1077,11 @@ short dlg_run(DLG *d)
 				tip_for(d, hx, hy);
 			}
 		} else {
-			evnt_multi_(MU_KEYBD | MU_BUTTON, 0x102, 3, 0, 0, m, &e);
+			evnt_multi_(MU_KEYBD | MU_BUTTON | MU_MESAG | MU_TIMER, 0x102, 3, 0, 200, m, &e);
 		}
+		if (e.which & MU_MESAG)
+			dlg_message(m);
+		people_poll();
 		if (e.which & MU_KEYBD) {
 			short scan = KEY_SCAN(e.kreturn);
 			FIELD *f = d->focus >= 0 ? &d->f[d->focus] : 0;
@@ -1160,8 +1194,11 @@ short dlg_run(DLG *d)
 	pad = outer_pad;
 	cur_dlg = outer_dlg;
 	font_sys_pop();
-	if (--depth == 0 && dlg_after)
-		dlg_after();
+	if (--depth == 0) {
+		dlg_resend();
+		if (dlg_after)
+			dlg_after();
+	}
 	return result;
 }
 
@@ -1222,7 +1259,11 @@ short dlg_pick(const char *title, const char *const *items, short n, short sel)
 		}
 		text_at(b.x + cw, list.y + list.h + 4, "\x01\x02 Return: choose  Esc: cancel", 29, w, TX_GREY | TX_LTR);
 		graf_mouse(M_ON, 0);
-		evnt_multi_(MU_KEYBD | MU_BUTTON, 0x102, 3, 0, 0, m, &e);
+		evnt_multi_(MU_KEYBD | MU_BUTTON | MU_MESAG, 0x102, 3, 0, 0, m, &e);
+		if (e.which & MU_MESAG) {
+			dlg_message(m);
+			people_poll();
+		}
 		if (e.which & MU_KEYBD) {
 			short sc = KEY_SCAN(e.kreturn);
 			unsigned char a = KEY_ASCII(e.kreturn);
@@ -1279,6 +1320,8 @@ short dlg_pick(const char *title, const char *const *items, short n, short sel)
 	form_dial(FMD_FINISH, b.x, b.y, b.w + 2, b.h + 2);
 	wind_update(2);
 	wind_update(END_UPDATE);
+	if (!depth)
+		dlg_resend();
 	return res;
 }
 

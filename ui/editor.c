@@ -12,7 +12,9 @@
 #include "ui.h"
 #include "util.h"
 #include "clip.h"
-#include "../src/people.h"
+#include "people_ask.h"
+#include "av.h"
+#include "../src/plat.h"
 
 static short last_cal = -1;	/* new events go where the last one went */
 
@@ -558,49 +560,30 @@ static char repval[16], repval0[16];	/* the end of the repeat, and as first show
 static short repend0;
 
 /* ---- the people invited ----
- * Shown by their name in Contacts (EContact, src/people.c), else by
- * their address; pointing at one shows the address. Added from Contacts
- * (a person or a whole group) or typed; written as ATTENDEEs with this
- * user as ORGANIZER, and iCloud and other scheduling CalDAV servers send
- * the invitations. An invitation from someone else shows who sent it
- * and who else is invited, and can't be changed here. */
+ * Shown by the name EContact has for them (asked in PEOPLE messages,
+ * the guidelines 4.1: common/ui/people_ask.c), else by their address;
+ * pointing at one shows the address. Added by address, or picked in
+ * EContact's window (a person or a whole group); written as ATTENDEEs
+ * with this user as ORGANIZER, and iCloud and other scheduling CalDAV
+ * servers send the invitations. An invitation from someone else shows
+ * who sent it and who else is invited, and can't be changed here. */
 #define MAXPEOPLE 48
 typedef struct {
-	char name[80];			/* as the server or Contacts has it; may be "" */
+	char name[80];			/* as the server or EContact gave it; may be "" */
 	char email[100];
-} PERSON;
-static PERSON people[MAXPEOPLE];
+	char picked;			/* chosen in EContact: name is its */
+} INVITEE;
+static INVITEE people[MAXPEOPLE];
 static short npeople, people_org;	/* people_org: people[0] is the organizer */
 static char plabel[MAXPEOPLE][100];
 static const char *pitems[MAXPEOPLE], *ptips[MAXPEOPLE];
-static PPICK *contacts;			/* EContact's, read when the dialog opens */
-static int ncontacts;
 
-/* the name Contacts has for email ("" if none) */
-typedef struct {
-	const char *email;
-	char *name;
-	int size;
-} LOOKUP;
-
-static void look_one(const char *name, const char *email, void *ud)
-{
-	LOOKUP *l = ud;
-	if (!l->name[0] && *name && !strcasecmp(email, l->email))
-		str_copy(l->name, name, l->size);
-}
-
+/* the name EContact has for email: "" if none, or while it is asked
+   (the names come later: names_shown) */
 static void contact_name(const char *email, char *out, int size)
 {
-	LOOKUP l;
-	int i;
-	l.email = email;
-	l.name = out;
-	l.size = size;
-	out[0] = 0;
-	for (i = 0; i < ncontacts && !out[0]; i++)
-		if (!contacts[i].group)
-			ics_each_address(contacts[i].value, look_one, &l);
+	const char *n = people_name(email);
+	str_copy(out, n ? n : "", size);
 }
 
 /* the labels and tips of the people field, from people[] */
@@ -610,6 +593,8 @@ static void people_items(FIELD *f)
 	for (i = 0; i < npeople; i++) {
 		char known[80];
 		contact_name(people[i].email, known, sizeof(known));
+		if (!known[0] && people[i].picked)
+			str_copy(known, people[i].name, sizeof(known));	/* EContact's, from the pick */
 		str_copy(plabel[i], known[0] ? known : people[i].email, sizeof(plabel[i]));
 		if (i == 0 && people_org) {
 			size_t n = strlen(plabel[i]);
@@ -636,10 +621,9 @@ static void add_person(const char *name, const char *email, void *ud)
 			return;
 	if (npeople >= MAXPEOPLE)
 		return;
-	contact_name(email, people[npeople].name, sizeof(people[npeople].name));
-	if (!people[npeople].name[0])
-		str_copy(people[npeople].name, name, sizeof(people[npeople].name));
+	str_copy(people[npeople].name, name, sizeof(people[npeople].name));
 	str_copy(people[npeople].email, email, sizeof(people[npeople].email));
+	people[npeople].picked = ud != 0;
 	npeople++;
 }
 
@@ -663,12 +647,39 @@ static void people_list(char *out, int size)
 	sb_free(&b);
 }
 
-/* Add...: an address typed, or someone (or a group) from Contacts: a
-   name typed narrows the list, nothing typed shows them all */
+/* EContact's names came (people_init's names_came, through the dialog) */
+static void names_shown(DLG *d)
+{
+	ED *x = d->ud;
+	people_items(&x->f[F_INV]);
+	dlg_redraw_field(d, F_INV);
+}
+
+/* the people picked in EContact's window (people_init's picked) */
+static PERSON *picked;
+static int npicked, pick_done;
+
+void editor_people_picked(const PERSON *list, int n)
+{
+	free(picked);
+	picked = n > 0 ? malloc((size_t)n * sizeof(PERSON)) : 0;
+	npicked = picked ? n : 0;
+	if (picked)
+		memcpy(picked, list, (size_t)n * sizeof(PERSON));
+	pick_done = 1;
+}
+
+/* Add..., with the dialog closed (EContact's window can't open while
+   it holds the screen): an address typed is added; a name, or nothing,
+   opens EContact's window to pick from, narrowed by the name, and the
+   editor waits for its answer, reading only messages meanwhile */
 static void invite(void)
 {
 	static char text[60];
-	short before = npeople;
+	short before = npeople, kept[8][8], m[8];
+	int nkept = 0, i;
+	unsigned long seen = pf_ms();
+	AEVENT e;
 	text[0] = 0;
 	if (!dlg_ask("Invite", "Name or address:", text, 40))
 		return;
@@ -676,32 +687,46 @@ static void invite(void)
 	if (strchr(text, '@')) {
 		ics_each_address(text, add_person, 0);
 	} else {
-		PPICK *l;
-		int n = people_pick_list(text, &l), k;
-		if (!n) {
-			if (!people_available())
-				alert(1, "[1][Names come from EContact,|the contacts program: install it|and add your contacts there.|Or type an address here.][ OK ]");
-			else
-				alert(1, "[1][Nobody in Contacts matches|\"%s\".][ OK ]", text);
+		pick_done = 0;
+		if (!people_pick(text)) {
+			alert(1, "[1][Names come from EContact,|the contacts program: load it,|or type an address here.][ OK ]");
 			return;
 		}
-		if (n == 1 && text[0]) {
-			k = 0;
-		} else {
-			const char **items = malloc(n * sizeof(char *));
-			int i;
-			if (!items) {
-				people_pick_free(l, n);
-				return;
+		graf_mouse(ARROW, 0);
+		while (!pick_done && people_picking()) {
+			const char *s;
+			evnt_multi_(MU_MESAG | MU_TIMER, 0, 0, 0, 200, m, &e);
+			if (e.which & MU_MESAG) {
+				switch (av_message(m, &s)) {
+				case AV_PEOPLE:
+					people_message(s, m[1]);
+					break;
+				case AV_DONE:
+					break;
+				default:
+					if (m[0] == WM_REDRAW)
+						win_message(m);
+					else if (nkept < 8)
+						memcpy(kept[nkept++], m, sizeof(kept[0]));
+				}
 			}
-			for (i = 0; i < n; i++)
-				items[i] = l[i].label;
-			k = dlg_pick("Invite from Contacts", items, (short)n, 0);
-			free(items);
+			people_poll();
+			if (pf_ms() - seen >= 2000UL) {
+				/* EContact gone (or never answering): stop waiting */
+				seen = pf_ms();
+				if (appl_find("ECONTACT") < 0 && appl_find("ECONTST ") < 0) {
+					people_forget();
+					break;
+				}
+			}
 		}
-		if (k >= 0)
-			ics_each_address(l[k].value, add_person, 0);
-		people_pick_free(l, n);
+		for (i = 0; i < nkept; i++)
+			appl_write(ap_id, 16, kept[i]);
+		for (i = 0; pick_done && i < npicked; i++)
+			add_person(picked[i].name, picked[i].addr, (void *)1);
+		free(picked);
+		picked = 0;
+		npicked = 0;
 	}
 	if (npeople >= MAXPEOPLE && npeople == before)
 		alert(1, "[1][That's as many people as|one event can have here.][ OK ]");
@@ -725,7 +750,7 @@ static void uninvite(DLG *d, short i)
 	(void)i;
 	if (k < people_org || k >= npeople || x->readonly || x->f[B_UNINV].type != FT_BUTTON)
 		return;
-	memmove(&people[k], &people[k + 1], (npeople - k - 1) * sizeof(PERSON));
+	memmove(&people[k], &people[k + 1], (npeople - k - 1) * sizeof(INVITEE));
 	npeople--;
 	if (k >= npeople)
 		k = (short)(npeople - 1);
@@ -744,17 +769,6 @@ static void changed(DLG *d, short i)
 	if (i == F_INV) {
 		people_buttons(x);
 		dlg_redraw_field(d, B_UNINV);
-	} else if (i == B_INV) {
-		short before = npeople;
-		invite();
-		people_items(&x->f[F_INV]);
-		if (npeople > before) {
-			/* the one added, chosen and in sight */
-			x->f[F_INV].val = (short)(npeople - 1);
-			x->f[F_INV].first = 0;
-		}
-		people_buttons(x);
-		dlg_redraw(d);		/* the questions drew over it */
 	} else if (i == B_UNINV) {
 		uninvite(d, F_INV);
 	} else if (i == F_ALLDAY) {
@@ -900,8 +914,6 @@ static int run_editor(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 	   someone else: who sent it first, and nothing to change */
 	cal_me(e->cal);		/* this user, left out of the people */
 	ev_people(e);
-	people_pick_free(contacts, ncontacts);
-	ncontacts = people_pick_list("", &contacts);
 	npeople = 0;
 	people_org = ev_invited(e);
 	if (people_org) {
@@ -919,7 +931,7 @@ static int run_editor(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 		put(&x.f[B_INV], FT_LABEL, 0, 50, row, 0, "");
 		put(&x.f[B_UNINV], FT_LABEL, 0, 50, row + 1, 0, "");
 	} else {
-		put(&x.f[B_INV], FT_BUTTON, FF_ACTION, 50, row, 8, "Add...");
+		put(&x.f[B_INV], FT_BUTTON, 0, 50, row, 8, "Add...");	/* ends the dialog: invite() */
 		put(&x.f[B_UNINV], FT_BUTTON, FF_ACTION, 50, row + 1, 8, "Remove");
 	}
 	people_buttons(&x);
@@ -1064,6 +1076,7 @@ static int run_editor(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 	d.focus = F_TITLE;
 	d.changed = changed;
 	d.removed = uninvite;
+	d.names = names_shown;
 	d.ud = &x;
 
 	for (;;) {
@@ -1072,6 +1085,20 @@ static int run_editor(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 		EVENT *n;
 		int how, ok, ci;
 		r = dlg_run(&d);
+		if (r == B_INV) {
+			/* Add...: outside the dialog, then the dialog again */
+			short before = npeople;
+			invite();
+			people_items(&x.f[F_INV]);
+			if (npeople > before) {
+				/* the one added, chosen and in sight */
+				x.f[F_INV].val = (short)(npeople - 1);
+				x.f[F_INV].first = 0;
+			}
+			people_buttons(&x);
+			d.focus = B_INV;
+			continue;
+		}
 		if (r == B_DELETE) {
 			int h = SAVE_ALL;
 			if (repeating) {

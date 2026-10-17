@@ -20,7 +20,7 @@
 #include "secret.h"
 #include "busy.h"
 #include "tls.h"
-#include "../src/people.h"
+#include "people_ask.h"
 #include "../src/http.h"
 #include "../src/plat.h"
 #include "util.h"
@@ -956,6 +956,30 @@ static int load_step(void)
 	return 0;
 }
 
+/* messages while ECal waits for the network (busy.c): our window's
+   redraws at once, the rest kept for the main loop's next turn (a
+   background step, a refresh: not the moment to open the window) */
+static short busy_kept[8][8];
+static int nbusy_kept;
+
+static void busy_msg(const short *msg)
+{
+	if (msg[0] == WM_REDRAW && win_h > 0 && msg[3] == win_h) {
+		win_message((short *)msg);
+		return;
+	}
+	if (nbusy_kept < 8)
+		memcpy(busy_kept[nbusy_kept++], msg, sizeof(busy_kept[0]));
+}
+
+static void busy_resend(void)
+{
+	int i;
+	for (i = 0; i < nbusy_kept; i++)
+		appl_write(ap_id, 16, busy_kept[i]);
+	nbusy_kept = 0;
+}
+
 /* events read but not kept for want of memory (a 1 MB ST): said once,
    with the window open */
 static void tell_lost(void)
@@ -1504,7 +1528,10 @@ int main(void)
 	crash_cleanup = crash_quit;
 	alert_hebrew = alert_heb;
 	crash_report = conn_log_append;	/* the report in ECAL.LOG too */
-	people_drive((char)('A' + boot_drive()));	/* EContact's people, for invitations */
+	/* names from EContact for invitations (the guidelines, 4.1): its
+	   memory before the accessory's heap is taken */
+	people_init(64, 0, dlg_names_came, editor_people_picked);
+	busy_message = busy_msg;
 	st_ram_init();
 	win_buffer_init();
 	help_init();
@@ -1560,6 +1587,8 @@ int main(void)
 		   click_count() waits for the second one before anything is done */
 		/* a refresh waiting: shortly, once the redraws are done */
 		conn_stop = 0;		/* a stop is for one operation */
+		busy_resend();		/* messages that came meanwhile */
+		people_poll();		/* questions to EContact */
 		/* a key typed while busy comes first, as if typed now */
 		if (win_h > 0 && busy_key(&ev))
 			which = MU_KEYBD;
@@ -1619,10 +1648,19 @@ int main(void)
 						editor_new_titled(cur_day, d.data);
 					break;
 				case DD_NONE:
-					if (av_message(msg, &va) == AV_START && !(is_acc && twin_pass(va)))
-						av_start(va);
-					else
+					switch (av_message(msg, &va)) {
+					case AV_START:
+						if (!(is_acc && twin_pass(va)))
+							av_start(va);
+						break;
+					case AV_PEOPLE:
+						people_message(va, msg[1]);	/* EContact's answer */
+						break;
+					case AV_DONE:
+						break;
+					default:
 						win_message(msg);
+					}
 				}
 				dd_done(&d);
 			}

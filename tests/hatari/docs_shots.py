@@ -29,12 +29,6 @@ def program(work, tos, machine, shots):
     os.makedirs(hd)
     shutil.copy(os.path.join(BIN, "ECAL.PRG"), os.path.join(hd, "ECAL.PRG"))
     ui_tour.seed(hd, english=True)
-    # EContact's contacts, for the people invited
-    with open(os.path.join(hd, "ECONTACT.INF"), "wb") as f:
-        f.write(b"FOLDER=C:\\\r\n")
-    with open(os.path.join(hd, "CONTACTS.TXT"), "wb") as f:
-        f.write(b"P\tAlex Morgan\talex@example.com\twork\r\n"
-                b"P\tSam Taylor\tsam@example.net\thome\r\n")
     extra = ["--memsize", "14"] if machine == "falcon" else ["--memsize", "4", "--monitor", "mono"]
     # a Mega ST: a plain ST has no clock and would start in 2024
     r = Rig(work, tos, machine="megast" if machine == "st" else machine, extra=extra)

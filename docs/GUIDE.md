@@ -292,9 +292,9 @@ see the address. Two lines hold six or so; "+3 more" shows the rest, and
 
 - **Add...** asks for a name or an address. An address (or several, with
   commas: `Dana Levi <dana@example.org>, sam@example.net`) is added as it
-  is. A name, or part of one, picks from EContact's contacts: one that
-  matches is added at once, more than one are listed to choose from, and
-  nothing typed lists them all. A group adds everyone in it.
+  is. A name, or part of one, or nothing at all, opens EContact's window
+  to pick from, narrowed by what you typed: choose one or more people, or
+  a group for everyone in it, and the event comes back with them added.
 - Click a name to choose it, or Tab to the list and use the arrow keys;
   **Remove** or Delete takes the chosen one away.
 
@@ -308,11 +308,11 @@ An invitation from someone else shows who sent it first, marked
 "(organizer)", then the others invited; only the organiser can change
 who comes. Invitations you declined aren't shown at all.
 
-EContact keeps your contacts; ECal reads them from the file EContact
-writes (`CONTACTS.TXT`, in the folder `ECONTACT.INF` in the root of the
-boot drive names), so EContact needn't be running. **Contacts...** (the
-File menu in `ECAL.PRG`, the ≡ menu in the accessory) opens EContact's
-window when it's loaded.
+EContact keeps your contacts, and ECal asks it for the names behind the
+addresses (the family's PEOPLE messages; EContact 1.41 or later, loaded
+as an accessory or running). Without it, people show by address and are
+added by address. **Contacts...** (the File menu in `ECAL.PRG`, the ≡ menu
+in the accessory) opens EContact's window.
 
 ## From other programs
 
