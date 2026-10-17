@@ -745,17 +745,27 @@ static int fr_line(FR *f, char *out, int size)
 {
 	int o = 0;
 	for (;;) {
-		char c;
+		char *nl;
+		int k, n;
 		if (!fr_fill(f))
 			break;
-		c = f->buf[f->pos++];
-		f->off++;
-		if (c == '\n') {
+		/* up to the newline in what is buffered, copied at once (a
+		   character at a time was most of reading a calendar on an ST) */
+		n = f->len - f->pos;
+		nl = memchr(f->buf + f->pos, '\n', n);
+		k = nl ? (int)(nl - (f->buf + f->pos)) : n;
+		if (k > size - 1 - o)
+			memcpy(out + o, f->buf + f->pos, size - 1 - o), o = size - 1;
+		else
+			memcpy(out + o, f->buf + f->pos, k), o += k;
+		f->pos += k;
+		f->off += k;
+		if (nl) {
+			f->pos++;
+			f->off++;
 			out[o] = 0;
 			return 1;
 		}
-		if (o < size - 1)
-			out[o++] = c;
 	}
 	out[o] = 0;
 	return o > 0;

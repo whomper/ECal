@@ -55,7 +55,9 @@ F:\...\ECAL.APP\          ECal's folder (C:\ECAL\ unless you choose another):
 accessory can't safely take more later): 1.5 MB on a Falcon or TT,
 256 KB on an ST, never more than half of what's free. A 1 MB ST runs it;
 with big calendars, 2 MB or more is better. `HEAPKB=` in ECAL.INF
-sets another amount, in kilobytes.
+sets another amount, in kilobytes. When the memory runs out while the
+calendars are read, ECal says so when you open it, and which calendar is
+missing events: give it more, or keep fewer days (Settings > Refresh).
 
 **TT RAM.** On a TT, or a Falcon with an accelerator's Fast RAM, TOS
 loads ECal into TT RAM, and its memory comes from there too, leaving ST
@@ -89,7 +91,11 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
   whether opening the window does it. **With the window closed** (the
   accessory only, off at first) refreshes them when they're due even
   while you work in another program, quietly and one calendar at a
-  time; problems show in the calendar list the next time you open ECal. **Keep on this Atari**: how many
+  time; problems show in the calendar list the next time you open ECal.
+  **Read calendars** (the accessory only): when it reads the calendars
+  kept on disk: **After a minute** (as at first), at once (**At start**),
+  after five minutes, or only **When opened**; its reminders come from
+  the start either way (see [Reminders](#reminders)). **Keep on this Atari**: how many
   days back and ahead ECal keeps. It starts with 0 and 400: nothing from
   before today is copied, and repeating events show from today on. Fewer use
   less memory and sync faster.
@@ -336,9 +342,16 @@ whatever program is running, even with its window closed. **Show** opens
 the day. Settings > Events > **Show alerts** turns them all off; each calendar has
 its own switch too (subscriptions start with theirs off).
 
-The accessory doesn't have to be opened for its reminders: a few seconds
-after boot it reads the calendars kept on disk, one at a time so the
-desktop stays responsive, and from then on it checks every half minute.
+The accessory doesn't have to be opened for its reminders, and it
+reminds from the moment the desktop is up: it keeps the next eight days'
+reminders in `ALARMS.IDX` next to its calendars, and at boot reads only
+that. The calendars themselves it reads later, a minute after boot (or
+as **Read calendars** in Settings > Refresh says), or when you open it.
+It reads them a little at a time, between the moments the program in
+front needs the machine, and stops whenever you move the mouse or type,
+so the machine never feels slow because of it; then it builds the
+reminders again and writes `ALARMS.IDX`. From then on it compares the
+clock with them every half minute, which takes no time at all.
 An accessory only runs while the program in front waits for GEM (the
 desktop and most GEM programs do): during a TOS program or a game the
 reminders wait, and come when you're back, if that's within two days.
@@ -413,6 +426,12 @@ When ECAL.KEY can't be written (a locked disk, a full one, a folder in its
 place), the passwords go into ECAL.INF as they are, and ECal says so once
 each time it starts; once ECAL.KEY can be written, they are encrypted the
 next time ECal saves its settings.
+
+`START=` near the top says when the accessory reads its calendars:
+`now`, `opened`, or a number of seconds after boot (60 at first).
+`ALARMS.IDX`, next to the calendars, is ECal's own copy of the coming
+reminders and of what they were made from; it can be deleted at any
+time, and is made again once the calendars are read.
 
 ## The desktop icon
 
