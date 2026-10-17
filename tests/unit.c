@@ -627,8 +627,9 @@ static void unfold(char *t)
 
 /* invitations (EContact): the invitees written as ATTENDEEs with this
    user as ORGANIZER, read back, and kept or replaced on a change */
-/* rrule.c's quick time zones give tz.c's answers: every hour of three
-   years in zones north and south, and each minute around the changes */
+/* common's quick tz_offset (each zone-year's changes kept) gives the
+   rules' own answers: every hour of three years in zones north and
+   south, and each minute around the changes */
 static void test_tzm(void)
 {
 	static const char *const zones[] = { "Asia/Jerusalem", "America/New_York", "Australia/Sydney",
@@ -641,14 +642,12 @@ static void test_tzm(void)
 		if (!z)
 			continue;
 		for (t = t0; t < t1; t += 60) {
-			if (tzm_offset(z, t) != tz_offset(z, t) || tzm_to_utc(z, t) != tz_to_utc(z, t))
+			if (tz_offset(z, t) != tz_offset_rules(z, t))
 				bad++;
-			if (tz_offset(z, t) != tz_offset(z, t + 60)) {
-				/* a change within the hour: each minute around it */
+			if (tz_offset_rules(z, t) != tz_offset_rules(z, t + 60)) {
 				CTIME m;
 				for (m = t - 120; m < t + 180; m++)
-					if (tzm_offset(z, m) != tz_offset(z, m) || tzm_to_local(z, m) != tz_to_local(z, m) ||
-					    tzm_to_utc(z, m) != tz_to_utc(z, m))
+					if (tz_offset(z, m) != tz_offset_rules(z, m) || tz_to_local(z, m) != m + tz_offset_rules(z, m))
 						bad++;
 			}
 		}

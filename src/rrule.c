@@ -1026,111 +1026,18 @@ next:
 
 /* ---------------- occurrences of an event ---------------- */
 
-/* ---- time zones, quickly ----
- * tz_offset works out both of a zone's yearly changes (summer time on,
- * off) from their rules every time it is asked, and a walk through a
- * series asks for every occurrence, several times over: 59% of the
- * reminders' work on a 68000. So the two moments of a zone's year are
- * kept once worked out (as tz.c does it: the n-th weekday of the
- * month), and an offset is then a comparison or two. Kept by the zone's
- * rules as well as its address: a zone learned from a file may be freed
- * and its memory used again. */
-typedef struct {
-	const TZONE *z;
-	short std, dst;
-	TZCHANGE on, off;
-	CTIME y0, y1;		/* the year, in UTC from the new year of its standard time */
-	CTIME ton, toff;	/* summer time begins, ends */
-} TZM;
-static TZM tzm[4];
-static int tzm_next;
-
-/* tz.c's change_utc: the moment (UTC) of a change in year y; before:
-   the offset in force until then */
-static CTIME change_at(const TZCHANGE *c, int y, int before)
-{
-	int from = c->day ? c->day : days_in_month(y, c->mon) - 6;
-	long d;
-	CTIME t;
-	if (from > days_in_month(y, c->mon))
-		from = days_in_month(y, c->mon);
-	d = days_from_civil(y, c->mon, from);
-	d += (c->wday - wday_of(d) + 7) % 7;
-	t = d * MIN_PER_DAY + c->min;
-	if (!c->utc)
-		t -= before;
-	return t;
-}
-
-static int same_rules(const TZM *m, const TZONE *z)
-{
-	return m->z == z && m->std == z->std && m->dst == z->dst && !memcmp(&m->on, &z->on, sizeof(TZCHANGE)) &&
-	       !memcmp(&m->off, &z->off, sizeof(TZCHANGE));
-}
-
-int tzm_offset(const TZONE *z, CTIME utc)
-{
-	TZM *m;
-	int i, in;
-	if (!z || !z->dst || !z->on.mon || !z->off.mon)
-		return tz_offset(z, utc);
-	for (i = 0; i < 4; i++) {
-		m = &tzm[i];
-		if (utc >= m->y0 && utc < m->y1 && same_rules(m, z))
-			goto have;
-	}
-	{
-		DT d;
-		m = &tzm[tzm_next++ & 3];
-		ct_split(utc + z->std, &d);	/* the year as tz_offset takes it */
-		m->z = z;
-		m->std = z->std;
-		m->dst = z->dst;
-		m->on = z->on;
-		m->off = z->off;
-		m->y0 = ct_make(d.year, 1, 1, 0, 0) - z->std;
-		m->y1 = ct_make(d.year + 1, 1, 1, 0, 0) - z->std;
-		m->ton = change_at(&z->on, d.year, z->std);
-		m->toff = change_at(&z->off, d.year, z->std + z->dst);
-	}
-have:
-	if (m->ton < m->toff)
-		in = utc >= m->ton && utc < m->toff;
-	else			/* southern hemisphere: summer spans the new year */
-		in = utc >= m->ton || utc < m->toff;
-	return in ? z->std + z->dst : z->std;
-}
-
-CTIME tzm_to_local(const TZONE *z, CTIME utc)
-{
-	return utc + tzm_offset(z, utc);
-}
-
-CTIME tzm_to_utc(const TZONE *z, CTIME local)
-{
-	CTIME t;
-	if (!z)
-		return local;
-	if (z->dst) {
-		t = local - (z->std + z->dst);
-		if (tzm_offset(z, t) == z->std + z->dst)
-			return t;
-	}
-	return local - z->std;
-}
-
 CTIME ev_wall(const EVENT *e, CTIME t, const TZONE *view)
 {
 	if (e->allday || e->floating || !e->tz)
 		return t;
-	return tzm_to_local(view, t);
+	return tz_to_local(view, t);
 }
 
 CTIME ev_from_wall(const EVENT *e, CTIME wall, const TZONE *view)
 {
 	if (e->allday || e->floating || !e->tz)
 		return wall;
-	return tzm_to_utc(view, wall);
+	return tz_to_utc(view, wall);
 }
 
 typedef struct {
@@ -1176,10 +1083,10 @@ static int emit(XP *x, CTIME c, CTIME dur)
 	   (a birthday from 1960 is walked year by year, every minute) */
 	if (c + (dur > 0 ? dur : 0) + 27 * 60L < x->from)
 		return 0;
-	rep = x->ez ? tzm_to_utc(x->ez, c) : c;
+	rep = x->ez ? tz_to_utc(x->ez, c) : c;
 	if (x->ez) {
-		vs = tzm_to_local(x->view, rep);
-		ve = tzm_to_local(x->view, rep + dur);
+		vs = tz_to_local(x->view, rep);
+		ve = tz_to_local(x->view, rep + dur);
 	} else {
 		vs = rep;
 		ve = rep + dur;
@@ -1250,7 +1157,7 @@ void ics_expand(EVENT *e, CTIME from, CTIME to, const TZONE *view,
 	x.ud = ud;
 	if (e->status == ST_CANCELLED && !e->rr)
 		return;
-	w0 = x.ez ? tzm_to_local(x.ez, e->start) : e->start;
+	w0 = x.ez ? tz_to_local(x.ez, e->start) : e->start;
 	if (!e->rr && !e->nrdate) {
 		emit(&x, w0, x.dur);
 		return;
@@ -1271,7 +1178,7 @@ void ics_expand(EVENT *e, CTIME from, CTIME to, const TZONE *view,
 		emit(&x, w0, x.dur);	/* RDATEs only: DTSTART is one too */
 	/* RDATE: more starts, each maybe with its own end */
 	for (i = 0; i < e->nrdate; i++) {
-		CTIME r = e->rdate[i], c = x.ez ? tzm_to_local(x.ez, r) : r;
+		CTIME r = e->rdate[i], c = x.ez ? tz_to_local(x.ez, r) : r;
 		CTIME dur = e->rdate_end && e->rdate_end[i] != CT_NONE ? e->rdate_end[i] - r : x.dur;
 		if (c != w0)
 			emit(&x, c, dur);

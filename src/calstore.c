@@ -101,7 +101,7 @@ CTIME now_utc(void)
 
 CTIME now_view(void)
 {
-	return tzm_to_local(view_zone(), now_utc());
+	return tz_to_local(view_zone(), now_utc());
 }
 
 /* the Atari's clock as it is (the home zone's wall time) */
@@ -118,7 +118,7 @@ CTIME view_to_clock(CTIME t)
 	const TZONE *v = view_zone(), *h = home_zone();
 	if (v == h)
 		return t;		/* the usual: the clock shows the view's time */
-	return tzm_to_local(h, tzm_to_utc(v, t));
+	return tz_to_local(h, tz_to_utc(v, t));
 }
 
 /* the stretch of time kept from the servers, UTC */
