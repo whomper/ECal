@@ -36,6 +36,17 @@ def check(ok, what):
         failed += 1
 
 
+def icon(folder, name):
+    """where the desktop's window on folder shows name: folders first,
+    then files, each by name, three to a row (what the folder holds
+    depends on what ECal has written there: CACHE, ALARMS.IDX...)"""
+    names = os.listdir(folder)
+    order = sorted(n.upper() for n in names if os.path.isdir(os.path.join(folder, n))) + \
+        sorted(n.upper() for n in names if not os.path.isdir(os.path.join(folder, n)))
+    i = order.index(name)
+    return 60 + 80 * (i % 3), 158 + 42 * (i // 3)
+
+
 def same(a, b):
     """the share of pixels two screenshots have alike"""
     from PIL import Image
@@ -80,7 +91,7 @@ def main():
         time.sleep(3)
         r.click(60, 158, double=True)
         time.sleep(3)
-        r.click(60, 200, double=True)   # (CACHE, ECAL.KEY, ECAL.LOG, then ECAL.PRG)
+        r.click(*icon(folder, "ECAL.PRG"), double=True)
         time.sleep(15)
         r.shot("2-program")
         r.click(184, 8)                 # View

@@ -10,7 +10,7 @@ connections over the emulated serial port to serial_bridge.py
 (common/tools/fakesting, make -C common/tools/fakesting). The accessory syncs, shows the server's Hebrew event, and an
 event added on the Atari must arrive on the server.
 
-    TZ=Asia/Jerusalem tests/hatari/net_test.py WORKDIR etos512us.img [--acc ECAL.ACC --machine falcon]
+    tests/hatari/net_test.py WORKDIR etos512us.img [--acc ECAL.ACC --machine falcon]
 
 With --prg it is ECAL.PRG instead, started from C:\\ECAL: the program is
 where the crash catcher is, so this is the run that shows STinG's way
@@ -60,6 +60,11 @@ def main():
     ap.add_argument("--falcon-mode", action="store_true",
                     help="TLS on the Falcon itself (RSA on the DSP), no gateway")
     a = ap.parse_args()
+    # the emulated clock is the host's local time; ECal reads it in its
+    # home zone (Asia/Jerusalem, below), so the host's must be the same, or
+    # the clock is hours out and a certificate made now not yet valid
+    os.environ["TZ"] = "Asia/Jerusalem"
+    time.tzset()
     if a.falcon_mode:
         a.machine, a.acc = "falcon", "ECAL.ACC"
     work = os.path.abspath(a.work)
