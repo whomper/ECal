@@ -89,7 +89,8 @@ class Trace:
 
     def ours(self, name):
         n = name.upper().replace("/", "\\")
-        return n.endswith("ECAL.INF") or "\\ECAL\\" in n or n.startswith("C:\\ECAL\\")
+        # ECAL.INF and its safe save's ECAL.IN$ in the root; ECal's folder
+        return re.search(r"(^|\\)ECAL\.IN[F$]$", n) is not None or "\\ECAL\\" in n
 
     def add(self, call, name, nbytes=0):
         j = self.jobs.setdefault(self.job, {"calls": {}, "bytes": {}, "files": {}, "first": None, "last": None})
