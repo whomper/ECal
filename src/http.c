@@ -340,8 +340,9 @@ static int body_add(BODY *b, const char *d, long n)
 
 /* where the answer is read into, up to 16 KB at a time: a quarter of the
    STinG calls, clock reads and progress checks per byte of the 1 KB it
-   was; from the heap for a request (one at a time), less if a 1 MB ST
-   has no 16 KB to spare */
+   was; from the heap at the first request, less if a 1 MB ST has no
+   16 KB to spare, and kept (taken and freed for each request, the hole
+   it left made an ST's background refresh steps slower) */
 static char *rbuf;
 static long rcap;
 
@@ -553,17 +554,14 @@ static int request(const HTTPREQ *rq0, HTTPRESP *rs, SBUF *body, char *err, int 
 
 int http_request(const HTTPREQ *rq0, HTTPRESP *rs, SBUF *body, char *err, int errlen)
 {
-	int r;
-	for (rcap = 16384; rcap >= 1024 && !(rbuf = malloc(rcap)); rcap /= 4)
-		;
+	if (!rbuf)
+		for (rcap = 16384; rcap >= 1024 && !(rbuf = malloc(rcap)); rcap /= 4)
+			;
 	if (!rbuf) {
 		str_copy(err, "no memory left", errlen);
 		return 0;
 	}
-	r = request(rq0, rs, body, err, errlen);
-	free(rbuf);
-	rbuf = 0;
-	return r;
+	return request(rq0, rs, body, err, errlen);
 }
 
 static int request(const HTTPREQ *rq0, HTTPRESP *rs, SBUF *body, char *err, int errlen)
