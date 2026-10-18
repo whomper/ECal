@@ -231,42 +231,46 @@ FALCON=1 make itest          # rest, changes from elsewhere, subscriptions, impo
 ```
 
 `tests/hatari/` runs the real accessory in the [Hatari](https://hatari.tuxfamily.org/) emulator with
-[EmuTOS](https://emutos.sourceforge.io/), driven by Xvfb and xdotool. The machine is an emulated
-Falcon unless the line says otherwise:
+[EmuTOS](https://emutos.sourceforge.io/) 1.4, driven by Xvfb and xdotool. The machine is one of the
+family's test machines from `common/tools/machines.py`, named with `--machine`: `ST` (Erez's 1040 ST,
+4 MB) and `ST-1` (1 MB), each with `:mono` or `:med`, for ECALST.ACC; `TT` and `Falcon` (`:16` or
+`:256` colours) for ECAL.ACC and ECAL.PRG. Each rig has a default, and prints the machine and TOS it
+ran on. An ST has no clock, so the rigs set its date and time at boot (`C:\AUTO\CLOCK.PRG`), as you
+would from the Control Panel:
 
 ```
-tests/hatari/acc_test.py WORK etos512us.img                # as a desk accessory
-tests/hatari/edit_test.py WORK etos512us.img               # add, Hebrew title, find, delete,
-                                                           # one occurrence, custom repeats
-tests/hatari/edit_test.py WORK etos512us.img --machine st --acc ECALST.ACC
-                                                           # the same on an ST, up to delete
-tests/hatari/net_test.py WORK etos512us.img                # an ST syncing through ecalgate
-tests/hatari/net_test.py WORK etos512us.img --falcon-mode  # TLS on the Falcon, RSA on the DSP
-tests/hatari/quiet_test.py WORK etos512us.img [--machine st]
-                                                           # make profile first: the accessory's
-                                                           # quiet start, timed between event calls
-tests/hatari/esc_test.py WORK etos512us.img                # Esc and Undo cancel dialogs and
-                                                           # alerts, and nothing is written
-tests/hatari/people_test.py WORK etos512us.img [--acc]   # inviting from EContact (PEOPLE),
-                                                           # its latest release
-tests/hatari/bgsync_test.py WORK etos512us.img [--machine st] [--falcon-mode]
-                                                           # make profile first: a background
-                                                           # refresh with the window closed, timed
-tests/hatari/stop_test.py WORK etos512us.img               # on an ST: Esc stops a server that
-                                                           # says nothing
-tests/hatari/twin_test.py WORK etos512us.img               # ECAL.PRG and ECAL.ACC on one machine
-tests/hatari/help_test.py WORK etos512us.img               # the Help key (make fakeguide first)
-tests/hatari/hypview_test.py WORK etos512us.img            # the guide in EHypView's latest
-                                                           # release (make help first), VGA and mono
-tests/hatari/ui_tour.py WORK etos512us.img                 # screenshots of every view
-TZ=America/New_York tests/hatari/docs_shots.py WORK etos512us.img --update
-                                                           # the screenshots in docs/ (Falcon,
-                                                           # and a Mega ST in mono)
+tests/hatari/acc_test.py WORK [--machine M]       # as a desk accessory (Falcon)
+tests/hatari/edit_test.py WORK [--machine M]      # add, Hebrew title, find, delete, one occurrence,
+                                                  # custom repeats (Falcon; on an ST up to delete)
+tests/hatari/alarm_test.py WORK [--machine M]     # reminders from ALARMS.IDX at boot (Falcon)
+tests/hatari/net_test.py WORK [--machine M]       # syncing through ecalgate (ST)
+tests/hatari/net_test.py WORK --falcon-mode       # TLS on the Falcon, RSA on the DSP
+tests/hatari/stop_test.py WORK [--machine M]      # Esc stops a server that says nothing (ST)
+tests/hatari/quiet_test.py WORK [--machine M]     # make profile first: the accessory's quiet
+                                                  # start, timed between event calls (Falcon)
+tests/hatari/bgsync_test.py WORK [--machine M] [--falcon-mode]
+                                                  # make profile first: a background refresh
+                                                  # with the window closed, timed (Falcon)
+tests/hatari/esc_test.py WORK [--machine M]       # Esc and Undo cancel dialogs and alerts, and
+                                                  # nothing is written (Falcon)
+tests/hatari/people_test.py WORK [--machine M] [--acc]
+                                                  # inviting from EContact (PEOPLE), its latest
+                                                  # release (Falcon)
+tests/hatari/twin_test.py WORK [--machine M]      # ECAL.PRG and ECAL.ACC on one machine (Falcon)
+tests/hatari/help_test.py WORK [--machine M]      # the Help key (make fakeguide first; Falcon)
+tests/hatari/hypview_test.py WORK                 # the guide in EHypView's latest release (make
+                                                  # help first): Falcon:16, Falcon:256, TT:mono
+tests/hatari/ui_tour.py WORK [--machine M]        # screenshots of every view (Falcon)
+TZ=America/New_York tests/hatari/docs_shots.py WORK --update
+                                                  # the screenshots in docs/ (Falcon:16, ST:mono)
 ```
 
-The network tests use the family's `FAKESTNG.PRG` (`make -C common/tools/fakesting`), which carries
-the emulated Atari's TCP over its serial port to `common/tools/fakesting/serial_bridge.py`; it's for
-the emulator only, never for a real Atari.
+Which machines a change passes (the family's guidelines): the ECALST.ACC rigs on `ST` and `ST-1`, in
+mono and medium resolution; the others on `TT` and `Falcon`; what draws also on `Falcon:256`.
+
+The network tests use the family's `FAKESTNG.PRG`, which carries the emulated Atari's TCP over its
+serial port to `serial_bridge.py` (both in `common/tools/fakesting`, started by `machines.py`); it's
+for the emulator only, never for a real Atari.
 
 A test that needs another AERA program (EContact, EHypView) uses that program's latest release, what
 you run, fetched with `common/tools/getrelease.py`; the test prints which release it used.

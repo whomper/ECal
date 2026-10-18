@@ -12,7 +12,7 @@ the AERA guidelines, 2.3 and 3.1):
     program changed it), and shows no Hebrew dates either.
 Screenshots in WORK/shots; the checks read C:\\ECAL\\ECAL.LOG.
 
-    tests/hatari/twin_test.py WORK etos512us.img
+    tests/hatari/twin_test.py WORK [--machine Falcon|TT]
 """
 import argparse
 import os
@@ -22,7 +22,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(__file__))
-from rig import Rig, SCAN  # noqa: E402
+from rig import Rig, SCAN, add_machine  # noqa: E402
 import ui_tour  # noqa: E402
 
 ROOT = ui_tour.ROOT
@@ -60,7 +60,7 @@ def same(a, b):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("work")
-    ap.add_argument("tos")
+    add_machine(ap, "Falcon")
     a = ap.parse_args()
     hd = os.path.join(a.work, "hd")
     shutil.rmtree(a.work, ignore_errors=True)
@@ -77,7 +77,7 @@ def main():
         inf = re.sub(r"(?im)^HEBDATES=0", "HEBDATES=1", inf)
         f.write("FOLDER=C:\\ECAL\r\n" + re.sub(r"(?im)^LOG=0", "LOG=1", inf))
     shots = os.path.join(a.work, "shots")
-    r = Rig(a.work, a.tos, extra=["--memsize", "14"], auto=None)
+    r = Rig(a.work, a.machine, auto=None)
     try:
         time.sleep(16)
         r.click(18, 8)                  # the desktop's Desk menu: ECal

@@ -5,7 +5,7 @@
 in Hatari on a Falcon: ECAL.PRG, and EContact's accessory with the
 contacts of its tests/hatari/sample.vcf.
 
-    tests/hatari/people_test.py WORK etos512us.img [--acc] [--econtact v1.43]
+    tests/hatari/people_test.py WORK [--machine Falcon|TT] [--acc] [--econtact v1.43]
 
 EContact is its latest release (the guidelines, 1.2), or the one given:
 ECONTACT.ACC from common/tools/getrelease.py, and card-cli and
@@ -17,6 +17,7 @@ Saved, the event invites her with her name and address; opened again,
 she shows by the name ECal asks EContact for. With --acc ECal is the
 accessory (ECAL.ACC), opened from the Desk menu, as both usually are.
 """
+import argparse
 import os
 import re
 import shutil
@@ -26,7 +27,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(__file__))
 import ui_tour  # noqa: E402
-from rig import Rig, K, SCAN  # noqa: E402
+from rig import Rig, K, SCAN, add_machine  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 fails = []
@@ -91,9 +92,13 @@ def menu_entry_width(shot, y):
 
 
 def main():
-    work, tos = os.path.abspath(sys.argv[1]), sys.argv[2]
-    acc = "--acc" in sys.argv[3:]
-    want = sys.argv[sys.argv.index("--econtact") + 1] if "--econtact" in sys.argv else None
+    ap = argparse.ArgumentParser()
+    ap.add_argument("work")
+    add_machine(ap, "Falcon")
+    ap.add_argument("--acc", action="store_true", help="ECal as the accessory, opened from the Desk menu")
+    ap.add_argument("--econtact", help="EContact's release, vX.Y (default: the latest)")
+    a = ap.parse_args()
+    work, acc, want = os.path.abspath(a.work), a.acc, a.econtact
     shutil.rmtree(work, ignore_errors=True)
     hd = os.path.join(work, "hd")
     os.makedirs(hd)
@@ -107,7 +112,7 @@ def main():
         shutil.copy(os.path.join(ROOT, "binary", "ECAL.PRG"), os.path.join(hd, "ECAL.PRG"))
         ui_tour.seed(hd, english=True)
     econtact(hd, ec)
-    r = Rig(work, tos, machine="falcon", extra=["--memsize", "14"], auto=None if acc else "C:\\ECAL.PRG")
+    r = Rig(work, a.machine, auto=None if acc else "C:\\ECAL.PRG")
     try:
         r.wait(20)
         if acc:

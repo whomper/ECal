@@ -3,7 +3,7 @@
 # Copyright (C) 2026 AERA | Erez Yaary
 """Esc cancels (the guidelines, 3.5), in Hatari on a Falcon with ECAL.PRG:
 
-    tests/hatari/esc_test.py WORK etos512us.img
+    tests/hatari/esc_test.py WORK [--machine Falcon|Falcon:256|TT]
 
 - a new event (^N), a title typed, then Esc: no event added; the same
   with Undo;
@@ -15,6 +15,7 @@
 Nothing ECal keeps on disk (ECAL.INF, the calendars) may change.
 Screenshots in WORK/shots.
 """
+import argparse
 import hashlib
 import os
 import shutil
@@ -22,7 +23,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 import ui_tour  # noqa: E402
-from rig import Rig, K, SCAN  # noqa: E402
+from rig import Rig, K, SCAN, add_machine  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 UNDO = 0x61
@@ -47,13 +48,17 @@ def files(hd):
 
 
 def main():
-    work, tos = os.path.abspath(sys.argv[1]), sys.argv[2]
+    ap = argparse.ArgumentParser()
+    ap.add_argument("work")
+    add_machine(ap, "Falcon")
+    a = ap.parse_args()
+    work = os.path.abspath(a.work)
     shutil.rmtree(work, ignore_errors=True)
     hd = os.path.join(work, "hd")
     os.makedirs(hd)
     shutil.copy(os.path.join(ROOT, "binary", "ECAL.PRG"), os.path.join(hd, "ECAL.PRG"))
     ui_tour.seed(hd, english=True)
-    r = Rig(work, tos, machine="falcon", extra=["--memsize", "14"])
+    r = Rig(work, a.machine)
     try:
         r.wait(20)
         r.shot("1-month")

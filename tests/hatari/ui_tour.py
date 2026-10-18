@@ -6,7 +6,7 @@ Atari program), boot an emulated Atari with ECAL.PRG and take
 screenshots of the month, week, day and year views, the event dialog
 with Hebrew typed on the Israeli keyboard, and the menu.
 
-    tests/hatari/ui_tour.py WORKDIR etos512us.img [--machine falcon|st]
+    tests/hatari/ui_tour.py WORKDIR [--machine Falcon|Falcon:256|TT]
 
 Screenshots land in WORKDIR/shots. The emulated clock follows TZ, so run
 it with TZ=Asia/Jerusalem for times as in Israel.
@@ -19,7 +19,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(__file__))
-from rig import Rig, K, SCAN  # noqa: E402
+from rig import Rig, K, SCAN, add_machine  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 CLI = os.path.join(ROOT, "build", "cal-cli")
@@ -71,8 +71,7 @@ def seed(hd, english=False, more=None):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("work")
-    ap.add_argument("tos")
-    ap.add_argument("--machine", default="falcon")
+    add_machine(ap, "Falcon")
     ap.add_argument("--prg", default="ECAL.PRG")
     a = ap.parse_args()
     hd = os.path.join(a.work, "hd")
@@ -80,10 +79,7 @@ def main():
     os.makedirs(hd)
     shutil.copy(os.path.join(ROOT, "binary", a.prg), os.path.join(hd, "ECAL.PRG"))
     seed(hd)
-    extra = ["--memsize", "4"] if a.machine != "falcon" else ["--memsize", "14"]
-    if a.machine == "st":
-        extra += ["--monitor", "mono"]
-    r = Rig(a.work, a.tos, machine=a.machine, extra=extra)
+    r = Rig(a.work, a.machine)
     try:
         time.sleep(14)
         r.shot("1-month")

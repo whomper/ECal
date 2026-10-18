@@ -1,14 +1,22 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright (C) 2026 AERA | Erez Yaary
 """Drive ECal in the Hatari emulator: an X display (Xvfb), Hatari's
-command FIFO for keys and screenshots, xdotool for the mouse.
+command FIFO for keys and screenshots, xdotool for the mouse. The
+machine is one of the family's (common/tools/machines.py: ST, ST-1, TT,
+Falcon, each with its screens; the guidelines, The machines), never
+Hatari options of a rig's own.
 Adapted from Claude ST's recording rig (whomper/atari_claude).
 """
 import os
 import shutil
 import stat
+import struct
 import subprocess
+import sys
 import time
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "common", "tools"))
+import machines  # noqa: E402
 
 # ST scancodes (US layout)
 SCAN = {c: i for i, c in enumerate("1234567890-=", 2)}
@@ -25,34 +33,82 @@ K = dict(RETURN=0x1c, ESC=0x01, TAB=0x0f, BACKSPACE=0x0e, DELETE=0x53, UP=0x48, 
          LEFT=0x4b, RIGHT=0x4d, HOME=0x47, HELP=0x62, F10=0x44, CTRL=0x1d, SHIFT=0x2a, ALT=0x38)
 
 
+def clock_prg():
+    """C:\\AUTO\\CLOCK.PRG for an ST, which has no clock (a Mega ST's isn't
+    one of the machines): it sets the date and time to this computer's
+    local time, as one does on a real ST from the Control Panel.
+      move.w #date,-(sp); move.w #$2B,-(sp); trap #1; addq.l #4,sp   Tsetdate
+      move.w #time,-(sp); move.w #$2D,-(sp); trap #1; addq.l #4,sp   Tsettime
+      move.l #both,-(sp); move.w #22,-(sp); trap #14; addq.l #6,sp   Settime
+      clr.w -(sp); trap #1                                            Pterm0
+    (a few seconds behind by the time it runs: the boot)"""
+    t = time.localtime(time.time() + 5)
+    date = (t.tm_year - 1980) << 9 | t.tm_mon << 5 | t.tm_mday
+    tod = t.tm_hour << 11 | t.tm_min << 5 | t.tm_sec // 2
+    code = struct.pack(">HHHHHH", 0x3F3C, date, 0x3F3C, 0x2B, 0x4E41, 0x588F) + \
+        struct.pack(">HHHHHH", 0x3F3C, tod, 0x3F3C, 0x2D, 0x4E41, 0x588F) + \
+        struct.pack(">HIHHHH", 0x2F3C, date << 16 | tod, 0x3F3C, 22, 0x4E4E, 0x5C8F) + \
+        struct.pack(">HH", 0x4267, 0x4E41)
+    return struct.pack(">HIIIIIIH", 0x601A, len(code), 0, 0, 0, 0, 0, 0) + code + bytes(4)
+
+
+def add_machine(ap, default):
+    """--machine NAME[:SCREEN] for a rig's argparse, default if left out"""
+    ap.add_argument("--machine", default=default,
+                    help="one of common/tools/machines.py's: %s, with :SCREEN (default %s)"
+                    % (", ".join(machines.MACHINES), default))
+
+
+def is_st(spec):
+    """an ST (68000) machine: ECALST.ACC's"""
+    return spec.partition(":")[0] in ("ST", "ST-1")
+
+
 class Rig:
-    def __init__(self, work, tos, machine="falcon", display=":99", serial=None, extra=(),
+    def __init__(self, work, machine="Falcon", display=":99", network=False, extra=(),
                  auto="C:\\ECAL.PRG"):
-        self.work, self.tos, self.display = work, tos, display
-        self.env = dict(os.environ, DISPLAY=display, SDL_AUDIODRIVER="dummy")
+        """machine: NAME[:SCREEN] from machines.py, drive C: is work/hd;
+        network: FAKESTNG in C:\\AUTO and its bridge (machines.py's
+        network()), the Atari's TCP connections becoming this computer's"""
+        self.work, self.display = work, display
+        self.machine = machines.Machine(machine, os.path.join(work, "hd"))
+        if is_st(machine):
+            os.makedirs(os.path.join(work, "hd", "AUTO"), exist_ok=True)
+            with open(os.path.join(work, "hd", "AUTO", "CLOCK.PRG"), "wb") as f:
+                f.write(clock_prg())
+        print("machine:", self.machine.describe(), flush=True)
+        self.env = self.machine.env(dict(os.environ, DISPLAY=display, SDL_VIDEODRIVER="x11",
+                                         SDL_AUDIODRIVER="dummy"))
         self.fifo = os.path.join(work, "cmd.fifo")
         self.shots = os.path.join(work, "shots")
         os.makedirs(self.shots, exist_ok=True)
         self.win = None
         self.xvfb = None
         if subprocess.run(["xdpyinfo"], env=self.env, capture_output=True).returncode:
-            self.xvfb = subprocess.Popen(["Xvfb", display, "-screen", "0", "1024x768x24"],
+            self.xvfb = subprocess.Popen(["Xvfb", display, "-screen", "0", "1280x1024x24"],
                                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             time.sleep(1)
-        args = ["hatari", "-w", "--statusbar", "no", "--borders", "no", "--zoom", "1",
-                "--confirm-quit", "no", "--tos", tos, "--machine", machine,
-                "--harddrive", os.path.join(work, "hd"), "--fast-boot", "yes", "--sound", "off",
-                "--natfeats", "yes", "--cmd-fifo", self.fifo, "--screenshot-dir", self.shots,
-                "--log-level", "warn"]
+        args = (["hatari", "-w", "--statusbar", "no", "--borders", "no", "--zoom", "1"] + self.machine.args() +
+                ["--fast-boot", "yes", "--natfeats", "yes", "--cmd-fifo", self.fifo,
+                 "--screenshot-dir", self.shots, "--log-level", "warn"])
         if auto:
             args += ["--auto", auto]
-        if machine == "falcon":
-            args += ["--monitor", "vga", "--dsp", "none"]
-        if serial:
-            args += ["--rs232-out", serial[0], "--rs232-in", serial[1]]
+        if network:
+            args += self.machine.network()
         args += list(extra)
         self.log = open(os.path.join(work, "hatari.log"), "w")
         self.proc = subprocess.Popen(args, env=self.env, stdout=self.log, stderr=subprocess.STDOUT)
+        self._size = None
+
+    def size(self):
+        """the screen's width and height in pixels (640x480 on the Falcon,
+        640x400 mono, 640x200 med...), from a screenshot"""
+        if not self._size:
+            path = self.shot("_size", wait=0.1)
+            with open(path, "rb") as f:
+                self._size = struct.unpack(">II", f.read(24)[16:24])
+            os.remove(path)
+        return self._size
 
     def cmd(self, *args):
         for _ in range(200):
@@ -176,5 +232,6 @@ class Rig:
             self.proc.wait(5)
         except Exception:
             self.proc.kill()
+        self.machine.stop()
         if self.xvfb:
             self.xvfb.terminate()

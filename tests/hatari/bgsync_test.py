@@ -14,11 +14,11 @@ three events new (one with a reminder the day after tomorrow), two
 changed, one deleted. ECAL.ACC from make profile boots with START=20
 and its window never opens; the rig checks the changes reached the
 cache and the reminder ALARMS.IDX, and fails on any stretch between
-event calls over 50 ms on a Falcon (100 ms on a Mega ST), except a new
+event calls over 50 ms on a Falcon or TT (100 ms on an ST), except a new
 connection's (with --falcon-mode, the TLS handshake on the Atari),
 which is reported apart.
 
-    make profile && tests/hatari/bgsync_test.py WORKDIR etos512us.img [--machine falcon|st] [--falcon-mode]
+    make profile && tests/hatari/bgsync_test.py WORKDIR [--machine Falcon|TT|ST:mono|...] [--falcon-mode]
 """
 import argparse
 import base64
@@ -81,8 +81,7 @@ def event(uid, start, summary, alarm=False):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("work")
-    ap.add_argument("tos")
-    ap.add_argument("--machine", default="falcon")
+    rig.add_machine(ap, "Falcon")
     ap.add_argument("--falcon-mode", action="store_true",
                     help="TLS on the Falcon itself (RSA on the DSP), no gateway")
     ap.add_argument("--secs", type=int, default=0, help="how long to watch after boot")
@@ -94,9 +93,9 @@ def main():
     # read as Israel time is three hours behind: certificates not yet valid)
     os.environ["TZ"] = "Asia/Jerusalem"
     time.tzset()
-    if a.falcon_mode:
-        a.machine = "falcon"
-    limit = 50 if a.machine == "falcon" else 100
+    if a.falcon_mode and rig.is_st(a.machine):
+        a.machine = "Falcon"
+    limit = 100 if rig.is_st(a.machine) else 50
     secs = a.secs or (600 if a.falcon_mode else 420)
     work = os.path.abspath(a.work)
     shutil.rmtree(work, ignore_errors=True)
@@ -201,21 +200,9 @@ def main():
         gone = "/alice/work/w%03d.ics" % kept[2]
         http("DELETE", gone)
 
-        acc = "ECAL.ACC" if a.machine == "falcon" else "ECALST.ACC"
+        acc = "ECALST.ACC" if rig.is_st(a.machine) else "ECAL.ACC"
         shutil.copy(os.path.join(PROF, acc), os.path.join(hd, "ECAL.ACC"))
-        shutil.copy(os.path.join(ROOT, "common", "tools", "fakesting", "FAKESTNG.PRG"), os.path.join(hd, "AUTO"))
-        fifo_out, fifo_in = os.path.join(work, "st_out"), os.path.join(work, "st_in")
-        for p in (fifo_out, fifo_in):
-            os.mkfifo(p)
-        procs.append(subprocess.Popen([sys.executable, os.path.join(ROOT, "common", "tools", "fakesting", "serial_bridge.py"), fifo_out, fifo_in],
-                                      stderr=open(os.path.join(work, "bridge.log"), "w")))
-        extra = ["--memsize", "14" if a.machine == "falcon" else "4"]
-        if a.machine == "st":
-            extra += ["--monitor", "mono"]
-        if a.falcon_mode:
-            extra += ["--dsp", "emu"]
-        r = rig.Rig(work, a.tos, machine="megast" if a.machine == "st" else a.machine,
-                    serial=(fifo_out, fifo_in), extra=extra, auto=None)
+        r = rig.Rig(work, a.machine, network=True, auto=None)
         time.sleep(secs)
         r.shot("desktop")
     finally:

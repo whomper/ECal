@@ -11,9 +11,9 @@ of 50 ms or more between event calls to the emulator's console as
 events: Work 250, Home 150, Family 60 with 30 yearly birthdays, a 120-
 event calendar), it boots with START=20, sits on the desktop through
 the background reading and several reminder checks, and fails on any
-stretch over 50 ms on a Falcon (100 ms on a Mega ST).
+stretch over 50 ms on a Falcon or TT (100 ms on an ST).
 
-    make profile && tests/hatari/quiet_test.py WORKDIR etos512us.img [--machine falcon|st]
+    make profile && tests/hatari/quiet_test.py WORKDIR [--machine Falcon|TT|ST:mono|...]
 """
 import argparse
 import os
@@ -24,7 +24,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(__file__))
-from rig import Rig  # noqa: E402
+from rig import Rig, add_machine, is_st  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 CLI = os.path.join(ROOT, "build", "cal-cli")
@@ -65,24 +65,18 @@ def seed(folder, work):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("work")
-    ap.add_argument("tos")
-    ap.add_argument("--machine", default="falcon")
+    add_machine(ap, "Falcon")
     ap.add_argument("--secs", type=int, default=150, help="how long to watch after boot")
     a = ap.parse_args()
-    limit = 50 if a.machine == "falcon" else 100
+    limit = 100 if is_st(a.machine) else 50
     hd = os.path.join(a.work, "hd")
     shutil.rmtree(a.work, ignore_errors=True)
     folder = os.path.join(hd, "ECAL")
     os.makedirs(folder)
-    acc = "ECAL.ACC" if a.machine == "falcon" else "ECALST.ACC"
+    acc = "ECALST.ACC" if is_st(a.machine) else "ECAL.ACC"
     shutil.copy(os.path.join(PROF, acc), os.path.join(hd, "ECAL.ACC"))
     seed(folder, a.work)
-    # a Mega ST: a plain ST has no clock
-    machine = "megast" if a.machine == "st" else a.machine
-    extra = ["--memsize", "14" if a.machine == "falcon" else "4"]
-    if a.machine == "st":
-        extra += ["--monitor", "mono"]
-    r = Rig(a.work, a.tos, machine=machine, extra=extra, auto=None)
+    r = Rig(a.work, a.machine, auto=None)
     try:
         time.sleep(a.secs)
         r.shot("desktop")

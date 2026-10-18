@@ -9,21 +9,22 @@ VA_START hands it into C:\\GUIDE.TXT:
   2. no ECAL.HYP there: Help sends *:\\ECAL.HYP, for ST-Guide's own paths;
   3. no ST-Guide: Help shows the keys (a screenshot).
 
-    tests/hatari/help_test.py WORKDIR etos512us.img
+    tests/hatari/help_test.py WORKDIR [--machine Falcon|TT]
 """
+import argparse
 import os
 import shutil
 import sys
 import time
 
 sys.path.insert(0, os.path.dirname(__file__))
-from rig import Rig, K  # noqa: E402
+from rig import Rig, K, add_machine  # noqa: E402
 import ui_tour  # noqa: E402
 
 ROOT = ui_tour.ROOT
 
 
-def run(work, tos, guide, hyp):
+def run(work, machine, guide, hyp):
     hd = os.path.join(work, "hd")
     shutil.rmtree(work, ignore_errors=True)
     os.makedirs(hd)
@@ -33,7 +34,7 @@ def run(work, tos, guide, hyp):
         shutil.copy(os.path.join(ROOT, "build", "ST-GUIDE.ACC"), hd)
     if hyp:
         shutil.copy(os.path.join(ROOT, "binary", "ECAL.HYP"), hd)
-    r = Rig(work, tos, machine="falcon", extra=["--memsize", "14"])
+    r = Rig(work, machine)
     try:
         time.sleep(14)
         r.key(K["HELP"])
@@ -46,12 +47,16 @@ def run(work, tos, guide, hyp):
 
 
 def main():
-    work, tos = sys.argv[1], sys.argv[2]
+    ap = argparse.ArgumentParser()
+    ap.add_argument("work")
+    add_machine(ap, "Falcon")
+    a = ap.parse_args()
+    work = a.work
     ok = True
     for name, guide, hyp, want in (("with-hyp", True, True, "C:\\ECAL.HYP"),
                                    ("no-hyp", True, False, "*:\\ECAL.HYP"),
                                    ("no-guide", False, True, None)):
-        got = run(os.path.join(work, name), tos, guide, hyp)
+        got = run(os.path.join(work, name), a.machine, guide, hyp)
         good = got == want
         ok &= good
         print("%-9s %s: ST-Guide got %r" % (name, "ok" if good else "FAILED", got))

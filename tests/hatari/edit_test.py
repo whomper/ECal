@@ -6,7 +6,9 @@ an English title and one with a Hebrew title typed on the Israeli
 keyboard, change one, delete it, and check what ECAL.ACC wrote to its
 cache (the iCalendar text that would go to the server).
 
-    tests/hatari/edit_test.py WORKDIR etos512us.img [--acc ECALST.ACC --machine st]
+    tests/hatari/edit_test.py WORKDIR [--machine Falcon|TT|ST:mono|ST-1:med|...]
+
+On an ST (ST, ST-1) the accessory is ECALST.ACC, else ECAL.ACC.
 Exit status 0 when every check passes.
 """
 import argparse
@@ -16,7 +18,7 @@ import shutil
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
-from rig import Rig, K, SCAN  # noqa: E402
+from rig import Rig, K, SCAN, add_machine, is_st  # noqa: E402
 import ui_tour  # noqa: E402
 
 
@@ -61,18 +63,14 @@ def empty(r):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("work")
-    ap.add_argument("tos")
-    ap.add_argument("--machine", default="falcon")
-    ap.add_argument("--acc", default="ECAL.ACC")
+    add_machine(ap, "Falcon")
     a = ap.parse_args()
     hd = os.path.join(a.work, "hd")
     shutil.rmtree(a.work, ignore_errors=True)
     os.makedirs(os.path.join(hd, "ECAL"))
-    shutil.copy(os.path.join(ui_tour.ROOT, "binary", a.acc), os.path.join(hd, "ECAL.ACC"))
+    shutil.copy(os.path.join(ui_tour.ROOT, "binary", "ECALST.ACC" if is_st(a.machine) else "ECAL.ACC"),
+                os.path.join(hd, "ECAL.ACC"))
     ui_tour.seed(os.path.join(hd, "ECAL"))
-    extra = ["--memsize", "14" if a.machine == "falcon" else "4"]
-    if a.machine == "st":
-        extra += ["--monitor", "mono"]
     fails = []
 
     def check(what, ok):
@@ -80,9 +78,7 @@ def main():
         if not ok:
             fails.append(what)
 
-    # an ST has no clock and would start at EmuTOS's build date, before the
-    # seeded series; a Mega ST is the same machine with Hatari's clock in it
-    r = Rig(a.work, a.tos, machine="megast" if a.machine == "st" else a.machine, extra=extra, auto=None)
+    r = Rig(a.work, a.machine, auto=None)
     try:
         r.wait(16)
         r.click(18, 8)
@@ -106,7 +102,10 @@ def main():
         r.key(SCAN["n"])
         r.wait(2)
         r.key(K["F10"])
-        r.type("akuo", pace=0.15)       # a=shin k=lamed u=vav o=final mem on SI-1452
+        r.wait(0.5)
+        # a=shin k=lamed u=vav o=final mem on SI-1452 (slower on an 8 MHz ST,
+        # which can drop a key while it draws the last)
+        r.type("akuo", pace=0.4 if is_st(a.machine) else 0.15)
         r.key(K["F10"])
         r.wait(0.5)
         r.shot("2-hebrew-typed")
@@ -128,15 +127,16 @@ def main():
         r.key(K["DELETE"])
         r.wait(1.5)
         r.shot("5-confirm")
-        r.click(283, 271 if a.machine == "falcon" else 231)   # the alert's Delete button (Cancel is the default)
+        # the alert's Delete button (Cancel is the default): where each screen puts it
+        r.click(283, {"mono": 231, "med": 249}.get(r.machine.screen, 271))
         r.wait(4)
         text = cache_text(hd)
         check("the event is deleted", "SUMMARY:Dentist" not in text)
         check("the Hebrew one is still there", "SUMMARY:שלום" in text)
         r.shot("6-deleted")
-        # 4 and 5 click where the Falcon's 640x480 screen puts the dialogs,
-        # and an 8 MHz ST searches a daily series slower than they allow
-        if a.machine == "falcon":
+        # 4 and 5 click where a 640x480 screen puts the dialogs, and an
+        # 8 MHz ST searches a daily series slower than they allow
+        if not is_st(a.machine):
             # 4. one occurrence of a repeating event: open today's Standup, rename
             #    it, "Only this"; then change that same occurrence again
             def open_found(what):
@@ -149,7 +149,7 @@ def main():
                 r.key(K["RETURN"])
                 # searching three years of a daily series: the screen stands still
                 # under the busy pointer meanwhile, which wait() can't tell from done
-                r.wait(2 if a.machine == "falcon" else 10)
+                r.wait(2)
                 r.key(K["RETURN"])             # the first from today on
                 r.wait(2)
                 r.key(K["RETURN"])             # open it

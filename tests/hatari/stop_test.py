@@ -8,11 +8,12 @@ after the 60 s timeout, and ECal must carry on: a key typed meanwhile
 (N, a new event) is not lost.
 
 Hatari has no network card: FAKESTNG.PRG carries the Atari's TCP
-connections over the emulated serial port to common/tools/fakesting/serial_bridge.py, as in
-net_test.py.
+connections over the emulated serial port to serial_bridge.py
+(common/tools/machines.py's network()), as in net_test.py.
 
-    tests/hatari/stop_test.py WORKDIR etos512us.img
+    tests/hatari/stop_test.py WORKDIR [--machine ST:mono|ST-1:med|...]
 """
+import argparse
 import os
 import shutil
 import socket
@@ -50,7 +51,11 @@ def silent_server(stop):
 
 
 def main():
-    work, tos = os.path.abspath(sys.argv[1]), sys.argv[2]
+    ap = argparse.ArgumentParser()
+    ap.add_argument("work")
+    rig.add_machine(ap, "ST")
+    a = ap.parse_args()
+    work = os.path.abspath(a.work)
     shutil.rmtree(work, ignore_errors=True)
     hd = os.path.join(work, "hd")
     os.makedirs(os.path.join(hd, "AUTO"))
@@ -65,18 +70,11 @@ def main():
     stop = threading.Event()
     threading.Thread(target=silent_server, args=(stop,), daemon=True).start()
     shutil.copy(os.path.join(ROOT, "binary", "ECALST.ACC"), os.path.join(hd, "ECAL.ACC"))
-    shutil.copy(os.path.join(ROOT, "common", "tools", "fakesting", "FAKESTNG.PRG"), os.path.join(hd, "AUTO"))
     with open(os.path.join(hd, "ECAL", "ECAL.INF"), "w", newline="") as f:
         f.write("home_tz=Asia/Jerusalem\r\nview_tz=Asia/Jerusalem\r\ngate=127.0.0.1\r\ngateport=%d\r\n"
                 "sync_open=1\r\nlog=1\r\n[account]\r\nname=Server\r\nkind=0\r\n"
                 "url=http://127.0.0.1:15232/\r\nuser=alice\r\npass=wonderland\r\n" % GW)
-    fifo_out, fifo_in = os.path.join(work, "st_out"), os.path.join(work, "st_in")
-    for p in (fifo_out, fifo_in):
-        os.mkfifo(p)
-    bridge = subprocess.Popen([sys.executable, os.path.join(ROOT, "common", "tools", "fakesting", "serial_bridge.py"), fifo_out, fifo_in],
-                              stderr=open(os.path.join(work, "bridge.log"), "w"))
-    r = rig.Rig(work, tos, machine="st", serial=(fifo_out, fifo_in),
-                extra=["--memsize", "4", "--monitor", "mono"], auto=None)
+    r = rig.Rig(work, a.machine, network=True, auto=None)
     log = os.path.join(hd, "ECAL", "ECAL.LOG")
     try:
         time.sleep(18)
@@ -104,7 +102,6 @@ def main():
     finally:
         r.stop()
         stop.set()
-        bridge.terminate()
     text = open(log, encoding="latin-1").read() if os.path.exists(log) else ""
     check("no timeout", "timed out" not in text)
     print("screenshots in", os.path.join(work, "shots"))

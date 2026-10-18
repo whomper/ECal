@@ -7,10 +7,12 @@ CalDAV server: the way an ST uses it.
 Radicale (CalDAV) and gateway/ecalgate.py run on this computer. Hatari has
 no network card, so FAKESTNG.PRG in C:\\AUTO carries the Atari's TCP
 connections over the emulated serial port to serial_bridge.py
-(common/tools/fakesting, make -C common/tools/fakesting). The accessory syncs, shows the server's Hebrew event, and an
-event added on the Atari must arrive on the server.
+(common/tools/machines.py's network()). The accessory syncs, shows the
+server's Hebrew event, and an event added on the Atari must arrive on
+the server. On an ST (ST, ST-1) the accessory is ECALST.ACC, else
+ECAL.ACC.
 
-    tests/hatari/net_test.py WORKDIR etos512us.img [--acc ECAL.ACC --machine falcon]
+    tests/hatari/net_test.py WORKDIR [--machine ST:mono|ST-1:med|TT|Falcon|...]
 
 With --prg it is ECAL.PRG instead, started from C:\\ECAL: the program is
 where the crash catcher is, so this is the run that shows STinG's way
@@ -53,9 +55,7 @@ def http(method, path, body=None, ctype=None):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("work")
-    ap.add_argument("tos")
-    ap.add_argument("--acc", default="ECALST.ACC")
-    ap.add_argument("--machine", default="st")
+    rig.add_machine(ap, "ST")
     ap.add_argument("--prg", action="store_true", help="ECAL.PRG instead of the accessory")
     ap.add_argument("--falcon-mode", action="store_true",
                     help="TLS on the Falcon itself (RSA on the DSP), no gateway")
@@ -65,8 +65,8 @@ def main():
     # the clock is hours out and a certificate made now not yet valid
     os.environ["TZ"] = "Asia/Jerusalem"
     time.tzset()
-    if a.falcon_mode:
-        a.machine, a.acc = "falcon", "ECAL.ACC"
+    if a.falcon_mode and rig.is_st(a.machine):
+        a.machine = "Falcon"
     work = os.path.abspath(a.work)
     shutil.rmtree(work, ignore_errors=True)
     hd = os.path.join(work, "hd")
@@ -121,8 +121,8 @@ def main():
     if a.prg:
         shutil.copy(os.path.join(ROOT, "binary", "ECAL.PRG"), os.path.join(hd, "ECAL", "ECAL.PRG"))
     else:
-        shutil.copy(os.path.join(ROOT, "binary", a.acc), os.path.join(hd, "ECAL.ACC"))
-    shutil.copy(os.path.join(ROOT, "common", "tools", "fakesting", "FAKESTNG.PRG"), os.path.join(hd, "AUTO"))
+        shutil.copy(os.path.join(ROOT, "binary", "ECALST.ACC" if rig.is_st(a.machine) else "ECAL.ACC"),
+                    os.path.join(hd, "ECAL.ACC"))
     if a.falcon_mode:
         # the Mozilla roots ECal ships, plus the test certificate, decoded here
         with open(os.path.join(hd, "ECAL", "CACERT.PEM"), "wb") as f:
@@ -137,18 +137,7 @@ def main():
                 "sync_open=1\r\nlog=1\r\n[account]\r\nname=Server\r\nkind=0\r\n"
                 "url=%s://127.0.0.1:%d/\r\nuser=alice\r\npass=wonderland\r\n" % (conn, SCHEME, RAD))
 
-    fifo_out, fifo_in = os.path.join(work, "st_out"), os.path.join(work, "st_in")
-    for p in (fifo_out, fifo_in):
-        os.mkfifo(p)
-    procs.append(subprocess.Popen([sys.executable, os.path.join(ROOT, "common", "tools", "fakesting", "serial_bridge.py"), fifo_out, fifo_in],
-                                  stderr=open(os.path.join(work, "bridge.log"), "w")))
-    extra = ["--memsize", "4" if a.machine == "st" else "14"]
-    if a.machine == "st":
-        extra += ["--monitor", "mono"]
-    if a.falcon_mode:
-        extra += ["--dsp", "emu"]
-    r = rig.Rig(work, a.tos, machine=a.machine, serial=(fifo_out, fifo_in), extra=extra,
-                auto="C:\\ECAL\\ECAL.PRG" if a.prg else None)
+    r = rig.Rig(work, a.machine, network=True, auto="C:\\ECAL\\ECAL.PRG" if a.prg else None)
     try:
         time.sleep(18)
         if not a.prg:

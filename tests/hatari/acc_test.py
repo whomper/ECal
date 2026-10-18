@@ -6,7 +6,9 @@ drive's root, its files in C:\\ECAL\\. Boots to the desktop, opens the
 Desk menu, chooses ECal, and takes screenshots; then closes the window
 and opens it again, as one does with an accessory.
 
-    tests/hatari/acc_test.py WORKDIR etos512us.img [--machine falcon|st] [--acc ECALST.ACC]
+    tests/hatari/acc_test.py WORKDIR [--machine Falcon|TT|ST:mono|...]
+
+On an ST (ST, ST-1) the accessory is ECALST.ACC, else ECAL.ACC.
 """
 import argparse
 import os
@@ -15,7 +17,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(__file__))
-from rig import Rig, K, SCAN  # noqa: E402
+from rig import Rig, K, SCAN, add_machine, is_st  # noqa: E402
 import ui_tour  # noqa: E402
 
 ROOT = ui_tour.ROOT
@@ -24,10 +26,7 @@ ROOT = ui_tour.ROOT
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("work")
-    ap.add_argument("tos")
-    ap.add_argument("--machine", default="falcon")
-    ap.add_argument("--acc", default="ECAL.ACC")
-    ap.add_argument("--mono", action="store_true")
+    add_machine(ap, "Falcon")
     ap.add_argument("--folder", help="its files in this folder (e.g. APPS\\ECAL.APP), "
                     "named by FOLDER= in C:\\ECAL.INF")
     ap.add_argument("--missing", action="store_true", help="with --folder: FOLDER= names a folder that isn't there")
@@ -36,7 +35,8 @@ def main():
     shutil.rmtree(a.work, ignore_errors=True)
     folder = os.path.join(hd, *(a.folder or "ECAL").split("\\"))
     os.makedirs(folder)
-    shutil.copy(os.path.join(ROOT, "binary", a.acc), os.path.join(hd, "ECAL.ACC"))
+    shutil.copy(os.path.join(ROOT, "binary", "ECALST.ACC" if is_st(a.machine) else "ECAL.ACC"),
+                os.path.join(hd, "ECAL.ACC"))
     ui_tour.seed(folder)
     if a.folder:
         # ECAL.INF in the root, FOLDER= naming where the rest is
@@ -46,10 +46,7 @@ def main():
         where = "C:\\" + ("GONE\\" if a.missing else "") + a.folder
         with open(os.path.join(hd, "ECAL.INF"), "w", newline="") as f:
             f.write("FOLDER=" + where + "\r\n" + inf)
-    extra = ["--memsize", "14" if a.machine == "falcon" else "4"]
-    if a.mono:
-        extra += ["--monitor", "mono"]
-    r = Rig(a.work, a.tos, machine=a.machine, extra=extra, auto=None)
+    r = Rig(a.work, a.machine, auto=None)
     try:
         time.sleep(16)
         r.shot("1-desktop")

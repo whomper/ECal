@@ -4,9 +4,9 @@
 """The screenshots in docs/ and the README, taken in Hatari with English
 events, Hebrew dates off and a New York clock:
 
-    TZ=America/New_York tests/hatari/docs_shots.py WORK etos512us.img [--update]
+    TZ=America/New_York tests/hatari/docs_shots.py WORK [--update]
 
-They land in WORK/*/shots; --update copies them into docs/.
+On the Falcon (16 colours) and an ST in mono. They land in WORK/*/shots; --update copies them into docs/.
 """
 import argparse
 import os
@@ -22,16 +22,14 @@ ROOT = ui_tour.ROOT
 BIN = os.path.join(ROOT, "binary")
 
 
-def program(work, tos, machine, shots):
+def program(work, machine, shots):
     """ECAL.PRG on its own: the views, a new event and the settings"""
     hd = os.path.join(work, "hd")
     shutil.rmtree(work, ignore_errors=True)
     os.makedirs(hd)
     shutil.copy(os.path.join(BIN, "ECAL.PRG"), os.path.join(hd, "ECAL.PRG"))
     ui_tour.seed(hd, english=True)
-    extra = ["--memsize", "14"] if machine == "falcon" else ["--memsize", "4", "--monitor", "mono"]
-    # a Mega ST: a plain ST has no clock and would start in 2024
-    r = Rig(work, tos, machine="megast" if machine == "st" else machine, extra=extra)
+    r = Rig(work, machine)
     try:
         time.sleep(16)
         shots(r)
@@ -74,11 +72,10 @@ def st_shots(r):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("work")
-    ap.add_argument("tos")
     ap.add_argument("--update", action="store_true", help="copy them into docs/")
     a = ap.parse_args()
-    dirs = [program(os.path.join(a.work, "falcon"), a.tos, "falcon", falcon_shots),
-            program(os.path.join(a.work, "st"), a.tos, "st", st_shots)]
+    dirs = [program(os.path.join(a.work, "falcon"), "Falcon:16", falcon_shots),
+            program(os.path.join(a.work, "st"), "ST:mono", st_shots)]
     for d in dirs:
         for f in sorted(os.listdir(d)):
             if not f.endswith(".png") or f.startswith("grab"):

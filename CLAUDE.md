@@ -58,7 +58,9 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
   gateway), `make itest` (cal-cli against Radicale: `pip install
   radicale`; also `GATEWAY=1` and `FALCON=1` when the connection code
   changes), and `make` with no warnings. When the GEM side changes, the
-  Hatari rigs in `tests/hatari/` with EmuTOS.
+  Hatari rigs in `tests/hatari/`, on the family's machines (`--machine`, from
+  `common/tools/machines.py`): the ECALST.ACC rigs on `ST` and `ST-1` (`:mono` and `:med`), the
+  others on `TT` and `Falcon`, drawing also on `Falcon:256`.
 - `gateway/` is a read-only copy of [AERA-Gateway](https://github.com/whomper/AERA-Gateway)'s
   (ecalgate, the other gateways, `aera-gateway`): change it there, with that repository's owner
   session, and bring it here with `tools/sync-gateway.sh`. ECal decides ecalgate's protocol
