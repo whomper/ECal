@@ -166,7 +166,11 @@ def main():
         if a.falcon_mode:
             log = open(os.path.join(hd, "ECAL", "ECAL.LOG"), "rb").read().decode("latin-1")
             check("Falcon mode: TLS on the Atari", "secure: TLS 1.2" in log)
-            check("the signature checked on the DSP", "signature on the DSP" in log)
+            if a.machine.startswith("Falcon"):
+                check("the signature checked on the DSP", "signature on the DSP" in log)
+            else:
+                # a TT has no DSP: all on the 68030, and no line says otherwise
+                check("no DSP on a TT: none used", "on the DSP" not in log)
             check("no gateway used", "PUT" not in open(os.path.join(work, "ecalgate.log")).read())
         else:
             log = open(os.path.join(work, "ecalgate.log")).read()
