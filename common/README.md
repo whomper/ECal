@@ -114,7 +114,7 @@ same as before.
 | `atari/crash.c/.S/.h` | EMail | the crash catcher: a crash in the program (2 to 8 bombs) writes `CRASH.LOG` and quits tidily; TOS's record of a crash in the system is added at the next start. `crash_install(workdir, "ECal", version)`, in a program only (a desk accessory never installs it, and takes no memory for it). `crash_report = conn_log_append` adds the report to the protocol log too. Test builds (`-DCRASH_TEST`) crash on purpose with F1 to F4 (`crash_test()` in the app's key handler). `tests/crash/run.py` checks every kind of crash in Hatari on a 68000 and a 68030; `tests/crash/app_crash.py` checks an app's own handling (its alert, a tidy exit, "crashed last time" after a reset); `crash_log()` is where CRASH.LOG is |
 | `atari/crash_none.c` | | the same calls, doing nothing, for an edition that is only ever a desk accessory (ECal's and EContact's ST editions) |
 | `tools/crashaddr.py` | EMail | turns the offsets in a `CRASH.LOG` into function names, from the ELF file of the same build |
-| `tools/getrelease.py` | | another AERA program for a test, from its GitHub release (guidelines 1.2): `getrelease.py EHypView DIR EHYPVIEW.PRG` takes the latest, `EHypView@v1.8` a given one, and writes `DIR/EHYPVIEW.VERSION` so the report can name it. Standard Python only |
+| `tools/getrelease.py` | | another AERA program for a test, from its GitHub release (guidelines 1.2): `getrelease.py EHypView DIR EHYPVIEW.PRG` takes the latest, `EHypView@v1.8` a given one, and writes `DIR/EHYPVIEW.VERSION` so the report can name it; `--source AERA-Gateway DIR gateway/eftpgate.py` takes files of the source at the latest release's tag, for a program whose release carries no files. Standard Python only; `xl/tools/getrelease.py` is the same file |
 | `tools/machines.py` | | the family's test machines (guidelines, The machines): `ST`, `ST-1`, `TT` and `Falcon`, each with its screens (`Falcon:256`). `Machine(name, hd).args()` gives Hatari's arguments and `env()` its own HOME (its own NVRAM), `network()` FAKESTNG and its bridge; Erez's TOS from `$AERA_TOS` (`~/.aera/tos`, never in git) or EmuTOS 1.4. An ST gets `C:\AUTO\CLOCK.PRG` (the date and time; an ST has no clock) and, with TOS 1.04, `C:\AUTO\BOOTC.PRG` (C: as the boot drive). `python3 tools/machines.py list`; tested by `tests/machines/test_machines.py`. Standard Python only |
 | `tools/helpfront.py`, `tools/gemimg.py`, `help/NAME.IMG` | | the family's help front page (guidelines 4.3): `helpfront.py page docs/front.json IN.STG OUT.STG` makes the Main node from the app's `docs/front.json` (welcome, window, diagram, contents; `**bold**`, `[[Page]]` and `[[text\|Page]]` in its texts) and copies the pictures next to OUT.STG for hcp; standard Python only. `helpfront.py thumb SCREEN.PNG docs/help/WINDOW.IMG x,y,w,h [bx,by ...]` makes the half-size window picture with numbered badges once (Pillow; commit it). `help/NAME.IMG` are the banners, drawn by AERA-Atari's `brand/tools/mkhelpbanner.py`; `gemimg.py` writes 16-colour GEM IMGs in the standard palette and their monochrome masks. `tests/help/test_helpfront.py` checks a page (and compiles it with hcp when there is one) |
 | `tools/fakesting/` | every app's network rigs (`machines.py` `network()`) | the Hatari rigs' network (Hatari has no network card): `FAKESTNG.PRG` (`make -C common/tools/fakesting`, then into `C:\AUTO`) stands in for STinG (on TOS 1.04 too: it makes the cookie jar that TOS lacks and turns off its XON/XOFF) and carries up to four TCP connections over the emulated serial port to `serial_bridge.py FROM_ATARI TO_ATARI`, which makes the real ones. Never on a real Atari. As real STinG it never holds the machine: sends wait in a queue, received bytes are filed as they come, read straight from the serial buffer for at most 20 ms a call (ECal's background syncing measures its gaps through it: a Mega ST stays within 100 ms), and the bridge sends no more than the Atari has said it has room for (EFTP's downloads). `C:\FASTCLK` sets timer C to 312 Hz, a 200 Hz clock 1.56 times too fast, as on Erez's Falcon (EFTP's `clock_test.py`). EFTP's `net_test.py` passes with it (Falcon, and the ST edition on 1 MB), its downloads twice as fast as with EFTP's own copy |
@@ -287,6 +287,22 @@ In `src/tls.c`:
   between sessions (EWeb: `SIGS.DAT`), empty keeps them for the session. Names, dates, uses and the
   chain to a root are still BearSSL's to decide. The log's certificates line says how many were
   known.
+
+## `ROOTS.DAT` told by `CACERT.PEM`'s date; the answer's times (18 Oct 2026, from EWeb)
+
+From EWeb 0.8's log on a DFB1: reading the root certificates took 1.5 s a run, mostly reading all
+186 KB of `CACERT.PEM` for the checksum that says `ROOTS.DAT` was made from it.
+
+- `ROOTS.DAT` has a new layout (`MAILROOTS2`: CACERT.PEM's size, checksum and date). The old one
+  (`MAILROOTS1`) is still read. `tools/mkroots` writes the new one with no date.
+- New hook `tls_file_stamp` (`tls.h`): a function giving a file's date and time, 0 if missing; an app
+  sets it to its `pf_stamp` (or leaves it NULL: the checksum every time, as before). With it, the
+  first run that checks the checksum writes the date into `ROOTS.DAT` (in place with `PF_UPDATE`;
+  a `MAILROOTS1` file is written again, once), and later runs compare size and date only. A
+  different `CACERT.PEM` (another size or date) is checked by its checksum again.
+- After a TLS request, the log gets "the answer's first bytes came N ms after the request" and "its
+  first N bytes decrypted N ms after the request". `conn.c` writes TLS lines outside a handshake as
+  " .. ", which doesn't write the log out at once.
 
 `tests/ec`: `make test` checks `ecdsp.c` against BearSSL with a C model of `ec.a56` (key exchanges and
 signature checks on every curve, RFC 7748's vectors, doublings and the point at infinity inside a
