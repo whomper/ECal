@@ -41,13 +41,24 @@ file on its own, or all of them in `ECAL-x.y.zip`.
 
 1. Copy `ECAL.ACC` (Falcon, TT) or `ECALST.ACC` (ST, STE; renamed to `ECAL.ACC` or not) to the root
    of your boot drive, e.g. `C:\`.
-2. For Falcon mode, make a folder `C:\ECAL` and put `CACERT.PEM` and `ROOTS.DAT` in it. ECal keeps
-   its own files there too. The folder can be anywhere: `FOLDER=` in the settings, `C:\ECAL.INF`, says
-   where. Start `ECAL.PRG` from the folder once, or show the accessory where it is when it asks.
-3. On an ST or STE, set up the gateway on a Raspberry Pi: clone this repository (or
-   [AERA-Gateway](https://github.com/whomper/AERA-Gateway)) there and run
-   `sudo gateway/aera-gateway install dav` (see [gateway/README.md](gateway/README.md)). It prints
-   the address to type into ECal.
+2. Choose a folder for ECal's own files (its calendars, keys and log): any folder, on any drive.
+   For Falcon mode, put `CACERT.PEM` and `ROOTS.DAT` in it. `FOLDER=` in the settings file, which is
+   always `ECAL.INF` in the root of the boot drive, says where the folder is: starting `ECAL.PRG`
+   from the folder writes it, and the accessory asks the first time you open it (**Locate...**, or
+   **Use C:\ECAL** to have it make that one).
+3. On an ST or STE, set up the gateway on a Raspberry Pi from
+   [AERA-Gateway](https://github.com/whomper/AERA-Gateway)'s own repository (see
+   [gateway/README.md](gateway/README.md)):
+
+   ```
+   git clone https://github.com/whomper/AERA-Gateway
+   cd AERA-Gateway
+   ./update-pi.sh
+   sudo gateway/aera-gateway install dav
+   ```
+
+   The last command prints the address to type into ECal. Later, `./update-pi.sh` in that folder
+   updates the gateway to AERA-Gateway's latest release.
 4. Reboot and choose **ECal** in the Desk menu. Open **Settings...** (^, or the ≡ menu at the right of
    the toolbar):
    - **Connection**: type the Pi's IP address (e.g. 192.168.1.x, not its name) and port 8180 into
@@ -56,14 +67,18 @@ file on its own, or all of them in `ECAL-x.y.zip`.
 5. Add your iCloud account with **Add account or calendar...** (the ≡ menu, or **File** in
    `ECAL.PRG`) and an [app-specific password](https://support.apple.com/en-us/102654); your Apple ID's
    own password won't work.
-6. Copy `ECAL.HYP` and `ECAL.REF` next to ECal or into your help folder (e.g. `C:\GUIDES\`), and press
-   **Help** in ECal for the guide.
+6. Copy `ECAL.HYP` and `ECAL.REF` into ECal's folder or your viewer's help folder (e.g. `C:\GUIDES\`),
+   and press **Help** in ECal for the guide (EHypView, ST-Guide or HypView must be running).
+
+**Updating:** copy the new release's files over the old ones (the accessory, `ECAL.PRG`, the guide,
+and for Falcon mode the certificates) and reboot. The settings, passwords and calendars stay as they
+are.
 
 The [user guide](docs/GUIDE.md) describes the rest.
 
-**Needs:** TOS 1.04 to 4.x, EmuTOS, MagiC or MiNT; ST medium, ST high, TT or Falcon resolution; 1 MB of
-RAM (2 MB or more for big calendars); STinG or MiNTnet. On an ST or STE, a Raspberry Pi (or any Debian
-or Ubuntu computer) for the gateway; Falcon mode needs a Falcon or TT.
+**Needs:** TOS 1.04 to 4.x, EmuTOS, MagiC or MiNT; ST medium, ST high, TT or Falcon resolution (not ST
+low); 1 MB of RAM (2 MB or more for big calendars); STinG or MiNTnet. On an ST or STE, a Raspberry Pi (or any Debian or Ubuntu computer) for the gateway; Falcon mode
+needs a Falcon or TT.
 
 ## How it reaches the servers
 
@@ -183,13 +198,13 @@ code except BearSSL, which is built for the 68030.
 `binary/` and `dist/` are what make builds; they are never committed, and a build changes no tracked
 file.
 
-**Versions and releases.** `VERSION` holds the last release, major.minor (e.g. 1.97), and the build
+**Versions and releases.** `VERSION` holds the last release, major.minor (e.g. 2.10), and the build
 never changes it. Every build shows it as it is in the About box and the User-Agent ECal sends. Only
 releases leave the build machine. To release: `tools/bump.py`, commit and push, then run
 the Release workflow (**Actions > Release > Run workflow**, on `main`) with what is new:
-[`.github/workflows/release.yml`](.github/workflows/release.yml) tags the commit `v1.98`, tests, builds
+[`.github/workflows/release.yml`](.github/workflows/release.yml) tags the commit `v2.11`, tests, builds
 the programs and the help file, and publishes them as a GitHub Release with those notes. Pushing a tag
-`v1.98` made with `git tag -a` does the same, with the tag's message as the notes.
+`v2.11` made with `git tag -a` does the same, with the tag's message as the notes.
 
 ## Source
 
@@ -219,7 +234,7 @@ docs/     the user guide (GUIDE.md, the source of ECAL.HYP) and its pictures
 ```
 make test                    # the core: dates, Hebrew dates, zones, iCalendar, repeats,
                              # repeat rules with all of RFC 5545's examples, XML, URLs
-                             # (241 checks); the fuzz inputs again (tests/fuzz/seeds,
+                             # (287 checks); the fuzz inputs again (tests/fuzz/seeds,
                              # and found/: what once broke a parser); the gateway's tests
 make fuzz                    # the CalDAV answers, iCalendar, repeat rules, XML and
                              # inflate from libFuzzer (clang), FUZZTIME seconds each

@@ -19,7 +19,7 @@ like: `FOLDER=` in `ECAL.INF` says where.
 ```
 C:\ECAL.ACC
 C:\ECAL.INF               settings, accounts, calendars; FOLDER= names the folder
-F:\...\ECAL.APP\          ECal's folder (C:\ECAL\ unless you choose another):
+F:\...\ECAL.APP\          ECal's folder, wherever you keep it (this one is an example):
     ECAL.PRG              the program, if you use it
     ECAL.KEY              the key the passwords in ECAL.INF are encrypted with
     CACHE\                a copy of every calendar
@@ -46,8 +46,8 @@ F:\...\ECAL.APP\          ECal's folder (C:\ECAL\ unless you choose another):
 - **The accessory** reads `FOLDER=` when it starts. If it's empty, or
   the folder isn't there any more, the first time you open ECal it asks
   where the folder is: **Locate...** opens the file selector (pick any
-  file in the folder), or use `C:\ECAL`. The answer is kept in
-  `FOLDER=`.
+  file in the folder), or **Use C:\ECAL** makes that folder and uses
+  it. The answer is kept in `FOLDER=`.
 - Settings from an older ECal, in `C:\ECAL\ECAL.INF` or in the
   program's folder, are copied to the root the first time.
 
@@ -106,11 +106,14 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
   less memory and sync faster.
 - **Connection**: how ECal reaches the servers:
   - **Pi gateway**: the Pi's address and port (8180). Set the Pi up
-    with `gateway/aera-gateway install dav`; see [gateway/README.md](../gateway/README.md).
+    from AERA-Gateway's own repository (`git clone
+    https://github.com/whomper/AERA-Gateway`, then `./update-pi.sh` and
+    `sudo gateway/aera-gateway install dav` in it; `./update-pi.sh`
+    again updates it); see [gateway/README.md](../gateway/README.md).
     Any Atari can use it, and a Falcon can too, to save time.
   - **Falcon mode**: ECal makes the secure connections itself. Needs a
     68030 (Falcon or TT), `ECAL.ACC`, and `CACERT.PEM` and `ROOTS.DAT` in
-    `C:\ECAL\`. **Check certificates on the DSP** lets the Falcon's
+    ECal's folder. **Check certificates on the DSP** lets the Falcon's
     DSP56001 do the RSA arithmetic (much faster than the 68030).
   - A server on your home network that speaks plain `http://` (a Radicale
     or Nextcloud without TLS) needs neither.
@@ -172,8 +175,15 @@ The toolbar: the first button hides the calendar list on the left, so
 the window is all calendar (click it again, or Shift+^S, to bring it back);
 **‹ Today ›** move back, to today and forward; then the
 period's name (double-click it to go to a date); **Day Week Month Year**;
-**+** a new event; **Refresh** (with Shift: everything again, from
-scratch); **≡** the menu.
+**+** a new event; **Refresh** (with Shift: everything, see below);
+**≡** the menu.
+
+**Refresh** brings every calendar up to date, fetching only the events
+that changed. With Shift (Shift+^R, or **Refresh everything** in the
+File menu of `ECAL.PRG`) it also reads each account's list of calendars
+again and checks every calendar, even one the server says hasn't
+changed, and downloads every subscription again. Events whose copy on
+the Atari matches the server's are kept, not fetched again.
 
 - **Month**: each day with its events; all-day and multi-day events as
   bars across the days, the others one line each, "+2 more" when they
@@ -397,7 +407,7 @@ instance).
 | ^G                  | go to a date                            |
 | ^C                  | copy the selected event                 |
 | ^C ^X ^V            | in a dialog: copy, cut, paste a field   |
-| ^R                  | refresh (Shift+^R: everything again)    |
+| ^R                  | refresh (Shift+^R: everything)          |
 | ^,                  | Settings                                |
 | Shift+^S            | show/hide the calendar list             |
 | ^W, ^Q              | close the window                        |
@@ -417,14 +427,19 @@ Anything else you type meanwhile is kept for afterwards.
 
 Help (or Help > **ECal help**, or **Help...** in the ≡ menu) opens this guide in EHypView,
 ST-Guide or HypView, whichever is running (as an accessory, or as a
-program under MultiTOS or MagiC): copy `ECAL.HYP` and `ECAL.REF` next to
-ECal, or into the viewer's help folder. Without a viewer, Help says how
+program under MultiTOS or MagiC): copy `ECAL.HYP` and `ECAL.REF` into
+ECal's folder, or into the viewer's help folder. Without a viewer, Help says how
 to get one and offers the keys above instead.
 
 ## Which version
 
-ECal > **About ECal...** (or the ≡ menu > **About ECal**) shows the version, e.g. `Version 1.25`, and
-how ECal is connected. The number after the dot goes up with every build.
+ECal > **About ECal...** (or the ≡ menu > **About ECal**) shows the version, e.g. `Version 2.11`, and
+how ECal is connected. The number goes up with every release.
+
+**Updating**: copy the new release's files over the old ones (the
+accessory, `ECAL.PRG`, `ECAL.HYP` and `ECAL.REF`, and for Falcon mode the
+certificates) and reboot. The settings, passwords and calendars stay as
+they are.
 
 ## ECAL.INF
 
