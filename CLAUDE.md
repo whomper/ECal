@@ -68,3 +68,13 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
 - EContact's `integration/ECAL.patch` makes EContact ECal's address
   book: when ECal changes, make that patch again in EContact (see its
   CLAUDE.md) and check it still applies and builds.
+
+## Talking with Erez
+
+Erez's rule for the whole AERA session family:
+
+- No progress or in-between messages. Write to him only when he has to decide something: a short
+  context, then the decision.
+- Findings and analysis: the information, your assessment, and what he should do. Nothing more.
+
+Messages to the hub session stay complete, with the evidence.
