@@ -46,10 +46,19 @@ file on its own, or all of them in `ECAL-x.y.zip`.
    always `ECAL.INF` in the root of the boot drive, says where the folder is: starting `ECAL.PRG`
    from the folder writes it, and the accessory asks the first time you open it (**Locate...**, or
    **Use C:\ECAL** to have it make that one).
-3. On an ST or STE, set up the gateway on a Raspberry Pi: clone this repository (or
-   [AERA-Gateway](https://github.com/whomper/AERA-Gateway)) there and run
-   `sudo gateway/aera-gateway install dav` (see [gateway/README.md](gateway/README.md)). It prints
-   the address to type into ECal.
+3. On an ST or STE, set up the gateway on a Raspberry Pi from
+   [AERA-Gateway](https://github.com/whomper/AERA-Gateway)'s own repository (see
+   [gateway/README.md](gateway/README.md)):
+
+   ```
+   git clone https://github.com/whomper/AERA-Gateway
+   cd AERA-Gateway
+   ./update-pi.sh
+   sudo gateway/aera-gateway install dav
+   ```
+
+   The last command prints the address to type into ECal. Later, `./update-pi.sh` in that folder
+   updates the gateway to AERA-Gateway's latest release.
 4. Reboot and choose **ECal** in the Desk menu. Open **Settings...** (^, or the ≡ menu at the right of
    the toolbar):
    - **Connection**: type the Pi's IP address (e.g. 192.168.1.x, not its name) and port 8180 into
