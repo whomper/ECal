@@ -145,6 +145,12 @@ when it has none, or there is no NVDI 5, they are drawn in the system
 font in the same cells, and the dialog's Type line says which.
 Dialogs and menus stay in the system font.
 
+The accessory loads GDOS fonts only when the machine starts, and only
+when a GDOS font is chosen (memory it took later would belong to the
+program in front). So choose a GDOS font in `ECAL.PRG`, then restart:
+from then on the accessory has its fonts too. One chosen meanwhile
+shows in the system font until the next start.
+
 ## Adding calendars
 
 File > **Add account or calendar...** (in the accessory, the ≡ menu):
