@@ -193,6 +193,7 @@ void dlg_settings(void);
 void dlg_connection(void);
 void dlg_goto(void);
 void dlg_find(void);
+void no_memory(void);		/* the alert when a dialog finds no memory for itself */
 void dlg_about(void);
 void icon_today(char *s, int size);	/* "Oct 14" */
 void icon_window(GRECT *area);		/* the iconified window: icon and today */

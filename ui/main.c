@@ -830,10 +830,15 @@ static void acc_heap(void)
 	boot_free = avail / 1024;
 	if (want > avail / 2)
 		want = avail / 2;
+	/* little memory (a 1 MB ST with a network): all but what the desktop
+	   needs to start (EmuDesk: 32 KB); none at all rather than less for
+	   it, and never more later: the heap is fixed either way */
 	if (want < 96L * 1024)
 		want = avail - 32L * 1024;
-	if (want < 32L * 1024)
+	if (want < 8L * 1024) {
+		heap_add(0, 0);
 		return;
+	}
 	p = Mxalloc(want, alt ? 1 : 3);
 	if (alt && (long)p <= 0) {
 		/* no luck in TT RAM after all: ST RAM, at its own size */
@@ -847,6 +852,8 @@ static void acc_heap(void)
 	if ((long)p > 0) {
 		heap_add(p, (size_t)want);
 		boot_taken = want / 1024;
+	} else {
+		heap_add(0, 0);
 	}
 }
 
@@ -1505,12 +1512,44 @@ static void crash_quit(const char *what)
 	appl_exit();
 }
 
+
+#ifdef STACK_PROBE
+/* make STACKPROBE=1: the stack painted at start, and on the console
+   (natfeats) the least of it never touched so far, STACKFREE bytes, as
+   the rigs drive ECal (how big the ST edition's can be: ST_STACK) */
+static unsigned long *stk_lo, stk_best;
+static void stk_paint(void)
+{
+	/* the stack is crt0.S's BSS right after _is_acc */
+	unsigned long *p = (unsigned long *)(((unsigned long)(&_is_acc + 1) + 3) & ~3UL), here;
+	stk_lo = p;
+	here = (unsigned long)&p - 512;
+	while ((unsigned long)p < here)
+		*p++ = 0x5AA5C33CUL;
+}
+static void stk_check(void)
+{
+	unsigned long *p = stk_lo, untouched;
+	while (*p == 0x5AA5C33CUL)
+		p++;
+	untouched = (unsigned long)p - (unsigned long)stk_lo;
+	if (!stk_best || untouched + 64 < stk_best) {
+		char b[40];
+		stk_best = untouched;
+		snprintf(b, sizeof(b), "STACKFREE %lu\n", untouched);
+		nf_debug(b);
+	}
+}
+#endif
 int main(void)
 {
 	short work_out[57], msg[8], d;
 	AEVENT ev;
 
 	is_acc = _is_acc;
+#ifdef STACK_PROBE
+	stk_paint();
+#endif
 	{
 		extern int mem_unaligned_ok;
 		mem_unaligned_ok = get_cookie(0x5F435055L) >= 20;	/* _CPU */
@@ -1604,6 +1643,9 @@ int main(void)
 		/* a refresh waiting: shortly, once the redraws are done */
 		conn_stop = 0;		/* a stop is for one operation */
 		busy_resend();		/* messages that came meanwhile */
+#ifdef STACK_PROBE
+		stk_check();
+#endif
 		people_poll();		/* questions to EContact */
 		/* a key typed while busy comes first, as if typed now */
 		if (win_h > 0 && busy_key(&ev))

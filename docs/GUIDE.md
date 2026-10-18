@@ -53,9 +53,12 @@ F:\...\ECAL.APP\          ECal's folder (C:\ECAL\ unless you choose another):
 
 **Memory.** The accessory takes its working memory once, at boot (an
 accessory can't safely take more later): 1.5 MB on a Falcon or TT,
-256 KB on an ST, never more than half of what's free. A 1 MB ST runs it;
-with big calendars, 2 MB or more is better. `HEAPKB=` in ECAL.INF
-sets another amount, in kilobytes. When the memory runs out while the
+256 KB on an ST, never more than half of what's free. When little is
+free it takes all but the 32 KB the desktop needs to start. A 1 MB ST
+runs it with STinG; with big calendars, 2 MB or more is better.
+`HEAPKB=` in ECAL.INF sets another amount, in kilobytes. With **Write a
+log** on, the log says how much was free at boot and how much ECal
+took. When the memory runs out while the
 calendars are read, ECal says so when you open it, and which calendar is
 missing events: give it more, or keep fewer days (Settings > Refresh).
 

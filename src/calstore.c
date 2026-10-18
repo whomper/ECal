@@ -793,8 +793,8 @@ int acct_discover(int a)
 /* a buffered reader that knows where it is */
 typedef struct {
 	int h;
-	char buf[16384];	/* big reads: each GEMDOS call costs, on a floppy most */
-	int pos, len;
+	char *buf;		/* 16 KB if there is room: each GEMDOS call costs, on a floppy most */
+	int cap, pos, len;
 	long off;		/* file offset of buf[pos] */
 } FR;
 
@@ -802,7 +802,7 @@ static int fr_fill(FR *f)
 {
 	if (f->pos < f->len)
 		return 1;
-	f->len = (int)pf_read(f->h, f->buf, sizeof(f->buf));
+	f->len = (int)pf_read(f->h, f->buf, f->cap);
 	f->pos = 0;
 	return f->len > 0;
 }
@@ -1031,7 +1031,7 @@ static void hx_done(void)
    calls: one cached event (or a few lines of a subscription) per step */
 static struct {
 	CALENDAR *c;		/* NULL: none being read */
-	FR f;			/* 16 KB: not on the accessory's stack */
+	FR f;
 	char *rawbuf;		/* one buffer for all, grown as needed */
 	long rawcap;
 	LOADCTX l;
@@ -1039,7 +1039,37 @@ static struct {
 	ICSP *p;		/* a subscription: its parser */
 	unsigned long t0;
 } ld;
-static char ld_line[8192];	/* a subscription's line (as long as ics.c takes) */
+static char *ld_line;		/* a subscription's line (as long as ics.c takes) */
+static int ld_linecap;
+
+/* the reader's buffer and the line, one block from the heap while a file
+   is read (not kept in the program: a 1 MB ST needs the room); 0: no
+   memory even for a small one */
+static int load_buffers(int linecap)
+{
+	int cap;
+	for (cap = 16384; cap >= 2048; cap /= 4) {
+		char *b = malloc(cap + linecap);
+		if (b) {
+			ld.f.buf = b;
+			ld.f.cap = cap;
+			ld_line = b + cap;
+			ld_linecap = linecap;
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static void load_open(const char *path, int linecap)
+{
+	ld.f.h = pf_open(path, PF_READ);
+	if (ld.f.h >= 0 && !load_buffers(linecap)) {
+		pf_close(ld.f.h);
+		ld.f.h = -1;
+		ld.c->lost = -1;	/* nothing could be read: no memory */
+	}
+}
 
 static void load_done(void)
 {
@@ -1050,6 +1080,9 @@ static void load_done(void)
 		ics_end(ld.p);
 	if (ld.f.h >= 0)
 		pf_close(ld.f.h);
+	free(ld.f.buf);
+	ld.f.buf = 0;
+	ld_line = 0;
 	free(ld.rawbuf);
 	ld.rawbuf = 0;
 	ld.rawcap = 0;
@@ -1083,7 +1116,7 @@ void cal_load_begin(CALENDAR *c)
 	ld.t0 = pf_ms();
 	if (accts[c->acct].kind == AK_SUBSCR) {
 		cache_path(c, "ICS", path, sizeof(path));
-		ld.f.h = pf_open(path, PF_READ);
+		load_open(path, 8192);
 		if (ld.f.h >= 0)
 			ld.p = ics_begin(add_event, &ld.l, ld.from, ld.to);
 		return;
@@ -1114,7 +1147,7 @@ void cal_load_begin(CALENDAR *c)
 		if (est)
 			hx_room(c, est);
 	}
-	ld.f.h = pf_open(path, PF_READ);
+	load_open(path, 700);
 	if (ld.f.h >= 0 && (!fr_line(&ld.f, ld_line, 700) || strncmp(ld_line, "CALCACHE 1", 10))) {
 		pf_close(ld.f.h);
 		ld.f.h = -1;
@@ -1139,7 +1172,7 @@ static int load_ics_step(void)
 	int k;
 	for (k = 0; k < 40; k++) {
 		long n;
-		if (!fr_line(&ld.f, ld_line, sizeof(ld_line)))
+		if (!fr_line(&ld.f, ld_line, ld_linecap))
 			return 0;
 		n = (long)strlen(ld_line);
 		ics_line(ld.p, ld_line, n);

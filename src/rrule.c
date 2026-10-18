@@ -845,7 +845,10 @@ static void rr_walk(const RRULE *r, CTIME w0, CTIME hint, CTIME stop, WALK_FN fn
 {
 	WALK w;
 	long d0 = ct_days(w0), sod0 = (w0 - d0 * MIN_PER_DAY) * 60, p, pstart = 0, iter, maxiter;
-	long ws0, times[CMAX], days[DMAX], cand[CMAX];
+	long ws0;
+	/* 13.6 KB: not on the stack (a 1 MB ST's accessory has a small one);
+	   one walk at a time, as no callback expands another event */
+	static long times[CMAX], days[DMAX], cand[CMAX];
 	int y0, m0, dd0, wd0 = wday_of(d0), ntimes;
 	memset(&w, 0, sizeof(w));
 	w.r = r;

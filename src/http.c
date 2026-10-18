@@ -340,14 +340,16 @@ static int body_add(BODY *b, const char *d, long n)
 
 /* where the answer is read into, up to 16 KB at a time: a quarter of the
    STinG calls, clock reads and progress checks per byte of the 1 KB it
-   was (static: one request at a time, and the accessory's stack is small) */
-static char rbuf[16384];
+   was; from the heap for a request (one at a time), less if a 1 MB ST
+   has no 16 KB to spare */
+static char *rbuf;
+static long rcap;
 
 static int read_n(CONN *c, BODY *b, long n, HTTPRESP *rs)
 {
 	char *tmp = rbuf;
 	while (n > 0) {
-		long k = conn_read(c, tmp, n > (long)sizeof(rbuf) ? (long)sizeof(rbuf) : n);
+		long k = conn_read(c, tmp, n > rcap ? rcap : n);
 		if (k <= 0)
 			return 0;
 		rs->length += k;
@@ -477,7 +479,7 @@ static int exchange(const HTTPREQ *rq, const URL *u, const char *auth, HTTPRESP 
 	} else {
 		/* until the server closes */
 		long k;
-		while ((k = conn_read(c, rbuf, sizeof(rbuf))) > 0) {
+		while ((k = conn_read(c, rbuf, rcap)) > 0) {
 			rs->length += k;
 			if (!body_add(&b, rbuf, k))
 				goto body_err;
@@ -547,7 +549,24 @@ lost:
 	return (reused && !got_status) ? -1 : 0;
 }
 
+static int request(const HTTPREQ *rq0, HTTPRESP *rs, SBUF *body, char *err, int errlen);
+
 int http_request(const HTTPREQ *rq0, HTTPRESP *rs, SBUF *body, char *err, int errlen)
+{
+	int r;
+	for (rcap = 16384; rcap >= 1024 && !(rbuf = malloc(rcap)); rcap /= 4)
+		;
+	if (!rbuf) {
+		str_copy(err, "no memory left", errlen);
+		return 0;
+	}
+	r = request(rq0, rs, body, err, errlen);
+	free(rbuf);
+	rbuf = 0;
+	return r;
+}
+
+static int request(const HTTPREQ *rq0, HTTPRESP *rs, SBUF *body, char *err, int errlen)
 {
 	HTTPREQ rq = *rq0;
 	char url[512], auth[600], basic[300];

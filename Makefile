@@ -31,6 +31,9 @@ CFLAGS  := -m68000 -Os -fomit-frame-pointer -ffreestanding -fno-builtin \
            -DTLS_FULL_EDITION=\"ECAL.ACC\"
 # make AESPROF=50: every stretch of 50 ms or more between event calls
 # goes to the emulator's console (common/atari/gem.c; make profile)
+ifdef STACKPROBE
+CFLAGS  += -DSTACK_PROBE
+endif
 ifdef AESPROF
 CFLAGS  += -DAES_PROFILE=$(AESPROF)
 endif
@@ -68,7 +71,7 @@ all: $(BIN)/ECAL.ACC $(BIN)/ECAL.PRG $(BIN)/ECALST.ACC $(BIN)/ROOTS.DAT
 # smaller; only BearSSL's MD5 (for Digest logins), as 68000 code. Only
 # ever an accessory, so no crash catcher (crash_none.c)
 STBSSL  := hash/md5 codec/dec32le codec/enc32le
-STOBJS  := $(OBJDIR)/crt0.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o $(OBJDIR)/crash_none.o \
+STOBJS  := $(OBJDIR)/crt0_st.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o $(OBJDIR)/crash_none.o \
            $(addprefix $(OBJDIR)/,$(addsuffix .o,$(filter-out tls,$(CORE)) $(ATARI) $(UI) tls_none)) \
            $(addprefix $(OBJDIR)/st/,$(addsuffix .o,$(notdir $(STBSSL)))) $(OBJDIR)/version.o
 
@@ -134,6 +137,12 @@ $(OBJDIR)/%.o: common/ui/%.c $(HDRS) | $(OBJDIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 $(OBJDIR)/crt0.o: common/atari/crt0.S | $(OBJDIR)
 	$(CC) -m68000 -c -o $@ $<
+# the ST edition's stack: what the rigs measured (tests/hatari, STACKFREE
+# with make STACKPROBE=1: 13.8 KB at most, syncing), with room to spare
+# for STinG, whose calls run on it; 48 KB left a 1 MB ST's desktop none
+ST_STACK ?= 20480
+$(OBJDIR)/crt0_st.o: common/atari/crt0.S | $(OBJDIR)
+	$(CC) -m68000 -DSTACK_SIZE=$(ST_STACK) -c -o $@ $<
 $(OBJDIR)/sting_s.o: common/atari/sting.S | $(OBJDIR)
 	$(CC) -m68000 -c -o $@ $<
 $(OBJDIR)/nf.o: common/atari/nf.S | $(OBJDIR)

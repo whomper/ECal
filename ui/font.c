@@ -35,8 +35,10 @@ typedef struct {
 	char name[33];
 } FAM;
 
-static FAM fam[MAXFAM];
-static short nfam, gdos_fonts = -1;
+/* as many as there are fonts (the system font alone without GDOS, on an
+   ST most often), from the heap once they are counted */
+static FAM *fam, fam_sys;
+static short nfam, maxfam, gdos_fonts = -1;
 static short sizes[MAXSIZE], nsizes;
 static char size_label[MAXSIZE][12];
 static short sys_depth;		/* dialogs open: the system font */
@@ -258,17 +260,23 @@ static void list_families(void)
 	short i, k;
 	if (nfam)
 		return;
-	fam[0].id = 1;
-	fam[0].format = 1;
-	fam[0].mono = 1;
-	strcpy(fam[0].name, "System font");
-	nfam = 1;
 	if (gdos_fonts < 0) {
 		busy(1);
 		gdos_fonts = vq_gdos() ? vst_load_fonts(vdi_h, 0) : 0;
 		busy(0);
 	}
-	for (i = 2; i <= gdos_fonts + 1 && nfam < MAXFAM; i++) {
+	maxfam = gdos_fonts + 1 < MAXFAM ? gdos_fonts + 1 : MAXFAM;
+	fam = maxfam > 1 ? malloc(maxfam * sizeof(FAM)) : 0;
+	if (!fam) {
+		fam = &fam_sys;		/* the system font, at least */
+		maxfam = 1;
+	}
+	fam[0].id = 1;
+	fam[0].format = 1;
+	fam[0].mono = 1;
+	strcpy(fam[0].name, "System font");
+	nfam = 1;
+	for (i = 2; i <= gdos_fonts + 1 && nfam < maxfam; i++) {
 		FAM *f = &fam[nfam];
 		short n;
 		f->id = vqt_name(vdi_h, i, f->name);

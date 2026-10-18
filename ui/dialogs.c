@@ -51,14 +51,26 @@ static short run(const char *title, FIELD *f, short n, short w, short h, short f
 
 /* ---------------- time zones ---------------- */
 
+/* a dialog's big lists come from the heap while it is open, not kept in
+   the program: a 1 MB ST needs the room */
+void no_memory(void)
+{
+	alert(1, "[1][Memory is full: ECal can't do|that now. Give ECal more memory|(HEAPKB= in ECAL.INF) or keep|fewer days (Settings).][ OK ]");
+}
+
 const char *zone_pick(const char *current)
 {
-	static char lab[100][48];
+	char (*lab)[48];
 	static const char *items[100];
 	int n = tz_count(), i, sel = 0;
 	CTIME now = now_utc();
 	if (n > 100)
 		n = 100;
+	lab = malloc(n * sizeof(*lab));
+	if (!lab) {
+		no_memory();
+		return 0;
+	}
 	for (i = 0; i < n; i++) {
 		const TZONE *z = tz_index(i);
 		char off[16];
@@ -69,6 +81,7 @@ const char *zone_pick(const char *current)
 			sel = i;
 	}
 	i = dlg_pick("Time zone", items, (short)n, (short)sel);
+	free(lab);
 	return i >= 0 ? tz_index(i)->name : 0;
 }
 
@@ -726,7 +739,7 @@ void dlg_goto(void)
 void dlg_find(void)
 {
 	static char what[60];
-	static char lab[200][64];
+	char (*lab)[64];
 	static const char *items[200];
 	OCCLIST l;
 	CTIME now = now_view();
@@ -741,6 +754,12 @@ void dlg_find(void)
 	if (!l.n) {
 		occ_free(&l);
 		alert(1, "[1][Nothing found for \"%s\".][ OK ]", what);
+		return;
+	}
+	lab = malloc((l.n < 200 ? l.n : 200) * sizeof(*lab));
+	if (!lab) {
+		occ_free(&l);
+		no_memory();
 		return;
 	}
 	for (i = 0; i < l.n && i < 200; i++) {
@@ -763,6 +782,7 @@ void dlg_find(void)
 		occ_find_again();
 		win_redraw(0);
 	}
+	free(lab);
 	occ_free(&l);
 }
 

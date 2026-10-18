@@ -573,9 +573,9 @@ typedef struct {
 	char email[100];
 	char picked;			/* chosen in EContact: name is its */
 } INVITEE;
-static INVITEE people[MAXPEOPLE];
+static INVITEE *people;		/* from the heap while the editor is open */
 static short npeople, people_org;	/* people_org: people[0] is the organizer */
-static char plabel[MAXPEOPLE][100];
+static char (*plabel)[100];
 static const char *pitems[MAXPEOPLE], *ptips[MAXPEOPLE];
 
 /* the name EContact has for email: "" if none, or while it is asked
@@ -859,7 +859,27 @@ static int ask_how(int first)
 
 /* e: the event (NULL for a new one, built from day/minutes); occ_start:
    the occurrence clicked, in the view's wall time */
+static int edit_event(EVENT *e, CTIME occ_start, CTIME orig, int is_new);
+
+/* the people and their labels (13 KB) from the heap while the editor is
+   open, not kept in the program: a 1 MB ST needs the room */
 static int run_editor(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
+{
+	int r;
+	people = malloc(MAXPEOPLE * (sizeof(INVITEE) + sizeof(*plabel)));
+	if (!people) {
+		no_memory();
+		return 0;
+	}
+	plabel = (void *)(people + MAXPEOPLE);
+	r = edit_event(e, occ_start, orig, is_new);
+	free(people);
+	people = 0;
+	plabel = 0;
+	return r;
+}
+
+static int edit_event(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 {
 	static char title[200], loc[120], sdate[16], stime[12], edate[16], etime[12], notes[1200];
 	static char invitees[2000], invitees0[2000];
