@@ -22,16 +22,27 @@
 
 void (*pf_idle)(void);
 
+/* how many files are open: cal-cli checks there are none where the
+   accessory makes an event call (guidelines 2.2) */
+int pf_open_files;
+
 int pf_open(const char *path, int mode)
 {
 	int fl = mode == PF_READ ? O_RDONLY : mode == PF_WRITE ? O_WRONLY | O_CREAT | O_TRUNC
 		: mode == PF_UPDATE ? O_WRONLY : O_WRONLY | O_CREAT | O_APPEND;
-	return open(path, fl, 0644);
+	int h = open(path, fl, 0644);
+	if (h >= 0)
+		pf_open_files++;
+	return h;
 }
 
 long pf_read(int h, void *buf, long n) { return read(h, buf, n); }
 long pf_write(int h, const void *buf, long n) { return write(h, buf, n); }
-void pf_close(int h) { close(h); }
+void pf_close(int h)
+{
+	if (close(h) == 0)
+		pf_open_files--;
+}
 long pf_seek(int h, long off) { return (long)lseek(h, off, SEEK_SET); }
 
 long pf_size(const char *path)

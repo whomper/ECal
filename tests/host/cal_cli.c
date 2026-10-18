@@ -117,6 +117,24 @@ static EVENT *find(const char *title_utf8, CTIME occ_view, CTIME *occ_rep)
 	return found;
 }
 
+/* With CAL_FILECHECK set, no file may be open where the accessory makes
+   an event call: in pf_idle (the network's waits) and between steps
+   (guidelines 2.2) */
+extern int pf_open_files;
+
+static void file_check(const char *where)
+{
+	if (pf_open_files && getenv("CAL_FILECHECK")) {
+		fprintf(stderr, "cal-cli: %d file%s open %s\n", pf_open_files, pf_open_files == 1 ? "" : "s", where);
+		exit(3);
+	}
+}
+
+static void idle_check(void)
+{
+	file_check("across an event call (pf_idle)");
+}
+
 int main(int argc, char **argv)
 {
 	const char *dir, *cmd;
@@ -127,6 +145,7 @@ int main(int argc, char **argv)
 	dir = argv[1];
 	cmd = argv[2];
 	cal_status = show_status;
+	pf_idle = idle_check;
 	if (getenv("CAL_LOG"))
 		str_copy(conn_logfile, getenv("CAL_LOG"), sizeof(conn_logfile));
 	if (getenv("CACERT")) {
@@ -137,7 +156,15 @@ int main(int argc, char **argv)
 	pf_mkdir(dir);
 	store_init(dir, 0);
 	tls_tz_minutes = tz_offset(home_zone(), now_utc());
-	cal_load_all();
+	{
+		/* each calendar read in steps, as the accessory reads them */
+		int i;
+		for (i = 0; i < ncals; i++) {
+			cal_load_begin(&cals[i]);
+			while (cal_load_step())
+				file_check("between a calendar's reading steps");
+		}
+	}
 
 	if (!strcmp(cmd, "caldav") && argc == 7) {
 		ACCOUNT *a = acct_add(AK_CALDAV);
@@ -214,8 +241,10 @@ int main(int argc, char **argv)
 		for (i = 0; i < ncals; i++) {
 			sync_changes = 0;
 			if (sync_begin(&cals[i], 0)) {
-				while (steps != stop && sync_step())
+				while (steps != stop && sync_step()) {
+					file_check("between the refresh's steps");
 					steps++;
+				}
 				if (steps == stop)
 					sync_stop();
 				n += sync_changes & 1;

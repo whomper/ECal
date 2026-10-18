@@ -790,20 +790,32 @@ int acct_discover(int a)
 
 /* ---------------- the cache files ---------------- */
 
-/* a buffered reader that knows where it is */
+/* a buffered reader that knows where it is. The file is open only while
+   the buffer is filled: the accessory reads in steps between event calls,
+   and a file it opens belongs to the program in front, whose end closes
+   it and can give the handle to another file (guidelines 2.2) */
 typedef struct {
-	int h;
+	char path[200];		/* empty: nothing to read */
 	char *buf;		/* 16 KB if there is room: each GEMDOS call costs, on a floppy most */
 	int cap, pos, len;
 	long off;		/* file offset of buf[pos] */
+	long next;		/* of the next fill */
 } FR;
 
 static int fr_fill(FR *f)
 {
+	int h;
 	if (f->pos < f->len)
 		return 1;
-	f->len = (int)pf_read(f->h, f->buf, f->cap);
-	f->pos = 0;
+	f->pos = f->len = 0;
+	if (!f->path[0] || (h = pf_open(f->path, PF_READ)) < 0)
+		return 0;
+	if (!f->next || pf_seek(h, f->next) == f->next)
+		f->len = (int)pf_read(h, f->buf, f->cap);
+	pf_close(h);
+	if (f->len < 0)
+		f->len = 0;
+	f->next += f->len;
 	return f->len > 0;
 }
 
@@ -1063,12 +1075,13 @@ static int load_buffers(int linecap)
 
 static void load_open(const char *path, int linecap)
 {
-	ld.f.h = pf_open(path, PF_READ);
-	if (ld.f.h >= 0 && !load_buffers(linecap)) {
-		pf_close(ld.f.h);
-		ld.f.h = -1;
+	if (!pf_exists(path))
+		return;
+	if (!load_buffers(linecap)) {
 		ld.c->lost = -1;	/* nothing could be read: no memory */
+		return;
 	}
+	str_copy(ld.f.path, path, sizeof(ld.f.path));
 }
 
 static void load_done(void)
@@ -1078,8 +1091,7 @@ static void load_done(void)
 	unsigned long t = pf_ms() - ld.t0;
 	if (ld.p)
 		ics_end(ld.p);
-	if (ld.f.h >= 0)
-		pf_close(ld.f.h);
+	ld.f.path[0] = 0;
 	free(ld.f.buf);
 	ld.f.buf = 0;
 	ld_line = 0;
@@ -1108,7 +1120,6 @@ void cal_load_begin(CALENDAR *c)
 	window(&ld.from, &ld.to);
 	set_me(c);
 	memset(&ld.f, 0, sizeof(ld.f));
-	ld.f.h = -1;
 	ld.c = c;
 	ld.p = 0;
 	ld.l.c = c;
@@ -1117,7 +1128,7 @@ void cal_load_begin(CALENDAR *c)
 	if (accts[c->acct].kind == AK_SUBSCR) {
 		cache_path(c, "ICS", path, sizeof(path));
 		load_open(path, 8192);
-		if (ld.f.h >= 0)
+		if (ld.f.path[0])
 			ld.p = ics_begin(add_event, &ld.l, ld.from, ld.to);
 		return;
 	}
@@ -1148,10 +1159,8 @@ void cal_load_begin(CALENDAR *c)
 			hx_room(c, est);
 	}
 	load_open(path, 700);
-	if (ld.f.h >= 0 && (!fr_line(&ld.f, ld_line, 700) || strncmp(ld_line, "CALCACHE 1", 10))) {
-		pf_close(ld.f.h);
-		ld.f.h = -1;
-	}
+	if (ld.f.path[0] && (!fr_line(&ld.f, ld_line, 700) || strncmp(ld_line, "CALCACHE 1", 10)))
+		ld.f.path[0] = 0;	/* not one of ours: nothing read */
 }
 
 int cal_loading(void)
@@ -1262,7 +1271,7 @@ int cal_load_step(void)
 	int more;
 	if (!ld.c)
 		return 0;
-	more = ld.f.h >= 0 && (ld.p ? load_ics_step() : accts[ld.c->acct].kind != AK_SUBSCR && load_dat_step());
+	more = ld.f.path[0] && (ld.p ? load_ics_step() : accts[ld.c->acct].kind != AK_SUBSCR && load_dat_step());
 	if (!more)
 		load_done();
 	return more;
@@ -1298,28 +1307,51 @@ void cal_load_all(void)
 	status_clear();
 }
 
-/* writing a new cache file: header, then resources one by one */
+/* Writing a new cache file: header, then resources one by one. Neither
+   file stays open across an event call (a refresh waits for the network
+   between events, the accessory's packing goes a step at a time;
+   guidelines 2.2): what is written gathers in memory and goes out at
+   8 KB, each time opened, added to and closed; the old file is open only
+   between cw_copy_begin and cw_copy_end, or for one cw_copy */
+#define CW_FLUSH 8192
 typedef struct {
 	CALENDAR *c;
-	int h, old;		/* new file, old one (for copying) */
-	char tmp[200];
+	char tmp[200], old[200];	/* the new file, the old one (copied from) */
+	int oh;				/* the old one while copying, else -1 */
+	SBUF out;			/* not written yet */
 	int failed;
 } CW;
 
+static void cw_flush(CW *w)
+{
+	int h;
+	if (!w->out.len)
+		return;
+	h = pf_open(w->tmp, PF_APPEND);
+	if (h < 0 || pf_write(h, w->out.s, w->out.len) != w->out.len)
+		w->failed = 1;
+	if (h >= 0)
+		pf_close(h);
+	sb_reset(&w->out);
+}
+
 static int cw_open(CW *w, CALENDAR *c)
 {
-	char path[200];
+	int h;
 	memset(w, 0, sizeof(*w));
 	w->c = c;
+	w->oh = -1;
 	cache_path(c, "TMP", w->tmp, sizeof(w->tmp));
-	w->h = pf_open(w->tmp, PF_WRITE);
-	if (w->h < 0) {
+	cache_path(c, "DAT", w->old, sizeof(w->old));
+	h = pf_open(w->tmp, PF_WRITE);
+	if (h < 0) {
 		snprintf(cal_err, sizeof(cal_err), "can't write the calendar's cache (disk full or locked?)");
 		return 0;
 	}
-	cache_path(c, "DAT", path, sizeof(path));
-	w->old = pf_open(path, PF_READ);
-	pf_write(w->h, "CALCACHE 1\n", 11);
+	if (pf_write(h, "CALCACHE 1\n", 11) != 11)
+		w->failed = 1;
+	pf_close(h);
+	sb_init(&w->out);
 	return 1;
 }
 
@@ -1327,36 +1359,71 @@ static void cw_add(CW *w, const char *href, const char *etag, const char *raw, l
 {
 	char head[700];
 	int n = snprintf(head, sizeof(head), "R %s\t%s\t%ld\n", etag ? etag : "", href, len);
-	if (pf_write(w->h, head, n) != n || pf_write(w->h, raw, len) != len || pf_write(w->h, "\n", 1) != 1)
-		w->failed = 1;
+	if (!sb_add(&w->out, head, n) || !sb_add(&w->out, raw, len) || !sb_addc(&w->out, '\n')) {
+		/* no memory for it: what there is, then this one, written now */
+		int h;
+		sb_reset(&w->out);
+		cw_flush(w);
+		h = pf_open(w->tmp, PF_APPEND);
+		if (h < 0 || pf_write(h, head, n) != n || pf_write(h, raw, len) != len || pf_write(h, "\n", 1) != 1)
+			w->failed = 1;
+		if (h >= 0)
+			pf_close(h);
+		return;
+	}
+	if (w->out.len >= CW_FLUSH)
+		cw_flush(w);
+}
+
+static void cw_copy_begin(CW *w)
+{
+	w->oh = pf_open(w->old, PF_READ);
+}
+
+static void cw_copy_end(CW *w)
+{
+	if (w->oh >= 0)
+		pf_close(w->oh);
+	w->oh = -1;
 }
 
 static void cw_copy(CW *w, const RESOURCE *r)
 {
 	char *raw;
-	if (w->old < 0 || !(raw = malloc(r->len + 1)))
+	int h = w->oh >= 0 ? w->oh : pf_open(w->old, PF_READ);
+	if (h < 0)
 		return;
-	if (pf_seek(w->old, r->off) == r->off && pf_read(w->old, raw, r->len) == r->len)
+	if (!(raw = malloc(r->len + 1)))
+		w->failed = 1;
+	else if (pf_seek(h, r->off) == r->off && pf_read(h, raw, r->len) == r->len)
 		cw_add(w, r->href, r->etag, raw, r->len);
 	else
 		w->failed = 1;
 	free(raw);
+	if (h != w->oh)
+		pf_close(h);
+}
+
+/* the new file given up: the old one stays */
+static void cw_abort(CW *w)
+{
+	cw_copy_end(w);
+	sb_free(&w->out);
+	pf_remove(w->tmp);
 }
 
 static int cw_close(CW *w)
 {
-	char path[200];
-	if (w->old >= 0)
-		pf_close(w->old);
-	pf_close(w->h);
+	cw_copy_end(w);
+	cw_flush(w);
+	sb_free(&w->out);
 	if (w->failed) {
 		pf_remove(w->tmp);
 		snprintf(cal_err, sizeof(cal_err), "couldn't write the calendar's cache (disk full?)");
 		return 0;
 	}
-	cache_path(w->c, "DAT", path, sizeof(path));
-	pf_remove(path);
-	pf_rename(w->tmp, path);
+	pf_remove(w->old);
+	pf_rename(w->tmp, w->old);
 	store_mark();
 	return 1;
 }
@@ -1368,9 +1435,11 @@ static int cache_rewrite(CALENDAR *c, int drop, const char *href, const char *et
 	int i;
 	if (!cw_open(&w, c))
 		return 0;
+	cw_copy_begin(&w);
 	for (i = 0; i < c->nres; i++)
 		if (i != drop && !c->res[i].dead && !(href && !strcmp(c->res[i].href, href)))
 			cw_copy(&w, &c->res[i]);
+	cw_copy_end(&w);
 	if (href)
 		cw_add(&w, href, etag, raw, len);
 	if (!cw_close(&w))
@@ -1589,17 +1658,16 @@ static int sync_caldav(CALENDAR *c, int force)
 		caldav_free_items(items, n);
 		return -1;
 	}
+	cw_copy_begin(&w);
 	for (j = 0, nkept = 0; j < c->nres; j++)
 		if (keep[j]) {
 			cw_copy(&w, &c->res[j]);
 			nkept++;
 		}
+	cw_copy_end(&w);		/* before the network's waits */
 	if (!nneed && nkept == c->nres - c->ndead) {
 		/* the ctag moved (our own changes, say) but nothing is new */
-		if (w.old >= 0)
-			pf_close(w.old);
-		pf_close(w.h);
-		pf_remove(w.tmp);
+		cw_abort(&w);
 		free(keep);
 		free(need);
 		caldav_free_items(items, n);
@@ -1616,10 +1684,7 @@ static int sync_caldav(CALENDAR *c, int force)
 	free(need);
 	caldav_free_items(items, n);
 	if (w.failed == 2) {
-		if (w.old >= 0)
-			pf_close(w.old);
-		pf_close(w.h);
-		pf_remove(w.tmp);
+		cw_abort(&w);
 		return -1;
 	}
 	if (!cw_close(&w))
@@ -1630,20 +1695,55 @@ static int sync_caldav(CALENDAR *c, int force)
 	return 1;
 }
 
+/* a download to a file, which isn't kept open while the network is
+   waited for (event calls, in the accessory; guidelines 2.2): gathered
+   in memory and written in pieces of 8 KB, each opened, added to and
+   closed */
 typedef struct {
-	int h;
+	const char *path;
+	SBUF b;
 	long n;
+	int made;		/* the file begun */
 } FSINK;
+
+static int fs_flush(FSINK *f, const char *data, long n)
+{
+	int h = pf_open(f->path, f->made ? PF_APPEND : PF_WRITE), ok;
+	if (h < 0)
+		return 0;
+	f->made = 1;
+	ok = pf_write(h, data, n) == n;
+	pf_close(h);
+	return ok;
+}
 
 static int file_sink(void *ud, const char *data, long n)
 {
 	FSINK *f = ud;
 	f->n += n;
-	if (pf_write(f->h, data, n) != n)
-		return 0;
+	if (!sb_add(&f->b, data, n)) {
+		/* no memory for it: what there is, then this, written now */
+		if (f->b.len && !fs_flush(f, f->b.s, f->b.len))
+			return 0;
+		sb_reset(&f->b);
+		if (!fs_flush(f, data, n))
+			return 0;
+	} else if (f->b.len >= CW_FLUSH) {
+		if (!fs_flush(f, f->b.s, f->b.len))
+			return 0;
+		sb_reset(&f->b);
+	}
 	if ((f->n & 0xffff) < n)
 		status("Downloading... %s bytes", num(f->n));
 	return 1;
+}
+
+/* the rest written: 0 if the disk refused */
+static int fs_close(FSINK *f)
+{
+	int ok = !f->b.len || fs_flush(f, f->b.s, f->b.len);
+	sb_free(&f->b);
+	return ok && (f->made || fs_flush(f, "", 0));
 }
 
 static int sync_subscription(CALENDAR *c, int force)
@@ -1661,12 +1761,9 @@ static int sync_subscription(CALENDAR *c, int force)
 	ct_split(to, &b);
 	cache_path(c, "NEW", tmp, sizeof(tmp));
 	cache_path(c, "ICS", path, sizeof(path));
-	fs.h = pf_open(tmp, PF_WRITE);
-	fs.n = 0;
-	if (fs.h < 0) {
-		str_copy(cal_err, "can't write the subscription's cache", sizeof(cal_err));
-		return -1;
-	}
+	memset(&fs, 0, sizeof(fs));
+	fs.path = tmp;
+	sb_init(&fs.b);
 	/* the Pi gateway trims big feeds to this window for small Ataris */
 	snprintf(hdr, sizeof(hdr), "Accept: text/calendar, */*\r\nX-Calendar-Window: %04d%02d%02d-%04d%02d%02d\r\n",
 		 a.year, a.mon, a.day, b.year, b.mon, b.day);
@@ -1690,8 +1787,12 @@ static int sync_subscription(CALENDAR *c, int force)
 	sb_init(&errbody);
 	status("%s: downloading...", c->name);
 	ok = http_request(&rq, &rs, &errbody, cal_err, sizeof(cal_err));
-	pf_close(fs.h);
 	sb_free(&errbody);
+	if (ok && rs.status == 200 && !fs_close(&fs)) {
+		str_copy(cal_err, "can't write the subscription's cache", sizeof(cal_err));
+		ok = 0;
+	}
+	sb_free(&fs.b);
 	if (!ok) {
 		pf_remove(tmp);
 		return -1;
@@ -1782,10 +1883,7 @@ static void sj_free(void)
 	sb_free(&sj.rec);
 	if (sj.off) {
 		/* the new file unfinished: the old one stays */
-		if (sj.w.old >= 0)
-			pf_close(sj.w.old);
-		pf_close(sj.w.h);
-		pf_remove(sj.w.tmp);
+		cw_abort(&sj.w);
 		free(sj.off);
 	}
 	if (sj.c && hx_c == sj.c)
@@ -2141,19 +2239,17 @@ int sync_step(void)
 		{
 			/* the new file in place of the old; the resources
 			   renumbered without the dead ones */
-			char path[200];
 			int *map = malloc((c->nres + 1) * sizeof(int)), n = 0;
 			if (!map) {
 				str_copy(cal_err, "out of memory", sizeof(cal_err));
 				sj.failed = 1;
 				return 1;
 			}
-			if (sj.w.old >= 0)
-				pf_close(sj.w.old);
-			pf_close(sj.w.h);
-			cache_path(c, "DAT", path, sizeof(path));
-			pf_remove(path);
-			pf_rename(sj.w.tmp, path);
+			if (!cw_close(&sj.w)) {
+				free(map);
+				sj.failed = 1;
+				return 1;
+			}
 			for (i = 0; i < c->nres; i++) {
 				if (c->res[i].dead) {
 					free(c->res[i].etag);

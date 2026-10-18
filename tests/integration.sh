@@ -18,6 +18,10 @@ cd "$(dirname "$0")/.."
 # the Atari clock runs in its home zone: so does this one
 export TZ=Asia/Jerusalem
 CLI=$PWD/build/cal-cli
+# no file open where the accessory makes event calls (guidelines 2.2).
+# Not in Falcon mode yet: common/src/tls.c reads CACERT.PEM with the
+# network's idle calls in between when it makes ROOTS.DAT
+[ -z "${FALCON:-}" ] && export CAL_FILECHECK=1
 # The events were written for October to December 2026. ECal copies
 # nothing from the past and only FUTURE_DAYS (400) ahead, so they are
 # moved by whole weeks (weekdays stay as they were) to start after today:

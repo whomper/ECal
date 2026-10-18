@@ -978,18 +978,25 @@ int ics_parse_file(const char *path, ICS_CB cb, void *ud, CTIME from, CTIME to)
 	static char buf[4096];
 	SBUF part;
 	ICSP *p;
-	long r;
-	int h = pf_open(path, PF_READ);
-	if (h < 0)
+	long r, at = 0;
+	int h;
+	if (!pf_exists(path))
 		return -1;
 	p = ics_begin(cb, ud, from, to);
-	if (!p) {
-		pf_close(h);
+	if (!p)
 		return -1;
-	}
 	sb_init(&part);
-	while ((r = pf_read(h, buf, sizeof(buf))) > 0) {
+	for (;;) {
 		long i = 0;
+		/* opened for each block: pf_idle makes event calls, and the
+		   accessory's file mustn't stay open across them (guidelines 2.2) */
+		if ((h = pf_open(path, PF_READ)) < 0)
+			break;
+		r = !at || pf_seek(h, at) == at ? pf_read(h, buf, sizeof(buf)) : 0;
+		pf_close(h);
+		if (r <= 0)
+			break;
+		at += r;
 		while (i < r) {
 			char *nl = memchr(buf + i, '\n', r - i);
 			long len = nl ? nl - (buf + i) : r - i;
@@ -1013,7 +1020,6 @@ int ics_parse_file(const char *path, ICS_CB cb, void *ud, CTIME from, CTIME to)
 	if (part.len)
 		ics_line(p, part.s, part.len);
 	sb_free(&part);
-	pf_close(h);
 	return ics_end(p);
 }
 
