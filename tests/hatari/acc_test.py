@@ -53,7 +53,7 @@ def main():
         r.click(18, 8)                 # the Desk menu
         time.sleep(1)
         r.shot("2-desk-menu")
-        r.click(60, 8 + 3 * (16 if not a.mono else 16) + 8)   # its first accessory
+        r.click(60, 8 + 3 * 16 + 8)     # its first accessory
         time.sleep(5)
         r.shot("3-calendar")
         r.key(SCAN["w"], ctrl=True)    # close the window (^W)
