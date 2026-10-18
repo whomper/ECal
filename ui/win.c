@@ -724,7 +724,7 @@ int win_key(short kstate, short key)
 {
 	short scan = KEY_SCAN(key);
 	unsigned char a = KEY_ASCII(key);
-	if (kstate & K_CTRL) {
+	if (key_ctrl(kstate, key)) {
 		switch (scan) {
 		case 0x31: cmd_new_event(); return 1;		/* ^N */
 		case 0x13: cmd_refresh(kstate & (K_LSHIFT | K_RSHIFT)); return 1;	/* ^R */
@@ -749,7 +749,7 @@ int win_key(short kstate, short key)
 			return 1;
 		}
 	}
-	if (!(kstate & (K_CTRL | K_ALT))) {
+	if (!(kstate & K_ALT) && !key_ctrl(kstate, key)) {
 		switch (a) {
 		case 't': case 'T': views_today(); return 1;
 		case 'd': case 'D': views_goto(cur_day, V_DAY); return 1;

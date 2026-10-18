@@ -167,7 +167,7 @@ unsigned char key_char(short kstate, short key)
 {
 	short scan = KEY_SCAN(key);
 	unsigned char ascii = KEY_ASCII(key);
-	if (hebrew_kbd && !(kstate & (K_LSHIFT | K_RSHIFT | K_CTRL | K_ALT)) &&
+	if (hebrew_kbd && !(kstate & (K_LSHIFT | K_RSHIFT | K_ALT)) && !key_ctrl(kstate, key) &&
 	    scan >= 0x10 && scan < 0x36 && hebrew_keys[scan - 0x10])
 		ascii = hebrew_keys[scan - 0x10];
 	return ascii;

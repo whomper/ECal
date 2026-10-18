@@ -33,25 +33,6 @@ K = dict(RETURN=0x1c, ESC=0x01, TAB=0x0f, BACKSPACE=0x0e, DELETE=0x53, UP=0x48, 
          LEFT=0x4b, RIGHT=0x4d, HOME=0x47, HELP=0x62, F10=0x44, CTRL=0x1d, SHIFT=0x2a, ALT=0x38)
 
 
-def clock_prg():
-    """C:\\AUTO\\CLOCK.PRG for an ST, which has no clock (a Mega ST's isn't
-    one of the machines): it sets the date and time to this computer's
-    local time, as one does on a real ST from the Control Panel.
-      move.w #date,-(sp); move.w #$2B,-(sp); trap #1; addq.l #4,sp   Tsetdate
-      move.w #time,-(sp); move.w #$2D,-(sp); trap #1; addq.l #4,sp   Tsettime
-      move.l #both,-(sp); move.w #22,-(sp); trap #14; addq.l #6,sp   Settime
-      clr.w -(sp); trap #1                                            Pterm0
-    (a few seconds behind by the time it runs: the boot)"""
-    t = time.localtime(time.time() + 5)
-    date = (t.tm_year - 1980) << 9 | t.tm_mon << 5 | t.tm_mday
-    tod = t.tm_hour << 11 | t.tm_min << 5 | t.tm_sec // 2
-    code = struct.pack(">HHHHHH", 0x3F3C, date, 0x3F3C, 0x2B, 0x4E41, 0x588F) + \
-        struct.pack(">HHHHHH", 0x3F3C, tod, 0x3F3C, 0x2D, 0x4E41, 0x588F) + \
-        struct.pack(">HIHHHH", 0x2F3C, date << 16 | tod, 0x3F3C, 22, 0x4E4E, 0x5C8F) + \
-        struct.pack(">HH", 0x4267, 0x4E41)
-    return struct.pack(">HIIIIIIH", 0x601A, len(code), 0, 0, 0, 0, 0, 0) + code + bytes(4)
-
-
 def add_machine(ap, default):
     """--machine NAME[:SCREEN] for a rig's argparse, default if left out"""
     ap.add_argument("--machine", default=default,
@@ -72,10 +53,6 @@ class Rig:
         network()), the Atari's TCP connections becoming this computer's"""
         self.work, self.display = work, display
         self.machine = machines.Machine(machine, os.path.join(work, "hd"))
-        if is_st(machine):
-            os.makedirs(os.path.join(work, "hd", "AUTO"), exist_ok=True)
-            with open(os.path.join(work, "hd", "AUTO", "CLOCK.PRG"), "wb") as f:
-                f.write(clock_prg())
         print("machine:", self.machine.describe(), flush=True)
         self.env = self.machine.env(dict(os.environ, DISPLAY=display, SDL_VIDEODRIVER="x11",
                                          SDL_AUDIODRIVER="dummy"))
