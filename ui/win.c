@@ -383,7 +383,7 @@ void win_buffer_init(void)
 		MFDB m = obuf_mfdb;
 		short h = v_opnbm(vdi_h, &m);
 		if (h > 0 && lands_in(b, h, 0)) {
-			if (vq_gdos())
+			if (font_gdos_loaded())
 				vst_load_fonts(h, 0);
 			bm_h = h;
 			obuf = b;

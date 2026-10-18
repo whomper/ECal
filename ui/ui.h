@@ -201,6 +201,8 @@ void dlg_keys(void);
 #include "help.h"		/* help_init (at start-up), help_show: common/ui */
 void help_open(void);		/* ECAL.HYP in EHypView or ST-Guide, or the keys */
 void font_apply(void);		/* opt.font_id/pt -> the VDI font, cw, ch */
+int  font_boot(int want);	/* the accessory, before its first event call */
+int  font_gdos_loaded(void);
 void font_menu(void);		/* the font selector (font.c) */
 void font_reselect(void);	/* the text font again, after drawing in another */
 /* how the text font gets its Hebrew letters */

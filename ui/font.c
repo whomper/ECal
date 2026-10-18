@@ -39,6 +39,7 @@ typedef struct {
    ST most often), from the heap once they are counted */
 static FAM *fam, fam_sys;
 static short nfam, maxfam, gdos_fonts = -1;
+static short boot_fonts;	/* the accessory: its fonts settled at boot (font_boot) */
 static short sizes[MAXSIZE], nsizes;
 static char size_label[MAXSIZE][12];
 static short sys_depth;		/* dialogs open: the system font */
@@ -137,6 +138,24 @@ void font_reselect(void)
 	ch = keep_ch;
 }
 
+/* The accessory loads GDOS fonts only now, before its first event call,
+   and only when ECAL.INF names one (want): under FONTGDOS or SpeedoGDOS
+   their memory belongs to the program in front, so fonts loaded later
+   would be freed under the accessory (guidelines 2.2). The program loads
+   them when they're first wanted. 1 if fonts were loaded */
+int font_boot(int want)
+{
+	boot_fonts = 1;
+	gdos_fonts = want && vq_gdos() ? vst_load_fonts(vdi_h, 0) : 0;
+	return gdos_fonts > 0;
+}
+
+/* whether another workstation (win.c's bitmap) may load them too */
+int font_gdos_loaded(void)
+{
+	return boot_fonts ? gdos_fonts > 0 : vq_gdos();
+}
+
 void font_apply(void)
 {
 	if (sys_depth) {
@@ -146,8 +165,13 @@ void font_apply(void)
 	if (opt.font_id != 1 && gdos_fonts < 0 && vq_gdos())
 		gdos_fonts = vst_load_fonts(vdi_h, 0);
 	if (!set_font(opt.font_id, opt.font_pt)) {
-		opt.font_id = 1;
-		opt.font_pt = 0;
+		/* the accessory without its fonts (one chosen since it
+		   started): the system font until the next boot, the choice
+		   kept */
+		if (!boot_fonts) {
+			opt.font_id = 1;
+			opt.font_pt = 0;
+		}
 		set_font(1, 0);
 	}
 }
@@ -704,6 +728,10 @@ void font_menu(void)
 	short i, x, y, w, h, o_cancel, o_fam, o_size, done = 0, ok = 0, m[8];
 	AEVENT e;
 
+	if (boot_fonts && !gdos_fonts && vq_gdos()) {
+		alert(1, "[1][The accessory loads GDOS fonts|when the machine starts, and|only when one is chosen. Choose|it in ECAL.PRG (Options > Font),|then restart.][ OK ]");
+		return;
+	}
 	list_families();
 	sel_heb = opt.hebfont;
 	lf.sel = 0;
