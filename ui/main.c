@@ -796,6 +796,8 @@ static int locate_folder(void)
 
 /* an accessory takes its memory once, now: later it would belong to
    whichever program is in front. HEAPKB=n in ECAL.INF overrides */
+static long boot_free, boot_taken;	/* KB at boot, for the log */
+
 static void acc_heap(void)
 {
 	static char buf[2048];
@@ -825,6 +827,7 @@ static void acc_heap(void)
 				want = atol(k + 7) * 1024;
 		}
 	}
+	boot_free = avail / 1024;
 	if (want > avail / 2)
 		want = avail / 2;
 	if (want < 96L * 1024)
@@ -841,8 +844,10 @@ static void acc_heap(void)
 	}
 	if ((long)p == -32 || (long)p <= 0)
 		p = Malloc(want);
-	if ((long)p > 0)
+	if ((long)p > 0) {
 		heap_add(p, (size_t)want);
+		boot_taken = want / 1024;
+	}
 }
 
 static void files_check(void);
@@ -920,6 +925,10 @@ static int settings_step(void)
 			 (unsigned long)h, (unsigned long)h >= 0x01000000UL ? "TT" : "ST");
 		free(h);
 		conn_log("ECal", "--", m, (long)strlen(m));
+		if (is_acc) {
+			snprintf(m, sizeof(m), "at boot: %ld KB free, the accessory took %ld KB", boot_free, boot_taken);
+			conn_log("ECal", "--", m, (long)strlen(m));
+		}
 		snprintf(m, sizeof(m), "the window is drawn %s", win_drawing());
 		conn_log("ECal", "--", m, (long)strlen(m));
 		if (*tos_clock())
