@@ -267,6 +267,9 @@ TZ=America/New_York tests/hatari/docs_shots.py WORK --update
 
 Which machines a change passes (the family's guidelines): the ECALST.ACC rigs on `ST` and `ST-1`, in
 mono and medium resolution; the others on `TT` and `Falcon`; what draws also on `Falcon:256`.
+Not yet on `ST-1` with a network: ECALST.ACC and a network stack (FAKESTNG, like STinG) leave a
+1 MB ST too little memory for the desktop, so `net_test.py` and `stop_test.py` fail there until
+ECALST.ACC is made smaller.
 
 The network tests use the family's `FAKESTNG.PRG`, which carries the emulated Atari's TCP over its
 serial port to `serial_bridge.py` (both in `common/tools/fakesting`, started by `machines.py`); it's
