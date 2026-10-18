@@ -25,9 +25,11 @@
 
 static const char *const wd2[7] = { "SU", "MO", "TU", "WE", "TH", "FR", "SA" };
 
+/* by bits, not % and /: a 68000 divides an int in a library call, and
+   a monthly rule asks this for each of its weekdays on each day */
 void rr_byday(short v, int *ord, int *wd)
 {
-	*wd = ((v % 8) + 8) % 8;
+	*wd = v & 7;
 	*ord = (v - *wd) / 8;
 }
 
@@ -598,7 +600,7 @@ static int yearly_days(const RRULE *r, int y, int m0, int d0, int wd0, long *day
 
 static int monthly_days(const RRULE *r, int y, int m, int d0, long *days)
 {
-	int n = 0, dim = days_in_month(y, m), d;
+	int n = 0, dim = days_in_month(y, m), d, wd;
 	long first = days_from_civil(y, m, 1), jan1 = days_from_civil(y, 1, 1);
 	int ylen = is_leap(y) ? 366 : 365;
 	if (!f_month(r, m))
@@ -608,10 +610,10 @@ static int monthly_days(const RRULE *r, int y, int m, int d0, long *days)
 			days[n++] = days_from_civil(y, m, d0);
 		return n;
 	}
-	for (d = 1; d <= dim; d++) {
+	for (d = 1, wd = wday_of(first); d <= dim; d++, wd = wd == 6 ? 0 : wd + 1) {
 		long day = first + d - 1;
 		if (f_mday(r, d, dim) && f_yday(r, (int)(day - jan1) + 1, ylen) &&
-		    f_wday(r, wday_of(day), 1, d, dim, 0, 0))
+		    f_wday(r, wd, 1, d, dim, 0, 0))
 			days[n++] = day;
 	}
 	return n;
@@ -621,15 +623,22 @@ static int monthly_days(const RRULE *r, int y, int m, int d0, long *days)
 static int day_times(const RRULE *r, long sod0, long *t)
 {
 	int h, mi, s, n = 0;
-	int h0 = (int)(sod0 / 3600), m0 = (int)(sod0 / 60 % 60), s0 = (int)(sod0 % 60);
+	int h0, m0, s0, bym = any_bits(r->byminute, 2), bys = any_bits(r->bysecond, 2);
+	if (!r->byhour && !bym && !bys) {
+		t[0] = sod0;		/* the start's time: nearly every rule */
+		return 1;
+	}
+	h0 = (int)(sod0 / 3600);
+	m0 = (int)(sod0 / 60 % 60);
+	s0 = (int)(sod0 % 60);
 	for (h = 0; h < 24; h++) {
 		if (r->byhour ? !((r->byhour >> h) & 1) : h != h0)
 			continue;
 		for (mi = 0; mi < 60; mi++) {
-			if (any_bits(r->byminute, 2) ? !has_bit(r->byminute, mi) : mi != m0)
+			if (bym ? !has_bit(r->byminute, mi) : mi != m0)
 				continue;
 			for (s = 0; s <= 60; s++) {
-				if (any_bits(r->bysecond, 2) ? !has_bit(r->bysecond, s) : s != s0)
+				if (bys ? !has_bit(r->bysecond, s) : s != s0)
 					continue;
 				if (n < CMAX)
 					t[n++] = h * 3600L + mi * 60L + s;
@@ -887,7 +896,12 @@ static void rr_walk(const RRULE *r, CTIME w0, CTIME hint, CTIME stop, WALK_FN fn
 			case F_SECONDLY: pstart = td < 20 ? (td * 86400 - sod0) / iv : 0; break;
 			}
 			if (pstart > 0) {
-				pstart--;
+				/* a period early for safety; but a month's days are all
+				   in it, so the month two days before is early enough
+				   (a year's aren't: BYWEEKNO's week 1 can begin in
+				   December) */
+				if (r->freq != F_MONTHLY)
+					pstart--;
 				w.started = 1;
 			} else {
 				pstart = 0;
@@ -923,6 +937,8 @@ static void rr_walk(const RRULE *r, CTIME w0, CTIME hint, CTIME stop, WALK_FN fn
 				long mi = (long)y0 * 12 + (m0 - 1) + p * r->interval;
 				int y = (int)(mi / 12), m = (int)(mi % 12) + 1;
 				base = days_from_civil(y, m, 1);
+				if (stop != CT_NONE && base * MIN_PER_DAY > stop + 2 * MIN_PER_DAY && base > d0)
+					return;	/* past what's wanted: not worked out first */
 				nd = monthly_days(r, y, m, dd0, days);
 				break;
 			}
