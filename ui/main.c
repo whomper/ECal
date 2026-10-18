@@ -211,6 +211,7 @@ int falcon_mode_set(int on)
 	opt.falcon = (short)on;
 	http_close_all();
 	falcon_dsp_init();
+	falcon_dsp_ec_init();
 	store_save_settings();
 	return 1;
 }
@@ -926,6 +927,7 @@ static int settings_step(void)
 	cal_status = status;
 	tls_note = status;
 	falcon_dsp_init();
+	falcon_dsp_ec_init();
 	cur_view = opt.view >= V_DAY && opt.view <= V_YEAR ? opt.view : V_MONTH;
 	cur_day = ct_days(now_view());
 	shown_today = cur_day;

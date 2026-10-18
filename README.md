@@ -11,7 +11,7 @@ CalDAV server.
   two-way sync, `.ics` subscriptions and calendars kept only on the Atari, each in its own colour.
 - **Modern but Atari:** a desk accessory that opens over whatever program you're working in, or a
   program; right-click menus, drag and drop, iconify, help in EHypView or ST-Guide.
-- **Secure:** TLS 1.2 on the Falcon and TT, with RSA on the DSP; ST and STE through a Raspberry Pi
+- **Secure:** TLS 1.2 on the Falcon and TT, with RSA and the elliptic curves on the DSP; ST and STE through a Raspberry Pi
   gateway.
 - **Hebrew** throughout: right-to-left text, the Israeli keyboard (F10), Hebrew dates and
   Hebrew-calendar repeats.
@@ -32,7 +32,7 @@ file on its own, or all of them in `ECAL-x.y.zip`.
 | File | What it is |
 |---|---|
 | `ECAL.ACC` | Falcon and TT: the desk accessory with Falcon mode (TLS, DSP); also works through the Pi |
-| `ECALST.ACC` | ST and STE: the same accessory without TLS (about 110 KB smaller), through the Pi |
+| `ECALST.ACC` | ST and STE: the same accessory without TLS (about 120 KB smaller), through the Pi |
 | `ECAL.PRG` | the same as `ECAL.ACC`, to start from the desktop, with a menu bar |
 | `CACERT.PEM`, `ROOTS.DAT` | the root certificates for Falcon mode |
 | `ECAL.HYP`, `ECAL.REF` | the guide, for EHypView, ST-Guide or HypView, opened by the Help key |
@@ -88,7 +88,7 @@ ways:
 
 ```
 ST, STE:     Atari (ECALST.ACC) --plain HTTP, home LAN--> Raspberry Pi (ecalgate.py) --HTTPS--> the server
-Falcon, TT:  Atari (ECAL.ACC, TLS 1.2, RSA on the DSP) --------------------------------HTTPS--> the server
+Falcon, TT:  Atari (ECAL.ACC, TLS 1.2, RSA, curves on the DSP) ------------------------HTTPS--> the server
 ```
 
 - **Through the Pi.** `gateway/ecalgate.py` on a Raspberry Pi takes the Atari's requests and makes the
@@ -97,7 +97,8 @@ Falcon, TT:  Atari (ECAL.ACC, TLS 1.2, RSA on the DSP) -------------------------
   you keep. Any Atari can use it, a Falcon too, to save time.
 - **Falcon mode.** On a Falcon (or a TT), ECal does TLS 1.2 itself with
   [BearSSL](https://bearssl.org/), and the DSP56001 checks the servers' RSA signatures (about 0.1 s
-  each), as in EMail.
+  each), as in EMail, and does the elliptic curves: the key exchange (X25519: two steps of about 0.07 s
+  each, 0.4 s on a 16 MHz 68030) and ECDSA certificates (P-256, P-384).
 
 The gateway's own README, with its options and how to keep it private:
 [gateway/README.md](gateway/README.md).
@@ -157,6 +158,7 @@ change.
 | TLS, certificates | on the Pi | on the Pi | 68030 + DSP | 68030 alone |
 | New secure connection | none on the Atari | none on the Atari | a few seconds once, then ~0.7 s (resumed) | slower: the RSA check runs on the 68030 |
 | RSA signature check | — | — | ~0.1 s | several times longer |
+| Key exchange (X25519) | — | — | ~0.15 s | ~0.8 s |
 | Decrypting answers | — | — | ~200 instructions a byte | the same |
 | Compressed answers | unpacked by the Pi | unpacked by the Pi | unpacked by ECal, ~10 instructions a byte | the same |
 | Big subscription feeds | trimmed by the Pi to the months kept | trimmed by the Pi | parsed whole by ECal | parsed whole |
@@ -167,8 +169,9 @@ change.
 - **Falcon mode** needs no Pi. After the first connection each request costs well under a second;
   most of a first sync goes into the first handshake and into decrypting what comes back, which
   compression keeps small. Saving an event takes about a second.
-- **The DSP** only speeds up the certificate checks at the start of each new connection; with session
-  resumption there are few of those, so it matters most for the first sync after starting ECal.
+- **The DSP** only speeds up the handshake at the start of each new connection (the certificate checks
+  and the key exchange: 2.1 s of work became 1.3 s in the emulated Falcon); with session resumption
+  there are few of those, so it matters most for the first sync after starting ECal.
 - On a TT or an accelerated Falcon, running in TT/Fast RAM makes everything ECal does itself faster.
 
 In Falcon mode the 68030 decrypts every byte itself and doesn't read from STinG while it does, so
@@ -260,7 +263,7 @@ tests/hatari/edit_test.py WORK [--machine M]      # add, Hebrew title, find, del
                                                   # custom repeats (Falcon; on an ST up to delete)
 tests/hatari/alarm_test.py WORK [--machine M]     # reminders from ALARMS.IDX at boot (Falcon)
 tests/hatari/net_test.py WORK [--machine M]       # syncing through ecalgate (ST)
-tests/hatari/net_test.py WORK --falcon-mode       # TLS on the Falcon, RSA on the DSP
+tests/hatari/net_test.py WORK --falcon-mode       # TLS on the Falcon, RSA and X25519 on the DSP
 tests/hatari/stop_test.py WORK [--machine M]      # Esc stops a server that says nothing (ST)
 tests/hatari/quiet_test.py WORK [--machine M]     # make profile first: the accessory's quiet
                                                   # start, timed between event calls (Falcon)

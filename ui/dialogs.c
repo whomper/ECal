@@ -688,6 +688,7 @@ static void settings(short first)
 	if (f[C1].val != opt.falcon)
 		falcon_mode_set(f[C1].val);
 	falcon_dsp_init();
+	falcon_dsp_ec_init();
 	http_close_all();
 	store_save_settings();
 	set_logging();

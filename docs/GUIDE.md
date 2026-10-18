@@ -117,7 +117,9 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
   - **Falcon mode**: ECal makes the secure connections itself. Needs a
     68030 (Falcon or TT), `ECAL.ACC`, and `CACERT.PEM` and `ROOTS.DAT` in
     ECal's folder. **Check certificates on the DSP** lets the Falcon's
-    DSP56001 do the RSA arithmetic (much faster than the 68030).
+    DSP56001 do the RSA arithmetic and the elliptic curves of each new
+    connection (much faster than the 68030); the log says what it did
+    ("X25519 on the DSP, 70 ms").
   - A server on your home network that speaks plain `http://` (a Radicale
     or Nextcloud without TLS) needs neither.
   - **Write a log**: `ECAL.LOG` in ECal's folder, the conversation

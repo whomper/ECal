@@ -56,8 +56,10 @@ ATARI   := libc tos plat_tos net_tos sting gem dsprsa
 UI      := main win draw popup dsp views sidebar editor dialogs field about font help av alert aboutbox iconify clip dd mbar twin busy bgwork dialog av_people people_ask
 
 OBJDIR  := build
+# Falcon mode's elliptic curves on the DSP (common/README.md); not in the ST edition
+ECDSP   := ecdsp dspec dsp_ec
 OBJS0   := $(OBJDIR)/crt0.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o $(OBJDIR)/crash.o $(OBJDIR)/crash_s.o \
-           $(addprefix $(OBJDIR)/,$(addsuffix .o,$(CORE) $(ATARI) $(UI)))
+           $(addprefix $(OBJDIR)/,$(addsuffix .o,$(CORE) $(ATARI) $(UI) $(ECDSP)))
 OBJS    := $(OBJS0) $(OBJDIR)/version.o
 HDRS    := $(wildcard src/*.h atari/*.h atari/include/*.h ui/*.h \
            common/src/*.h common/atari/*.h common/atari/include/*.h common/ui/*.h common/dsp/*.h)
@@ -67,12 +69,12 @@ BIN     := binary
 
 all: $(BIN)/ECAL.ACC $(BIN)/ECAL.PRG $(BIN)/ECALST.ACC $(BIN)/ROOTS.DAT
 
-# the ST edition: no TLS of its own (it uses the Pi gateway), about 105 KB
+# the ST edition: no TLS of its own (it uses the Pi gateway), about 120 KB
 # smaller; only BearSSL's MD5 (for Digest logins), as 68000 code. Only
 # ever an accessory, so no crash catcher (crash_none.c)
 STBSSL  := hash/md5 codec/dec32le codec/enc32le
 STOBJS  := $(OBJDIR)/crt0_st.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o $(OBJDIR)/crash_none.o \
-           $(addprefix $(OBJDIR)/,$(addsuffix .o,$(filter-out tls,$(CORE)) $(ATARI) $(UI) tls_none)) \
+           $(addprefix $(OBJDIR)/,$(addsuffix .o,$(filter-out tls,$(CORE)) $(ATARI) $(UI) tls_none dsp_ec_none)) \
            $(addprefix $(OBJDIR)/st/,$(addsuffix .o,$(notdir $(STBSSL)))) $(OBJDIR)/version.o
 
 $(BIN)/ECALST.ACC: $(OBJDIR)/ecalst.elf common/tools/elf2tos.py | $(BIN)

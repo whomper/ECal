@@ -231,6 +231,8 @@ void closing_down(int quitting);	/* the last steps, on the info line */
 unsigned char key_char(short kstate, short key);	/* honours the Hebrew layout */
 void falcon_dsp_init(void);		/* dsp.c */
 const char *falcon_dsp_state(void);
+void falcon_dsp_ec_init(void);		/* dsp_ec.c (dsp_ec_none.c in the ST edition) */
+const char *falcon_dsp_ec_state(void);
 int  falcon_mode_set(int on);
 extern short quit_now;
 void set_logging(void);
