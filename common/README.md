@@ -34,7 +34,7 @@ These files were the same code in ECal, EContact, EMail and EFTP when they moved
 | `atari/include/` | `ctype.h` `limits.h` `stdio.h` `string.h` `strings.h` | the parts of the freestanding C library headers every app shares |
 | `src/` | `bidi.c/.h`, `ctime.c/.h`, `futil.c`, `secret.c/.h` | Hebrew right-to-left layout; dates and times; safe file writes (`pf_save` writes `NAME.IN$` and renames it over `NAME.INF`; `tests/futil`); password encryption |
 | `ui/` | `dsp.c` | checks the DSP and turns Falcon mode on |
-| `dsp/` | `rsa.a56`, `rsa_prog.h`, `mkh.py` | the DSP program (source, and as a C array) |
+| `dsp/` | `rsa.a56`, `rsa_prog.h`, `mkh.py` | the DSP program (source, and as a C array); `ec.a56` since 18 Oct 2026 (below) |
 | `tools/` | `elf2tos.py`, `mkroots.c` | ELF to TOS program header; root certificates to `ROOTS.DAT` |
 | `third_party/bearssl/` | BearSSL 0.6 | TLS for Falcon mode (MIT licence) |
 | `certs/` | `CACERT.PEM` | Mozilla's root certificates (MPL 2.0) |
@@ -233,6 +233,35 @@ bugs, all caught); `tests/av` checks PEOPLE in and out.
 `tests/tz`: `make test`, 83 million offsets from the kept zone-years against the rules: every built-in
 zone around each change from 1990 to 2040, random moments, a zone whose rules change at the same
 address, and one that changes on new year's day (four planted bugs, all caught).
+
+## Elliptic curves on the DSP (18 Oct 2026, from EWeb)
+
+The handshake's elliptic curves, done by the Falcon's DSP56001 as `dsprsa.c` does RSA. On a 50 MHz
+68030 BearSSL's `br_ec_all_m31` takes 8 million instructions for an X25519 key exchange, 21 million to
+check an ECDSA P-256 signature and 119 million for P-384 (BearSSL's P-384 code is generic): EWeb's
+first fetch of Wikipedia, whose certificates are ECDSA only, spent 86 seconds in the handshake.
+
+| File | What it does |
+|---|---|
+| `dsp/ec.a56`, `dsp/ec_prog.h` | arithmetic modulo a prime (up to 527 bits) on the DSP: 128 numbers held there, each command a 24-bit word (Montgomery product by product scanning, sum, difference, out, is-zero). `cd dsp && a56 ec.a56 && python3 mkh.py a56.out ec_prog.h dsp_ec_prog ec.a56` |
+| `src/ecdsp.c/.h` | BearSSL's `br_ec_impl` with the curves worked out as streams of those commands: P-256, P-384, P-521 (Jacobian, 4-bit windows) and Curve25519 (RFC 7748's ladder); `ecdsp_vrfy_asn1` checks a whole ECDSA signature there, the inverse modulo the order included (2 to 6 million 68030 instructions in BearSSL's). The secret scalars give the DSP the same commands whatever their bits. Any other curve, or a DSP that can't be had, goes to `br_ec_all_m31` |
+| `atari/dspec.c/.h` | the port: Dsp_Lock, the bootstrap, the host port; the job runs in supervisor mode on the program's own stack (`Super(0)`, not `Supexec`) |
+| `ui/dsp_ec.c` | `falcon_dsp_ec_init()`, after `falcon_dsp_init()`: when Falcon mode and the DSP are on, every handshake's curves go to the DSP (`tls_set_ec`), after a self-test (RFC 7748's first X25519 example) the first time; `falcon_dsp_ec_state()` says "DSP" or "68030"; each operation is in the log ("ECDSA P-384 on the DSP, 780 ms") |
+| `src/tls.c/.h`, `src/conn.c/.h` | `tls_set_ec()`, `tls_ec_fast()`. With the curves on the DSP the first hello offers ECDSA as well as RSA, instead of asking for RSA and connecting again; `c->tls_ms` counts the tries a server refused, and `c->tls_tries` says how many it took |
+
+It is opt-in: an app builds `ecdsp.c`, `dspec.c` and `dsp_ec.c`, declares the two calls in its `ui.h`
+and calls `falcon_dsp_ec_init()`; an app that doesn't builds exactly as before.
+
+Times on the DSP (32 MHz), counted on Hatari's DSP core: X25519 0.23 s, an ECDSA P-256 check 0.40 s,
+P-384 0.78 s, P-521 1.7 s (for P-384: 40 s or more on the 68030). In EWeb's Hatari rig a handshake with
+an ECDSA certificate (a P-256 key, signed with P-384) took 1.1 s, but Hatari runs the DSP more than
+twice as fast as a real one when the 68030 is set to 32 MHz: count on about 2 s.
+
+`tests/ec`: `make test` checks `ecdsp.c` against BearSSL with a C model of `ec.a56` (key exchanges and
+signature checks on every curve, RFC 7748's vectors, doublings and the point at infinity inside a
+check, points off the curve, good and bad signatures with short and long hashes: 902 checks);
+`./fetch-hatari.sh` then `make sim` runs the same through `ec.a56` itself on Hatari's DSP core
+(fetched, not kept here) and prints the DSP's time for each kind of operation.
 
 ## Coming next
 
