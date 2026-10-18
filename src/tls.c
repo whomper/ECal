@@ -16,6 +16,7 @@
  *  - One 16 KB buffer per connection (half duplex): mail protocols
  *    wait for the answer before they send again.
  */
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -32,8 +33,10 @@ uint32_t br_rsa_pkcs1_sig_unpad(const unsigned char *sig, size_t sig_len,
 const int tls_available = 1;
 int tls_tz_minutes;
 char tls_seed_path[200];
+char tls_sigs_path[200];
 char tls_roots_cache[200];
 void (*tls_note)(const char *msg);
+void (*tls_log)(const char *msg);
 int (*tls_rsa_accel)(unsigned char *x, size_t xlen, const unsigned char *n, size_t nlen,
 		     const unsigned char *e, size_t elen);
 
@@ -52,9 +55,21 @@ int tls_ec_fast(void)
 	return ec_vrfy != 0;
 }
 
+/* br_x509_minimal_context with the time it takes and the bytes it sees,
+   for the log */
+typedef struct {
+	const br_x509_class *vtable;
+	br_x509_minimal_context *in;
+	unsigned long t0, busy, bytes;
+	int certs;
+} XTIME;
+
 struct TLS {
 	br_ssl_client_context cc;
 	br_x509_minimal_context xc;
+	XTIME xt;
+	int hs;				/* the handshake: its times are logged */
+	unsigned long sent, waited, wait0;	/* the hello sent; waiting for data */
 	int sock;
 	char desc[80];
 	int offered, resumed;		/* a kept session offered; taken up */
@@ -66,6 +81,122 @@ struct TLS {
 
 static br_x509_trust_anchor *anchors;
 static size_t nanchors, maxanchors;
+
+/* ---------------- the root certificates' names, hashed once ----------------
+ * To find a certificate's issuer among the root certificates, BearSSL
+ * hashes the name of every one of them, for each certificate a server
+ * sends: 363 SHA-256 hashes for a chain like Wikipedia's, 3.8 million
+ * 68030 instructions. Which hash it uses for names is ours to say, so
+ * this one is SHA-256 that remembers a root's name: the name comes in one
+ * piece, straight from anchors[], and its hash is worked out the first
+ * time only. */
+typedef struct {
+	const br_hash_class *vtable;
+	br_sha256_context sc;
+	long ta;		/* the root whose name it is, not hashed yet; or -1 */
+	int parts;
+} DNHASH;
+typedef char dnhash_fits[sizeof(DNHASH) <= sizeof(br_hash_compat_context) ? 1 : -1];
+
+static const br_hash_class dn_vtable;
+static unsigned char (*dn_memo)[32];
+static unsigned char *dn_known;
+static const br_x509_trust_anchor *dn_memo_of;	/* the anchors they are for */
+static size_t dn_memo_n;
+
+static void dn_forget(void)
+{
+	free(dn_memo);
+	free(dn_known);
+	dn_memo = 0;
+	dn_known = 0;
+	dn_memo_of = 0;
+	dn_memo_n = 0;
+}
+
+static long dn_root(const void *data, size_t len)
+{
+	size_t i;
+	if (dn_memo_of != anchors || dn_memo_n != nanchors) {
+		dn_forget();
+		dn_memo = malloc(nanchors * 32);
+		dn_known = calloc(nanchors, 1);
+		if (!dn_memo || !dn_known) {
+			dn_forget();
+			return -1;
+		}
+		dn_memo_of = anchors;
+		dn_memo_n = nanchors;
+	}
+	for (i = 0; i < nanchors; i++)
+		if (anchors[i].dn.data == data && anchors[i].dn.len == len)
+			return (long)i;
+	return -1;
+}
+
+static void dn_init(const br_hash_class **ctx)
+{
+	DNHASH *d = (DNHASH *)(void *)ctx;
+	d->vtable = &dn_vtable;
+	br_sha256_init(&d->sc);
+	d->ta = -1;
+	d->parts = 0;
+}
+
+static void dn_update(const br_hash_class **ctx, const void *data, size_t len)
+{
+	DNHASH *d = (DNHASH *)(void *)ctx;
+	long i = d->parts++ ? -1 : dn_root(data, len);
+	if (d->ta >= 0) {		/* more than a root's name after all */
+		br_sha256_update(&d->sc, anchors[d->ta].dn.data, anchors[d->ta].dn.len);
+		d->ta = -1;
+	}
+	if (i >= 0)
+		d->ta = i;
+	else
+		br_sha256_update(&d->sc, data, len);
+}
+
+static void dn_out(const br_hash_class *const *ctx, void *dst)
+{
+	const DNHASH *d = (const DNHASH *)(const void *)ctx;
+	if (d->ta < 0) {
+		br_sha256_out(&d->sc, dst);
+		return;
+	}
+	if (!dn_known[d->ta]) {
+		br_sha256_context sc;
+		br_sha256_init(&sc);
+		br_sha256_update(&sc, anchors[d->ta].dn.data, anchors[d->ta].dn.len);
+		br_sha256_out(&sc, dn_memo[d->ta]);
+		dn_known[d->ta] = 1;
+	}
+	memcpy(dst, dn_memo[d->ta], 32);
+}
+
+/* not used by the X.509 engine; right all the same */
+static uint64_t dn_state(const br_hash_class *const *ctx, void *dst)
+{
+	const DNHASH *d = (const DNHASH *)(const void *)ctx;
+	br_sha256_context sc = d->sc;
+	if (d->ta >= 0)
+		br_sha256_update(&sc, anchors[d->ta].dn.data, anchors[d->ta].dn.len);
+	return br_sha256_state(&sc, dst);
+}
+
+static void dn_set_state(const br_hash_class **ctx, const void *stb, uint64_t count)
+{
+	DNHASH *d = (DNHASH *)(void *)ctx;
+	d->ta = -1;
+	d->parts = 1;
+	br_sha256_set_state(&d->sc, stb, count);
+}
+
+static const br_hash_class dn_vtable = {
+	sizeof(DNHASH), BR_HASHDESC_ID(br_sha256_ID) | BR_HASHDESC_OUT(32) | BR_HASHDESC_STATE(32) |
+	BR_HASHDESC_LBLEN(6) | BR_HASHDESC_MD_PADDING | BR_HASHDESC_MD_PADDING_BE,
+	dn_init, dn_update, dn_out, dn_state, dn_set_state
+};
 
 int tls_anchor_count(void)
 {
@@ -88,6 +219,7 @@ void tls_free_anchors(void)
 	free(anchors);
 	anchors = 0;
 	nanchors = maxanchors = 0;
+	dn_forget();
 }
 
 typedef struct {
@@ -485,21 +617,50 @@ static void set_time(br_x509_minimal_context *xc)
 	br_x509_minimal_set_time(xc, days, (uint32_t)secs);
 }
 
+/* a small file of ours written again: over the old one, in place, where
+   the app's plat.h has PF_UPDATE. On TOS a new file (or a renamed one)
+   means searching the FAT and changing directory entries, half a second
+   or more each on a big partition; the same number of bytes written over
+   an old file changes neither. pf_save, safe and slow, when there is
+   none yet */
+static void put_file(const char *path, const void *data, long len)
+{
+#ifdef PF_UPDATE
+	int h;
+	if (pf_size(path) == len && (h = pf_open(path, PF_UPDATE)) >= 0) {
+		long w = pf_write(h, data, len);
+		pf_close(h);
+		if (w == len)
+			return;
+	}
+#endif
+	pf_save(path, data, len);
+}
+
 /* ---------------- randomness ----------------
  * Fresh timer jitter (pf_entropy) hashed together with a seed kept on
- * disk, so what each session gathers adds up. The seed is replaced
- * every time, with a value that can't be traced back to what was used. */
+ * disk, so what each session gathers adds up. The seed on disk is
+ * replaced once a session, the first time, with a value that can't be
+ * traced back to what was used (writing it took 2.9 s of a handshake on
+ * a DFB1); later handshakes go on from one kept in memory. */
+static unsigned char seed_kept[32];
+static int seed_have;
+
 static void get_seed(unsigned char out[48])
 {
 	static unsigned long count;
 	unsigned char raw[128], old[32], h[32];
 	br_sha256_context sc;
-	long len = 0;
-	char *f = tls_seed_path[0] ? pf_load(tls_seed_path, &len) : 0;
 	memset(old, 0, sizeof(old));
-	if (f) {
-		memcpy(old, f, len < 32 ? len : 32);
-		free(f);
+	if (seed_have) {
+		memcpy(old, seed_kept, sizeof(old));
+	} else if (tls_seed_path[0]) {
+		long len = 0;
+		char *f = pf_load(tls_seed_path, &len);
+		if (f) {
+			memcpy(old, f, len < 32 ? len : 32);
+			free(f);
+		}
 	}
 	pf_entropy(raw, sizeof(raw));
 	count++;
@@ -516,11 +677,95 @@ static void get_seed(unsigned char out[48])
 	br_sha256_update(&sc, raw, sizeof(raw));
 	br_sha256_update(&sc, &count, sizeof(count));
 	br_sha256_out(&sc, h);
-	if (tls_seed_path[0])
-		pf_save(tls_seed_path, h, sizeof(h));
+	if (!seed_have && tls_seed_path[0])
+		put_file(tls_seed_path, h, sizeof(h));
+	/* the next handshake's, not the next session's */
+	br_sha256_init(&sc);
+	br_sha256_update(&sc, "kept", 4);
+	br_sha256_update(&sc, h, sizeof(h));
+	br_sha256_out(&sc, seed_kept);
+	seed_have = 1;
 	memset(raw, 0, sizeof(raw));
 	memset(old, 0, sizeof(old));
 	memset(h, 0, sizeof(h));
+}
+
+/* ---------------- signatures already checked ----------------
+ * A certificate's signature is the same bytes every time a server sends
+ * it, and once the arithmetic said yes it would say yes again: so an
+ * authority's signature on its intermediate certificate, or on a site's
+ * until the site renews it, is checked once (0.94 s for P-384 on the DSP,
+ * 40 s and more on the 68030). What is remembered is a SHA-256 of all the
+ * check depends on (the curve, the key, the hash of the signed data, the
+ * signature), and only after a check that succeeded; BearSSL still
+ * decides everything else (names, dates, uses, the chain up to a root
+ * certificate). The server's signature on its key exchange is new every
+ * time, and isn't looked up. ECDSA only: RSA is 0.1 s on the DSP. Kept in
+ * tls_sigs_path (SIGS.DAT) between sessions, written over in place. */
+#define NSIGS 64
+#define SIGS_LEN (8 + NSIGS * 32)
+static unsigned char sig_file[SIGS_LEN];	/* "TLSG", next, 3 spare, the keys */
+static int sigs_read, sigs_changed, sigs_known, sigs_checked;
+static br_ecdsa_vrfy sig_vrfy;			/* the check itself */
+
+static void sigs_load(void)
+{
+	long len = 0;
+	char *f;
+	if (sigs_read)
+		return;
+	sigs_read = 1;
+	memcpy(sig_file, "TLSG", 4);
+	f = tls_sigs_path[0] ? pf_load(tls_sigs_path, &len) : 0;
+	if (f && len == SIGS_LEN && !memcmp(f, "TLSG", 4) && (unsigned char)f[4] < NSIGS)
+		memcpy(sig_file, f, SIGS_LEN);
+	free(f);
+}
+
+static void sigs_save(void)
+{
+	if (sigs_changed && tls_sigs_path[0])
+		put_file(tls_sigs_path, sig_file, SIGS_LEN);
+	sigs_changed = 0;
+}
+
+static uint32_t sig_check(const br_ec_impl *impl, const void *hash, size_t hash_len,
+			  const br_ec_public_key *pk, const void *sig, size_t sig_len)
+{
+	br_sha256_context sc;
+	unsigned char key[32], n[4];
+	int i;
+	uint32_t r;
+	sigs_load();
+	sigs_checked++;
+	br_sha256_init(&sc);
+	br_sha256_update(&sc, "ECDSA", 5);
+	n[0] = (unsigned char)pk->curve;
+	n[1] = (unsigned char)(pk->qlen >> 8);
+	n[2] = (unsigned char)pk->qlen;
+	br_sha256_update(&sc, n, 3);
+	br_sha256_update(&sc, pk->q, pk->qlen);
+	n[0] = (unsigned char)hash_len;
+	br_sha256_update(&sc, n, 1);
+	br_sha256_update(&sc, hash, hash_len);
+	n[0] = (unsigned char)(sig_len >> 8);
+	n[1] = (unsigned char)sig_len;
+	br_sha256_update(&sc, n, 2);
+	br_sha256_update(&sc, sig, sig_len);
+	br_sha256_out(&sc, key);
+	for (i = 0; i < NSIGS; i++)
+		if (!memcmp(sig_file + 8 + i * 32, key, 32)) {
+			sigs_known++;
+			return 1;
+		}
+	r = sig_vrfy(impl, hash, hash_len, pk, sig, sig_len);
+	if (r) {
+		i = sig_file[4];
+		memcpy(sig_file + 8 + i * 32, key, 32);
+		sig_file[4] = (unsigned char)((i + 1) % NSIGS);
+		sigs_changed = 1;
+	}
+	return r;
 }
 
 /* ---------------- the connection ---------------- */
@@ -636,6 +881,82 @@ static void explain(int e, const char *host, char *err, int errlen)
 	snprintf(err, errlen, "%s: %s", host, m);
 }
 
+static void step(const char *fmt, ...)
+{
+	char msg[160];
+	va_list ap;
+	if (!tls_log)
+		return;
+	va_start(ap, fmt);
+	vsnprintf(msg, sizeof(msg), fmt, ap);
+	va_end(ap);
+	tls_log(msg);
+}
+
+#define XT(ctx) ((XTIME *)(void *)(ctx))
+#define XIN(ctx) (&XT(ctx)->in->vtable)
+#define XBEGIN(ctx) unsigned long xt_t = pf_ms()
+#define XEND(ctx) (XT(ctx)->busy += pf_ms() - xt_t)
+
+static void xt_start_chain(const br_x509_class **ctx, const char *server_name)
+{
+	XBEGIN(ctx);
+	XT(ctx)->t0 = xt_t;
+	(*XIN(ctx))->start_chain(XIN(ctx), server_name);
+	XEND(ctx);
+}
+
+static void xt_start_cert(const br_x509_class **ctx, uint32_t length)
+{
+	XBEGIN(ctx);
+	XT(ctx)->certs++;
+	XT(ctx)->bytes += length;
+	(*XIN(ctx))->start_cert(XIN(ctx), length);
+	XEND(ctx);
+}
+
+static void xt_append(const br_x509_class **ctx, const unsigned char *buf, size_t len)
+{
+	XBEGIN(ctx);
+	(*XIN(ctx))->append(XIN(ctx), buf, len);
+	XEND(ctx);
+}
+
+static void xt_end_cert(const br_x509_class **ctx)
+{
+	XBEGIN(ctx);
+	(*XIN(ctx))->end_cert(XIN(ctx));
+	XEND(ctx);
+}
+
+static unsigned xt_end_chain(const br_x509_class **ctx)
+{
+	char known[60];
+	unsigned r;
+	XBEGIN(ctx);
+	r = (*XIN(ctx))->end_chain(XIN(ctx));
+	XEND(ctx);
+	if (sigs_checked)
+		snprintf(known, sizeof(known), "; %d of %d ECDSA signatures checked before", sigs_known,
+			 sigs_checked);
+	else
+		known[0] = 0;
+	step("the server's %d certificate%s, %lu bytes: %lu ms decoding and checking them, over %lu ms%s",
+	     XT(ctx)->certs, XT(ctx)->certs == 1 ? "" : "s", XT(ctx)->bytes, XT(ctx)->busy,
+	     pf_ms() - XT(ctx)->t0, known);
+	return r;
+}
+
+static const br_x509_pkey *xt_get_pkey(const br_x509_class *const *ctx, unsigned *usages)
+{
+	const XTIME *x = (const XTIME *)(const void *)ctx;
+	return x->in->vtable->get_pkey(&x->in->vtable, usages);
+}
+
+static const br_x509_class xt_vtable = {
+	sizeof(XTIME), xt_start_chain, xt_start_cert, xt_append, xt_end_cert, xt_end_chain, xt_get_pkey
+};
+
 /* move records between BearSSL and the socket until `want` (a state
    bit) is possible. blocking: wait for it (with a timeout); otherwise
    return after one look at the socket. 1 ok, 0 not yet, -1 closed */
@@ -657,6 +978,7 @@ static int pump(TLS *t, unsigned want, int blocking)
 			}
 			br_ssl_engine_sendrec_ack(eng, (size_t)w);
 			start = pf_ms();
+			t->sent = start;
 			continue;
 		}
 		if (st & want)
@@ -672,10 +994,20 @@ static int pump(TLS *t, unsigned want, int blocking)
 			if (r > 0) {
 				br_ssl_engine_recvrec_ack(eng, (size_t)r);
 				start = pf_ms();
+				if (t->wait0) {
+					t->waited += start - t->wait0;
+					t->wait0 = 0;
+				}
+				if (t->hs == 1) {
+					step("the server's first answer, %lu ms after the hello", start - t->sent);
+					t->hs = 2;
+				}
 				continue;
 			}
 			if (!blocking)
 				return 0;
+			if (!t->wait0)
+				t->wait0 = pf_ms();
 			if (pf_ms() - start > 60000UL)
 				return -1;
 			if (pf_idle)
@@ -691,6 +1023,7 @@ TLS *tls_start(int sock, const char *host, int flags, int *retry, char *err, int
 {
 	TLS *t;
 	unsigned char seed[48];
+	unsigned long t0;
 	int r, rsa_only = flags & TLS_RSA_ONLY, chacha_only = flags & TLS_CHACHA_ONLY;
 	if (retry)
 		*retry = 0;
@@ -730,10 +1063,17 @@ TLS *tls_start(int sock, const char *host, int flags, int *retry, char *err, int
 	br_ssl_engine_set_rsavrfy(&t->cc.eng, rsa_vrfy);
 	br_ssl_client_set_rsapub(&t->cc, rsa_public);
 	br_x509_minimal_set_rsa(&t->xc, rsa_vrfy);
-	br_x509_minimal_set_ecdsa(&t->xc, ec_impl, ec_vrfy ? ec_vrfy : br_ecdsa_i31_vrfy_asn1);
+	sig_vrfy = ec_vrfy ? ec_vrfy : br_ecdsa_i31_vrfy_asn1;
+	br_x509_minimal_set_ecdsa(&t->xc, ec_impl, sig_check);
+	t->xc.dn_hash_impl = &dn_vtable;
 	set_time(&t->xc);
 	br_ssl_engine_set_buffer(&t->cc.eng, t->iobuf, sizeof(t->iobuf), 0);
+	t->xt.vtable = &xt_vtable;
+	t->xt.in = &t->xc;
+	br_ssl_engine_set_x509(&t->cc.eng, &t->xt.vtable);
+	t0 = pf_ms();
 	get_seed(seed);
+	step("random seed ready in %lu ms", pf_ms() - t0);
 	br_ssl_engine_inject_entropy(&t->cc.eng, seed, sizeof(seed));
 	memset(seed, 0, sizeof(seed));
 	{
@@ -749,7 +1089,15 @@ TLS *tls_start(int sock, const char *host, int flags, int *retry, char *err, int
 		free(t);
 		return 0;
 	}
+	sigs_known = sigs_checked = 0;
+	t->hs = 1;
+	t->sent = t0 = pf_ms();
 	r = pump(t, BR_SSL_SENDAPP, 1);
+	t->hs = 0;
+	t0 = pf_ms() - t0;
+	step("the handshake: %lu ms waiting for the network, %lu ms working", t->waited, t0 - t->waited);
+	if (r > 0)
+		sigs_save();
 	if (r <= 0) {
 		int e = br_ssl_engine_last_error(&t->cc.eng);
 		if (!e)
