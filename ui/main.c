@@ -270,6 +270,14 @@ void cmd_refresh(int force)
 	refresh(force, 0);
 }
 
+/* every event fetched again, none of ECal's copy kept: for a copy gone
+   wrong (Refresh everything keeps each event whose copy matches) */
+static void cmd_download_again(void)
+{
+	if (alert(1, "[2][Download every calendar again?|ECal's copy is replaced by the|servers'. Calendars on this|Atari stay as they are.][Download|Cancel]") == 1)
+		refresh(SYNC_AGAIN, 0);
+}
+
 /* subscriptions with their own interval, and "refresh all every..." */
 static void auto_refresh(void)
 {
@@ -478,7 +486,7 @@ static void open_contacts(void)
 }
 
 /* the commands of the menu bar (the program) and the toolbar's menu */
-enum { C_NONE, C_ABOUT, C_NEW, C_ADD, C_REFRESH, C_REFRESH_ALL, C_QUIT, C_COPY, C_DAY, C_WEEK,
+enum { C_NONE, C_ABOUT, C_NEW, C_ADD, C_REFRESH, C_REFRESH_ALL, C_AGAIN, C_QUIT, C_COPY, C_DAY, C_WEEK,
        C_MONTH, C_YEAR, C_TODAY, C_GOTO, C_FIND, C_SIDE, C_HEB, C_SET, C_FONT, C_OFFL, C_FALC,
        C_LOG, C_KBD, C_HELP, C_KEYS, C_CONTACTS };
 
@@ -493,6 +501,7 @@ static const MBAR_ITEM m_file[] = {
 	{ "-", 0, 0 },
 	{ "Refresh", "^R", C_REFRESH },
 	{ "Refresh everything", "\x01^R", C_REFRESH_ALL },
+	{ "Download everything again...", 0, C_AGAIN },
 	{ "-", 0, 0 },
 	{ "Quit", "^Q", C_QUIT },
 	{ 0, 0, 0 }
@@ -573,7 +582,8 @@ static void command(int c)
 	case C_NEW: cmd_new_event(); break;
 	case C_ADD: dlg_add_account(); break;
 	case C_REFRESH: cmd_refresh(0); break;
-	case C_REFRESH_ALL: cmd_refresh(1); break;
+	case C_REFRESH_ALL: cmd_refresh(SYNC_ALL); break;
+	case C_AGAIN: cmd_download_again(); break;
 	case C_COPY: views_copy(); break;
 	case C_DAY: views_goto(cur_day, V_DAY); break;
 	case C_WEEK: views_goto(cur_day, V_WEEK); break;
@@ -640,6 +650,8 @@ void cmd_menu(short x, short y)
 		{ "  Find...             ^F", C_FIND },
 		{ "  Today                T", C_TODAY },
 		{ "  Contacts...", C_CONTACTS },
+		{ "-", 0 },
+		{ "  Download everything again...", C_AGAIN },
 		{ "-", 0 },
 		{ "  Calendar list      \x01^S", C_SIDE },
 		{ "  Hebrew dates", C_HEB },

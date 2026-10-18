@@ -188,6 +188,11 @@ again and checks every calendar, even one the server says hasn't
 changed, and downloads every subscription again. Events whose copy on
 the Atari matches the server's are kept, not fetched again.
 
+**Download everything again...** (the File menu of `ECAL.PRG`, or the ≡
+menu) keeps none of ECal's copy: every event of every calendar is
+fetched from its server again. It's for a copy that has gone wrong;
+the calendars on the Atari itself (On My Atari) stay as they are.
+
 - **Month**: each day with its events; all-day and multi-day events as
   bars across the days, the others one line each, "+2 more" when they
   don't fit (click it for the day). Days of other months are grey.

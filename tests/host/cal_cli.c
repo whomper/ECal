@@ -11,7 +11,7 @@
  *   cal-cli DIR gateway HOST PORT             go through the Pi gateway
  *   cal-cli DIR falcon 0|1                    TLS here (CACERT=path for the roots)
  *   cal-cli DIR zone HOME [VIEW]              time zones
- *   cal-cli DIR sync [force]
+ *   cal-cli DIR sync [force|again]            again: every event fetched anew
  *   cal-cli DIR calendars
  *   cal-cli DIR list FROM TO                  occurrences, dates as YYYYMMDD
  *   cal-cli DIR add CAL TITLE START MINUTES [RRULE]   START as YYYYMMDDTHHMM, view zone
@@ -198,7 +198,7 @@ int main(int argc, char **argv)
 		return 0;
 	}
 	if (!strcmp(cmd, "sync")) {
-		int r = sync_all(argc > 3);
+		int r = sync_all(argc < 4 ? SYNC_CHANGED : !strcmp(argv[3], "again") ? SYNC_AGAIN : SYNC_ALL);
 		if (r < 0)
 			return fail("sync");
 		printf("%d calendar%s changed\n", r, r == 1 ? "" : "s");

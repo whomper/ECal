@@ -1577,7 +1577,7 @@ static int sync_caldav(CALENDAR *c, int force)
 	hx_room(c, c->nres + 1);	/* no memory: hx_live looks the slow way */
 	for (i = 0; i < n; i++) {
 		int found = hx_live(c, items[i].href);
-		if (found >= 0 && same_etag(c->res[found].etag, items[i].etag))
+		if (force < SYNC_AGAIN && found >= 0 && same_etag(c->res[found].etag, items[i].etag))
 			keep[found] = 1;
 		else
 			need[nneed++] = items[i].href;
@@ -1973,7 +1973,8 @@ int sync_step(void)
 				return 1;
 			}
 			found = hx_live(c, href);
-			if (found >= 0 && found < sj.nres && same_etag(c->res[found].etag, etag)) {
+			if (sj.force < SYNC_AGAIN && found >= 0 && found < sj.nres &&
+			    same_etag(c->res[found].etag, etag)) {
 				sj.keep[found] = 1;
 				continue;
 			}

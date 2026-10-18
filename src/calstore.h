@@ -156,7 +156,12 @@ int       cal_writable(const CALENDAR *c);
 int  acct_discover(int a);
 
 /* bring calendars up to date with their servers: one account, or all
-   (a = -1). Returns how many calendars changed; cal_err on failure */
+   (a = -1). Returns how many calendars changed; cal_err on failure.
+   force: SYNC_ALL checks every calendar, and the calendar lists, even
+   what the server says hasn't changed; SYNC_AGAIN also fetches every
+   event again, keeping none of the copy (the calendars on the Atari
+   itself stay as they are) */
+enum { SYNC_CHANGED, SYNC_ALL, SYNC_AGAIN };
 int  sync_account(int a, int force);
 int  sync_all(int force);
 int  sync_calendar(CALENDAR *c, int force);

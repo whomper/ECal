@@ -243,6 +243,21 @@ echo "== nothing changed: nothing fetched"
 out=$("$CLI" "$D" sync)
 expect "second sync is quiet" "0 calendars changed" "$out"
 
+echo "== download everything again"
+# the Atari's copy spoilt behind ECal's back, the server's unchanged: only
+# "again" fetches it, as the others keep a copy whose etag matches
+sed -i 's/Design review/Design reviex/' "$D"/CACHE/*.DAT
+expect "the spoilt copy" "Design reviex" "$("$CLI" "$D" list $(d 20261013) $(d 20261014))"
+"$CLI" "$D" sync force >/dev/null
+expect "kept by Refresh everything" "Design reviex" "$("$CLI" "$D" list $(d 20261013) $(d 20261014))"
+out=$("$CLI" "$D" sync again)
+expect "fetched again" "calendars changed" "$out"
+out=$("$CLI" "$D" list $(d 20261013) $(d 20261014))
+expect "the server's copy back" "[Work] Design review" "$out"
+absent "the spoilt one gone" "Design reviex" "$out"
+out=$("$CLI" "$D" list $(d 20261001) $(d 20261101))
+expect "the other events still there" "$(d 20261025) 10:00-11:00" "$out"
+
 echo "== new event from the Atari"
 WORK=$("$CLI" "$D" calendars | awk '/ Work /{print $1}')
 "$CLI" "$D" add "$WORK" "Lunch with Avi" $(d 20261014)T1230 45 || bad "add"

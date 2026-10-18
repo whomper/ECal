@@ -173,6 +173,26 @@ def main():
             # ecalgate logs the server, never the path (a feed's path can be its password)
             check("it went through ecalgate", "PUT http://127.0.0.1:%d -> 201" % RAD in log)
             check("no path in its log", "/alice/home/" not in log)
+        if a.prg:
+            # File > Download everything again...: the copy, spoilt behind
+            # ECal's back, comes from the server again (Refresh everything
+            # would keep it: its etag still matches)
+            dats = [os.path.join(d, f) for d, _, fs in os.walk(os.path.join(hd, "ECAL")) for f in fs
+                    if f.endswith(".DAT")]
+            for p in dats:
+                b = open(p, "rb").read()
+                open(p, "wb").write(b.replace(b"From the Atari", b"From the Xtari"))
+            r.click(88, 8)                  # File
+            time.sleep(1)
+            r.click(130, 19 + 6 * 16 + 8)   # its seventh entry
+            time.sleep(2)
+            r.shot("n3-download-again")
+            r.key(K["RETURN"])              # Download
+            time.sleep(90 if a.falcon_mode else 40)
+            r.shot("n4-downloaded")
+            cache = b"".join(open(p, "rb").read() for p in dats)
+            check("Download everything again: the server's copy back",
+                  b"From the Atari" in cache and b"From the Xtari" not in cache)
         crash = [os.path.join(d, f) for d, _, fs in os.walk(hd) for f in fs if f.upper() == "CRASH.LOG"]
         check("no crash (CRASH.LOG)", not crash)
         for c in crash:
