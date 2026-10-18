@@ -612,7 +612,7 @@ static void settings(short first)
 	put(&f[C2], FT_CHECK, 0, CX + 3, row, 40, "Check certificates on the DSP");
 	f[C2].val = opt.dsp;
 	row++;
-	put(&f[N1], FT_LABEL, FF_LTR, CX + 3, row, 0, can_falcon ? "Needs CACERT.PEM, ROOTS.DAT in ECAL"
+	put(&f[N1], FT_LABEL, FF_LTR, CX + 3, row, 0, can_falcon ? "CACERT.PEM, ROOTS.DAT go in ECal's folder"
 							  : !tls_available ? "Not in the ST edition: ECAL.ACC has it"
 							  : "Needs a 68030 (Falcon or TT)");
 	row += 2;

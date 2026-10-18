@@ -204,7 +204,7 @@ int falcon_mode_set(int on)
 			return 0;
 		}
 		if (!pf_exists(conn_cacert)) {
-			alert(1, "[3][Falcon mode needs the root certificates: put CACERT.PEM and ROOTS.DAT in the ECAL folder.][ OK ]");
+			alert(1, "[3][Falcon mode needs the root certificates: put CACERT.PEM and ROOTS.DAT in ECal's folder.][ OK ]");
 			return 0;
 		}
 	}

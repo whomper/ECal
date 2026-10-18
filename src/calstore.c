@@ -377,7 +377,7 @@ void store_settings_text(SBUF *bp, int part)
 		goto accounts;
 	sb_reserve(&b, 8192);
 	sb_adds(&b, "; ECal settings, written by ECAL.ACC / ECAL.PRG. Lines starting with ; are notes.\r\n"
-		    "; Most of these are set in the menu > Settings; see docs/GUIDE.md.\r\n"
+		    "; Most of these are set in the menu > Settings; see the guide (the Help key).\r\n"
 		    "; 1 means on, 0 means off. Keys may be in any case.\r\n\r\n[OPTIONS]\r\n");
 #define S(key, name, text) kv(&b, text, key, opt.name);
 #define I(key, name, text) kn(&b, text, key, opt.name);
