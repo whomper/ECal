@@ -45,6 +45,17 @@ void pf_close(int h)
 }
 long pf_seek(int h, long off) { return (long)lseek(h, off, SEEK_SET); }
 
+long pf_read_at(const char *path, long off, void *buf, long n)
+{
+	int h = pf_open(path, PF_READ);
+	long r;
+	if (h < 0)
+		return -1;
+	r = pf_seek(h, off) == off ? pf_read(h, buf, n) : -1;
+	pf_close(h);
+	return r;
+}
+
 long pf_size(const char *path)
 {
 	struct stat st;

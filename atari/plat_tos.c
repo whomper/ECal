@@ -30,6 +30,17 @@ long pf_write(int h, const void *buf, long n) { return Fwrite((short)h, n, buf);
 void pf_close(int h) { Fclose((short)h); }
 long pf_seek(int h, long off) { return Fseek(off, (short)h, 0); }
 
+long pf_read_at(const char *path, long off, void *buf, long n)
+{
+	int h = pf_open(path, PF_READ);
+	long r;
+	if (h < 0)
+		return -1;
+	r = pf_seek(h, off) == off ? pf_read(h, buf, n) : -1;
+	pf_close(h);
+	return r;
+}
+
 static DTA dta;
 
 long pf_size(const char *path)

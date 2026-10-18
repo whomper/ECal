@@ -27,6 +27,8 @@ long pf_read(int h, void *buf, long n);
 long pf_write(int h, const void *buf, long n);
 void pf_close(int h);
 long pf_seek(int h, long off);			/* from the start; new position or < 0 */
+/* up to n bytes from off: opened, read and closed again, < 0 on error */
+long pf_read_at(const char *path, long off, void *buf, long n);
 long pf_size(const char *path);			/* -1 if missing */
 unsigned long pf_stamp(const char *path);	/* when it was last written (date, time); 0 if missing */
 unsigned long pf_info(const char *path, long *size);	/* both at once: pf_stamp, and pf_size in *size */

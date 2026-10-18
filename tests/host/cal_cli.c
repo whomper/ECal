@@ -153,6 +153,7 @@ int main(int argc, char **argv)
 		path_join(tls_roots_cache, sizeof(tls_roots_cache), dir, "ROOTS.DAT");
 	}
 	path_join(tls_seed_path, sizeof(tls_seed_path), dir, "SEED.DAT");
+	tls_read_at = pf_read_at;	/* as the accessory: CAL_FILECHECK holds in Falcon mode too */
 	pf_mkdir(dir);
 	store_init(dir, 0);
 	tls_tz_minutes = tz_offset(home_zone(), now_utc());
