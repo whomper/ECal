@@ -473,6 +473,17 @@ static __attribute__((noinline)) int more_core(size_t need)
 	   so the heap doubles and 16 MB takes six. Less if that much isn't
 	   free; at worst exactly what is needed. */
 	want = least < 512L * 1024 ? 512L * 1024 : least;
+	if (!taken) {
+		/* the first block: with no TT RAM, at most a quarter of what is
+		   free, so a 1 MB ST keeps room for a job's buffer (bigbuf.c)
+		   and for GEM; the heap still doubles from there as it needs */
+		long tt = (long)Mxalloc(-1L, 1), st;
+		if (tt == -32 || tt <= 0) {
+			st = tt == -32 ? (long)Malloc(-1L) : (long)Mxalloc(-1L, 0);
+			if (st > 0 && (size_t)(st / 4) < want)
+				want = (size_t)(st / 4) > least ? (size_t)(st / 4) & ~(size_t)1 : least;
+		}
+	}
 	if (want < taken)
 		want = taken;
 	if (blocks >= MAX_BLOCKS)
