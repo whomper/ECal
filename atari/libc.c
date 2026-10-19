@@ -505,9 +505,13 @@ static size_t block_for(size_t n)
 
 static void *malloc_more(size_t need);
 
+/* the bytes of the blocks in use, and the most since heap_peak was last
+   set: an accessory keeps what its data needs, not a flat share */
+long heap_use, heap_peak;
+
 /* the common cases first, in few registers: a small block of a size that
    is free, or one cut from the end of dv */
-void *malloc(size_t n)
+static inline void *malloc0(size_t n)
 {
 	size_t need, s;
 	BLK *b;
@@ -529,6 +533,14 @@ void *malloc(size_t n)
 		return (char *)b + WORD;
 	}
 	return malloc_more(need);
+}
+
+void *malloc(size_t n)
+{
+	void *p = malloc0(n);
+	if (p && (heap_use += (long)SIZE((BLK *)((char *)p - WORD))) > heap_peak)
+		heap_peak = heap_use;
+	return p;
 }
 
 /* the rest: the lists, dv, more from GEMDOS */
@@ -610,6 +622,7 @@ void free(void *ptr)
 		return;			/* freed twice: left alone */
 	b->head &= ~INUSE;		/* (so it shows, even once joined) */
 	s = SIZE(b);
+	heap_use -= (long)s;
 	n = AT(b, s);
 	if (!(b->head & PINUSE) && (n->head & INUSE) && dv &&
 	    (BLK *)((char *)b - (ps = *((size_t *)b - 1))) == dv) {
@@ -702,6 +715,8 @@ void *realloc(void *ptr, size_t n)
 			dv = 0;
 		else
 			bin_take(nx, bin_of(SIZE(nx)));
+		if ((heap_use += (long)((t - need >= MINBLK ? need : t) - s)) > heap_peak)
+			heap_peak = heap_use;
 		if (t - need >= MINBLK) {
 			b->head = need | (b->head & FLAGS);
 			make_free(AT(b, need), t - need);

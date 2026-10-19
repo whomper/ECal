@@ -507,12 +507,21 @@ static void case_random(long ops, unsigned long seed)
 	if (bad)
 		failed++;
 	check(heap_check(0) >= 0 && apart(live, SLOTS), "random: checks out at the end");
+	{
+		/* heap_use is the blocks in use, whole: their heads say their sizes */
+		long sum = 0;
+		for (k = 0; k < SLOTS; k++)
+			if (live[k].p)
+				sum += (long)(((size_t *)live[k].p)[-1] & ~(size_t)3);
+		check(heap_use == sum && heap_peak >= heap_use, "random: heap_use is the blocks in use");
+	}
 	for (k = 0; k < SLOTS; k++)
 		if (live[k].p) {
 			check(intact(&live[k], live[k].n), "random: bytes kept to the end");
 			heap_free(live[k].p);
 		}
 	check(heap_check(&nfree) >= 0 && nfree == ngrants, "random: emptied: one free block an area");
+	check(heap_use == 0 && heap_peak > 0, "random: emptied: heap_use 0, heap_peak kept");
 	printf("random: %ld calls, %ld GEMDOS blocks, %ld KB taken\n", ops, ngrants,
 	       (heap_tt + heap_st) / 1024);
 	free(live);
