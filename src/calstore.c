@@ -1899,12 +1899,13 @@ int sync_calendar(CALENDAR *c, int force)
 enum { SJ_CTAG = 1, SJ_LIST, SJ_INDEX, SJ_MATCH, SJ_GONE, SJ_FETCH, SJ_ADD, SJ_WRITE, SJ_PARSE, SJ_END, SJ_PACK,
        SJ_MARK };
 #define SJ_BATCH 8		/* events asked for at a time */
+#define SJ_FLUSH 16384		/* records gathered before they are written (guidelines 6.5) */
 
 int sync_changes;
 
 static struct {
 	CALENDAR *c;
-	int phase, force, changed, failed;
+	int phase, force, changed, failed, wfailed;
 	char ctag[100];
 	DAVREAD *d;
 	unsigned char *keep;	/* by resource: 1 on the server as it is, 2 changed there */
@@ -1914,7 +1915,7 @@ static struct {
 	int nneed, maxneed, next;
 	long size;		/* the cache file's, -1 not looked at yet */
 	int fresh;		/* the cache file still to be made */
-	SBUF rec;		/* SJ_ADD: the batch's records, as written */
+	SBUF rec;		/* records not written yet (X lines, then events), as they will be */
 	struct {
 		int res, old;	/* old: the copy it replaces, to drop first; -1 */
 		long off, len;	/* its data in rec */
@@ -1979,17 +1980,15 @@ static int sj_write(void);
 
 void sync_stop(void)
 {
-	/* the events taken from the answer: written (their places in
-	   memory are in the file) and read */
-	if (sj.c && sj.npend && (sj.phase == SJ_ADD || sj.phase == SJ_WRITE)) {
-		sj_write();
-		sj.phase = SJ_PARSE;
-	}
-	for (; sj.c && sj.phase == SJ_PARSE && sj.ipend < sj.npend; sj.ipend++) {
+	/* the events taken from the answer: read, and what was gathered
+	   written (their places in memory are in the file) */
+	for (; sj.c && (sj.phase == SJ_ADD || sj.phase == SJ_PARSE) && sj.ipend < sj.npend; sj.ipend++) {
 		if (sj.pend[sj.ipend].old >= 0)
 			kill_res(sj.c, sj.pend[sj.ipend].old);
 		parse_res(sj.c, sj.pend[sj.ipend].res, sj.rec.s + sj.pend[sj.ipend].off, sj.pend[sj.ipend].len);
 	}
+	if (sj.c)
+		sj_write();
 	sj_free();
 }
 
@@ -1998,8 +1997,11 @@ void sync_stop(void)
 static int sj_end(void)
 {
 	CALENDAR *c = sj.c;
+	char err[sizeof(cal_err)];
+	str_copy(err, cal_err, sizeof(err));
+	sj_write();		/* what was gathered: its places in memory are in the file */
 	if (sj.failed)
-		str_copy(accts[c->acct].err, cal_err, sizeof(accts[c->acct].err));
+		str_copy(accts[c->acct].err, err[0] ? err : cal_err, sizeof(accts[c->acct].err));
 	sync_changes |= sj.changed;
 	sj_free();
 	return 0;
@@ -2043,21 +2045,25 @@ static int sj_open(void)
 	return h;
 }
 
-/* the batch's records at the end of the cache file: 0 if it failed */
+/* the records gathered, at the end of the cache file in one write: 0 if
+   it failed */
 static int sj_write(void)
 {
 	int h;
-	if (!sj.rec.len)
-		return 1;
-	if ((h = sj_open()) < 0)
+	if (!sj.rec.len || sj.wfailed)
+		return !sj.wfailed;
+	if ((h = sj_open()) < 0) {
+		sj.wfailed = 1;
 		return 0;
+	}
 	if (pf_write(h, sj.rec.s, sj.rec.len) != sj.rec.len) {
 		str_copy(cal_err, "couldn't write the calendar's cache (disk full?)", sizeof(cal_err));
-		sj.failed = 1;
+		sj.failed = sj.wfailed = 1;
 	}
 	pf_close(h);
 	sj.size += sj.rec.len;
-	return 1;
+	sb_reset(&sj.rec);
+	return !sj.wfailed;
 }
 
 /* one step; 1 while there is more */
@@ -2067,7 +2073,7 @@ int sync_step(void)
 	DAVAUTH au;
 	const char *href, *etag, *data;
 	long len;
-	int i, h;
+	int i;
 	if (!c)
 		return 0;
 	if (sj.failed)
@@ -2149,32 +2155,20 @@ int sync_step(void)
 		return 1;
 	case SJ_GONE: {
 		/* gone from the server (or out of the window now): an X line
-		   each, a few a step in one write */
-		SBUF x;
+		   each, a few a step, gathered with the rest */
 		int n = 0;
-		sb_init(&x);
 		for (; sj.at < sj.nres && n < 2; sj.at++) {
 			if (sj.keep[sj.at] || c->res[sj.at].dead)
 				continue;
-			if (!sb_adds(&x, "X ") || !sb_adds(&x, c->res[sj.at].href) || !sb_addc(&x, '\n'))
-				break;
+			if (!sb_adds(&sj.rec, "X ") || !sb_adds(&sj.rec, c->res[sj.at].href) || !sb_addc(&sj.rec, '\n')) {
+				str_copy(cal_err, "out of memory", sizeof(cal_err));
+				sj.failed = 1;
+				return 1;
+			}
 			kill_res(c, sj.at);
 			sj.changed = 1;
 			n++;
 		}
-		if (x.len) {
-			if ((h = sj_open()) < 0) {
-				sb_free(&x);
-				return 1;
-			}
-			if (pf_write(h, x.s, x.len) != x.len) {
-				str_copy(cal_err, "couldn't write the calendar's cache (disk full?)", sizeof(cal_err));
-				sj.failed = 1;
-			}
-			pf_close(h);
-			sj.size += x.len;
-		}
-		sb_free(&x);
 		if (sj.at >= sj.nres)
 			sj.phase = sj.nneed ? SJ_FETCH : SJ_END;
 		return 1;
@@ -2192,9 +2186,9 @@ int sync_step(void)
 	}
 	case SJ_ADD:
 		/* the batch's events taken from the answer one a step (60 ms
-		   each on an ST), then written to the cache at once (opening
-		   the file and writing to it are GEMDOS calls, 100 ms an event
-		   on an ST one at a time), then each read in a step */
+		   each on an ST) and each read in a step; written to the cache
+		   SJ_FLUSH at a time and at the end (opening the file is a
+		   GEMDOS call and a look in the folder) */
 		sj_size();
 		if (sj.npend < SJ_BATCH + 8 && caldav_next(sj.d, &href, &etag, &data, &len)) {
 			char head[700];
@@ -2225,12 +2219,12 @@ int sync_step(void)
 		}
 		caldav_close(sj.d);
 		sj.d = 0;
-		sj.phase = SJ_WRITE;
+		sj.phase = sj.npend ? SJ_PARSE : sj.next < sj.nneed ? SJ_FETCH : SJ_END;
 		return 1;
 	case SJ_WRITE:
 		if (!sj_write())
 			return 1;
-		sj.phase = sj.npend ? SJ_PARSE : sj.next < sj.nneed ? SJ_FETCH : SJ_END;
+		sj.phase = sj.next < sj.nneed ? SJ_FETCH : SJ_END;
 		return 1;
 	case SJ_PARSE:
 		i = sj.ipend;
@@ -2242,12 +2236,15 @@ int sync_step(void)
 		sj.ipend++;
 		parse_res(c, sj.pend[i].res, sj.rec.s + sj.pend[i].off, sj.pend[i].len);
 		if (sj.ipend >= sj.npend) {
-			sb_reset(&sj.rec);
 			sj.npend = sj.ipend = 0;
-			sj.phase = sj.next < sj.nneed ? SJ_FETCH : SJ_END;
+			sj.phase = sj.rec.len >= SJ_FLUSH ? SJ_WRITE : sj.next < sj.nneed ? SJ_FETCH : SJ_END;
 		}
 		return 1;
 	case SJ_END:
+		if (sj.rec.len) {
+			sj_write();	/* the rest: a step of its own */
+			return 1;
+		}
 		if (sj.changed)
 			mark_exceptions(c);
 		str_copy(c->ctag, sj.ctag, sizeof(c->ctag));
