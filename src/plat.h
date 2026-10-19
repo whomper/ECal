@@ -32,6 +32,7 @@ long pf_read_at(const char *path, long off, void *buf, long n);
 /* an open file's size, its place left at the start; futil.c's pf_load
    uses it through pf_size_open when set (one look less a file read) */
 long pf_handle_size(int h);
+unsigned long pf_handle_info(int h, long *size);	/* an open file's date and time (as pf_stamp) and size: no look */
 extern long (*pf_size_open)(int h);
 long pf_size(const char *path);			/* -1 if missing */
 unsigned long pf_stamp(const char *path);	/* when it was last written (date, time); 0 if missing */

@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <ctype.h>
 #include "alarms.h"
 #include "plat.h"
 #include "util.h"
@@ -131,12 +132,89 @@ void alarms_due(CTIME after, CTIME upto, void (*fn)(const ALARM *a, void *ud), v
 static char vfiles[MAXF][160];	/* the loaded file's: to check, a step each */
 static int vn, vi;
 static unsigned long vstamp, vh;
+static int vdone;		/* files the last finished check looked at */
+int alarms_verified;
+static unsigned long vdone_h;	/* and their stamp then */
+
+/* a folder's calendar files (.DAT, .ICS): their names, sizes and times
+   summed, so the listing's order doesn't count */
+static int stamp_listed(const char *name, long size, unsigned long stamp, void *ud)
+{
+	unsigned long *h = ud, x = 5381;
+	const char *dot = strrchr(name, '.');
+	if (!dot || (strcasecmp(dot, ".DAT") && strcasecmp(dot, ".ICS")))
+		return 0;
+	for (; *name; name++)
+		x = (x * 33) ^ (unsigned char)toupper((unsigned char)*name);
+	x = (x * 33) ^ stamp;
+	*h += (x * 33) ^ (unsigned long)size;
+	return 0;
+}
+
+static unsigned long last_stamp, v0_stamp;
+static long last_size, v0_size;
+
+unsigned long alarms_stamp_info(long *size)
+{
+	*size = last_size;
+	return last_stamp;
+}
+
+unsigned long alarms_check_first(long *size)
+{
+	*size = v0_size;
+	return v0_stamp;
+}
 
 unsigned long alarms_stamp_add(unsigned long h, const char *file)
 {
 	long size;
-	h = (h * 33) ^ pf_info(file, &size);	/* one directory look for both */
+	size_t n = strlen(file);
+	if (n && (file[n - 1] == '\\' || file[n - 1] == '/')) {
+		unsigned long sum = 0;
+		pf_list(file, stamp_listed, &sum);	/* one look for the lot */
+		return (h * 33) ^ sum;
+	}
+	last_stamp = pf_info(file, &size);	/* one directory look for both */
+	last_size = size;
+	h = (h * 33) ^ last_stamp;
 	return (h * 33) ^ (unsigned long)size;
+}
+
+static int same_files(const char *const *files, int n)
+{
+	int i;
+	if (n != vdone && n != vn)
+		return 0;
+	for (i = 0; i < n; i++)
+		if (strcmp(files[i], vfiles[i]))
+			return 0;
+	return 1;
+}
+
+int alarms_check_stamp(const char *const *files, int n, unsigned long *h)
+{
+	if (!vdone || n != vdone || !same_files(files, n))
+		return 0;
+	*h = vdone_h;
+	vdone = 0;	/* once: later it is out of date */
+	return 1;
+}
+
+void alarms_verify_with(const char *const *files, int n, unsigned long h)
+{
+	if (vi > 0 || !vn || n != vn || !same_files(files, n))
+		return;		/* begun, or none, or of other files */
+	vh = h;
+	vdone = n;
+	vdone_h = h;
+	if (vh != vstamp) {
+		alarm_n = 0;
+		alarm_built = 0;
+	} else {
+		alarms_verified = 1;
+	}
+	vn = vi = 0;
 }
 
 /* written in steps too: the text eight reminders a step, then the file */
@@ -195,7 +273,7 @@ int alarms_load(const char *path, CTIME now, int *on, int *h24)
 	int ok = 0;
 	unsigned long st = 0;
 	CTIME built = 0;
-	vn = vi = 0;
+	vn = vi = vdone = 0;
 	if (!t)
 		return 0;
 	if (strncmp(t, "ECAL ALARMS 1", 13))
@@ -246,15 +324,17 @@ out:
 	return ok;
 }
 
-int alarms_verified;
-
 int alarms_verify_step(void)
 {
 	if (vi >= vn)
 		return 0;
 	vh = alarms_stamp_add(vh, vfiles[vi++]);
+	if (vi == 1)
+		v0_stamp = alarms_stamp_info(&v0_size);
 	if (vi < vn)
 		return 1;
+	vdone = vn;
+	vdone_h = vh;
 	if (vh != vstamp) {
 		/* a calendar changed since it was made: no reminders from it */
 		alarm_n = 0;

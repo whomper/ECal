@@ -37,6 +37,15 @@ long pf_handle_size(int h)
 	return n;
 }
 
+unsigned long pf_handle_info(int h, long *size)
+{
+	unsigned short dt[2];	/* time, date */
+	*size = pf_handle_size(h);
+	if (Fdatime(dt, (short)h, 0) < 0)
+		return 0;
+	return (unsigned long)dt[1] << 16 | dt[0];
+}
+
 long pf_read_at(const char *path, long off, void *buf, long n)
 {
 	int h = pf_open(path, PF_READ);

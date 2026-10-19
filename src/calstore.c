@@ -541,73 +541,82 @@ static void cal_free_events(CALENDAR *c)
 /* ECAL.INF, ECAL.KEY and the calendars' caches as they are now: their
    sizes and when they were written. Three looks (guidelines 6.5): ECAL.INF
    and ECAL.KEY one each, the caches from one listing of CACHE (its .DAT
-   and .ICS files, in any order) */
-static int stamp_cache(const char *name, long size, unsigned long stamp, void *ud)
+   and .ICS files, in any order). ALARMS.IDX's stamp is the same
+   (store_files), so each can stand for the other */
+int store_files(const char **out, int max)
 {
-	unsigned long *h = ud, x = 5381;
-	const char *dot = strrchr(name, '.');
-	if (!dot || (strcasecmp(dot, ".DAT") && strcasecmp(dot, ".ICS")))
+	static char p[3][200];
+	if (max < 3)
 		return 0;
-	for (; *name; name++)
-		x = (x * 33) ^ (unsigned char)toupper((unsigned char)*name);
-	x = (x * 33) ^ stamp;
-	*h += (x * 33) ^ (unsigned long)size;	/* a sum: the listing's order doesn't count */
-	return 0;
+	str_copy(p[0], inf_path, sizeof(p[0]));
+	path_join(p[1], sizeof(p[1]), opt.workdir, "ECAL.KEY");
+	snprintf(p[2], sizeof(p[2]), "%s%c", cache_dir, PF_SEP);
+	out[0] = p[0];
+	out[1] = p[1];
+	out[2] = p[2];
+	return 3;
 }
+
+static unsigned long inf_seen;	/* ECAL.INF's date and size at the last look */
+static long inf_seen_size;
 
 static unsigned long stamp_one(unsigned long h, int i)
 {
-	char p[200];
-	long size;
-	if (i == 0) {
-		unsigned long sum = 0;
-		pf_list(cache_dir, stamp_cache, &sum);
-		return (h * 33) ^ sum;
-	}
+	const char *f[3];
+	store_files(f, 3);
+	h = alarms_stamp_add(h, f[i + 2]);
 	if (i == -2)
-		str_copy(p, inf_path, sizeof(p));
-	else
-		path_join(p, sizeof(p), opt.workdir, "ECAL.KEY");
-	h = (h * 33) ^ pf_info(p, &size);	/* one directory look for both */
-	return (h * 33) ^ (unsigned long)size;
+		inf_seen = alarms_stamp_info(&inf_seen_size);
+	return h;
+}
+
+unsigned long store_inf_seen(long *size)
+{
+	*size = inf_seen_size;
+	return inf_seen;
 }
 
 static unsigned long store_stamp(void)
 {
-	unsigned long h = 5381;
+	unsigned long h = ALARM_STAMP0;
 	int i;
 	for (i = -2; i <= 0; i++)
 		h = stamp_one(h, i);
 	return h;
 }
 
-int store_files(const char **out, int max)
-{
-	static char p[MAXCAL + 1][200];
-	int i, n = 0;
-	if (max > MAXCAL + 1)
-		max = MAXCAL + 1;
-	for (i = -1; i < ncals && n < max; i++) {
-		if (i < 0)
-			str_copy(p[n], inf_path, sizeof(p[n]));
-		else
-			cache_path(&cals[i], accts[cals[i].acct].kind == AK_SUBSCR ? "ICS" : "DAT", p[n], sizeof(p[n]));
-		out[n] = p[n];
-		n++;
-	}
-	return n;
-}
-
 /* after our own writes: the files as they are now are ours. Taken at the
    next look (store_changed), not after each write: a refresh writes a
    cache several times, and each look is three directory searches */
 static int mark_due;
+static int known_ok;		/* known is of the files as they are */
 unsigned long store_gen;	/* counts our writes: ALARMS.IDX is written again only after one */
 
 void store_mark(void)
 {
 	mark_due = store_watch;
 	store_gen++;
+}
+
+int store_known(unsigned long *h)
+{
+	if (!store_watch || !known_ok || mark_due)
+		return 0;
+	*h = known;
+	return 1;
+}
+
+void store_mark_known(unsigned long h)
+{
+	known = h;
+	known_ok = 1;
+	mark_due = 0;
+}
+
+void store_adopt(unsigned long h)
+{
+	if (mark_due)
+		store_mark_known(h);
 }
 
 /* the same a look a step; 0 when done */
@@ -620,13 +629,12 @@ int store_mark_step(void)
 		return 0;
 	if (mk_i == -3) {
 		mk_i = -2;
-		mk_h = 5381;
+		mk_h = ALARM_STAMP0;
 	}
 	mk_h = stamp_one(mk_h, mk_i++);
 	if (mk_i <= 0)
 		return 1;
-	known = mk_h;
-	mark_due = 0;
+	store_mark_known(mk_h);
 	mk_i = -3;
 	return 0;
 }
@@ -637,10 +645,10 @@ int store_changed(void)
 	if (!store_watch)
 		return 0;
 	h = store_stamp();
-	if (mark_due) {
-		known = h;	/* our writes since the last look */
-		mark_due = 0;
-	}
+	if (mark_due)
+		store_mark_known(h);	/* our writes since the last look */
+	if (h != known)
+		known_ok = 0;
 	return h != known;
 }
 
@@ -654,16 +662,16 @@ int store_changed_step(int *changed)
 		return 0;
 	if (i == -3) {
 		i = -2;
-		h = 5381;
+		h = ALARM_STAMP0;
 	}
 	h = stamp_one(h, i++);
 	if (i <= 0)
 		return 1;
 	i = -3;
-	if (mark_due) {
-		known = h;
-		mark_due = 0;
-	}
+	if (mark_due)
+		store_mark_known(h);
+	if (h != known)
+		known_ok = 0;
 	*changed = h != known;
 	return 0;
 }
@@ -674,6 +682,7 @@ void store_release(void)
 	for (i = 0; i < ncals; i++)
 		cal_free_events(&cals[i]);
 	ncals = naccts = 0;
+	known_ok = 0;
 	store_lost_passwords = store_plain_passwords = 0;
 }
 
@@ -852,6 +861,7 @@ typedef struct {
 	int cap, pos, len;
 	long off;		/* file offset of buf[pos] */
 	long next;		/* of the next fill */
+	long size;		/* the file's, found at the first fill */
 } FR;
 
 static int fr_fill(FR *f)
@@ -862,6 +872,8 @@ static int fr_fill(FR *f)
 	f->pos = f->len = 0;
 	if (!f->path[0] || (h = pf_open(f->path, PF_READ)) < 0)
 		return 0;
+	if (!f->next)
+		f->size = pf_handle_size(h);	/* no look at the directory for it */
 	if (!f->next || pf_seek(h, f->next) == f->next)
 		f->len = (int)pf_read(h, f->buf, f->cap);
 	pf_close(h);
@@ -1184,11 +1196,14 @@ void cal_load_begin(CALENDAR *c)
 		return;
 	}
 	cache_path(c, "DAT", path, sizeof(path));
+	load_open(path, 700);
+	if (ld.f.path[0] && (!fr_line(&ld.f, ld_line, 700) || strncmp(ld_line, "CALCACHE 1", 10)))
+		ld.f.path[0] = 0;	/* not one of ours: nothing read */
 	{
 		/* room for about as many events as the file holds, at once: the
 		   tables doubling (and the index made again) as they filled were
 		   the longest steps, 90 ms each on an ST */
-		long size = pf_size(path);
+		long size = ld.f.path[0] ? ld.f.size : 0;	/* its first fill's */
 		int est = size > 0 ? (int)(size / 600) + 16 : 0;
 		if (est > 4000)
 			est = 4000;
@@ -1209,9 +1224,6 @@ void cal_load_begin(CALENDAR *c)
 		if (est)
 			hx_room(c, est);
 	}
-	load_open(path, 700);
-	if (ld.f.path[0] && (!fr_line(&ld.f, ld_line, 700) || strncmp(ld_line, "CALCACHE 1", 10)))
-		ld.f.path[0] = 0;	/* not one of ours: nothing read */
 }
 
 int cal_loading(void)

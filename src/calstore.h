@@ -108,8 +108,8 @@ void store_init(const char *dir, const char *inf);
 /* the same in steps: begin, then store_init_step() until 0 */
 void store_init_begin(const char *dir, const char *inf);
 int  store_init_step(void);
-void store_init_text(char *text);
-extern unsigned long store_gen;	/* goes up with each of our writes to ECAL.INF or a cache */	/* after store_init_begin: ECAL.INF already read */
+void store_init_text(char *text);	/* after store_init_begin: ECAL.INF already read */
+extern unsigned long store_gen;	/* goes up with each of our writes to ECAL.INF or a cache */
 void store_save_settings(void);
 void store_write_settings(void);	/* the same without noting the files' stamps (store_mark_step) */
 void store_settings_text(SBUF *b, int part);	/* or in steps: its text in b (sb_init'ed; part 0, 1), */
@@ -136,11 +136,20 @@ void cal_load_stop(void);
 extern int cal_defer_load;
 extern long cal_piece;		/* a file read this much at a time (guidelines 6.5) */
 extern long cal_gather;		/* a job gathers this much before it writes */
-/* the files the calendars are read from (ECAL.INF, the caches): for
-   ALARMS.IDX's stamp; paths in a static table, how many */
+/* the files store_changed looks at (ECAL.INF, ECAL.KEY, the CACHE
+   folder): for ALARMS.IDX's stamp, which is the same; paths in a static
+   table, how many (3) */
 int  store_files(const char **out, int max);
 /* store_mark() a file at a time: 0 when done */
 int  store_mark_step(void);
+/* their stamp as last looked at, if nothing was written since (1) */
+int  store_known(unsigned long *h);
+/* the files as they are now (stamp h, a look the caller took) are ours:
+   store_mark_known always, store_adopt only after our writes, as
+   store_changed does */
+void store_mark_known(unsigned long h);
+void store_adopt(unsigned long h);
+unsigned long store_inf_seen(long *size);	/* ECAL.INF at the last look: date, size */
 /* the zones now in use */
 const TZONE *home_zone(void);
 const TZONE *view_zone(void);

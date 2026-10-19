@@ -52,6 +52,17 @@ long pf_handle_size(int h)
 	return n;
 }
 
+unsigned long pf_handle_info(int h, long *size)
+{
+	struct stat st;
+	if (fstat(h, &st) < 0) {
+		*size = -1;
+		return 0;
+	}
+	*size = (long)st.st_size;
+	return (unsigned long)st.st_mtime ^ (unsigned long)st.st_mtim.tv_nsec;
+}
+
 long pf_read_at(const char *path, long off, void *buf, long n)
 {
 	int h = pf_open(path, PF_READ);

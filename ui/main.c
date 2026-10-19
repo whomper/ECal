@@ -404,8 +404,14 @@ static int idx_wait(void)
 static void save_alarms_step(void)
 {
 	char p[200];
+	if (idx_i == 0 && store_known(&idx_stamp)) {
+		idx_i = idx_n;	/* the files' last look stands: none of its own */
+		return;
+	}
 	if (idx_i < idx_n) {
 		idx_stamp = alarms_stamp_add(idx_stamp, idx_files[idx_i++]);
+		if (idx_i == idx_n)
+			store_adopt(idx_stamp);	/* a look, as store_changed's */
 		return;
 	}
 	if (idx_i == idx_n) {
@@ -735,7 +741,7 @@ void cmd_menu(short x, short y)
    fitted and hasn't changed since */
 static char inf_boot[8192];
 static long inf_boot_len = -2;		/* -2: not read yet; -1: none, or used up */
-static unsigned long inf_boot_stamp;	/* its date and size then (pf_info) */
+static unsigned long inf_boot_stamp;	/* its date and size then */
 static long inf_boot_size;
 
 static const char *inf_start(void)
@@ -743,9 +749,10 @@ static const char *inf_start(void)
 	if (inf_boot_len == -2) {
 		int h;
 		inf_boot_len = -1;
-		inf_boot_stamp = pf_info(inf_file, &inf_boot_size);
-		if (inf_boot_stamp && (h = pf_open(inf_file, PF_READ)) >= 0) {
-			long n = pf_read(h, inf_boot, sizeof(inf_boot) - 1);
+		if ((h = pf_open(inf_file, PF_READ)) >= 0) {
+			long n;
+			inf_boot_stamp = pf_handle_info(h, &inf_boot_size);	/* no look */
+			n = pf_read(h, inf_boot, sizeof(inf_boot) - 1);
 			pf_close(h);
 			if (n >= 0) {
 				inf_boot[n] = 0;
@@ -917,6 +924,7 @@ static void connecting(int begins);
 /* the settings in three steps (the accessory reads them in the
    background): ECAL.INF and the keys, the files' stamps, the rest */
 static int settings_stage;
+static int mark_begun;		/* stage 1 looks at the files itself */
 
 static int settings_step(void)
 {
@@ -926,26 +934,39 @@ static int settings_step(void)
 		secret_warn = warn_plain;	/* before anything is saved */
 		move_inf();
 		store_init_begin(workdir, inf_file);
-		{
-			/* the copy read at the start, if the file is as it was then */
-			long size;
-			if (inf_boot_len >= 0 && inf_boot_len < (long)sizeof(inf_boot) - 1 &&
-			    pf_info(inf_file, &size) == inf_boot_stamp && size == inf_boot_size)
-				store_init_text(inf_boot);
-			inf_boot_len = -1;	/* later readings (ECAL.PRG changed it) go to the file */
+		settings_stage = 1;
+		mark_begun = 0;
+		return 1;
+	}
+	if (settings_stage == 1) {
+		/* the files as we found them, before they are read: a file a
+		   step, or the stamp ALARMS.IDX's check took of them at boot */
+		const char *f[3];
+		int n = store_files(f, 3);
+		unsigned long h, inf;
+		long size;
+		if (!mark_begun && alarms_check_stamp(f, n, &h)) {
+			store_mark_known(h);
+			inf = alarms_check_first(&size);
+		} else {
+			mark_begun = 1;
+			if (store_mark_step())
+				return 1;
+			if (store_known(&h))
+				alarms_verify_with(f, n, h);	/* the check needs no looks of its own */
+			inf = store_inf_seen(&size);
 		}
+		/* the copy read at the start, if the file is as it was then */
+		if (inf_boot_len >= 0 && inf_boot_len < (long)sizeof(inf_boot) - 1 &&
+		    inf == inf_boot_stamp && size == inf_boot_size)
+			store_init_text(inf_boot);
+		inf_boot_len = -1;	/* later readings (ECAL.PRG changed it) go to the file */
 		settings_stage = 3;
 		return 1;
 	}
 	if (settings_stage == 3) {
 		/* ECAL.INF, a few lines a step */
-		if (!store_init_step())
-			settings_stage = 1;
-		return 1;
-	}
-	if (settings_stage == 1) {
-		/* the files as we found them: a file a step */
-		if (store_mark_step())
+		if (store_init_step())
 			return 1;
 		if (strcasecmp(opt.folder, workdir))
 			store_save_settings();	/* FOLDER= as it is now */

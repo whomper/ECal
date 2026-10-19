@@ -52,8 +52,9 @@ void alarms_end_build(CTIME built);
 /* ALARMS.IDX: the queue, the reminder settings (on, 24-hour clock), and
    the files it was built from with a stamp of them (sizes, times), so a
    change made since is noticed without reading them. Each file's look at
-   the disk is a step of its own (one directory search each), so neither
-   the stamp nor the check at boot holds the machine:
+   the disk is a step of its own (one directory search each; a folder,
+   its name ending in a separator, one listing for its .DAT and .ICS
+   files), so neither the stamp nor the check at boot holds the machine:
      h = ALARM_STAMP0; for each file: h = alarms_stamp_add(h, file);
      alarms_save(path, files, n, h, on, h24);
    alarms_load: the queue at once, if the file is there and still reaches
@@ -68,6 +69,13 @@ int  alarms_save_step(void);
 int  alarms_load(const char *path, CTIME now, int *on, int *h24);
 int  alarms_verify_step(void);
 extern int alarms_verified;	/* set when the check found ALARMS.IDX right */
+/* the looks shared with the caller's own of the same files (guidelines
+   6.5): the stamp the last check found, if it was of these files (once);
+   or the check, not yet begun, done with a stamp the caller took */
+int  alarms_check_stamp(const char *const *files, int n, unsigned long *h);
+void alarms_verify_with(const char *const *files, int n, unsigned long h);
+unsigned long alarms_check_first(long *size);	/* that check's first file: its date, size */
+unsigned long alarms_stamp_info(long *size);	/* the file alarms_stamp_add last looked at */
 unsigned long alarms_hash(void);	/* the queue's contents, in one number */
 
 #endif

@@ -152,14 +152,24 @@ class Trace:
 
 def budget(j, piece):
     """6.5's budget for a job: an open per file it touches (one per piece
-    of what it reads), one more when it writes it; a look per file, plus
-    the files' look (ECAL.INF, ECAL.KEY, the CACHE listing)"""
+    of what it reads), one more when it writes it (itself, or through its
+    safe save's other half, ECAL.IN$ or CAL00003.NEW); a look per file,
+    plus the files' look (ECAL.INF, ECAL.KEY, the CACHE listing)"""
     opens = looks = 0
+    halves = [n for n, f in j["files"].items()
+              if n.endswith(("$", ".TMP", ".NEW")) and (f.get("Fcreate") or f.get("Fwrite"))]
+
+    def half_of(name, half):
+        if half.endswith("$"):
+            return name.startswith(half[:-1]) and len(name) == len(half)
+        return name.rsplit(".", 1)[0] == half.rsplit(".", 1)[0]
+
     for name, f in j["files"].items():
         if name.endswith(("$", ".TMP", ".NEW")) or name == "*.*":
             continue            # a safe save's or a download's other half: with its file
         reads = -(-f.get("bytes", 0) // piece) if f.get("Fread") else 0
-        opens += max(reads, 1 if f.get("Fopen") else 0) + (1 if f.get("Fcreate") or f.get("Fwrite") else 0)
+        written = f.get("Fcreate") or f.get("Fwrite") or any(half_of(name, h) for h in halves)
+        opens += max(reads, 1 if f.get("Fopen") else 0) + (1 if written else 0)
         looks += 1
     return opens, looks + 3
 
