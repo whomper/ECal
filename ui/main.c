@@ -1720,6 +1720,8 @@ int main(void)
 	}
 	if (is_acc) {
 		acc_heap();
+		if (boot_taken < 512)
+			conn_log_hold_bytes = 0;	/* a small fixed heap: the log keeps its 4 KB through a refresh */
 	} else {
 		/* the menu bar (the accessory has the toolbar's menu) */
 		if (mbar_build(&mb, bar, gl_wchar, gl_hchar, scr_w, scr_h) == 0)

@@ -60,11 +60,7 @@ class Rig:
         self.shots = os.path.join(work, "shots")
         os.makedirs(self.shots, exist_ok=True)
         self.win = None
-        self.xvfb = None
-        if subprocess.run(["xdpyinfo"], env=self.env, capture_output=True).returncode:
-            self.xvfb = subprocess.Popen(["Xvfb", display, "-screen", "0", "1280x1024x24"],
-                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            time.sleep(1)
+        self.xvfb = machines.xvfb(display, "1280x1024x24")  # once it answers
         args = (["hatari", "-w", "--statusbar", "no", "--borders", "no", "--zoom", "1"] + self.machine.args() +
                 ["--fast-boot", "yes", "--natfeats", "yes", "--cmd-fifo", self.fifo,
                  "--screenshot-dir", self.shots, "--log-level", "warn"])
