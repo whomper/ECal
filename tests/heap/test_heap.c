@@ -8,6 +8,7 @@
  *   grow         a program's heap: 512 KB from GEMDOS, then doubling
  *   limited      GEMDOS with little memory: smaller blocks, then "no memory"
  *   tos1         no Mxalloc (TOS 1.x): Malloc instead
+ *   st1          a 1 MB ST: the first block a quarter of what is free
  *   maxblocks    never more than 40 blocks from GEMDOS
  *   exact        GEMDOS has just enough for the one request
  *   bins         the free lists' order by size
@@ -74,14 +75,26 @@ static void *take(long n)
 	return p;
 }
 
+static long tt_free;		/* TT RAM free, for Mxalloc(-1, 1); 0: none */
+
+static long st_left(void)
+{
+	return pool ? (long)(pool_end - pool_at) : 0;
+}
+
 void *Mxalloc(long n, int mode)
 {
-	(void)mode;
-	return tos1 ? (void *)-32L : take(n);
+	if (tos1)
+		return (void *)-32L;
+	if (n == -1)
+		return (void *)(mode == 1 ? tt_free : st_left());
+	return take(n);
 }
 
 void *Malloc(long n)
 {
+	if (n == -1)
+		return (void *)st_left();
 	return take(n);
 }
 
@@ -338,6 +351,21 @@ static void case_tos1(void)
 	check(heap_check(0) >= 0, "tos1: checks out");
 }
 
+/* a 1 MB ST: no TT RAM, 700 KB free: the first block a quarter of it,
+   so a job's buffer still finds most of the rest; then it grows */
+static void case_st1(void)
+{
+	int n = 0;
+	pool_new(700L * 1024);
+	check(heap_malloc(1000) != 0 && ngrants == 1 && grants[0] <= 700L * 1024 / 4,
+	      "st1: the first block a quarter of what is free");
+	check(st_left() > 450L * 1024, "st1: most of the memory left for the rest");
+	while (n < 400 && heap_malloc(1000))	/* 400 KB: more than the first block */
+		n++;
+	check(n == 400 && ngrants >= 2, "st1: and the heap grows when it needs to");
+	check(heap_check(0) >= 0, "st1: checks out");
+}
+
 static void case_maxblocks(void)
 {
 	long sum = 0;
@@ -538,6 +566,8 @@ int main(int argc, char **argv)
 		case_limited();
 	else if (!strcmp(c, "tos1"))
 		case_tos1();
+	else if (!strcmp(c, "st1"))
+		case_st1();
 	else if (!strcmp(c, "maxblocks"))
 		case_maxblocks();
 	else if (!strcmp(c, "exact"))
