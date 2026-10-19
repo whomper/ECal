@@ -1365,10 +1365,12 @@ void cal_load_all(void)
    guidelines 2.2): what is written gathers in memory and goes out at
    8 KB, each time opened, added to and closed; the old file is open only
    between cw_copy_begin and cw_copy_end, or for one cw_copy */
-/* how much a file is read or written at a time (guidelines 6.5): 16 KB,
-   32 KB on a 68030 (the program sets it) */
-long cal_piece = 16384;
-#define CW_FLUSH cal_piece
+/* how much a file is read at a time (guidelines 6.5): 16 KB, 32 KB on a
+   68030; and how much a job gathers before it writes: as much in the
+   accessory (its heap is fixed), more in ECAL.PRG, so that a refresh is
+   one write (main.c sets both) */
+long cal_piece = 16384, cal_gather = 16384;
+#define CW_FLUSH cal_gather
 typedef struct {
 	CALENDAR *c;
 	char tmp[200], old[200];	/* the new file, the old one (copied from) */
@@ -1905,7 +1907,7 @@ int sync_calendar(CALENDAR *c, int force)
 enum { SJ_CTAG = 1, SJ_LIST, SJ_INDEX, SJ_MATCH, SJ_GONE, SJ_FETCH, SJ_ADD, SJ_WRITE, SJ_PARSE, SJ_END, SJ_PACK,
        SJ_MARK };
 #define SJ_BATCH 8		/* events asked for at a time */
-#define SJ_FLUSH cal_piece	/* records gathered before they are written (guidelines 6.5) */
+#define SJ_FLUSH cal_gather	/* records gathered before they are written (guidelines 6.5) */
 
 int sync_changes;
 

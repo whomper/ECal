@@ -134,7 +134,8 @@ void cal_load_stop(void);
 /* 1: a refresh that brings changes only begins reading the calendar
    again (cal_load_begin), for the caller to go on in steps */
 extern int cal_defer_load;
-extern long cal_piece;		/* a file read or written this much at a time (guidelines 6.5) */
+extern long cal_piece;		/* a file read this much at a time (guidelines 6.5) */
+extern long cal_gather;		/* a job gathers this much before it writes */
 /* the files the calendars are read from (ECAL.INF, the caches): for
    ALARMS.IDX's stamp; paths in a static table, how many */
 int  store_files(const char **out, int max);

@@ -1666,6 +1666,20 @@ int main(void)
 		bg_init(is_acc ? bg_parse(st) : BG_NOW);
 		slice_ms = get_cookie(0x5F435055L) >= 20 ? BG_SLICE_030 : BG_SLICE_000;	/* _CPU */
 		cal_piece = get_cookie(0x5F435055L) >= 20 ? 32768L : 16384L;	/* guidelines 6.5 */
+		cal_gather = cal_piece;
+		if (!is_acc) {
+			/* the program's heap grows (TT RAM first, common/atari/libc.c):
+			   a refresh gathers up to an eighth of what is free, 512 KB at
+			   most, and writes it in one go */
+			long fr = (long)Mxalloc(-1L, 3);
+			if (fr == -32 || fr < 0)
+				fr = (long)Malloc(-1L);
+			fr /= 8;
+			if (fr > 512L * 1024)
+				fr = 512L * 1024;
+			if (fr > cal_gather)
+				cal_gather = fr;
+		}
 		if (!is_acc)
 			bg_opened();
 	}
