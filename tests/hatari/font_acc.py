@@ -53,15 +53,26 @@ def changed_box(a, b):
     return ImageChops.difference(x, y).convert("L").point(lambda v: 255 if v else 0).getbbox()
 
 
-def wait_still(r, name, limit=90):
-    """screenshots a second apart until two match (the desktop up and
-    idle: NVDI on a 16 MHz Falcon takes a while), at most limit seconds"""
+def menu_bar(shot):
+    """the desktop's menu bar is up: the line under it, across the screen
+    (a boot banner's text at the top left isn't)"""
+    from PIL import Image
+    im = Image.open(shot).convert("L")
+    w, h = im.size
+    px = im.load()
+    return any(sum(1 for x in range(w) if px[x, y] < 128) > w * 9 // 10 for y in range(8, min(h, 30)))
+
+
+def wait_still(r, name, limit=90, desktop=False):
+    """screenshots a second apart until two match (and, desktop, the menu
+    bar is up: NVDI's boot holds a still white screen a while on a 16 MHz
+    Falcon), at most limit seconds"""
     prev = r.shot(name)
     t0 = time.time()
     while time.time() - t0 < limit:
         time.sleep(1)
         cur = r.shot(name)
-        if changed(prev, cur) == 0:
+        if changed(prev, cur) == 0 and (not desktop or menu_bar(cur)):
             return cur
         prev = cur
     return prev
@@ -165,9 +176,13 @@ def main():
     skipped = False
     try:
         time.sleep(10)
-        desk = wait_still(r, "0-desktop")
+        desk = wait_still(r, "0-desktop", 300, desktop=not a.prg)
         if not a.prg:
             open_acc()
+            if changed(desk, r.shot("1-open")) < 0.2:
+                time.sleep(10)          # the accessory not in the Desk menu yet: once more
+                r.key(K["ESC"])
+                open_acc()
         one = r.shot("1-open")
         if not a.prg:                   # (the program's window is up before the first shot)
             check("the window drew", changed(desk, one) > 0.2, "%.0f%% of the screen" % (100 * changed(desk, one)))
