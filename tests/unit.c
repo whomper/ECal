@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include "ctime.h"
 #include "tz.h"
 #include "ics.h"
@@ -702,6 +703,39 @@ static void test_alarms_idx(void)
 	CHECK_EQ(alarm_n, 0);
 	pf_remove(dep);
 	pf_remove(idx);
+	{
+		/* a folder: its .DAT and .ICS files in one listing; the
+		   others (a safe save's .NEW) don't count */
+		const char *dir = "/tmp/ecal-unit-cache/", *f2[1];
+		unsigned long h1, h2;
+		f2[0] = dir;
+		pf_mkdir("/tmp/ecal-unit-cache");
+		CHECK(pf_save("/tmp/ecal-unit-cache/CAL00001.DAT", "one", 3) == 0);
+		h1 = alarms_stamp_add(ALARM_STAMP0, dir);
+		CHECK(pf_save("/tmp/ecal-unit-cache/CAL00001.NEW", "x", 1) == 0);
+		CHECK(alarms_stamp_add(ALARM_STAMP0, dir) == h1);
+		CHECK(pf_save("/tmp/ecal-unit-cache/CAL00002.ICS", "two", 3) == 0);
+		h2 = alarms_stamp_add(ALARM_STAMP0, dir);
+		CHECK(h2 != h1);
+		/* the check done with a stamp taken by the caller */
+		alarms_begin_build();
+		alarms_add(b + 60, b + 70, 0, "Coffee", 0);
+		alarms_end_build(b);
+		CHECK(alarms_save(idx, f2, 1, h2, 1, 1));
+		CHECK(alarms_load(idx, b + 10, &on, &h24));
+		alarms_verify_with(f2, 1, h2);
+		CHECK(alarms_verified && alarm_n == 1);
+		CHECK(!alarms_verify_step());	/* no looks left */
+		alarms_verified = 0;
+		CHECK(alarms_load(idx, b + 10, &on, &h24));
+		alarms_verify_with(f2, 1, h1);	/* changed since */
+		CHECK(!alarms_verified && alarm_n == 0);
+		pf_remove("/tmp/ecal-unit-cache/CAL00001.DAT");
+		pf_remove("/tmp/ecal-unit-cache/CAL00001.NEW");
+		pf_remove("/tmp/ecal-unit-cache/CAL00002.ICS");
+		rmdir("/tmp/ecal-unit-cache");
+		pf_remove(idx);
+	}
 }
 
 static void test_invitees(void)
