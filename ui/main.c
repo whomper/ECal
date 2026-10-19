@@ -393,6 +393,14 @@ static int save_alarms_pending(void)
 	return idx_i >= 0;
 }
 
+/* ALARMS.IDX waits for a refresh's end, and for ECAL.INF it leads to (the
+   ctags): its stamp has them all, so written before them it would be
+   written again after (guidelines 6.5) */
+static int idx_wait(void)
+{
+	return sync_busy() || (bg_next >= 0 && bg_next < ncals) || settings_dirty || inf_stage;
+}
+
 static void save_alarms_step(void)
 {
 	char p[200];
@@ -1383,7 +1391,7 @@ static int work_kind(void)
 		return 2;
 	if (alarms_pending())
 		return 3;
-	if (save_alarms_pending() && !(sync_busy() || (bg_next >= 0 && bg_next < ncals)))
+	if (save_alarms_pending() && !idx_wait())
 		return 4;
 	if (inf_stage)
 		return 7;
@@ -1443,7 +1451,7 @@ static void work_step(void)
 			save_alarms();	/* the next steps write it */
 		return;
 	}
-	if (save_alarms_pending() && !(sync_busy() || (bg_next >= 0 && bg_next < ncals))) {
+	if (save_alarms_pending() && !idx_wait()) {
 		/* once the refresh is over, not after each calendar */
 		aes_profile_tag("work: ALARMS.IDX");
 		save_alarms_step();
