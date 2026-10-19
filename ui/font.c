@@ -289,7 +289,7 @@ static void keep_monospaced(void)
 	nfam = n;
 }
 
-/* the format of the font with this id (1 bitmap, 2 Speedo, 4 TrueType,
+/* the format of the font with this id (0 not known, 1 bitmap, 2 Speedo, 4 TrueType,
    8 Type 1), from the list or the VDI */
 static short format_of(short id)
 {
@@ -302,7 +302,7 @@ static short format_of(short id)
 	for (i = 2; i <= n + 1; i++)
 		if (vqt_name(vdi_h, i, name) == id)
 			return vqt_font_format(vdi_h, i);
-	return 1;
+	return 0;	/* not known (NVDI draws its fonts unloaded too): the VDI is asked */
 }
 
 /* names only: quick, whatever the number of fonts */

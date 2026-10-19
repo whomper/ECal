@@ -187,9 +187,9 @@ def main():
                   "%.1f%% changed from step 1" % (100 * changed(one, after)))
             time.sleep(4)
             later = r.shot("6-later")
-            box = changed_box(one, dlg)     # where the dialog was
+            box = changed_box(one, dlg)     # where the dialog was (mostly white: a stuck one changes 0%)
             gone = changed(dlg, later, box) if box else 0.0
-            check("the dialog is gone, the window drawn where it was", gone > 0.3,
+            check("the dialog is gone, the window drawn where it was", gone > 0.1,
                   "%.0f%% of the dialog's area changed since step 3" % (100 * gone))
             check("the screen stayed as drawn", changed(after, later) < 0.02,
                   "%.1f%% changed since step 5" % (100 * changed(after, later)))
@@ -205,9 +205,11 @@ def main():
                       "%.1f%% differs from step 6" % (100 * changed(later, again)))
     finally:
         r.stop()
-    if os.path.exists(inf):
-        ids = [l.strip() for l in open(inf, errors="replace") if l.upper().startswith("FONT_ID=")]
-        print("  ECAL.INF:", ids[0] if ids else "no FONT_ID=")
+    root = os.path.join(hd, "ECAL.INF")        # where the accessory keeps it (the INF location rule)
+    used = root if os.path.exists(root) and not a.prg else inf
+    if os.path.exists(used):
+        ids = [l.strip() for l in open(used, errors="replace") if l.upper().startswith("FONT_ID=")]
+        print("  %s:" % ("C:\\ECAL.INF" if used == root else "ECAL.INF"), ids[0] if ids else "no FONT_ID=")
     log = os.path.join(folder, "ECAL.LOG")
     if a.log and os.path.exists(log):
         shutil.copy(log, os.path.join(work, "ECAL.LOG"))
