@@ -99,6 +99,8 @@ class Trace:
             j["bytes"][call] = j["bytes"].get(call, 0) + nbytes
         f = j["files"].setdefault(os.path.basename(name.replace("\\", "/")).upper() or name, {})
         f[call] = f.get(call, 0) + 1
+        if call == "Fread":
+            f["bytes"] = f.get("bytes", 0) + nbytes
         now = time.time() - self.t0
         j["first"] = now if j["first"] is None else j["first"]
         j["last"] = now
@@ -148,8 +150,23 @@ class Trace:
         return False
 
 
-def report(tr, label):
+def budget(j, piece):
+    """6.5's budget for a job: an open per file it touches (one per piece
+    of what it reads), one more when it writes it; a look per file, plus
+    the files' look (ECAL.INF, ECAL.KEY, the CACHE listing)"""
+    opens = looks = 0
+    for name, f in j["files"].items():
+        if name.endswith(("$", ".TMP", ".NEW")) or name == "*.*":
+            continue            # a safe save's or a download's other half: with its file
+        reads = -(-f.get("bytes", 0) // piece) if f.get("Fread") else 0
+        opens += max(reads, 1 if f.get("Fopen") else 0) + (1 if f.get("Fcreate") or f.get("Fwrite") else 0)
+        looks += 1
+    return opens, looks + 3
+
+
+def report(tr, label, piece):
     print("\n== %s" % label)
+    over = []
     for job, j in tr.jobs.items():
         c = j["calls"]
         span = (j["last"] - j["first"]) if j["first"] is not None else 0
@@ -158,7 +175,14 @@ def report(tr, label):
                                                           "Frename", "Fseek", "Fread", "Fwrite") if k in c) or "nothing",
             j["bytes"].get("Fread", 0), j["bytes"].get("Fwrite", 0), span))
         for name, f in sorted(j["files"].items()):
-            print("      %-14s %s" % (name, ", ".join("%s %d" % kv for kv in sorted(f.items()))))
+            print("      %-14s %s" % (name, ", ".join("%s %d" % kv for kv in sorted(f.items()) if kv[0] != "bytes")))
+        bo, bl = budget(j, piece)
+        o, l = c.get("Fopen", 0) + c.get("Fcreate", 0), c.get("Fsfirst", 0)
+        print("      budget (6.5): opens %d of %d, looks %d of %d%s" % (o, bo, l, bl,
+              "" if o <= bo and l <= bl else "   OVER"))
+        if o > bo or l > bl:
+            over.append(job)
+    return over
 
 
 def main():
@@ -316,10 +340,12 @@ def main():
         for p in procs:
             p.terminate()
     time.sleep(2)
-    report(tr, label)
+    over = report(tr, label, 16384 if rig.is_st(a.machine) else 32768)
     log = open(os.path.join(work, "ecalgate.log"), errors="replace").read()
     print("  (the gateway: %d requests)" % len(re.findall(r" -> \d+", log)))
+    print("acc_files:", "within budget" if not over else "over budget: " + "; ".join(over))
+    return 1 if over else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
