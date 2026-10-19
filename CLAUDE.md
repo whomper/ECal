@@ -30,7 +30,7 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
   GitHub Release. A normal build must leave every tracked file unchanged and shows the version in
   `VERSION` as it is (there is no `-dev` label). Don't
   commit built programs, help files or certificates (`binary/`, `dist/`). Never reuse a number.
-- **Only formal releases leave the build machine.** Erez gets vX.Y releases made by the Release workflow from `main`, nothing else: no test builds, no CI artifacts, no builds from a branch. Work lands on `main`; to try a fix on real hardware, release it. If a release doesn't work, roll back with a release: revert on `main`, release the next number, and say in the bad release's notes that it is withdrawn and which one to use.
+- **Only formal releases leave the build machine.** Erez gets vX.Y releases made by the Release workflow from `main`, nothing else: no test builds, no CI artifacts, no builds from a branch. Work lands on `main`; to try a fix on real hardware, release it. If a release doesn't work, roll back with a release: revert on `main`, release the next number, and run the Withdraw workflow (`.github/workflows/withdraw.yml`) on the bad one: it puts "Withdrawn: use vX.Y" at the top of its notes.
 - **Testing with another AERA program uses its latest release**, what Erez runs, never a build of its
   `main`: `common/tools/getrelease.py APP DIR FILE...` fetches it. Only for a change both programs are
   still making, test against the other's `main` at a named commit, say so, and test again against its
