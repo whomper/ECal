@@ -398,7 +398,7 @@ static int save_alarms_pending(void)
    written again after (guidelines 6.5) */
 static int idx_wait(void)
 {
-	return sync_busy() || (bg_next >= 0 && bg_next < ncals) || settings_dirty || inf_stage;
+	return sync_busy() || bg_next >= 0 || settings_dirty || inf_stage;	/* (to its end step: the ctags) */
 }
 
 static void save_alarms_step(void)
