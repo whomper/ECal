@@ -81,6 +81,10 @@ low); 1 MB of RAM, where `ECALST.ACC` runs beside STinG (2 MB or more for big ca
 MiNTnet. On an ST or STE, a Raspberry Pi (or any Debian or Ubuntu computer) for the gateway; Falcon mode
 needs a Falcon or TT.
 
+**Under TOS, put Atari's `FOLDR100.PRG` first in `AUTO`**, renamed for more room (`FOLDR400.PRG`).
+TOS keeps an entry in a small internal pool for every folder a program or accessory has looked
+into, and halts with "OUT OF INTERNAL MEMORY" when it runs out; FOLDRxxx makes the pool bigger.
+
 ## How it reaches the servers
 
 Calendar servers want HTTPS. Like [EMail](https://github.com/whomper/EMail), ECal gets there one of two
