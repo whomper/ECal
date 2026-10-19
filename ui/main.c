@@ -697,34 +697,52 @@ void cmd_menu(short x, short y)
    The program writes the folder it was started from; the accessory takes
    it from there, and asks when it is missing (locate_folder). */
 
-/* FOLDER= from a settings file, "" when it has none */
-/* KEY= from the start of ECAL.INF, read without malloc: the accessory
-   asks before its heap is taken. ECAL.PRG and ECAL.ACC write FOLDER= and
-   START= near the top */
-static void inf_value(const char *inf, const char *key, char *out, int size)
+/* ECAL.INF as the start found it, read once (guidelines 6.5: the
+   settings file once per start) and without malloc, since the accessory
+   asks it things before its heap is taken: FOLDER=, HEAPKB=, START=,
+   FONT_ID=. The settings are then read from the same copy, when the file
+   fitted and hasn't changed since */
+static char inf_boot[8192];
+static long inf_boot_len = -2;		/* -2: not read yet; -1: none, or used up */
+static unsigned long inf_boot_stamp;	/* its date and size then (pf_info) */
+static long inf_boot_size;
+
+static const char *inf_start(void)
 {
-	static char t[4096];
-	char *k;
-	int h = pf_open(inf, PF_READ), kl = (int)strlen(key);
-	long n;
+	if (inf_boot_len == -2) {
+		int h;
+		inf_boot_len = -1;
+		inf_boot_stamp = pf_info(inf_file, &inf_boot_size);
+		if (inf_boot_stamp && (h = pf_open(inf_file, PF_READ)) >= 0) {
+			long n = pf_read(h, inf_boot, sizeof(inf_boot) - 1);
+			pf_close(h);
+			if (n >= 0) {
+				inf_boot[n] = 0;
+				inf_boot_len = n;
+			}
+		}
+	}
+	return inf_boot_len >= 0 ? inf_boot : "";
+}
+
+/* KEY= from ECAL.INF ("" when it has none). ECAL.PRG and ECAL.ACC write
+   FOLDER= and START= near the top */
+static void inf_value(const char *key, char *out, int size)
+{
+	const char *t = inf_start(), *k;
+	int kl = (int)strlen(key);
 	out[0] = 0;
-	if (h < 0)
-		return;
-	n = pf_read(h, t, sizeof(t) - 1);
-	pf_close(h);
-	t[n > 0 ? n : 0] = 0;
-	for (k = t; (k = (char *)str_istr(k, key)); k += kl)
+	for (k = t; (k = str_istr(k, key)); k += kl)
 		if (k == t || k[-1] == '\n') {
-			char *e = k + kl + strcspn(k + kl, "\r\n");
-			*e = 0;
-			str_copy(out, k + kl, size);
+			int n = (int)strcspn(k + kl, "\r\n");
+			str_copy(out, k + kl, n + 1 < size ? n + 1 : size);
 			break;
 		}
 }
 
-static void inf_folder(const char *inf, char *out, int size)
+static void inf_folder(char *out, int size)
 {
-	inf_value(inf, "folder=", out, size);
+	inf_value("folder=", out, size);
 	{
 		int n = (int)strlen(out);
 		while (n > 3 && (out[n - 1] == '\\' || out[n - 1] == ' '))
@@ -738,8 +756,8 @@ static void find_workdir(void)
 	short drv = (short)Dgetdrv(), boot = boot_drive();
 	snprintf(inf_file, sizeof(inf_file), "%c:\\ECAL.INF", 'A' + boot);
 	if (is_acc) {
-		inf_folder(inf_file, workdir, sizeof(workdir));
-		if (!pf_exists(inf_file)) {
+		inf_folder(workdir, sizeof(workdir));
+		if (!inf_boot_stamp) {
 			/* settings from before ECAL.INF moved to the root */
 			snprintf(workdir, sizeof(workdir), "%c:\\ECAL", 'A' + boot);
 			path_join(old, sizeof(old), workdir, "ECAL.INF");
@@ -778,7 +796,7 @@ static int locate_folder(void)
 {
 	char path[200], name[20] = "", why[200];
 	short button = 0, boot = boot_drive();
-	inf_folder(inf_file, why, sizeof(why));
+	inf_folder(why, sizeof(why));
 	for (;;) {
 		short k = why[0] ? alert(1, "[2][ECal's folder is not at|%s.|Show me where it is?][Locate...|Use %c:\\ECAL|Cancel]",
 					 why, 'A' + boot)
@@ -813,9 +831,8 @@ static long boot_free, boot_taken;	/* KB at boot, for the log */
 
 static void acc_heap(void)
 {
-	static char buf[2048];
-	char inf[200];
-	long avail = (long)Malloc(-1L), alt = (long)Mxalloc(-1L, 1), want, h, n;
+	char kb[12];
+	long avail = (long)Malloc(-1L), alt = (long)Mxalloc(-1L, 1), want;
 	void *p;
 	want = tls_available && get_cookie(0x5F435055L) >= 30 ? 1536L * 1024 : 256L * 1024;
 	/* TT/Fast RAM (a TT, an accelerated Falcon): the heap goes there, and
@@ -827,19 +844,9 @@ static void acc_heap(void)
 		if (want < 4096L * 1024)
 			want = 4096L * 1024;
 	}
-	str_copy(inf, inf_file, sizeof(inf));
-	h = Fopen(inf, 0);
-	if (h >= 0) {
-		n = Fread((short)h, sizeof(buf) - 1, buf);
-		Fclose((short)h);
-		if (n > 0) {
-			char *k;
-			buf[n] = 0;
-			k = (char *)str_istr(buf, "heapkb=");
-			if (k && atol(k + 7) >= 64)
-				want = atol(k + 7) * 1024;
-		}
-	}
+	inf_value("heapkb=", kb, sizeof(kb));
+	if (atol(kb) >= 64)
+		want = atol(kb) * 1024;
 	boot_free = avail / 1024;
 	if (want > avail / 2)
 		want = avail / 2;
@@ -888,6 +895,14 @@ static int settings_step(void)
 		secret_warn = warn_plain;	/* before anything is saved */
 		move_inf();
 		store_init_begin(workdir, inf_file);
+		{
+			/* the copy read at the start, if the file is as it was then */
+			long size;
+			if (inf_boot_len >= 0 && inf_boot_len < (long)sizeof(inf_boot) - 1 &&
+			    pf_info(inf_file, &size) == inf_boot_stamp && size == inf_boot_size)
+				store_init_text(inf_boot);
+			inf_boot_len = -1;	/* later readings (ECAL.PRG changed it) go to the file */
+		}
 		settings_stage = 3;
 		return 1;
 	}
@@ -1610,7 +1625,7 @@ int main(void)
 	if (is_acc) {
 		/* GDOS fonts now or not at all (font.c), as ECAL.INF says */
 		char f[8];
-		inf_value(inf_file, "font_id=", f, sizeof(f));
+		inf_value("font_id=", f, sizeof(f));
 		font_boot(f[0] && atoi(f) != 1);
 	}
 	st_ram_init();
@@ -1627,7 +1642,7 @@ int main(void)
 		/* when work may start: the accessory START= after boot (ECAL.INF,
 		   read before its heap is taken), the program at once */
 		char st[16];
-		inf_value(inf_file, "start=", st, sizeof(st));
+		inf_value("start=", st, sizeof(st));
 		bg_init(is_acc ? bg_parse(st) : BG_NOW);
 		slice_ms = get_cookie(0x5F435055L) >= 20 ? BG_SLICE_030 : BG_SLICE_000;	/* _CPU */
 		if (!is_acc)

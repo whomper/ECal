@@ -228,12 +228,24 @@ static char *si_text, *si_line;
 static ACCOUNT *si_a;
 static CALENDAR *si_c;
 static int si_open;		/* ECAL.INF still to be loaded */
+static int si_lent;		/* si_text is the caller's (store_init_text), not ours to free */
+
+/* after store_init_begin: ECAL.INF's text already read, to take the
+   settings from instead of the file (changed in place as it is read) */
+void store_init_text(char *text)
+{
+	si_open = 0;
+	si_line = si_text = text;
+	si_lent = 1;
+}
 
 void store_init_begin(const char *dir, const char *inf)
 {
 	char key[200];
-	free(si_text);
+	if (!si_lent)
+		free(si_text);
 	si_text = si_line = 0;
+	si_lent = 0;
 	si_a = 0;
 	si_c = 0;
 	defaults();
@@ -311,8 +323,10 @@ int store_init_step(void)
 	}
 	if (si_line && *si_line)
 		return 1;
-	free(si_text);
+	if (!si_lent)
+		free(si_text);
 	si_text = si_line = 0;
+	si_lent = 0;
 	/* 92 days back was the first default: what a file still says from
 	   then moves to the new one (past events aren't copied) */
 	if (opt.past_days == 92)
