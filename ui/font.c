@@ -166,15 +166,17 @@ void font_reselect(void)
 	ch = keep_ch;
 }
 
-/* The accessory loads GDOS fonts only now, before its first event call,
-   and only when ECAL.INF names one (want): under FONTGDOS or SpeedoGDOS
-   their memory belongs to the program in front, so fonts loaded later
-   would be freed under the accessory (guidelines 2.2). The program loads
-   them when they're first wanted. 1 if fonts were loaded */
+/* The accessory loads GDOS fonts only now, before its first event call
+   (guidelines 2.2). Under NVDI always: they stay its own, so Font...
+   lists what the program's does and a font chosen there is used at
+   once. Under FONTGDOS or SpeedoGDOS only when ECAL.INF names one
+   (want): their memory belongs to the program in front, so fonts loaded
+   later would be freed under the accessory. The program loads them when
+   they're first wanted. 1 if fonts were loaded */
 int font_boot(int want)
 {
 	boot_fonts = 1;
-	gdos_fonts = want && vq_gdos() ? vst_load_fonts(vdi_h, 0) : 0;
+	gdos_fonts = (want || get_cookie(0x4E564449L)) && vq_gdos() ? vst_load_fonts(vdi_h, 0) : 0;	/* 'NVDI' */
 	return gdos_fonts > 0;
 }
 
