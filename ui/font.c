@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include "ui.h"
 #include "../src/plat.h"
+#include "conn.h"
 
 #define MAXFAM 256
 #define MAXSIZE 20
@@ -104,10 +105,27 @@ static void probe_hebrew(short id)
 	}
 	probed_mode = heb_mode;
 	probed_why = heb_why;
+	{
+		char m[100];
+		snprintf(m, sizeof(m), "font %d: format %d, Hebrew %s", id, fmt,
+			 heb_mode == HM_UNICODE ? "from the font" : heb_mode == HM_SYSTEM ?
+			 (heb_why == HW_NOHEB ? "in the system font (none in it)" : "in the system font (no NVDI 5)") :
+			 "as the font has it");
+		conn_log("ECal", "--", m, (long)strlen(m));
+	}
 }
 
-/* set the font; cw/ch become its cell size. 0 if it isn't there */
+/* set the font; cw/ch become its cell size. 0 if it isn't there.
+   probe: find where its Hebrew is (on the screen's workstation; the
+   window's bitmap takes the answer as it is) */
+static int set_font_on(short id, short pt, int probe);
+
 static int set_font(short id, short pt)
+{
+	return set_font_on(id, pt, 1);
+}
+
+static int set_font_on(short id, short pt, int probe)
 {
 	short w, h;
 	if (id == 1) {
@@ -125,7 +143,8 @@ static int set_font(short id, short pt)
 	vst_alignment(vdi_h, 0, 5);
 	cur_id = id;
 	cur_pt = pt;
-	probe_hebrew(id);
+	if (probe)
+		probe_hebrew(id);
 	return 1;
 }
 
@@ -133,7 +152,15 @@ static int set_font(short id, short pt)
 void font_reselect(void)
 {
 	short keep_cw = cw, keep_ch = ch;
-	set_font(cur_id, cur_pt);
+	if (!set_font_on(cur_id, cur_pt, 0) && cur_id != 1) {
+		static short told = -1;	/* said once a font */
+		if (told != cur_id) {
+			char m[80];
+			told = cur_id;
+			snprintf(m, sizeof(m), "font %d not on this workstation (%d): the system font", cur_id, vdi_h);
+			conn_log("ECal", "--", m, (long)strlen(m));
+		}
+	}
 	cw = keep_cw;
 	ch = keep_ch;
 }
@@ -594,6 +621,7 @@ static void draw_preview(void)
 			(r.w - 2 * gl_wchar) / gl_wchar, TX_LTR);
 	}
 	use_sys();
+	clip_off();
 	graf_mouse(M_ON, 0);
 }
 
@@ -624,6 +652,7 @@ static void draw_type(void)
 	fill(&r, 0);
 	n = (short)strlen(type_line);
 	text_at(x, y, type_line, n, r.w / gl_wchar, TX_LTR);
+	clip_off();
 	graf_mouse(M_ON, 0);
 }
 

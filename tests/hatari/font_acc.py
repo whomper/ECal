@@ -6,7 +6,7 @@ as Erez did under NVDI on 19 Oct 2026 with 2.14: the window should redraw
 in the new font, and the accessory, closed and opened again, should draw.
 
     tests/hatari/font_acc.py WORK [--machine Falcon] [--prg]
-                             [--release v2.14 | --bin DIR] [--font-id N]
+                             [--release v2.14 | --bin DIR] [--font-id N] [--log]
 
 Opens the window, then Font... from its menu (the toolbar's last button),
 moves to the first font after the system font (the first GDOS font, if a
@@ -44,6 +44,13 @@ def changed(a, b, box=None):
         box = (0, h // 20, w, h)	# below the menu bar
     d = ImageChops.difference(x.crop(box), y.crop(box)).convert("L").point(lambda v: 255 if v else 0)
     return d.histogram()[255] / float((box[2] - box[0]) * (box[3] - box[1]))
+
+
+def changed_box(a, b):
+    """the box around everything that differs between two screenshots"""
+    from PIL import Image, ImageChops
+    x, y = Image.open(a).convert("RGB"), Image.open(b).convert("RGB")
+    return ImageChops.difference(x, y).convert("L").point(lambda v: 255 if v else 0).getbbox()
 
 
 def menu_button(shot):
@@ -97,6 +104,7 @@ def main():
     ap.add_argument("--release", help="an ECal release to test (e.g. v2.14), fetched from GitHub")
     ap.add_argument("--bin", default=os.path.join(ROOT, "binary"), help="a folder with ECal's programs")
     ap.add_argument("--font-id", type=int, help="FONT_ID= in ECAL.INF before the machine starts")
+    ap.add_argument("--log", action="store_true", help="LOG=1 in ECAL.INF; ECAL.LOG's font lines printed")
     a = ap.parse_args()
     work = os.path.abspath(a.work)
     shutil.rmtree(work, ignore_errors=True)
@@ -118,11 +126,12 @@ def main():
         os.makedirs(folder)
     ui_tour.seed(folder)
     inf = os.path.join(folder, "ECAL.INF")
-    if a.font_id:
+    if a.font_id or a.log:
+        drop = (("FONT_ID=",) if a.font_id else ()) + (("LOG=",) if a.log else ())
         with open(inf, newline="") as f:
-            t = "".join(l for l in f.read().splitlines(True) if not l.upper().startswith("FONT_ID="))
+            t = "".join(l for l in f.read().splitlines(True) if not l.upper().startswith(drop))
         with open(inf, "w", newline="") as f:
-            f.write("FONT_ID=%d\r\n" % a.font_id + t)
+            f.write(("FONT_ID=%d\r\n" % a.font_id if a.font_id else "") + ("LOG=1\r\n" if a.log else "") + t)
 
     fails = []
 
@@ -178,7 +187,11 @@ def main():
                   "%.1f%% changed from step 1" % (100 * changed(one, after)))
             time.sleep(4)
             later = r.shot("6-later")
-            check("the screen stayed as drawn (no dialog left)", changed(after, later) < 0.02,
+            box = changed_box(one, dlg)     # where the dialog was
+            gone = changed(dlg, later, box) if box else 0.0
+            check("the dialog is gone, the window drawn where it was", gone > 0.3,
+                  "%.0f%% of the dialog's area changed since step 3" % (100 * gone))
+            check("the screen stayed as drawn", changed(after, later) < 0.02,
                   "%.1f%% changed since step 5" % (100 * changed(after, later)))
             if not a.prg:
                 r.key(SCAN["w"], ctrl=True)     # close the window
@@ -195,6 +208,12 @@ def main():
     if os.path.exists(inf):
         ids = [l.strip() for l in open(inf, errors="replace") if l.upper().startswith("FONT_ID=")]
         print("  ECAL.INF:", ids[0] if ids else "no FONT_ID=")
+    log = os.path.join(folder, "ECAL.LOG")
+    if a.log and os.path.exists(log):
+        shutil.copy(log, os.path.join(work, "ECAL.LOG"))
+        for l in open(log, errors="replace"):
+            if " font " in l or "font " in l[:60]:
+                print("  log:", l.rstrip())
     print("screenshots in", os.path.join(work, "shots"))
     if skipped and not fails:
         print("font_acc: no GDOS fonts, skipped")

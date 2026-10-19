@@ -445,10 +445,14 @@ void win_redraw(GRECT *area)
 				pxy[1] = pxy[5] = d.y;
 				pxy[2] = pxy[6] = d.x + d.w - 1;
 				pxy[3] = pxy[7] = d.y + d.h - 1;
+				/* NVDI clips raster copies too (TOS's VDI doesn't):
+				   the piece's own, not one left by a dialog */
+				clip_on(&d);
 				vro_cpyfm(vdi_h, 3, pxy, &obuf_mfdb, &scr);	/* S_ONLY */
 			}
 			wind_get(win_h, WF_NEXTXYWH, &box.x, &box.y, &box.w, &box.h);
 		}
+		clip_off();
 	} else {
 		wind_get(win_h, WF_FIRSTXYWH, &box.x, &box.y, &box.w, &box.h);
 		while (box.w && box.h) {
