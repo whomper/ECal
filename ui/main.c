@@ -1665,6 +1665,7 @@ int main(void)
 		inf_value("start=", st, sizeof(st));
 		bg_init(is_acc ? bg_parse(st) : BG_NOW);
 		slice_ms = get_cookie(0x5F435055L) >= 20 ? BG_SLICE_030 : BG_SLICE_000;	/* _CPU */
+		cal_piece = get_cookie(0x5F435055L) >= 20 ? 32768L : 16384L;	/* guidelines 6.5 */
 		if (!is_acc)
 			bg_opened();
 	}

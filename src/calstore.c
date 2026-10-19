@@ -1112,7 +1112,7 @@ static int ld_linecap;
 static int load_buffers(int linecap)
 {
 	int cap;
-	for (cap = 16384; cap >= 2048; cap /= 4) {
+	for (cap = (int)cal_piece; cap >= 2048; cap /= 4) {
 		char *b = malloc(cap + linecap);
 		if (b) {
 			ld.f.buf = b;
@@ -1365,7 +1365,10 @@ void cal_load_all(void)
    guidelines 2.2): what is written gathers in memory and goes out at
    8 KB, each time opened, added to and closed; the old file is open only
    between cw_copy_begin and cw_copy_end, or for one cw_copy */
-#define CW_FLUSH 8192
+/* how much a file is read or written at a time (guidelines 6.5): 16 KB,
+   32 KB on a 68030 (the program sets it) */
+long cal_piece = 16384;
+#define CW_FLUSH cal_piece
 typedef struct {
 	CALENDAR *c;
 	char tmp[200], old[200];	/* the new file, the old one (copied from) */
@@ -1846,16 +1849,19 @@ static int sync_subscription(CALENDAR *c, int force)
 	}
 	sb_free(&fs.b);
 	if (!ok) {
-		pf_remove(tmp);
+		if (fs.made)
+			pf_remove(tmp);
 		return -1;
 	}
 	if (rs.status == 304) {
-		pf_remove(tmp);
+		if (fs.made)
+			pf_remove(tmp);
 		c->synced = now_utc();
 		return 0;
 	}
 	if (rs.status != 200) {
-		pf_remove(tmp);
+		if (fs.made)
+			pf_remove(tmp);
 		snprintf(cal_err, sizeof(cal_err), "%s: %s (HTTP %d)", c->name, caldav_status_text(rs.status), rs.status);
 		return -1;
 	}
@@ -1899,7 +1905,7 @@ int sync_calendar(CALENDAR *c, int force)
 enum { SJ_CTAG = 1, SJ_LIST, SJ_INDEX, SJ_MATCH, SJ_GONE, SJ_FETCH, SJ_ADD, SJ_WRITE, SJ_PARSE, SJ_END, SJ_PACK,
        SJ_MARK };
 #define SJ_BATCH 8		/* events asked for at a time */
-#define SJ_FLUSH 16384		/* records gathered before they are written (guidelines 6.5) */
+#define SJ_FLUSH cal_piece	/* records gathered before they are written (guidelines 6.5) */
 
 int sync_changes;
 
