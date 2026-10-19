@@ -145,7 +145,8 @@ def main():
         if not a.prg:
             open_acc()
         one = r.shot("1-open")
-        check("the window drew", changed(desk, one) > 0.2, "%.0f%% of the screen" % (100 * changed(desk, one)))
+        if not a.prg:                   # (the program's window is up before the first shot)
+            check("the window drew", changed(desk, one) > 0.2, "%.0f%% of the screen" % (100 * changed(desk, one)))
         at = menu_button(one)
         if not at:
             check("the toolbar's menu button found", False)
