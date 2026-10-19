@@ -99,6 +99,8 @@ class Trace:
             j["bytes"][call] = j["bytes"].get(call, 0) + nbytes
         f = j["files"].setdefault(os.path.basename(name.replace("\\", "/")).upper() or name, {})
         f[call] = f.get(call, 0) + 1
+        if call in ("Fopen", "Fcreate", "Fsfirst", "Fdelete", "Frename"):
+            j.setdefault("log", []).append((time.time() - self.t0, call, name))
         if call == "Fread":
             f["bytes"] = f.get("bytes", 0) + nbytes
         now = time.time() - self.t0
@@ -174,7 +176,7 @@ def budget(j, piece):
     return opens, looks + 3
 
 
-def report(tr, label, piece):
+def report(tr, label, piece, timeline=False):
     print("\n== %s" % label)
     over = []
     for job, j in tr.jobs.items():
@@ -186,6 +188,9 @@ def report(tr, label, piece):
             j["bytes"].get("Fread", 0), j["bytes"].get("Fwrite", 0), span))
         for name, f in sorted(j["files"].items()):
             print("      %-14s %s" % (name, ", ".join("%s %d" % kv for kv in sorted(f.items()) if kv[0] != "bytes")))
+        if timeline:
+            for t, call, name in j.get("log", []):
+                print("        %7.1f s  %-8s %s" % (t, call, name))
         bo, bl = budget(j, piece)
         o, l = c.get("Fopen", 0) + c.get("Fcreate", 0), c.get("Fsfirst", 0)
         print("      budget (6.5): opens %d of %d, looks %d of %d%s" % (o, bo, l, bl,
@@ -204,6 +209,7 @@ def main():
     ap.add_argument("--bin", default=os.path.join(ROOT, "binary"))
     ap.add_argument("--roots", action="store_true", help="falcon: without ROOTS.DAT (CACERT.PEM read)")
     ap.add_argument("--display", default=":98")
+    ap.add_argument("--timeline", action="store_true", help="each job's opens, looks, deletes and renames in order")
     a = ap.parse_args()
     os.environ["TZ"] = "Asia/Jerusalem"
     time.tzset()
@@ -313,6 +319,8 @@ def main():
             tr.quiet_for(40, 900, at_least=45)
             tr.job = "2 five minutes idle"
             time.sleep(300)
+            r.key(0x01)                     # Esc: a reminder's alert out of the way
+            time.sleep(2)
             tr.job = "3 the window opened"
             r.click(18, 8)
             time.sleep(1.5)
@@ -350,7 +358,7 @@ def main():
         for p in procs:
             p.terminate()
     time.sleep(2)
-    over = report(tr, label, 16384 if rig.is_st(a.machine) else 32768)
+    over = report(tr, label, 16384 if rig.is_st(a.machine) else 32768, a.timeline)
     log = open(os.path.join(work, "ecalgate.log"), errors="replace").read()
     print("  (the gateway: %d requests)" % len(re.findall(r" -> \d+", log)))
     print("acc_files:", "within budget" if not over else "over budget: " + "; ".join(over))
