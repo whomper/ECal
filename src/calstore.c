@@ -1127,8 +1127,7 @@ static int load_buffers(int linecap)
 
 static void load_open(const char *path, int linecap)
 {
-	if (!pf_exists(path))
-		return;
+	/* (a missing file shows at the first fill: no look for it first) */
 	if (!load_buffers(linecap)) {
 		ld.c->lost = -1;	/* nothing could be read: no memory */
 		return;

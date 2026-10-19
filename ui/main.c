@@ -804,8 +804,8 @@ static void move_inf(void)
 {
 	char old[200], *t;
 	long len;
-	if (pf_exists(inf_file) || !workdir[0])
-		return;
+	if (inf_boot_stamp || !workdir[0])
+		return;		/* (the start found it in the root) */
 	path_join(old, sizeof(old), workdir, "ECAL.INF");
 	if (!strcasecmp(old, inf_file) || !(t = pf_load(old, &len)))
 		return;
