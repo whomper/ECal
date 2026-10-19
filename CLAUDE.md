@@ -61,6 +61,16 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
   Hatari rigs in `tests/hatari/`, on the family's machines (`--machine`, from
   `common/tools/machines.py`): the ECALST.ACC rigs on `ST` and `ST-1` (`:mono` and `:med`), the
   others on `TT` and `Falcon`, drawing also on `Falcon:256`.
+- **Before asking Erez for a GEM release**, run these rigs on his TOS images (`~/.aera/tos`: TOS 1.04 on
+  ST/ST-1, TOS 4.04 on the Falcons; and his NVDI in `~/.aera/nvdi/x` with `AERA_WITH_NVDI=1`), then send the
+  hub the commit and the results; the hub runs only the family checks (`acc_all.py`):
+  - `acc_test.py` and `font_acc.py` (accessory, `--prg`, `--font-id`) on `Falcon:16` and `Falcon-4:16`,
+    with and without NVDI;
+  - `acc_test.py`, `acc_files.py` and `quiet_test.py` on `ST:mono` and `ST-1` (TOS 1.04);
+  - `edit_test.py`, `esc_test.py` and `ui_tour.py` on `Falcon:16`; `Falcon:256` when drawing changes.
+
+  His TOS images and NVDI are his copies: never in git (nor a test's `hd`), never sent anywhere. EmuTOS
+  stays for development and CI.
 - `gateway/` is a read-only copy of [AERA-Gateway](https://github.com/whomper/AERA-Gateway)'s
   (ecalgate, the other gateways, `aera-gateway`): change it there, with that repository's owner
   session, and bring it here with `tools/sync-gateway.sh`. ECal decides ecalgate's protocol
