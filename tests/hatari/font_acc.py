@@ -176,7 +176,7 @@ def main():
     skipped = False
     try:
         time.sleep(10)
-        desk = wait_still(r, "0-desktop", 300, desktop=not a.prg)
+        desk = wait_still(r, "0-desktop", 300, desktop=True)
         if not a.prg:
             open_acc()
             if changed(desk, r.shot("1-open")) < 0.2:
@@ -184,9 +184,15 @@ def main():
                 r.key(K["ESC"])
                 open_acc()
         one = r.shot("1-open")
+        at = menu_button(one)
+        for _ in range(60):             # the window still coming (NVDI on a Falcon-4)
+            if at:
+                break
+            time.sleep(1)
+            one = r.shot("1-open")
+            at = menu_button(one)
         if not a.prg:                   # (the program's window is up before the first shot)
             check("the window drew", changed(desk, one) > 0.2, "%.0f%% of the screen" % (100 * changed(desk, one)))
-        at = menu_button(one)
         if not at:
             check("the toolbar's menu button found", False)
             return 1
