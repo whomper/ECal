@@ -538,17 +538,35 @@ static void cal_free_events(CALENDAR *c)
 }
 
 /* ECAL.INF, ECAL.KEY and the calendars' caches as they are now: their
-   sizes and when they were written */
+   sizes and when they were written. Three looks (guidelines 6.5): ECAL.INF
+   and ECAL.KEY one each, the caches from one listing of CACHE (its .DAT
+   and .ICS files, in any order) */
+static int stamp_cache(const char *name, long size, unsigned long stamp, void *ud)
+{
+	unsigned long *h = ud, x = 5381;
+	const char *dot = strrchr(name, '.');
+	if (!dot || (strcasecmp(dot, ".DAT") && strcasecmp(dot, ".ICS")))
+		return 0;
+	for (; *name; name++)
+		x = (x * 33) ^ (unsigned char)toupper((unsigned char)*name);
+	x = (x * 33) ^ stamp;
+	*h += (x * 33) ^ (unsigned long)size;	/* a sum: the listing's order doesn't count */
+	return 0;
+}
+
 static unsigned long stamp_one(unsigned long h, int i)
 {
 	char p[200];
 	long size;
+	if (i == 0) {
+		unsigned long sum = 0;
+		pf_list(cache_dir, stamp_cache, &sum);
+		return (h * 33) ^ sum;
+	}
 	if (i == -2)
 		str_copy(p, inf_path, sizeof(p));
-	else if (i == -1)
-		path_join(p, sizeof(p), opt.workdir, "ECAL.KEY");
 	else
-		cache_path(&cals[i], accts[cals[i].acct].kind == AK_SUBSCR ? "ICS" : "DAT", p, sizeof(p));
+		path_join(p, sizeof(p), opt.workdir, "ECAL.KEY");
 	h = (h * 33) ^ pf_info(p, &size);	/* one directory look for both */
 	return (h * 33) ^ (unsigned long)size;
 }
@@ -557,7 +575,7 @@ static unsigned long store_stamp(void)
 {
 	unsigned long h = 5381;
 	int i;
-	for (i = -2; i < ncals; i++)
+	for (i = -2; i <= 0; i++)
 		h = stamp_one(h, i);
 	return h;
 }
@@ -579,13 +597,17 @@ int store_files(const char **out, int max)
 	return n;
 }
 
+/* after our own writes: the files as they are now are ours. Taken at the
+   next look (store_changed), not after each write: a refresh writes a
+   cache several times, and each look is three directory searches */
+static int mark_due;
+
 void store_mark(void)
 {
-	if (store_watch)
-		known = store_stamp();
+	mark_due = store_watch;
 }
 
-/* the same a file at a time (a directory search each); 0 when done */
+/* the same a look a step; 0 when done */
 static int mk_i = -3;
 static unsigned long mk_h;
 
@@ -598,19 +620,28 @@ int store_mark_step(void)
 		mk_h = 5381;
 	}
 	mk_h = stamp_one(mk_h, mk_i++);
-	if (mk_i < ncals)
+	if (mk_i <= 0)
 		return 1;
 	known = mk_h;
+	mark_due = 0;
 	mk_i = -3;
 	return 0;
 }
 
 int store_changed(void)
 {
-	return store_watch && store_stamp() != known;
+	unsigned long h;
+	if (!store_watch)
+		return 0;
+	h = store_stamp();
+	if (mark_due) {
+		known = h;	/* our writes since the last look */
+		mark_due = 0;
+	}
+	return h != known;
 }
 
-/* the same a file a step: 1 while there is more, then *changed */
+/* the same a look a step: 1 while there is more, then *changed */
 int store_changed_step(int *changed)
 {
 	static int i = -3;
@@ -623,9 +654,13 @@ int store_changed_step(int *changed)
 		h = 5381;
 	}
 	h = stamp_one(h, i++);
-	if (i < ncals)
+	if (i <= 0)
 		return 1;
 	i = -3;
+	if (mark_due) {
+		known = h;
+		mark_due = 0;
+	}
 	*changed = h != known;
 	return 0;
 }
@@ -2289,10 +2324,9 @@ int sync_step(void)
 		}
 		return 1;
 	case SJ_MARK:
-		/* the files as written now (a file a step), so that the next
-		   look doesn't take them for ECAL.PRG's */
-		if (store_mark_step())
-			return 1;
+		/* the files as written now are ours: taken at the next look,
+		   so that it doesn't take them for ECAL.PRG's */
+		store_mark();
 		sj_free();
 		return 0;
 	}

@@ -92,7 +92,7 @@ int pf_mkdir(const char *path)
 int pf_remove(const char *path) { return unlink(path); }
 int pf_rename(const char *from, const char *to) { return rename(from, to); }
 
-int pf_list(const char *dir, int (*cb)(const char *, long, void *), void *ud)
+int pf_list(const char *dir, int (*cb)(const char *, long, unsigned long, void *), void *ud)
 {
 	DIR *d = opendir(dir);
 	struct dirent *e;
@@ -107,7 +107,7 @@ int pf_list(const char *dir, int (*cb)(const char *, long, void *), void *ud)
 		if (sz < 0)
 			continue;
 		n++;
-		if (cb(e->d_name, sz, ud))
+		if (cb(e->d_name, sz, pf_stamp(path), ud))
 			break;
 	}
 	closedir(d);

@@ -96,7 +96,7 @@ int pf_mkdir(const char *path)
 int pf_remove(const char *path) { return (int)Fdelete(path); }
 int pf_rename(const char *from, const char *to) { return (int)Frename(from, to); }
 
-int pf_list(const char *dir, int (*cb)(const char *, long, void *), void *ud)
+int pf_list(const char *dir, int (*cb)(const char *, long, unsigned long, void *), void *ud)
 {
 	char pat[200];
 	DTA d;
@@ -113,7 +113,7 @@ int pf_list(const char *dir, int (*cb)(const char *, long, void *), void *ud)
 		if (d.d_attrib & 0x18)
 			continue;
 		n++;
-		if (cb(d.d_fname, (long)d.d_length, ud))
+		if (cb(d.d_fname, (long)d.d_length, (unsigned long)d.d_date << 16 | d.d_time, ud))
 			break;
 		Fsetdta(&d);	/* the callback may have used the DTA */
 	}

@@ -37,7 +37,9 @@ int  pf_mkdir(const char *path);		/* 0 ok or already there */
 int  pf_remove(const char *path);
 int  pf_rename(const char *from, const char *to);
 /* call cb for every plain file in dir; stop early if cb returns non-zero */
-int  pf_list(const char *dir, int (*cb)(const char *name, long size, void *ud), void *ud);
+/* a folder's files, from one listing (Fsfirst, Fsnext): name, size, and
+   date and time as pf_stamp gives them; cb returns 1 to stop */
+int  pf_list(const char *dir, int (*cb)(const char *name, long size, unsigned long stamp, void *ud), void *ud);
 
 /* whole-file helpers: pf_load returns a malloc'ed NUL-terminated copy */
 char *pf_load(const char *path, long *len);
