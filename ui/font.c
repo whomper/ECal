@@ -68,6 +68,7 @@ static void probe_hebrew(short id)
 {
 	static short probed_mode, probed_why;
 	short k, fmt;
+	long a = -1;
 	if (id == 1) {
 		heb_mode = HM_MAP;
 		return;
@@ -84,7 +85,7 @@ static void probe_hebrew(short id)
 	/* a bitmap font draws the Atari codes itself; a vector font (or one
 	   whose kind the VDI doesn't say) is asked for its Hebrew letters */
 	if (fmt != 1) {
-		long a = vqt_char_index(vdi_h, 'A', 1, 0);
+		a = vqt_char_index(vdi_h, 'A', 1, 0);
 		if (a > 0) {
 			for (k = 0; k < 27; k++) {
 				long i = vqt_char_index(vdi_h, (unsigned short)(0x5D0 + heb_uni[k]), 2, 0);
@@ -106,8 +107,8 @@ static void probe_hebrew(short id)
 	probed_mode = heb_mode;
 	probed_why = heb_why;
 	{
-		char m[100];
-		snprintf(m, sizeof(m), "font %d: format %d, Hebrew %s", id, fmt,
+		char m[120];
+		snprintf(m, sizeof(m), "font %d: format %d, 'A' at %ld, Hebrew %s", id, fmt, a,
 			 heb_mode == HM_UNICODE ? "from the font" : heb_mode == HM_SYSTEM ?
 			 (heb_why == HW_NOHEB ? "in the system font (none in it)" : "in the system font (no NVDI 5)") :
 			 "as the font has it");

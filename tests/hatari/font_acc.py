@@ -53,6 +53,20 @@ def changed_box(a, b):
     return ImageChops.difference(x, y).convert("L").point(lambda v: 255 if v else 0).getbbox()
 
 
+def wait_still(r, name, limit=90):
+    """screenshots a second apart until two match (the desktop up and
+    idle: NVDI on a 16 MHz Falcon takes a while), at most limit seconds"""
+    prev = r.shot(name)
+    t0 = time.time()
+    while time.time() - t0 < limit:
+        time.sleep(1)
+        cur = r.shot(name)
+        if changed(prev, cur) == 0:
+            return cur
+        prev = cur
+    return prev
+
+
 def menu_button(shot):
     """where the toolbar's menu button (three short bars) is: the right
     quarter of the screen, its top third. None if not found"""
@@ -142,15 +156,16 @@ def main():
 
     def open_acc():
         r.click(18, 8)                  # the Desk menu
-        time.sleep(1)
+        time.sleep(1.5)
         r.click(60, 8 + 3 * 16 + 8)     # its first accessory
         time.sleep(6)
+        wait_still(r, "opening", 60)
 
     r = Rig(work, a.machine, auto="C:\\ECAL.PRG" if a.prg else None)
     skipped = False
     try:
-        time.sleep(16)
-        desk = r.shot("0-desktop")
+        time.sleep(10)
+        desk = wait_still(r, "0-desktop")
         if not a.prg:
             open_acc()
         one = r.shot("1-open")
@@ -187,10 +202,16 @@ def main():
                   "%.1f%% changed from step 1" % (100 * changed(one, after)))
             time.sleep(4)
             later = r.shot("6-later")
-            box = changed_box(one, dlg)     # where the dialog was (mostly white: a stuck one changes 0%)
+            # where the dialog was: closing it should change that area about
+            # as much as opening it did (a window behind it is mostly white
+            # cells, like the dialog, so a fixed share won't do). Under
+            # NVDI: 0.89 drawn again, 0.35 the dialog stuck (v2.14)
+            box = changed_box(one, dlg)
+            made = changed(one, dlg, box) if box else 0.0
             gone = changed(dlg, later, box) if box else 0.0
-            check("the dialog is gone, the window drawn where it was", gone > 0.1,
-                  "%.0f%% of the dialog's area changed since step 3" % (100 * gone))
+            ratio = gone / made if made else 0.0
+            check("the dialog is gone, the window drawn where it was", ratio > 0.6,
+                  "closing changed its area %.2f as much as opening" % ratio)
             check("the screen stayed as drawn", changed(after, later) < 0.02,
                   "%.1f%% changed since step 5" % (100 * changed(after, later)))
             if not a.prg:
