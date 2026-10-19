@@ -1678,7 +1678,7 @@ int main(void)
 	people_init(64, 0, dlg_names_came, editor_people_picked);
 	busy_message = busy_msg;
 	if (is_acc) {
-		/* GDOS fonts now or not at all (font.c): under NVDI always, else as ECAL.INF says */
+		/* GDOS fonts now or not at all (font.c), as ECAL.INF says */
 		char f[8];
 		inf_value("font_id=", f, sizeof(f));
 		font_boot(f[0] && atoi(f) != 1);
