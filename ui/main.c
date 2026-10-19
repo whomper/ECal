@@ -912,9 +912,10 @@ static int settings_step(void)
 		path_join(tls_seed_path, sizeof(tls_seed_path), workdir, "SEED.DAT");
 		/* CACERT.PEM read a piece at a time, never open across the
 		   network's waits (guidelines 2.2); ROOTS.DAT then checked by
-		   its date and size */
+		   its date and size, from one directory look */
 		tls_read_at = pf_read_at;
 		tls_file_stamp = pf_stamp;
+		tls_file_info = pf_info;
 		tls_tz_minutes = tz_offset(home_zone(), now_utc());
 		set_logging();
 		settings_stage = 4;
