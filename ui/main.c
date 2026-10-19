@@ -73,7 +73,7 @@ void settings_later(void)
 static void save_alarms(void);
 
 /* the accessory, its window closed, writes ECAL.INF in the background:
-   1 and 2 its text, 3 the file, 4 the files' stamps a file a step */
+   1 and 2 its text, 3 the file */
 static int inf_stage;
 static SBUF inf_text;
 
@@ -362,11 +362,25 @@ static void check_alarms(void)
 static const char *idx_files[MAXCAL + 1];
 static int idx_n, idx_i = -1;		/* idx_i: the next file to stamp; -1 none */
 static unsigned long idx_stamp;
+/* what ALARMS.IDX on the disk says (guidelines 6.5: not written again
+   when nothing in it would change): its queue and settings, and our
+   writes to the files it was made from (store_gen) by then */
+static int idx_known;
+static unsigned long idx_q, idx_gen, idx_q_new, idx_gen_new;
+
+static unsigned long idx_contents(void)
+{
+	return alarms_hash() ^ ((unsigned long)opt.alarms << 1) ^ ((unsigned long)opt.h24 << 2);
+}
 
 static void save_alarms(void)
 {
 	if (!workdir[0] || !settings_ready || !alarm_built)
 		return;
+	idx_q_new = idx_contents();
+	idx_gen_new = store_gen;
+	if (idx_known && idx_q_new == idx_q && idx_gen_new == idx_gen)
+		return;		/* as it is on the disk */
 	idx_n = store_files(idx_files, MAXCAL + 1);
 	idx_i = 0;
 	idx_stamp = ALARM_STAMP0;
@@ -390,8 +404,15 @@ static void save_alarms_step(void)
 		idx_i++;
 		return;
 	}
-	if (alarms_save_step() <= 0)
-		idx_i = -1;	/* written */
+	switch (alarms_save_step()) {
+	case 0:
+		idx_known = 1;	/* written */
+		idx_q = idx_q_new;
+		idx_gen = idx_gen_new;
+		/* fall through */
+	case -1:
+		idx_i = -1;
+	}
 }
 
 static void alarms_boot(void)
@@ -1357,7 +1378,7 @@ static int work_kind(void)
 		return 2;
 	if (alarms_pending())
 		return 3;
-	if (save_alarms_pending())
+	if (save_alarms_pending() && !(sync_busy() || (bg_next >= 0 && bg_next < ncals)))
 		return 4;
 	if (inf_stage)
 		return 7;
@@ -1417,7 +1438,8 @@ static void work_step(void)
 			save_alarms();	/* the next steps write it */
 		return;
 	}
-	if (save_alarms_pending()) {
+	if (save_alarms_pending() && !(sync_busy() || (bg_next >= 0 && bg_next < ncals))) {
+		/* once the refresh is over, not after each calendar */
 		aes_profile_tag("work: ALARMS.IDX");
 		save_alarms_step();
 		return;
@@ -1432,10 +1454,8 @@ static void work_step(void)
 		} else if (inf_stage == 2) {
 			store_settings_text(&inf_text, 1);
 			inf_stage = 3;
-		} else if (inf_stage == 3) {
-			store_write_text(&inf_text);
-			inf_stage = 4;
-		} else if (!store_mark_step()) {
+		} else {
+			store_write_text(&inf_text);	/* (the files' look takes it as ours later) */
 			inf_stage = 0;
 			save_alarms();	/* its stamp has ECAL.INF's */
 		}
@@ -1827,6 +1847,13 @@ int main(void)
 		if (which & MU_TIMER) {
 			prg_runs();		/* ECAL.PRG ended: what it changed is read again */
 			alarms_verify_step();	/* ALARMS.IDX's files at boot: one a tick until checked */
+			if (alarms_verified) {
+				/* right as it is: not written again for the same */
+				alarms_verified = 0;
+				idx_known = 1;
+				idx_q = idx_contents();
+				idx_gen = store_gen;
+			}
 		}
 		if (work_pending() && bg_may_work()) {
 			/* steps while the slice has room for one more half as long

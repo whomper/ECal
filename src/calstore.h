@@ -108,7 +108,8 @@ void store_init(const char *dir, const char *inf);
 /* the same in steps: begin, then store_init_step() until 0 */
 void store_init_begin(const char *dir, const char *inf);
 int  store_init_step(void);
-void store_init_text(char *text);	/* after store_init_begin: ECAL.INF already read */
+void store_init_text(char *text);
+extern unsigned long store_gen;	/* goes up with each of our writes to ECAL.INF or a cache */	/* after store_init_begin: ECAL.INF already read */
 void store_save_settings(void);
 void store_write_settings(void);	/* the same without noting the files' stamps (store_mark_step) */
 void store_settings_text(SBUF *b, int part);	/* or in steps: its text in b (sb_init'ed; part 0, 1), */

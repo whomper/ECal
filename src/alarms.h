@@ -67,5 +67,7 @@ void alarms_save_begin(const char *path, const char *const *files, int nfiles, u
 int  alarms_save_step(void);
 int  alarms_load(const char *path, CTIME now, int *on, int *h24);
 int  alarms_verify_step(void);
+extern int alarms_verified;	/* set when the check found ALARMS.IDX right */
+unsigned long alarms_hash(void);	/* the queue's contents, in one number */
 
 #endif

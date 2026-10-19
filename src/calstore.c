@@ -477,6 +477,7 @@ accounts:
 void store_write_text(SBUF *b)
 {
 	pf_save(inf_path, b->s, b->len);
+	store_mark();
 	sb_free(b);
 	str_copy(http_cfg.gate, opt.gate, sizeof(http_cfg.gate));
 	http_cfg.gateport = opt.gateport;
@@ -601,10 +602,12 @@ int store_files(const char **out, int max)
    next look (store_changed), not after each write: a refresh writes a
    cache several times, and each look is three directory searches */
 static int mark_due;
+unsigned long store_gen;	/* counts our writes: ALARMS.IDX is written again only after one */
 
 void store_mark(void)
 {
 	mark_due = store_watch;
+	store_gen++;
 }
 
 /* the same a look a step; 0 when done */

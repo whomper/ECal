@@ -246,6 +246,8 @@ out:
 	return ok;
 }
 
+int alarms_verified;
+
 int alarms_verify_step(void)
 {
 	if (vi >= vn)
@@ -257,7 +259,28 @@ int alarms_verify_step(void)
 		/* a calendar changed since it was made: no reminders from it */
 		alarm_n = 0;
 		alarm_built = 0;
+	} else {
+		alarms_verified = 1;
 	}
 	vn = vi = 0;
 	return 0;
+}
+
+/* what the queue says, to tell whether ALARMS.IDX needs writing again */
+unsigned long alarms_hash(void)
+{
+	unsigned long h = 5381;
+	int i;
+	for (i = 0; i < alarm_n; i++) {
+		const ALARM *a = &alarm_q[i];
+		const char *s;
+		h = (h * 33) ^ (unsigned long)a->fire;
+		h = (h * 33) ^ (unsigned long)a->start;
+		h = (h * 33) ^ a->allday;
+		for (s = a->title; *s; s++)
+			h = (h * 33) ^ (unsigned char)*s;
+		for (s = a->place; *s; s++)
+			h = (h * 33) ^ (unsigned char)*s;
+	}
+	return h;
 }
