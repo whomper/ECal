@@ -195,8 +195,9 @@ $(OBJDIR)/mkroots: common/tools/mkroots.c $(HOSTSRC) $(HDRS) $(HOSTLIB) | $(OBJD
 # the root certificates: Mozilla's list, kept in common/
 $(BIN)/CACERT.PEM: common/certs/CACERT.PEM | $(BIN)
 	cp $< $@
-$(BIN)/ROOTS.DAT: $(BIN)/CACERT.PEM
-	$(MAKE) $(OBJDIR)/mkroots
+# made again, and mkroots with it, whenever common/ changes: the rigs use
+# build/mkroots too, and an old one wrote ROOTS.DAT in an old format
+$(BIN)/ROOTS.DAT: $(BIN)/CACERT.PEM $(OBJDIR)/mkroots
 	$(OBJDIR)/mkroots $(BIN)/CACERT.PEM $@
 
 # the help file for ST-Guide and HypView, from docs/GUIDE.md; needs hcp

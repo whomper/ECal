@@ -252,7 +252,9 @@ static void refresh(int force, int quiet)
 	}
 	busy(1);
 	status("Updating...");
+	conn_log_hold(1);
 	r = sync_all(force);
+	conn_log_hold(0);
 	busy(0);
 	last_refresh = pf_ms();
 	bg_first = 0;
@@ -952,6 +954,7 @@ static int settings_step(void)
 		tls_read_at = pf_read_at;
 		tls_file_stamp = pf_stamp;
 		tls_file_info = pf_info;
+		pf_size_open = pf_handle_size;	/* pf_load: the file opened, no look first */
 		tls_tz_minutes = tz_offset(home_zone(), now_utc());
 		set_logging();
 		settings_stage = 4;
@@ -1106,6 +1109,7 @@ static void open_window(void)
 	if (first && sync_busy()) {
 		sync_stop();		/* a background refresh half way: the window's own finishes it */
 		bg_next = -1;
+		conn_log_hold(0);	/* a round given up: its log written out */
 		views_select_none();
 		views_invalidate();
 	}
@@ -1307,6 +1311,7 @@ static void files_reload(void)
 	data_ready = 0;
 	bg_loaded = 0;
 	bg_next = -1;
+	conn_log_hold(0);	/* a round given up: its log written out */
 	find_workdir();			/* FOLDER= may name another folder now */
 }
 
@@ -1480,6 +1485,7 @@ static void work_step(void)
 		bg_first = 0;
 		bg_changed = 0;
 		bg_next = 0;
+		conn_log_hold(1);	/* the log written with its buffer, not a line at a time (6.5) */
 		return;
 	}
 	if (sync_busy()) {
@@ -1517,7 +1523,7 @@ static void work_step(void)
 	bg_next = -1;
 	last_refresh = pf_ms();
 	http_close_all();
-	conn_log_flush();
+	conn_log_hold(0);	/* (writes it out) */
 	if (bg_changed & 2)
 		settings_later();	/* the ctags */
 	if (bg_changed & 1) {

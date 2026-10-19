@@ -29,6 +29,10 @@ void pf_close(int h);
 long pf_seek(int h, long off);			/* from the start; new position or < 0 */
 /* up to n bytes from off: opened, read and closed again, < 0 on error */
 long pf_read_at(const char *path, long off, void *buf, long n);
+/* an open file's size, its place left at the start; futil.c's pf_load
+   uses it through pf_size_open when set (one look less a file read) */
+long pf_handle_size(int h);
+extern long (*pf_size_open)(int h);
 long pf_size(const char *path);			/* -1 if missing */
 unsigned long pf_stamp(const char *path);	/* when it was last written (date, time); 0 if missing */
 unsigned long pf_info(const char *path, long *size);	/* both at once: pf_stamp, and pf_size in *size */

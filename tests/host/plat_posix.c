@@ -45,6 +45,13 @@ void pf_close(int h)
 }
 long pf_seek(int h, long off) { return (long)lseek(h, off, SEEK_SET); }
 
+long pf_handle_size(int h)
+{
+	long n = (long)lseek(h, 0, SEEK_END);
+	lseek(h, 0, SEEK_SET);
+	return n;
+}
+
 long pf_read_at(const char *path, long off, void *buf, long n)
 {
 	int h = pf_open(path, PF_READ);

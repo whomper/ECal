@@ -30,6 +30,13 @@ long pf_write(int h, const void *buf, long n) { return Fwrite((short)h, n, buf);
 void pf_close(int h) { Fclose((short)h); }
 long pf_seek(int h, long off) { return Fseek(off, (short)h, 0); }
 
+long pf_handle_size(int h)
+{
+	long n = Fseek(0, (short)h, 2);
+	Fseek(0, (short)h, 0);
+	return n;
+}
+
 long pf_read_at(const char *path, long off, void *buf, long n)
 {
 	int h = pf_open(path, PF_READ);
