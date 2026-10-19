@@ -330,8 +330,8 @@ static void pens_init(void)
 				lo = lo < rgb[2] ? lo : rgb[2];
 				hi = rgb[0] > rgb[1] ? rgb[0] : rgb[1];
 				hi = hi > rgb[2] ? hi : rgb[2];
-				if (hi - lo > 120 || hi < 200 || lo > 850)
-					continue;	/* not a grey, or too near black or white */
+				if (hi - lo > 120 || hi < 200 || lo > 900)
+					continue;	/* not a grey, or too near black or white (NVDI's index 8 is 851) */
 				dist = (long)(rgb[0] + rgb[1] + rgb[2]) / 3 - want[g];
 				dist = dist < 0 ? -dist : dist;
 				if (dist < best) {
@@ -349,6 +349,8 @@ static void pens_init(void)
 		}
 		if (grey_dark == 1 && grey_light != 1)
 			grey_dark = grey_light;	/* only one grey: for both */
+		if (grey_light == 1 && grey_dark != 1)
+			grey_light = grey_dark;	/* never black for the light grey */
 	}
 	for (j = 0; j < NCOLORS; j++) {
 		short k = order[j], pick = -1;
