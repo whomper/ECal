@@ -80,6 +80,7 @@ void win_open(void);
 void win_close(void);
 void win_redraw(GRECT *area);	/* NULL: everything */
 void win_buffer_init(void);
+void win_buffer_fonts(void);	/* GDOS fonts loaded later: on the bitmap too */
 const char *win_drawing(void);	/* how the window is drawn, for the log */
 void draw_forget(void);		/* the VDI attributes set again at the next use */
 void win_scroll(const GRECT *a, short dy);	/* a's content up by dy pixels */

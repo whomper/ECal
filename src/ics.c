@@ -144,16 +144,12 @@ char *ics_unescape(const char *s, long n)
 		while (w && (out[w - 1] == ' ' || out[w - 1] == '\n'))
 			w--;
 		out[w] = 0;
-		/* cs_to_atari took room for three bytes a character, and the
-		   heap doesn't shrink a block: kept at its own size (each
-		   event's title, place and notes stay as long as it does) */
-		if (w + 1 + 16 < o * 3 + 1) {
-			char *t = malloc(w + 1);
-			if (t) {
-				memcpy(t, out, w + 1);
-				free(out);
+		/* the CRs and blanks taken out given back (each event's title,
+		   place and notes stay as long as it does) */
+		if (w < outlen) {
+			char *t = realloc(out, w + 1);
+			if (t)
 				out = t;
-			}
 		}
 	}
 	return out;

@@ -401,6 +401,14 @@ void win_buffer_init(void)
 	trap1_wl(0x49, (long)p);			/* Mfree */
 }
 
+/* the GDOS fonts loaded on the window's workstation since: on the
+   bitmap too */
+void win_buffer_fonts(void)
+{
+	if (bm_h && font_gdos_loaded())
+		vst_load_fonts(bm_h, 0);
+}
+
 void win_redraw(GRECT *area)
 {
 	GRECT box, full;

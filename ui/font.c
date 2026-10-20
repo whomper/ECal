@@ -162,10 +162,12 @@ int font_boot(int want)
 	return gdos_fonts > 0;
 }
 
-/* whether another workstation (win.c's bitmap) may load them too */
+/* whether another workstation (win.c's bitmap) loads them too: only
+   when the window's has (the program loads them when a font is chosen,
+   and win_buffer_fonts then) */
 int font_gdos_loaded(void)
 {
-	return boot_fonts ? gdos_fonts > 0 : vq_gdos();
+	return gdos_fonts > 0;
 }
 
 void font_apply(void)
@@ -174,8 +176,10 @@ void font_apply(void)
 		use_sys();
 		return;
 	}
-	if (opt.font_id != 1 && gdos_fonts < 0 && vq_gdos())
+	if (opt.font_id != 1 && gdos_fonts < 0 && vq_gdos()) {
 		gdos_fonts = vst_load_fonts(vdi_h, 0);
+		win_buffer_fonts();
+	}
 	if (!set_font(opt.font_id, opt.font_pt)) {
 		/* the accessory without its fonts (one chosen since it
 		   started): the system font until the next boot, the choice
