@@ -83,7 +83,7 @@ def main():
         r.wait(16)
         r.click(18, 8)
         r.wait(1)
-        r.click(60, 8 + 3 * 16 + 8)
+        r.click(60, r.ecal_row())
         r.wait(6)
         # 1. a new event: N, type the title, Return adds it
         r.key(SCAN["n"])

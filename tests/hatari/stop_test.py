@@ -93,7 +93,7 @@ def main():
         time.sleep(18)
         r.click(18, 8)                  # the Desk menu: ECal, which refreshes at once
         time.sleep(1)
-        r.click(60, 8 + 3 * 16 + 8)
+        r.click(60, r.ecal_row())
         time.sleep(12)                  # connected, and waiting for the answer
         waiting = r.shot("s1-waiting")
         r.ctrl("n")                     # typed while busy: kept for afterwards

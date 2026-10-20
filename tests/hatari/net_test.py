@@ -143,7 +143,7 @@ def main():
         if not a.prg:
             r.click(18, 8)
             time.sleep(1)
-            r.click(60, 8 + 3 * 16 + 8)
+            r.click(60, r.ecal_row())
         time.sleep(150 if a.falcon_mode else 60)   # the first sync, over a serial line (and TLS)
         r.shot("n1-synced")
         cache = ""

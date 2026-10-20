@@ -168,7 +168,7 @@ def main():
     def open_acc():
         r.click(18, 8)                  # the Desk menu
         time.sleep(1.5)
-        r.click(60, 8 + 3 * 16 + 8)     # its first accessory
+        r.click(60, r.ecal_row())     # its first accessory
         time.sleep(6)
         wait_still(r, "opening", 60)
 

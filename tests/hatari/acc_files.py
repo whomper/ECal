@@ -324,7 +324,7 @@ def main():
             tr.job = "3 the window opened"
             r.click(18, 8)
             time.sleep(1.5)
-            r.click(60, 8 + 3 * 16 + 8)
+            r.click(60, r.ecal_row())
             time.sleep(5)
             tr.quiet_for(20, 300)
             r.shot("opened")

@@ -53,7 +53,6 @@ class Rig:
         network()), the Atari's TCP connections becoming this computer's"""
         self.work, self.display = work, display
         self.machine = machines.Machine(machine, os.path.join(work, "hd"))
-        print("machine:", self.machine.describe(), flush=True)
         self.env = self.machine.env(dict(os.environ, DISPLAY=display, SDL_VIDEODRIVER="x11",
                                          SDL_AUDIODRIVER="dummy"))
         self.fifo = os.path.join(work, "cmd.fifo")
@@ -64,6 +63,7 @@ class Rig:
         args = (["hatari", "-w", "--statusbar", "no", "--borders", "no", "--zoom", "1"] + self.machine.args() +
                 ["--fast-boot", "yes", "--natfeats", "yes", "--cmd-fifo", self.fifo,
                  "--screenshot-dir", self.shots, "--log-level", "warn"])
+        print("machine:", self.machine.describe(), flush=True)     # (args() adds what AERA_WITH_ACCS loads)
         if auto:
             args += ["--auto", auto]
         if network:
@@ -72,6 +72,26 @@ class Rig:
         self.log = open(os.path.join(work, "hatari.log"), "w")
         self.proc = subprocess.Popen(args, env=self.env, stdout=self.log, stderr=subprocess.STDOUT)
         self._size = None
+        if os.environ.get("AERA_WITH_NVDI") and self.machine.name.startswith("Falcon"):
+            self.wait_menu_bar()
+
+    def wait_menu_bar(self, limit=300):
+        """until a menu bar is up (the desktop's, or the program's) and the
+        screen still: NVDI loading its outline fonts holds a 16 MHz Falcon
+        for minutes, past every rig's fixed wait"""
+        from PIL import Image, ImageChops
+        t0, prev = time.time(), None
+        while time.time() - t0 < limit:
+            time.sleep(2)
+            path = self.shot("_boot", wait=0.1)
+            im = Image.open(path).convert("L")
+            w, h = im.size
+            px = im.load()
+            bar = any(sum(1 for x in range(w) if px[x, y] < 128) > w * 9 // 10 for y in range(8, min(h, 30)))
+            if bar and prev is not None and not ImageChops.difference(prev, im).getbbox():
+                return True
+            prev = im
+        return False
 
     def size(self):
         """the screen's width and height in pixels (640x480 on the Falcon,
@@ -182,6 +202,27 @@ class Rig:
             self.move(x, y)
         self.xdo("click", "--repeat", "2" if double else "1", "--delay", "120", "1")
         time.sleep(0.3)
+
+    def ecal_row(self, rows=(59, 75, 91, 107)):
+        """the open Desk menu's row with ECal's accessory: of the
+        accessories listed, the shortest entry ("ECal"; EContact's, which
+        AERA_WITH_ACCS loads beside it, is longer). The first row when
+        only one is there or it can't tell"""
+        from PIL import Image
+        shot = self.shot("desk-menu-pick")
+        im = Image.open(shot).convert("L")
+        w, h = im.size
+        px = im.load()
+
+        def width(y):
+            # the entry's text line only, inside the drop-down (the desktop's
+            # dither beside and below it, and the box's lines, are not names)
+            ink = [x for x in range(24, min(w, 150)) for dy in range(-3, 4)
+                   if 0 <= y + dy < h and px[x, y + dy] < 128]
+            return max(ink) - min(ink) + 1 if ink else 0
+        found = [(width(y), y) for y in rows]
+        found = [(n, y) for n, y in found if 0 < n < 100]
+        return min(found)[1] if len(found) > 1 else rows[0] + 5
 
     def drag(self, x1, y1, x2, y2, secs=0.6):
         """press at (x1, y1), move to (x2, y2), release"""

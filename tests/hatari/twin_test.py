@@ -82,7 +82,7 @@ def main():
         time.sleep(16)
         r.click(18, 8)                  # the desktop's Desk menu: ECal
         time.sleep(1)
-        r.click(60, 8 + 3 * 16 + 8)
+        r.click(60, r.ecal_row())
         time.sleep(8)
         r.shot("1-accessory")
         r.key(SCAN["w"], ctrl=True)     # closed, as one does
@@ -102,7 +102,7 @@ def main():
         r.click(40, 8)                  # the Desk menu: ECal's own
         time.sleep(1)
         r.shot("4-desk-menu")
-        r.click(60, 8 + 3 * 16 + 8)     # its first accessory: ECAL.ACC
+        r.click(60, r.ecal_row())     # its first accessory: ECAL.ACC
         time.sleep(5)
         r.shot("5-acc-chosen")
         r.click(184, 8)                 # View > Hebrew dates (off)
@@ -115,7 +115,7 @@ def main():
         r.shot("7-desktop")
         r.click(18, 8)                  # the desktop's Desk menu: ECal
         time.sleep(1)
-        r.click(60, 8 + 3 * 16 + 8)
+        r.click(60, r.ecal_row())
         time.sleep(8)
         r.shot("8-accessory-again")
     finally:
