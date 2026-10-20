@@ -64,8 +64,9 @@ better. `HEAPKB=` in ECAL.INF sets an amount of your own, in kilobytes,
 and ECal then keeps to it. With **Write a log** on, the log says how much
 was free at boot, how much ECal took and how much it used. When the
 memory runs out, ECal says so when you open it (and which calendar is
-missing events) and takes twice as much at the next start; or keep fewer
-days (Settings > Refresh).
+missing events) and takes four times as much at the next start (the
+start after that measures it down again); or keep fewer days
+(Settings > Refresh).
 
 **TT RAM.** On a TT, or a Falcon with an accelerator's Fast RAM, TOS
 loads ECal into TT RAM, and its memory comes from there too, leaving ST

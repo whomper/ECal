@@ -13,6 +13,12 @@ the AERA guidelines, 2.3 and 3.1):
 Screenshots in WORK/shots; the checks read C:\\ECAL\\ECAL.LOG.
 
     tests/hatari/twin_test.py WORK [--machine Falcon|TT]
+
+EmuTOS only (AERA_TOS=emutos): ECAL.PRG is started by double-clicking
+where EmuTOS's desktop puts drive C and the folder's icons; TOS 1.04 and
+4.04 put them elsewhere, and --auto would start the program before the
+accessory was opened. EContact's twin_test covers the same common twin.c
+on Erez's TOS 1.04 and 4.04.
 """
 import argparse
 import os
@@ -62,6 +68,7 @@ def main():
     ap.add_argument("work")
     add_machine(ap, "Falcon")
     a = ap.parse_args()
+    os.environ["AERA_TOS"] = "emutos"   # the desktop's places are EmuTOS's (above)
     hd = os.path.join(a.work, "hd")
     shutil.rmtree(a.work, ignore_errors=True)
     folder = os.path.join(hd, "ECAL")

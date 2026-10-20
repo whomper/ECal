@@ -887,8 +887,8 @@ static void acc_heap(void)
 	boot_taken = acc_heap_bytes / 1024;
 }
 
-/* the memory ran out: the accessory takes twice as much at the next
-   start (MEMKB=), unless the user chose its amount (HEAPKB=) */
+/* the memory ran out: the accessory takes four times as much at the next
+   start (MEMKB=, acc_mem_full_kb), unless the user chose its amount (HEAPKB=) */
 void mem_ran_out(void)
 {
 	long kb;
