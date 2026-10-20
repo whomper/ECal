@@ -962,6 +962,27 @@ static void test_ics_build(void)
 	CHECK_EQ(s.n, 4);
 	CHECK(s.n && !strcmp(s.ev[0]->summary, "Weekly meeting") && s.ev[0]->alarm == -1);
 	free_evs(&s);
+	{
+		/* read without its notes (as the calendars are): written again,
+		   they stay as the text had them */
+		char *x;
+		long xl;
+		ics_notes = 0;
+		ics_parse(sample, (long)strlen(sample), keep, &s, CT_NONE, CT_NONE);
+		ics_notes = 1;
+		CHECK(s.n && !s.ev[0]->notes && s.ev[0]->notes_later);
+		CHECK(s.n > 1 && !s.ev[1]->notes_later);	/* the exception has none */
+		if (s.n) {
+			ev_set(&s.ev[0]->summary, "Renamed");
+			x = ics_build(s.ev[0], sample, (long)strlen(sample), &xl);
+			CHECK(x && strstr(x, "SUMMARY:Renamed") && strstr(x, "DESCRIPTION:Line one\\nLine two"));
+			free_evs(&s);
+			ics_parse(x, xl, keep, &s, CT_NONE, CT_NONE);
+			CHECK(s.n && s.ev[0]->notes && strstr(s.ev[0]->notes, "seventy-five octets"));
+			free(x);
+		}
+		free_evs(&s);
+	}
 	/* an exception for 18 October */
 	free(e->summary);
 	e->summary = strdup("Only this once");

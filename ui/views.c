@@ -709,6 +709,7 @@ static void draw_details(GRECT *clip)
 	GRECT r = detail, c = *clip;
 	short x = r.x + cw, y = r.y + ch / 2, w = (r.w - 2 * cw) / cw;
 	char line[200];
+	const char *notes;
 	if (!rect_and(&c, &r))
 		return;
 	clip_on(&c);
@@ -807,13 +808,13 @@ static void draw_details(GRECT *clip)
 		snprintf(line, sizeof(line), "Calendar: %s", cals[e->cal].name);
 		text_at(x, y, line, (long)strlen(line), w, TX_LTR | TX_GREY);
 		y += ch + ch / 2;
-		if (e->notes) {
-			nb = wrap_text(e->notes, (long)strlen(e->notes), w, br, 40);
+		if ((notes = ev_notes_text(e)) != 0) {
+			nb = wrap_text(notes, (long)strlen(notes), w, br, 40);
 			for (i = 0; i < nb && y + ch <= r.y + r.h; i++) {
-				long end = i + 1 < nb ? br[i + 1] : (long)strlen(e->notes);
-				while (end > br[i] && (e->notes[end - 1] == '\n' || e->notes[end - 1] == ' '))
+				long end = i + 1 < nb ? br[i + 1] : (long)strlen(notes);
+				while (end > br[i] && (notes[end - 1] == '\n' || notes[end - 1] == ' '))
 					end--;
-				text_at(x, y, e->notes + br[i], end - br[i], w, TX_RIGHT);
+				text_at(x, y, notes + br[i], end - br[i], w, TX_RIGHT);
 				y += ch;
 			}
 		}
@@ -1403,6 +1404,7 @@ void views_copy(void)
 	EVENT *e = sel_occ.ev;
 	char when[80], t1[16], t2[16], *t;
 	DT a, b;
+	const char *notes;
 	long n;
 	if (!e)
 		return;
@@ -1421,13 +1423,14 @@ void views_copy(void)
 	else
 		snprintf(when, sizeof(when), "%d %s %d %s - %d %s %d %s", a.day, month_short[a.mon - 1], a.year, t1,
 			 b.day, month_short[b.mon - 1], b.year, t2);
+	notes = ev_notes_text(e);
 	n = 120 + (long)strlen(when) + (e->summary ? (long)strlen(e->summary) : 0) +
-	    (e->location ? (long)strlen(e->location) : 0) + (e->notes ? (long)strlen(e->notes) : 0);
+	    (e->location ? (long)strlen(e->location) : 0) + (notes ? (long)strlen(notes) : 0);
 	if (!(t = malloc(n)))
 		return;
 	snprintf(t, n, "%s\n%s%s%s%s%s", e->summary ? e->summary : "New Event", when,
 		 e->location && *e->location ? "\n" : "", e->location ? e->location : "",
-		 e->notes && *e->notes ? "\n\n" : "", e->notes ? e->notes : "");
+		 notes && *notes ? "\n\n" : "", notes ? notes : "");
 	win_status(clip_put(t, (long)strlen(t)) ? "Copied to the clipboard." : "Couldn't write the clipboard.");
 	free(t);
 }

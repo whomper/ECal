@@ -37,6 +37,9 @@ int store_lost_passwords;
 int store_plain_passwords;		/* ECAL.INF has a password not yet encrypted */
 
 static char inf_path[200], cache_dir[200];
+static unsigned notes_gen;		/* events freed or read again: ev_notes_text() forgets */
+static int cache_open(CALENDAR *c);
+static char *notes_read(const EVENT *e, int h);
 int store_watch;			/* the accessory: store_changed() is asked */
 static unsigned long known;		/* the files as we last left them */
 
@@ -530,6 +533,7 @@ static void cache_path(const CALENDAR *c, const char *ext, char *out, int size)
 static void cal_free_events(CALENDAR *c)
 {
 	int i;
+	notes_gen++;
 	for (i = 0; i < c->nev; i++)
 		ev_free(c->ev[i]);
 	free(c->ev);
@@ -975,6 +979,7 @@ static int add_event(EVENT *e, void *ud)
 static void drop_res_events(CALENDAR *c, int r)
 {
 	int i, n = 0;
+	notes_gen++;
 	for (i = 0; i < c->nev; i++) {
 		if (c->ev[i]->res == r)
 			ev_free(c->ev[i]);
@@ -1192,6 +1197,7 @@ void cal_load_begin(CALENDAR *c)
 			;		/* the one before, to its end */
 	cal_free_events(c);
 	c->lost = 0;
+	notes_gen++;
 	window(&ld.from, &ld.to);
 	set_me(c);
 	memset(&ld.f, 0, sizeof(ld.f));
@@ -1332,7 +1338,9 @@ static int load_dat_step(void)
 			if (!fr_bytes(&ld.f, raw, len))
 				return 0;
 			raw[len] = 0;
+			ics_notes = 0;		/* read when shown: ev_notes() */
 			ics_parse(raw, len, add_event, &ld.l, ld.from, ld.to);
+			ics_notes = 1;
 		} else if (!fr_bytes(&ld.f, 0, len)) {
 			return 0;
 		}
@@ -1606,7 +1614,10 @@ static void parse_res(CALENDAR *c, int res, const char *raw, long len)
 	l.res = res;
 	window(&from, &to);
 	set_me(c);
+	notes_gen++;
+	ics_notes = 0;
 	ics_parse(raw, len, add_event, &l, from, to);
+	ics_notes = 1;
 }
 
 static int append_res(CALENDAR *c, int h, long *size, const char *href, const char *etag,
@@ -2680,15 +2691,28 @@ void occ_search(OCCLIST *l, const char *text, CTIME from, CTIME to)
 	l->limit = 3000;	/* the list shows 200; more is only memory */
 	for (i = 0; i < ncals; i++) {
 		CALENDAR *c = &cals[i];
+		int h = -1;		/* its cache, for the notes not kept */
 		if (!c->visible)
 			continue;
 		for (j = 0; j < c->nev; j++) {
 			EVENT *e = c->ev[j];
+			int hit;
 			if (e->status == ST_CANCELLED || e->gone)
 				continue;
-			if (contains(e->summary, text) || contains(e->location, text) || contains(e->notes, text))
+			hit = contains(e->summary, text) || contains(e->location, text) || contains(e->notes, text);
+			if (!hit && e->notes_later && !e->notes) {
+				char *n;
+				if (h < 0)
+					h = cache_open(c);
+				n = h >= 0 ? notes_read(e, h) : 0;
+				hit = contains(n, text);
+				free(n);
+			}
+			if (hit)
 				ics_expand(e, from, to, vz, occ_add, occ_skip, l);
 		}
+		if (h >= 0)
+			pf_close(h);
 	}
 	if (l->n > 1)
 		qsort(l->o, l->n, sizeof(OCC), occ_cmp_date);
@@ -2696,31 +2720,125 @@ void occ_search(OCCLIST *l, const char *text, CTIME from, CTIME to)
 
 /* ---------------- changing events ---------------- */
 
-char *ev_raw(const EVENT *e, long *len)
+static int cache_open(CALENDAR *c)
+{
+	char path[200];
+	cache_path(c, "DAT", path, sizeof(path));
+	return pf_open(path, PF_READ);
+}
+
+/* e's text from its calendar's cache, open in h */
+static char *raw_from(const EVENT *e, int h, long *len)
 {
 	CALENDAR *c = &cals[e->cal];
 	RESOURCE *r;
-	char path[200], *buf;
-	int h;
+	char *buf;
 	if (e->res < 0 || e->res >= c->nres)
 		return 0;
 	r = &c->res[e->res];
-	cache_path(c, "DAT", path, sizeof(path));
-	h = pf_open(path, PF_READ);
-	if (h < 0)
-		return 0;
 	buf = malloc(r->len + 1);
 	if (buf && (pf_seek(h, r->off) != r->off || pf_read(h, buf, r->len) != r->len)) {
 		free(buf);
 		buf = 0;
 	}
-	pf_close(h);
 	if (buf) {
 		buf[r->len] = 0;
 		if (len)
 			*len = r->len;
 	}
 	return buf;
+}
+
+char *ev_raw(const EVENT *e, long *len)
+{
+	CALENDAR *c = &cals[e->cal];
+	char *buf;
+	int h;
+	if (e->res < 0 || e->res >= c->nres)
+		return 0;
+	h = cache_open(c);
+	if (h < 0)
+		return 0;
+	buf = raw_from(e, h, len);
+	pf_close(h);
+	return buf;
+}
+
+/* an event's notes, not kept with the events read (ics_notes 0: a video
+   call's invitation can be longer than all the rest of the event), read
+   from its text in the cache when wanted */
+typedef struct {
+	const EVENT *want;
+	char *notes;
+} NOTESCTX;
+
+static int notes_of(EVENT *e, void *ud)
+{
+	NOTESCTX *n = ud;
+	int it = !n->notes && e->recurid == n->want->recurid && e->uid && n->want->uid &&
+		 !strcmp(e->uid, n->want->uid);
+	if (it) {
+		n->notes = e->notes;
+		e->notes = 0;
+	}
+	ev_free(e);
+	return !it;
+}
+
+static char *notes_read(const EVENT *e, int h)
+{
+	NOTESCTX n;
+	long len;
+	char *raw = raw_from(e, h, &len);
+	n.want = e;
+	n.notes = 0;
+	if (raw) {
+		ics_parse(raw, len, notes_of, &n, CT_NONE, CT_NONE);
+		free(raw);
+	}
+	return n.notes;
+}
+
+void ev_notes(EVENT *e)
+{
+	int h;
+	if (!e->notes_later || e->notes || e->res < 0 || e->res >= cals[e->cal].nres)
+		return;
+	h = cache_open(&cals[e->cal]);
+	if (h < 0)
+		return;
+	e->notes = notes_read(e, h);
+	pf_close(h);
+	if (e->notes)
+		e->notes_later = 0;
+}
+
+/* the notes to show: the last ones read are kept until another event's
+   are wanted, or the calendars are read again */
+const char *ev_notes_text(const EVENT *e)
+{
+	static char *text, *uid;	/* whose: a copy of an event can be shown */
+	static int cal, res;
+	static CTIME recurid;
+	static unsigned gen;
+	int h;
+	if (e->notes || !e->notes_later || !e->uid)
+		return e->notes;
+	if (uid && gen == notes_gen && e->cal == cal && e->res == res && e->recurid == recurid && !strcmp(e->uid, uid))
+		return text;
+	free(text);
+	free(uid);
+	text = 0;
+	uid = strdup(e->uid);
+	cal = e->cal;
+	res = e->res;
+	recurid = e->recurid;
+	gen = notes_gen;
+	if (e->res >= 0 && e->res < cals[e->cal].nres && (h = cache_open(&cals[e->cal])) >= 0) {
+		text = notes_read(e, h);
+		pf_close(h);
+	}
+	return text;
 }
 
 /* the people invited to e and who invited them, read from its text in
@@ -2986,6 +3104,7 @@ int ev_save(EVENT *e, int ci, int how, CTIME occ)
 	}
 	ics_now_utc = now_utc();
 	set_me(&cals[ci]);	/* the organizer of its invitations */
+	ev_notes(e);		/* written with it: a copy elsewhere, a new series */
 	if (e->res < 0)
 		return save_new(e, ci);
 	c = &cals[e->cal];

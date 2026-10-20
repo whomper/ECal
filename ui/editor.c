@@ -899,7 +899,7 @@ static int edit_event(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 	x.readonly = !is_new && !cal_writable(&cals[e->cal]);
 	str_copy(title, e->summary ? e->summary : "", sizeof(title));
 	str_copy(loc, e->location ? e->location : "", sizeof(loc));
-	str_copy(notes, e->notes ? e->notes : "", sizeof(notes));
+	str_copy(notes, ev_notes_text(e) ? ev_notes_text(e) : "", sizeof(notes));
 	/* times as the event's own zone shows them (time zone support), else the view's */
 	x.zone = e->floating ? 0 : e->tz;
 	shown_z = (opt.tzsupport && x.zone) ? x.zone : vz;
@@ -1155,6 +1155,7 @@ static int edit_event(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 		ev_set(&n->summary, title[0] ? title : "New Event");
 		ev_set(&n->location, loc);
 		ev_set(&n->notes, notes);
+		n->notes_later = 0;
 		people_list(invitees, sizeof(invitees));
 		if (!people_org && strcmp(invitees, invitees0)) {
 			/* written anew; the server sends the invitations */
@@ -1246,6 +1247,7 @@ static int edit_event(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 					ev_set(&mm->summary, n->summary);
 					ev_set(&mm->location, n->location);
 					ev_set(&mm->notes, n->notes);
+					mm->notes_later = 0;
 					mm->alarm = n->alarm;
 					ev_free(n);
 					n = mm;

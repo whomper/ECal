@@ -593,6 +593,14 @@ expect "the update matched by UID" "updated invite-77@example.org" "$out"
 out=$("$CLI" "$D" list $(d 20261105) $(d 20261106))
 expect "the update in its place" "Board meeting (moved)" "$out"
 [ "$(grep -c "Board meeting" <<<"$out")" = 1 ] && ok "one event, not two" || bad "the update made a second event: $out"
+out=$("$CLI" "$D" notes "Board meeting (moved)")
+expect "its notes not kept in memory" "kept no" "$out"
+expect "... read from the cache when shown" "notes Quarterly numbers" "$out"
+out=$("$CLI" "$D" find "quarterly")
+expect "Find looks in the notes" "1 found" "$out"
+"$CLI" "$D" rename "Board meeting (moved)" "Board meeting (renamed)" || bad "rename"
+raw=$("${CURL[@]}" "$BASE/alice/work/invite-77_example_org.ics")
+expect "renamed, its notes written with it" "DESCRIPTION:Quarterly numbers" "$raw"
 S=$(d 20261110); X=$(d 20261117)
 printf 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//EN\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nUID:series-9@example.org\r\nDTSTAMP:20261020T100000Z\r\nDTSTART:%sT080000Z\r\nDTEND:%sT090000Z\r\nRRULE:FREQ=WEEKLY;COUNT=4\r\nSUMMARY:Weekly sync\r\nORGANIZER:mailto:alice@example.org\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:series-9@example.org\r\nDTSTAMP:20261020T100000Z\r\nRECURRENCE-ID:%sT080000Z\r\nDTSTART:%sT100000Z\r\nDTEND:%sT110000Z\r\nSUMMARY:Weekly sync (later)\r\nORGANIZER:mailto:alice@example.org\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n' $S $S $X $X $X > "$W/series.ics"
 out=$("$CLI" "$D" read-ics "$W/series.ics")

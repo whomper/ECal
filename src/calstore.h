@@ -226,6 +226,10 @@ enum { SAVE_ALL, SAVE_THIS, SAVE_FUTURE };
    one being edited (event representation) */
 /* e's attendees and organizer, read from the cache (the editor) */
 void ev_people(EVENT *e);
+/* the notes of an event read without them (notes_later): ev_notes keeps
+   them in e, ev_notes_text only shows them (0: none) */
+void ev_notes(EVENT *e);
+const char *ev_notes_text(const EVENT *e);
 /* ics_me: the address of calendar ci's account (the organizer of the
    invitations made there; "" when its user name isn't one) */
 void cal_me(int ci);

@@ -79,6 +79,7 @@ typedef struct {
 				   (read only; the event is written back as it was) */
 	short seq;
 	unsigned char att_edited;	/* the invitees were changed: written anew (ATTENDEE, ORGANIZER) */
+	unsigned char notes_later;	/* it has notes, not read (ics_notes 0): ev_notes() reads them */
 	short cal;		/* the calendar it belongs to (calstore.c) */
 	short res;		/* its resource in that calendar */
 } EVENT;
@@ -114,6 +115,10 @@ extern char ics_calname[64];
    the events; 0 (reading calendars) leaves them out, to save memory and
    time: calstore's ev_people() reads them for the one being edited */
 extern int ics_people;
+/* 0: an event's notes (DESCRIPTION) aren't kept, only notes_later set:
+   the events a calendar holds in memory (calstore.c), whose notes can be
+   long (a video call's invitation) and are read from the cache when shown */
+extern int ics_notes;
 
 /* the addresses in "Name <a@b>, c@d": calls fn with each name (may be
    "") and email; how many */

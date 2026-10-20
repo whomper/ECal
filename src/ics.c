@@ -669,6 +669,7 @@ static void finish_tz(ICSP *p)
 
 char ics_me[100];
 int ics_people;
+int ics_notes = 1;
 
 static void logical_line(ICSP *p, char *s)
 {
@@ -806,6 +807,10 @@ static void logical_line(ICSP *p, char *s)
 	} else if (NAME_IS("SUMMARY") || NAME_IS("LOCATION") || NAME_IS("DESCRIPTION")) {
 		char **f = name[0] == 'S' ? &p->ev->summary : name[0] == 'L' ? &p->ev->location : &p->ev->notes;
 		long n = (long)strlen(value);
+		if (f == &p->ev->notes && !ics_notes) {
+			p->ev->notes_later = *value != 0;
+			return;
+		}
 		if (f == &p->ev->notes && n > 3000)
 			n = 3000;
 		free(*f);
@@ -1489,7 +1494,8 @@ static void keep_props(KEPT *k, char *s, const EVENT *e)
 		if (!in_alarm && strncasecmp(s, "BEGIN:VEVENT", 12) && strncasecmp(s, "END:VEVENT", 10) &&
 		    !prop_is(s, "UID") && !prop_is(s, "DTSTAMP") && !prop_is(s, "LAST-MODIFIED") &&
 		    !prop_is(s, "SEQUENCE") && !prop_is(s, "SUMMARY") && !prop_is(s, "LOCATION") &&
-		    !prop_is(s, "DESCRIPTION") && !prop_is(s, "URL") && !prop_is(s, "DTSTART") &&
+		    (!prop_is(s, "DESCRIPTION") || (e->notes_later && !e->notes)) &&
+		    !prop_is(s, "URL") && !prop_is(s, "DTSTART") &&
 		    !prop_is(s, "DTEND") && !prop_is(s, "DURATION") && !prop_is(s, "RRULE") &&
 		    !prop_is(s, "EXDATE") && !prop_is(s, "STATUS") && !prop_is(s, "CREATED") &&
 		    !prop_is(s, "RDATE") && !prop_is(s, "EXRULE") && !prop_is(s, "RECURRENCE-ID")) {

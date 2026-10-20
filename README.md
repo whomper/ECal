@@ -293,6 +293,9 @@ tests/hatari/people_test.py WORK [--machine M] [--acc]
 tests/hatari/invite_test.py WORK [--machine M] [--acc]
                                                   # an .ics invitation by VA_START: the New
                                                   # Event dialog filled, saved with its UID
+tests/hatari/notes_test.py WORK [--machine M] [--acc]
+                                                  # notes read from the cache when wanted:
+                                                  # Find, the details, saved with an edit
 tests/hatari/twin_test.py WORK [--machine M]      # ECAL.PRG and ECAL.ACC on one machine
                                                   # (EmuTOS: its desktop is clicked)
 tests/hatari/help_test.py WORK [--machine M]      # the Help key (make fakeguide first; Falcon)

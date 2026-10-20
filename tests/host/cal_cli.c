@@ -20,6 +20,7 @@
  *   cal-cli DIR move-to TITLE CAL             to another calendar
  *   cal-cli DIR invite TITLE "Name <a@b>, c@d"   who is invited ("" nobody)
  *   cal-cli DIR people TITLE                  who is invited, and by whom
+ *   cal-cli DIR notes TITLE                   its notes, as the day's details read them
  *   cal-cli DIR alarms                        the reminders of the next days, checked
  *                                             against expanding every event
  *   cal-cli DIR delete TITLE [this|future OCCSTART]
@@ -405,6 +406,16 @@ int main(int argc, char **argv)
 		ev_people(e);
 		printf("organizer: %s\ninvited: %s\ninvitation: %s\n", e->organizer ? e->organizer : "",
 		       e->attendees ? e->attendees : "", ev_invited(e) ? "yes" : "no");
+		return 0;
+	}
+	if (!strcmp(cmd, "notes") && argc == 4) {
+		/* as the day's details show them: read from the cache */
+		EVENT *e = find(argv[3], CT_NONE, 0);
+		const char *n;
+		if (!e)
+			return fail("no such event");
+		n = ev_notes_text(e);
+		printf("kept %s\nnotes %s\n", e->notes ? "yes" : "no", n ? n : "");
 		return 0;
 	}
 	if (!strcmp(cmd, "move-to") && argc == 5) {
