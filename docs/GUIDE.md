@@ -56,8 +56,9 @@ accessory can't safely take more later), and leaves the rest to your
 programs and the other accessories. The first time it takes 1.5 MB on a
 Falcon or TT (4 MB in TT RAM), 256 KB on an ST, never more than a
 quarter of what's free (half on a machine with less than 2 MB free).
-Each refresh then measures what your calendars need and writes it as
-`MEMKB=` in ECAL.INF, with room to spare, and the next start takes that.
+Each refresh then measures what your calendars need and keeps it as
+`MEMKB=` in ECAL.INF (written with the settings, when a calendar changed
+or a setting did), with room to spare, and the next start takes that.
 When little is free it takes all but the 32 KB the desktop needs to
 start. A 1 MB ST runs it with STinG; with big calendars, 2 MB or more is
 better. `HEAPKB=` in ECAL.INF sets an amount of your own, in kilobytes,

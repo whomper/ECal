@@ -1566,12 +1566,13 @@ static void work_step(void)
 				mem_ran_out();
 		if (is_acc && opt.heapkb < 64) {
 			/* the most it held, and 256 KB for a calendar's answer more;
-			   not less after it ran out (the peak was the heap's then) */
+			   not less after it ran out (the peak was the heap's then).
+			   Written with the settings' next save (the ctags after a
+			   change, say), not on its own: ECAL.INF and ALARMS.IDX
+			   written again for it alone cost the disk (6.5) */
 			long kb = acc_mem_kb(heap_use, 256L * 1024);
-			if (acc_mem_moved(kb, opt.memkb) && !(mem_out && kb < opt.memkb)) {
+			if (acc_mem_moved(kb, opt.memkb) && !(mem_out && kb < opt.memkb))
 				opt.memkb = (short)(kb > 32000 ? 32000 : kb);
-				settings_later();
-			}
 		}
 		acc_mem_line(m, sizeof(m), opt.heapkb >= 64 ? opt.heapkb : opt.memkb);
 		conn_log("ECal", "--", m, (long)strlen(m));

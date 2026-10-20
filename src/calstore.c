@@ -404,7 +404,7 @@ void store_settings_text(SBUF *bp, int part)
 	S("START", start, "when the accessory reads the calendars: now (at boot), opened (when you first\r\n"
 	  "; open it) or seconds after boot; reminders come from ALARMS.IDX meanwhile")
 	I("HEAPKB", heapkb, "memory the accessory takes at boot, in KB, as you set it; 0: as ECal measures")
-	I("MEMKB", memkb, "memory the accessory measured it needs (each refresh writes it), taken at\r\n"
+	I("MEMKB", memkb, "memory the accessory measured it needs (each refresh measures it), taken at\r\n"
 	  "; the next start, in KB; 0: not measured yet")
 	S("HOME_TZ", home_tz, "the time zone the Atari's clock is set to (Settings > Time zones)")
 	S("VIEW_TZ", view_tz, "the zone times are shown in, with time zone support on")
