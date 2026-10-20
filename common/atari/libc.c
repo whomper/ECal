@@ -456,6 +456,9 @@ void heap_add(void *p, size_t bytes)
 #define MAX_BLOCKS 40		/* TOS's pool is shared with every program and folder */
 
 long heap_tt, heap_st;		/* bytes the heap took from TT/Fast and ST RAM (About) */
+long heap_early;		/* of those, an accessory's before its heap_add (its log says so) */
+
+extern short _is_acc;		/* crt0.S (tests/heap: its own) */
 
 /* more memory from GEMDOS for a block of need bytes (kept out of malloc,
    whose registers it would cost) */
@@ -467,6 +470,27 @@ static __attribute__((noinline)) int more_core(size_t need)
 	void *h = 0;
 	if (heap_fixed)
 		return 0;
+	if (_is_acc) {
+		/* an accessory before its heap_add (acc_heap): what it asks for
+		   is taken as it is, in 16 KB steps, never the 512 KB first
+		   block, which it would hold beside its heap for good (ECal's
+		   PEOPLE cache before acc_heap held 512 KB, 20 Oct 2026). Its
+		   log can name it: heap_early */
+		want = (least + 16383) & ~(size_t)16383;
+		h = Mxalloc(want, 3);
+		if ((long)h == -32 || (long)h <= 0)
+			h = Malloc(want);
+		if ((long)h <= 0)
+			return 0;
+		blocks++;
+		taken += want;
+		heap_early += want;
+		if ((unsigned long)h >= 0x01000000UL)
+			heap_tt += want;
+		else
+			heap_st += want;
+		return add_area(h, want);
+	}
 	/* Every GEMDOS block takes an entry in TOS's small internal pool, and
 	   when that runs out TOS halts the machine ("OUT OF INTERNAL MEMORY").
 	   So few blocks: 512 KB at first, then each as big as all before it,

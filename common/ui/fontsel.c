@@ -267,7 +267,7 @@ static FSFAM *fa, fa_sys;
 static short nfo, nfa;
 static short sizes[MAXSIZE], nsizes;
 static char size_label[MAXSIZE][8];
-static short sys_cw, sys_ch;	/* the system font's cell, as font_sys_push left it */
+static short fs_sys_cw, fs_sys_ch;	/* the system font's cell, as font_sys_push left it */
 static short xfnt = -1;		/* vqt_xfntinfo answers: -1 not asked yet */
 static XFNT_INFO xi;
 
@@ -288,8 +288,8 @@ static void sys_font(void)
 	short w, h;
 	vst_font(vdi_h, 1);
 	vst_height(vdi_h, gl_hchar >= 16 ? 13 : 6, &w, &h);
-	cw = sys_cw;
-	ch = sys_ch;
+	cw = fs_sys_cw;
+	ch = fs_sys_ch;
 }
 
 short fontsel_hebrew(short id, short format, unsigned short *idx, short *why)
@@ -625,8 +625,8 @@ int fontsel_usable(fontsel *s, short id)
 	if (id == 1)
 		return 1;
 	font_sys_push();
-	sys_cw = cw;
-	sys_ch = ch;
+	fs_sys_cw = cw;
+	fs_sys_ch = ch;
 	collect(s, 0);
 	for (i = 1; i < nfo; i++)
 		if (fo[i].id == id && !fo[i].later)
@@ -1303,8 +1303,8 @@ int fontsel_run(fontsel *s)
 
 	fs = s;
 	font_sys_push();
-	sys_cw = cw;
-	sys_ch = ch;
+	fs_sys_cw = cw;
+	fs_sys_ch = ch;
 	/* the program loads the GDOS fonts when they're first wanted; the
 	   accessory never here (2.2): it had them at boot, or not */
 	if (s->gdos < 0 && !s->acc && vq_gdos()) {
