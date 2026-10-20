@@ -75,9 +75,9 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
   (ecalgate, the other gateways, `aera-gateway`): change it there, with that repository's owner
   session, and bring it here with `tools/sync-gateway.sh`. ECal decides ecalgate's protocol
   (feed trimming, texts, port 8180): review changes to it there.
-- EContact's `integration/ECAL.patch` makes EContact ECal's address
-  book: when ECal changes, make that patch again in EContact (see its
-  CLAUDE.md) and check it still applies and builds.
+- ECal and EContact meet only through PEOPLE (guideline 4.1): EContact
+  runs its joint rigs (PEOPLE, quiet start and sync with ECal) against
+  ECal's releases.
 
 ## Talking with Erez
 
