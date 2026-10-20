@@ -866,7 +866,6 @@ static int locate_folder(void)
 /* an accessory takes its memory once, now: later it would belong to
    whichever program is in front. HEAPKB=n in ECAL.INF overrides */
 static long boot_free, boot_taken;	/* KB at boot, for the log */
-extern long heap_st, heap_tt;		/* GEMDOS blocks the heap grew by (libc.c) */
 
 static void acc_heap(void)
 {
@@ -1023,9 +1022,9 @@ static int settings_step(void)
 		conn_log("ECal", "--", m, (long)strlen(m));
 		if (is_acc) {
 			snprintf(m, sizeof(m), "at boot: %ld KB free, the accessory took %ld KB", boot_free, boot_taken);
-			if (heap_st + heap_tt)	/* (a malloc before acc_heap: a bug) */
+			if (heap_early)	/* (a malloc before acc_heap: a bug) */
 				snprintf(m + strlen(m), sizeof(m) - strlen(m), ", and %ld KB before it",
-					 (heap_st + heap_tt) / 1024);
+					 heap_early / 1024);
 			conn_log("ECal", "--", m, (long)strlen(m));
 		}
 		snprintf(m, sizeof(m), "the window is drawn %s", win_drawing());
