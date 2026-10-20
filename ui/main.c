@@ -571,7 +571,8 @@ static void open_ics(const char *path)
 		alert(1, "[1][There are no events in|%s.][ OK ]", path);
 		return;
 	}
-	if (alert(2, "[2][%d events: import them all|into a calendar?][Import|Cancel]", n) == 1) {
+	if (n == 1 ? alert(2, "[2][Changes to an event (not the|event itself): import them|into a calendar?][Import|Cancel]") == 1
+		   : alert(2, "[2][%d events: import them all|into a calendar?][Import|Cancel]", n) == 1) {
 		int cal = cal_for_import();
 		if (cal >= 0)
 			import_file(cal, path);

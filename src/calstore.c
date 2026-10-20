@@ -3114,10 +3114,11 @@ static int collect(EVENT *e, void *ud)
 	return 1;
 }
 
-/* an .ics file read at once (EMail writes the next over it): its events,
-   and its METHOD (an invitation's REQUEST, CANCEL...) from the head of
-   the file. The one event when it holds just one, for the New Event
-   dialog (*one, freed by the caller); the count, or -1 if unreadable */
+/* an .ics file read at once (EMail writes the next over it): its events
+   (one per UID), and its METHOD (an invitation's REQUEST, CANCEL...) from
+   the head of the file. The one event when it holds just one, for the New
+   Event dialog (*one, the series' master, freed by the caller; 0 when the
+   file has only changed occurrences of it); the count, or -1 if unreadable */
 int cal_read_ics(const char *path, EVENT **one, char *method, int msize)
 {
 	GROUP g;
@@ -3148,14 +3149,26 @@ int cal_read_ics(const char *path, EVENT **one, char *method, int msize)
 				break;
 			}
 	}
-	count = g.n;
-	cal_invite_done();
-	if (g.n == 1) {
-		*one = g.ev[0];
-		g.ev[0] = 0;
-		(*one)->res = -1;
-		invite_keep(path, (*one)->uid);
+	/* events: one per UID (a series' changed occurrences share its UID,
+	   and stay with it in the text kept) */
+	count = 0;
+	for (i = 0; i < g.n; i++) {
+		int j;
+		for (j = 0; j < i; j++)
+			if (g.ev[i]->uid && g.ev[j]->uid && !strcmp(g.ev[i]->uid, g.ev[j]->uid))
+				break;
+		if (j == i)
+			count++;
 	}
+	cal_invite_done();
+	for (i = 0; count == 1 && i < g.n; i++)
+		if (g.ev[i]->recurid == CT_NONE) {
+			*one = g.ev[i];
+			g.ev[i] = 0;
+			(*one)->res = -1;
+			invite_keep(path, (*one)->uid);
+			break;
+		}
 	for (i = 0; i < g.n; i++)
 		ev_free(g.ev[i]);
 	free(g.ev);

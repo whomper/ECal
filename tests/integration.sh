@@ -593,6 +593,15 @@ expect "the update matched by UID" "updated invite-77@example.org" "$out"
 out=$("$CLI" "$D" list $(d 20261105) $(d 20261106))
 expect "the update in its place" "Board meeting (moved)" "$out"
 [ "$(grep -c "Board meeting" <<<"$out")" = 1 ] && ok "one event, not two" || bad "the update made a second event: $out"
+S=$(d 20261110); X=$(d 20261117)
+printf 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//EN\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nUID:series-9@example.org\r\nDTSTAMP:20261020T100000Z\r\nDTSTART:%sT080000Z\r\nDTEND:%sT090000Z\r\nRRULE:FREQ=WEEKLY;COUNT=4\r\nSUMMARY:Weekly sync\r\nORGANIZER:mailto:alice@example.org\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:series-9@example.org\r\nDTSTAMP:20261020T100000Z\r\nRECURRENCE-ID:%sT080000Z\r\nDTSTART:%sT100000Z\r\nDTEND:%sT110000Z\r\nSUMMARY:Weekly sync (later)\r\nORGANIZER:mailto:alice@example.org\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n' $S $S $X $X $X > "$W/series.ics"
+out=$("$CLI" "$D" read-ics "$W/series.ics")
+expect "a series with a changed occurrence: one invitation" "events 1" "$out"
+expect "its master for the dialog" "summary Weekly sync" "$out"
+out=$("$CLI" "$D" accept-ics "$WORK" "$W/series.ics") || bad "accept-ics series: $out"
+raw=$("${CURL[@]}" "$BASE/alice/work/series-9_example_org.ics")
+expect "the changed occurrence kept with it" "RECURRENCE-ID" "$raw"
+expect "... its own title" "Weekly sync (later)" "$raw"
 cp "$W/feed/holidays.ics" "$W/two.ics"
 out=$("$CLI" "$D" read-ics "$W/two.ics")
 expect "several events: counted, none for the dialog" "events 2" "$out"
