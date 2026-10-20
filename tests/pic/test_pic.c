@@ -15,12 +15,22 @@
  *                             lengths and with bytes changed, decoded at
  *                             three sizes (AddressSanitizer and UBSan
  *                             watch); prints how many decoded
+ *
+ * Built with WITH_DSP_SIM (test_pic_dsp), libjpeg-turbo's JPEGs go to
+ * dsp/jpeg.a56 on Hatari's DSP core (dsp_sim.c); PIC_DSP_CYCLES=1 prints
+ * its cycles and the words each way to stderr.
  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "pic.h"
+
+#ifdef WITH_DSP_SIM
+const PIC_DSP *sim_dsp(void);
+extern unsigned long long sim_cycles;
+extern unsigned long sim_in, sim_out;
+#endif
 
 static unsigned char *load(const char *path, long *n)
 {
@@ -46,6 +56,9 @@ static const unsigned char vga16[16][3] = {
 	{ 0, 0, 170 }, { 170, 0, 170 }, { 0, 170, 170 }, { 0, 0, 0 }
 };
 
+/* -m's two pens: black and white, the order a monochrome screen has */
+static const unsigned char bw[2][3] = { { 255, 255, 255 }, { 0, 0, 0 } };
+
 /* -D's 256 colours */
 static unsigned char pal256[256][3];
 
@@ -69,7 +82,9 @@ static int one(const char *file, int w, int h, const char *out, int dither)
 	if (dither) {
 		static PIC_PAL pal;
 		int k;
-		if (dither == 2) {
+		if (dither == 3) {
+			pic_pal_init(&pal, 2, bw);
+		} else if (dither == 2) {
 			memcpy(pal256, vga16, sizeof vga16);
 			for (k = 0; k < 216; k++) {
 				pal256[16 + k][0] = (unsigned char) (k / 36 * 51);
@@ -96,7 +111,7 @@ static int one(const char *file, int w, int h, const char *out, int dither)
 		unsigned v = p->px[i];
 		unsigned char px[4];
 		if (pens != NULL) {
-			memcpy(px, dither == 2 ? pal256[pens[i]] : vga16[pens[i]], 3);
+			memcpy(px, dither == 3 ? bw[pens[i]] : dither == 2 ? pal256[pens[i]] : vga16[pens[i]], 3);
 		} else {
 			/* 5-6-5 back to 8 bits a component, the top bits repeated */
 			px[0] = (unsigned char) (((v >> 8) & 0xF8) | (v >> 13));
@@ -153,14 +168,29 @@ static int robust(int argc, char **argv)
 	return 0;
 }
 
-int main(int argc, char **argv)
+static int run(int argc, char **argv)
 {
 	if (argc >= 2 && strcmp(argv[1], "-r") == 0)
 		return robust(argc - 2, argv + 2);
-	if (argc == 6 && (strcmp(argv[1], "-d") == 0 || strcmp(argv[1], "-D") == 0))
-		return one(argv[2], atoi(argv[3]), atoi(argv[4]), argv[5], argv[1][1] == 'D' ? 2 : 1);
+	if (argc == 6 && (strcmp(argv[1], "-d") == 0 || strcmp(argv[1], "-D") == 0 || strcmp(argv[1], "-m") == 0))
+		return one(argv[2], atoi(argv[3]), atoi(argv[4]), argv[5], argv[1][1] == 'D' ? 2 : argv[1][1] == 'm' ? 3 : 1);
 	if (argc == 5)
 		return one(argv[1], atoi(argv[2]), atoi(argv[3]), argv[4], 0);
-	fprintf(stderr, "test_pic FILE W H OUT | -d|-D FILE W H OUT | -r FILE...\n");
+	fprintf(stderr, "test_pic FILE W H OUT | -d|-D|-m FILE W H OUT | -r FILE...\n");
 	return 2;
+}
+
+int main(int argc, char **argv)
+{
+	int r;
+#ifdef WITH_DSP_SIM
+	pic_dsp = sim_dsp();
+#endif
+	r = run(argc, argv);
+#ifdef WITH_DSP_SIM
+	if (getenv("PIC_DSP_CYCLES"))
+		fprintf(stderr, "dsp: %s, %llu cycles, %lu words in, %lu out\n", pic_dsp_state(), sim_cycles, sim_in,
+			sim_out);
+#endif
+	return r;
 }
