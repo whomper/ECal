@@ -30,8 +30,10 @@ long acc_heap_take(long first, long tt_first, long heapkb, long memkb)
 	if (want < 64L * 1024)
 		want = 64L * 1024;
 	/* the rest left to the programs run after, and the other accessories:
-	   not known yet, a quarter where 2 MB or more is free */
-	cap = !known && avail >= 2048L * 1024 ? avail / 4 : avail / 2;
+	   not known yet, a quarter where 1 MB or more is free (on a 4 MB
+	   Falcon with NVDI's fonts only about 1.5 MB is free when the
+	   accessories load, and two halves left EMail none for NVDI) */
+	cap = !known && avail >= 1024L * 1024 ? avail / 4 : avail / 2;
 	if (want > cap) {
 		want = cap & ~1L;
 		/* little memory (a 1 MB ST): half is under 96 KB; then all but

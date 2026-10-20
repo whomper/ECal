@@ -956,6 +956,7 @@ static int locate_folder(void)
    ST), 4 MB in TT RAM, then what the refreshes measured (MEMKB=);
    HEAPKB=n in ECAL.INF as the user says */
 static long boot_free, boot_taken;	/* KB at boot, for the log */
+static int no_vdi;			/* no workstation at boot: no window */
 static int mem_out;			/* the memory ran out this time */
 
 static void acc_heap(void)
@@ -1107,7 +1108,10 @@ static int settings_step(void)
 					 heap_early / 1024);
 			conn_log("ECal", "--", m, (long)strlen(m));
 		}
-		snprintf(m, sizeof(m), "the window is drawn %s", win_drawing());
+		if (no_vdi)
+			snprintf(m, sizeof(m), "no VDI workstation (too little memory at boot): no window");
+		else
+			snprintf(m, sizeof(m), "the window is drawn %s", win_drawing());
 		conn_log("ECal", "--", m, (long)strlen(m));
 		if (*tos_clock())
 			conn_log("ECal", "--", tos_clock(), (long)strlen(tos_clock()));
@@ -1215,6 +1219,11 @@ static void load_calendars(void)
    from the event loop once everything is drawn, the refresh */
 static void open_window(void)
 {
+	if (no_vdi) {
+		/* (alert() measures with the VDI) */
+		form_alert(1, "[1][ECal couldn't open the screen|(VDI) at boot: too little|memory was free. Restart with|fewer programs or accessories.][ OK ]");
+		return;
+	}
 	if (!screen_check("ECal", scr_w))	/* not in ST low (the accessory) */
 		return;
 	int first = win_h <= 0;
@@ -1766,19 +1775,42 @@ int main(void)
 	}
 	if (is_acc)
 		menu_id = menu_register(ap_id, "  ECal");
-	vdi_h = graf_handle(&gl_wchar, &gl_hchar, &d, &d);
-	cw = gl_wchar;
-	ch = gl_hchar;
-	vdi_h = v_opnvwk_(vdi_h, work_out);
-	scr_w = work_out[0] + 1;
-	scr_h = work_out[1] + 1;
-	ncolors = work_out[13];
-	vq_extnd(vdi_h, 1, work_out);
-	planes = work_out[4];
-	if (ncolors <= 0 || planes > 8)
-		ncolors = 256;
-	vst_alignment(vdi_h, 0, 5);
+	{
+		short phys = graf_handle(&gl_wchar, &gl_hchar, &d, &d);
+		cw = gl_wchar;
+		ch = gl_hchar;
+		vdi_h = v_opnvwk_(phys, work_out);
+		if (vdi_h <= 0) {
+			/* the VDI short of memory (NVDI at boot, with programs and
+			   accessories starting): once more a moment later, then
+			   no drawing at all (the guidelines, 2.1) */
+			evnt_timer_(500);
+			vdi_h = v_opnvwk_(phys, work_out);
+		}
+	}
 	wind_get(0, WF_WORKXYWH, &desk_x, &desk_y, &desk_w, &desk_h);
+	if (vdi_h > 0) {
+		scr_w = work_out[0] + 1;
+		scr_h = work_out[1] + 1;
+		ncolors = work_out[13];
+		vq_extnd(vdi_h, 1, work_out);
+		planes = work_out[4];
+		if (ncolors <= 0 || planes > 8)
+			ncolors = 256;
+		vst_alignment(vdi_h, 0, 5);
+	} else {
+		vdi_h = 0;
+		no_vdi = 1;
+		scr_w = desk_x + desk_w;
+		scr_h = desk_y + desk_h;
+		ncolors = 2;
+		planes = 1;
+		if (!is_acc) {
+			form_alert(1, "[1][ECal couldn't open the screen|(VDI): too little memory is|free. Quit a program or an|accessory and try again.][ OK ]");
+			appl_exit();
+			return 1;
+		}
+	}
 	store_watch = is_acc;
 	find_workdir();
 	crash_install(workdir, "ECal", cal_version);	/* the program only */
@@ -1790,10 +1822,12 @@ int main(void)
 		/* GDOS fonts now or not at all (font.c): under NVDI always, else as ECAL.INF says */
 		char f[8];
 		inf_value("font_id=", f, sizeof(f));
-		font_boot(f[0] && atoi(f) != 1);
+		if (!no_vdi)
+			font_boot(f[0] && atoi(f) != 1);
 	}
 	st_ram_init();
-	win_buffer_init();
+	if (!no_vdi)
+		win_buffer_init();
 	help_init();
 	av_init("ECAL|ECALST");		/* the desktop's AV server, if one runs yet */
 	dlg_after = win_frame_refresh;

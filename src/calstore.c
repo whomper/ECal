@@ -1125,22 +1125,26 @@ static struct {
 static char *ld_line;		/* a subscription's line (as long as ics.c takes) */
 static int ld_linecap;
 
-/* the reader's buffer and the line, one block from the heap while a file
-   is read (not kept in the program: a 1 MB ST needs the room); 0: no
+/* the reader's buffer and the line, from the heap while a file is read
+   (not kept in the program: a 1 MB ST needs the room); two blocks, which
+   find room in a full heap more easily than one of both together; 0: no
    memory even for a small one */
 static int load_buffers(int linecap)
 {
 	int cap;
+	if (!(ld_line = malloc(linecap)))
+		return 0;
 	for (cap = (int)cal_piece; cap >= 2048; cap /= 4) {
-		char *b = malloc(cap + linecap);
+		char *b = malloc(cap);
 		if (b) {
 			ld.f.buf = b;
 			ld.f.cap = cap;
-			ld_line = b + cap;
 			ld_linecap = linecap;
 			return 1;
 		}
 	}
+	free(ld_line);
+	ld_line = 0;
 	return 0;
 }
 
@@ -1164,6 +1168,7 @@ static void load_done(void)
 	ld.f.path[0] = 0;
 	free(ld.f.buf);
 	ld.f.buf = 0;
+	free(ld_line);
 	ld_line = 0;
 	free(ld.rawbuf);
 	ld.rawbuf = 0;
@@ -1795,14 +1800,24 @@ static int fs_flush(FSINK *f, const char *data, long n)
 static int file_sink(void *ud, const char *data, long n)
 {
 	FSINK *f = ud;
+	long want;
 	f->n += n;
-	if (!sb_add(&f->b, data, n)) {
-		/* no memory for it: what there is, then this, written now */
-		if (f->b.len && !fs_flush(f, f->b.s, f->b.len))
+	/* the buffer taken once, as big as there is room for up to a
+	   write's worth: grown by doubling, each step would need the old
+	   and the new at once */
+	for (want = CW_FLUSH; !f->b.cap && want >= 2048; want /= 2)
+		sb_reserve(&f->b, want);
+	if (f->b.len && f->b.len + n + 1 > f->b.cap) {
+		if (!fs_flush(f, f->b.s, f->b.len))
 			return 0;
 		sb_reset(&f->b);
+	}
+	if (f->b.len + n + 1 > f->b.cap) {
+		/* more than the buffer holds (or no buffer): written now */
 		if (!fs_flush(f, data, n))
 			return 0;
+	} else if (!sb_add(&f->b, data, n)) {
+		return 0;
 	} else if (f->b.len >= CW_FLUSH) {
 		if (!fs_flush(f, f->b.s, f->b.len))
 			return 0;
