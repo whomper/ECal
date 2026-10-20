@@ -1552,6 +1552,13 @@ static void work_step(void)
 	bg_next = -1;
 	last_refresh = pf_ms();
 	http_close_all();
+	{
+		/* what the data needs, for the accessory's heap (guidelines 2.1) */
+		char m[120];
+		snprintf(m, sizeof(m), "memory: %ld KB in use, at most %ld KB since the start, of %ld KB taken",
+			 heap_use / 1024, heap_peak / 1024, boot_taken);
+		conn_log("ECal", "--", m, (long)strlen(m));
+	}
 	conn_log_hold(0);	/* (writes it out) */
 	if (bg_changed & 2)
 		settings_later();	/* the ctags */
