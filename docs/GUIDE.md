@@ -52,15 +52,20 @@ F:\...\ECAL.APP\          ECal's folder, wherever you keep it (this one is an ex
   program's folder, are copied to the root the first time.
 
 **Memory.** The accessory takes its working memory once, at boot (an
-accessory can't safely take more later): 1.5 MB on a Falcon or TT,
-256 KB on an ST, never more than half of what's free. When little is
-free it takes all but the 32 KB the desktop needs to start. A 1 MB ST
-runs it with STinG; with big calendars, 2 MB or more is better.
-`HEAPKB=` in ECAL.INF sets another amount, in kilobytes. With **Write a
-log** on, the log says how much was free at boot and how much ECal
-took. When the memory runs out while the
-calendars are read, ECal says so when you open it, and which calendar is
-missing events: give it more, or keep fewer days (Settings > Refresh).
+accessory can't safely take more later), and leaves the rest to your
+programs and the other accessories. The first time it takes 1.5 MB on a
+Falcon or TT (4 MB in TT RAM), 256 KB on an ST, never more than a
+quarter of what's free (half on a machine with less than 2 MB free).
+Each refresh then measures what your calendars need and writes it as
+`MEMKB=` in ECAL.INF, with room to spare, and the next start takes that.
+When little is free it takes all but the 32 KB the desktop needs to
+start. A 1 MB ST runs it with STinG; with big calendars, 2 MB or more is
+better. `HEAPKB=` in ECAL.INF sets an amount of your own, in kilobytes,
+and ECal then keeps to it. With **Write a log** on, the log says how much
+was free at boot, how much ECal took and how much it used. When the
+memory runs out, ECal says so when you open it (and which calendar is
+missing events) and takes twice as much at the next start; or keep fewer
+days (Settings > Refresh).
 
 **TT RAM.** On a TT, or a Falcon with an accelerator's Fast RAM, TOS
 loads ECal into TT RAM, and its memory comes from there too, leaving ST

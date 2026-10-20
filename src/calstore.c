@@ -161,7 +161,7 @@ static void set_opt(const char *k, const char *v)
 	S(home_tz) S(view_tz) S(gate) S(folder) S(start)
 	I(tzsupport) I(falcon) I(dsp) I(weekstart) I(h24) I(hebdates) I(view) I(daystart)
 	I(alarms) I(alarm_default) I(log) I(font_id) I(font_pt) I(hebfont) I(win_x) I(win_y)
-	I(win_w) I(win_h) I(sidebar) I(past_days) I(future_days) I(duration) I(refresh) I(sync_open) I(offline) I(hebrew) I(heapkb)
+	I(win_w) I(win_h) I(sidebar) I(past_days) I(future_days) I(duration) I(refresh) I(sync_open) I(offline) I(hebrew) I(heapkb) I(memkb)
 	if (!strcasecmp(k, "sync_closed")) {
 		opt.bgsync = (short)atoi(v);	/* (BGSYNC= before 2.7, off then: left behind) */
 		return;
@@ -401,7 +401,9 @@ void store_settings_text(SBUF *bp, int part)
 		  opt.workdir);
 	S("START", start, "when the accessory reads the calendars: now (at boot), opened (when you first\r\n"
 	  "; open it) or seconds after boot; reminders come from ALARMS.IDX meanwhile")
-	I("HEAPKB", heapkb, "memory the accessory takes at boot, in KB; 0: 1.5 MB on a Falcon/TT, 256 KB on an ST")
+	I("HEAPKB", heapkb, "memory the accessory takes at boot, in KB, as you set it; 0: as ECal measures")
+	I("MEMKB", memkb, "memory the accessory measured it needs (each refresh writes it), taken at\r\n"
+	  "; the next start, in KB; 0: not measured yet")
 	S("HOME_TZ", home_tz, "the time zone the Atari's clock is set to (Settings > Time zones)")
 	S("VIEW_TZ", view_tz, "the zone times are shown in, with time zone support on")
 	I("TZSUPPORT", tzsupport, "time zone support: each event shows and edits its own zone")

@@ -53,7 +53,7 @@ HBSSLOBJ = $(patsubst $(BSSL)/src/%.c,$(OBJDIR)/hbssl/%.o,$(BSSLSRC))
 
 CORE    := util charset conn tls bidi secret futil ctime tz ics rrule xml inflate http caldav calstore alarms
 ATARI   := libc tos plat_tos net_tos sting gem dsprsa
-UI      := main win draw popup dsp views sidebar editor dialogs field about font fontsel help av alert aboutbox iconify clip dd mbar twin busy bgwork dialog av_people people_ask
+UI      := main win draw popup dsp views sidebar editor dialogs field about font fontsel help av alert aboutbox iconify clip dd mbar twin busy bgwork accmem dialog av_people people_ask
 
 OBJDIR  := build
 # Falcon mode's elliptic curves on the DSP (common/README.md); not in the ST edition

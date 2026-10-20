@@ -81,6 +81,7 @@ typedef struct {
 	short offline;		/* Work offline: no connections */
 	short hebrew;		/* start with the Hebrew keyboard */
 	short heapkb;		/* the accessory's memory, KB (read at boot by main.c); 0: chosen */
+	short memkb;		/* what it measured it needs, KB (MEMKB=, main.c); 0: not yet */
 	char workdir[160];	/* ECal's folder in use: CACHE, ECAL.KEY, the log... */
 	char folder[160];	/* FOLDER= as ECAL.INF had it (main.c decides) */
 } OPT;

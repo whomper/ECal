@@ -201,12 +201,18 @@ def main():
                 cache += open(os.path.join(root, fn), "rb").read().decode("utf-8", "replace")
     kept = len(re.findall(r"^R ", cache, re.M))
     print("events in the Atari's cache: %d" % kept)
-    m = re.findall(r"memory: (\d+) KB in use, at most (\d+) KB since the start, of (\d+) KB taken", log)
+    m = re.findall(r"memory: (\d+) KB in use, (\d+) KB at the most, of (\d+) KB.*next start (\d+) KB", log)
     check("the round's end logged its memory", bool(m))
     if m:
-        use, peak, taken = (int(x) for x in m[-1])
-        print("%s%s: %d KB in use, peak %d KB, of %d KB taken" %
-              (a.machine, ", Falcon mode" if a.falcon_mode else ", through the gateway", use, peak, taken))
+        use, peak, taken, nxt = (int(x) for x in m[-1])
+        print("%s%s: %d KB in use, peak %d KB, of %d KB taken; MEMKB=%d for the next start" %
+              (a.machine, ", Falcon mode" if a.falcon_mode else ", through the gateway", use, peak, taken, nxt))
+    for l in log.splitlines():
+        if "!!" in l and "HTTP" not in l:
+            print("  problem: " + l.strip())
+    inf = open(os.path.join(hd, "ECAL.INF"), "rb").read().decode("latin-1")
+    mk = re.search(r"^MEMKB=(\d+)", inf, re.M)
+    check("MEMKB= written to ECAL.INF for the next start", bool(mk and int(mk.group(1)) > 0))
     crash = [os.path.join(d, f) for d, _, fs in os.walk(hd) for f in fs if f.upper() == "CRASH.LOG"]
     check("no crash (CRASH.LOG)", not crash)
     print("mem test:", "all passed" if not fails else "%d failed" % len(fails))

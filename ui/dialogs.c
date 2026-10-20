@@ -55,7 +55,8 @@ static short run(const char *title, FIELD *f, short n, short w, short h, short f
    the program: a 1 MB ST needs the room */
 void no_memory(void)
 {
-	alert(1, "[1][Memory is full: ECal can't do|that now. Give ECal more memory|(HEAPKB= in ECAL.INF) or keep|fewer days (Settings).][ OK ]");
+	mem_ran_out();
+	alert(1, "[1][Memory is full: ECal can't do|that now. %s][ OK ]", mem_full_advice());
 }
 
 const char *zone_pick(const char *current)

@@ -33,6 +33,7 @@
 #include "mbar.h"
 #include "twin.h"
 #include "bgwork.h"
+#include "accmem.h"
 #include "../src/alarms.h"
 
 short vdi_h, cw, ch, scr_w, scr_h, desk_x, desk_y, desk_w, desk_h, planes;
@@ -864,55 +865,48 @@ static int locate_folder(void)
 }
 
 /* an accessory takes its memory once, now: later it would belong to
-   whichever program is in front. HEAPKB=n in ECAL.INF overrides */
+   whichever program is in front (common/ui/accmem.c, the guidelines 2.1):
+   at the first start 1.5 MB with TLS on a 68030 (256 KB without, or on an
+   ST), 4 MB in TT RAM, then what the refreshes measured (MEMKB=);
+   HEAPKB=n in ECAL.INF as the user says */
 static long boot_free, boot_taken;	/* KB at boot, for the log */
+static int mem_out;			/* the memory ran out this time */
 
 static void acc_heap(void)
 {
 	char kb[12];
-	long avail = (long)Malloc(-1L), alt = (long)Mxalloc(-1L, 1), want;
-	void *p;
-	want = tls_available && get_cookie(0x5F435055L) >= 30 ? 1536L * 1024 : 256L * 1024;
-	/* TT/Fast RAM (a TT, an accelerated Falcon): the heap goes there, and
-	   there is room for more */
-	if (alt == -32 || alt < 0)
-		alt = 0;
-	if (alt >= 256L * 1024) {
-		avail = alt;
-		if (want < 4096L * 1024)
-			want = 4096L * 1024;
-	}
+	long heapkb, memkb;
 	inf_value("heapkb=", kb, sizeof(kb));
-	if (atol(kb) >= 64)
-		want = atol(kb) * 1024;
-	boot_free = avail / 1024;
-	if (want > avail / 2)
-		want = avail / 2;
-	/* little memory (a 1 MB ST with a network): all but what the desktop
-	   needs to start (EmuDesk: 32 KB); none at all rather than less for
-	   it, and never more later: the heap is fixed either way */
-	if (want < 96L * 1024)
-		want = avail - 32L * 1024;
-	if (want < 8L * 1024) {
-		heap_add(0, 0);
+	heapkb = atol(kb);
+	inf_value("memkb=", kb, sizeof(kb));
+	memkb = atol(kb);
+	if (!acc_heap_take(tls_available && get_cookie(0x5F435055L) >= 30 ? 1536L * 1024 : 256L * 1024,
+			   4096L * 1024, heapkb, memkb))
+		heap_add(0, 0);		/* none, and never more later */
+	boot_free = acc_heap_avail / 1024;
+	boot_taken = acc_heap_bytes / 1024;
+}
+
+/* the memory ran out: the accessory takes twice as much at the next
+   start (MEMKB=), unless the user chose its amount (HEAPKB=) */
+void mem_ran_out(void)
+{
+	long kb;
+	if (!is_acc || opt.heapkb >= 64)
 		return;
+	mem_out = 1;
+	kb = acc_mem_full_kb();
+	if (kb > opt.memkb) {
+		opt.memkb = (short)(kb > 32000 ? 32000 : kb);
+		settings_later();
 	}
-	p = Mxalloc(want, alt ? 1 : 3);
-	if (alt && (long)p <= 0) {
-		/* no luck in TT RAM after all: ST RAM, at its own size */
-		long st = (long)Malloc(-1L) / 2;
-		if (want > st)
-			want = st;
-		p = 0;
-	}
-	if ((long)p == -32 || (long)p <= 0)
-		p = Malloc(want);
-	if ((long)p > 0) {
-		heap_add(p, (size_t)want);
-		boot_taken = want / 1024;
-	} else {
-		heap_add(0, 0);
-	}
+}
+
+/* the end of an alert that says the memory is full */
+const char *mem_full_advice(void)
+{
+	return is_acc && opt.heapkb < 64 ? "ECal takes more at|the next start, or keep|fewer days (Settings)."
+					 : "Give ECal more memory|(HEAPKB= in ECAL.INF) or keep|fewer days (Settings).";
 }
 
 static void files_check(void);
@@ -1112,10 +1106,11 @@ static void tell_lost(void)
 		}
 	if (!n && !some)
 		return;
+	mem_ran_out();
 	if (some)
-		alert(1, "[1][Memory is full: not all of|%s and maybe others could be|read. Give ECal more memory|(HEAPKB= in ECAL.INF) or keep|fewer days (Settings).][ OK ]", which);
+		alert(1, "[1][Memory is full: not all of|%s and maybe others could be|read. %s][ OK ]", which, mem_full_advice());
 	else
-		alert(1, "[1][Memory is full: %d event%s could|not be read (in %s and maybe|others). Give ECal more memory|(HEAPKB= in ECAL.INF) or keep|fewer days (Settings).][ OK ]", n, n == 1 ? "" : "s", which);
+		alert(1, "[1][Memory is full: %d event%s could|not be read (in %s and maybe|others). %s][ OK ]", n, n == 1 ? "" : "s", which, mem_full_advice());
 }
 
 static void load_calendars(void)
@@ -1558,12 +1553,23 @@ static void work_step(void)
 	last_refresh = pf_ms();
 	http_close_all();
 	{
-		/* what the data needs, for the accessory's heap (guidelines 2.1),
-		   and each account's problem this round */
-		char m[120];
+		/* what the data needs, for the accessory's next start (MEMKB=,
+		   guidelines 2.1), and each account's problem this round */
+		char m[160];
 		int i;
-		snprintf(m, sizeof(m), "memory: %ld KB in use, at most %ld KB since the start, of %ld KB taken",
-			 heap_use / 1024, heap_peak / 1024, boot_taken);
+		for (i = 0; i < naccts; i++)
+			if (strstr(accts[i].err, "memory"))
+				mem_ran_out();
+		if (is_acc && opt.heapkb < 64) {
+			/* the most it held, and 256 KB for a calendar's answer more;
+			   not less after it ran out (the peak was the heap's then) */
+			long kb = acc_mem_kb(heap_use, 256L * 1024);
+			if (acc_mem_moved(kb, opt.memkb) && !(mem_out && kb < opt.memkb)) {
+				opt.memkb = (short)(kb > 32000 ? 32000 : kb);
+				settings_later();
+			}
+		}
+		acc_mem_line(m, sizeof(m), opt.heapkb >= 64 ? opt.heapkb : opt.memkb);
 		conn_log("ECal", "--", m, (long)strlen(m));
 		for (i = 0; i < naccts; i++)
 			if (accts[i].err[0]) {
