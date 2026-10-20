@@ -120,6 +120,9 @@ The gateway's own README, with its options and how to keep it private:
 - **Subscriptions**: `webcal://` and `https://` `.ics` feeds (holidays, sports, a Google calendar's
   secret iCal address), refreshed on a schedule.
 - **On My Atari** calendars, kept only on this computer; `.ics` import.
+- **Invitations**: an `.ics` invitation (handed over by EMail, opened on the desktop or with File >
+  Import .ics...) fills the New Event dialog; saved, it keeps its UID and its organiser, so a later
+  update of the same invitation finds the event. Files with several events are imported after asking.
 - **Views**: day (with the selected event's details), week, month and year; all-day and multi-day
   events as bars, overlapping events side by side, "+3 more" when a day is full.
 - **Today** in red everywhere, a red line at the current time, a **Today** button, and the view moves
@@ -284,7 +287,11 @@ tests/hatari/esc_test.py WORK [--machine M]       # Esc and Undo cancel dialogs 
 tests/hatari/people_test.py WORK [--machine M] [--acc]
                                                   # inviting from EContact (PEOPLE), its latest
                                                   # release (Falcon)
-tests/hatari/twin_test.py WORK [--machine M]      # ECAL.PRG and ECAL.ACC on one machine (Falcon)
+tests/hatari/invite_test.py WORK [--machine M] [--acc]
+                                                  # an .ics invitation by VA_START: the New
+                                                  # Event dialog filled, saved with its UID
+tests/hatari/twin_test.py WORK [--machine M]      # ECAL.PRG and ECAL.ACC on one machine
+                                                  # (EmuTOS: its desktop is clicked)
 tests/hatari/help_test.py WORK [--machine M]      # the Help key (make fakeguide first; Falcon)
 tests/hatari/hypview_test.py WORK                 # the guide in EHypView's latest release (make
                                                   # help first): Falcon:16, Falcon:256, TT:mono

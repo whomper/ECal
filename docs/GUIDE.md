@@ -345,7 +345,10 @@ on the list keep their answers when you add or remove someone else.
 
 An invitation from someone else shows who sent it first, marked
 "(organizer)", then the others invited; only the organiser can change
-who comes. Invitations you declined aren't shown at all.
+who comes. Invitations you declined aren't shown at all. An invitation
+that came by email (an .ics file EMail hands ECal, or one you open)
+fills the New Event dialog; saved, it stays the organiser's, with the
+people as the invitation has them (see From other programs).
 
 EContact keeps your contacts, and ECal asks it for the names behind the
 addresses (the family's PEOPLE messages; EContact 1.41 or later, loaded
@@ -358,9 +361,20 @@ in the accessory) opens EContact's window.
 A desktop such as Thing, jinnee or Gemini, or any program (with the AV
 protocol's VA_START), can hand ECal:
 
-- **.ics files**: their events are imported into the only calendar that
-  can take them, or into the one you pick;
+- **an .ics file with one event**, such as an invitation EMail received:
+  the window opens with the New Event dialog filled from it (title, times,
+  place, notes, alert and the people invited). Change what you like;
+  **Add** saves it with the invitation's own UID, so a later update of the
+  same invitation finds it and opens it with the new details, and Cancel
+  saves nothing. A cancellation offers to delete the event it cancels;
+- **an .ics file with several events**: after you say yes, they are
+  imported into the only calendar that can take them, or into the one you
+  pick;
 - **a webcal: address**: Subscribe opens with it filled in.
+
+**Import .ics...** (the File menu in `ECAL.PRG`, the ≡ menu in the
+accessory) does the same with a file you choose. ECal reads the file at
+once, so a program may write its next one over it.
 
 `ECAL.PRG` takes .ics files the same way when the desktop starts it with
 one: install it as the application for `.ICS` and double-click a file.
