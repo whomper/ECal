@@ -36,7 +36,36 @@ WORDS = ("standup review planning dentist lunch call Atari repair concert lesson
          " train flight meeting doctor dinner party football shopping yoga build").split()
 
 
-def events(cal, n, rnd):
+VTZ = ("BEGIN:VTIMEZONE\r\nTZID:Asia/Jerusalem\r\nBEGIN:DAYLIGHT\r\nTZOFFSETFROM:+0200\r\n"
+       "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1FR\r\nDTSTART:20130329T020000\r\nTZNAME:IDT\r\n"
+       "TZOFFSETTO:+0300\r\nEND:DAYLIGHT\r\nBEGIN:STANDARD\r\nTZOFFSETFROM:+0300\r\n"
+       "RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU\r\nDTSTART:20131027T020000\r\nTZNAME:IST\r\n"
+       "TZOFFSETTO:+0200\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\n")
+ZOOM = ("Alice is inviting you to a scheduled Zoom meeting. Join Zoom Meeting https://us02web.zoom.us/j/"
+        "81234567890?pwd=QWERTYuiopASDFghjklZXCVbnm123456 Meeting ID: 812 3456 7890 Passcode: 123456 "
+        "One tap mobile +16465588656,,81234567890#,,,,*123456# US (New York) +13017158592,,81234567890#"
+        ",,,,*123456# US (Washington DC) Dial by your location +1 646 558 8656 US (New York) +1 301 715 "
+        "8592 US (Washington DC) +1 312 626 6799 US (Chicago) +1 669 900 9128 US (San Jose) +1 253 215 "
+        "8782 US (Tacoma) +1 346 248 7799 US (Houston) Find your local number: https://us02web.zoom.us/"
+        "u/kbCdEfGhIj Join by SIP 81234567890@zoomcrc.com Join by H.323 162.255.37.11 (US West) "
+        "162.255.36.11 (US East) 115.114.131.7 (India Mumbai) 115.114.115.7 (India Hyderabad) "
+        "213.19.144.110 (Amsterdam Netherlands) 213.244.140.110 (Germany) 103.122.166.55 (Australia "
+        "Sydney) 149.137.40.110 (Singapore) 64.211.144.160 (Brazil) 149.137.68.253 (Mexico) 69.174.57.160 "
+        "(Canada Toronto) 65.39.152.160 (Canada Vancouver) 207.226.132.110 (Japan Tokyo) Meeting ID: "
+        "812 3456 7890 Passcode: 123456")
+
+
+def fold(line):
+    """an iCalendar line folded at 75 octets"""
+    out = [line[:75]]
+    line = line[75:]
+    while line:
+        out.append(" " + line[:74])
+        line = line[74:]
+    return "\r\n".join(out)
+
+
+def events(cal, n, rnd, icloud=False):
     today = dt.date.today()
     out = []
     for i in range(n):
@@ -62,9 +91,19 @@ def events(cal, n, rnd):
                    for k in range(rnd.randrange(1, 5))]
         if i % 5 == 0:
             ev += ["BEGIN:VALARM", "ACTION:DISPLAY", "TRIGGER:-PT15M", "END:VALARM"]
+        if icloud:
+            # as iCloud keeps them: the zone in each, Apple's own lines,
+            # and now and then a video call's invitation in the notes
+            ev[1:1] = ["CREATED:20260101T090000Z", "LAST-MODIFIED:20261001T090000Z", "SEQUENCE:1",
+                       "X-APPLE-TRAVEL-ADVISORY-BEHAVIOR:AUTOMATIC", "TRANSP:OPAQUE"]
+            if i % 8 == 1:
+                ev = [l for l in ev if not l.startswith("DESCRIPTION:")]
+                ev.insert(-1, fold("DESCRIPTION:" + ZOOM))
+            if i % 5 == 0:
+                ev.insert(-1, "X-WR-ALARMUID:%s-alarm" % uid)
         ev.append("END:VEVENT")
-        out.append((uid, "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:memtest\r\n" + "\r\n".join(ev)
-                    + "\r\nEND:VCALENDAR\r\n"))
+        out.append((uid, "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:memtest\r\n" + (VTZ if icloud else "")
+                    + "\r\n".join(ev) + "\r\nEND:VCALENDAR\r\n"))
     return out
 
 
@@ -76,6 +115,8 @@ def main():
                     help="TLS on the Falcon itself (RSA on the DSP), no gateway")
     ap.add_argument("--cals", type=int, default=3)
     ap.add_argument("--events", type=int, default=500, help="events in each calendar")
+    ap.add_argument("--icloud", action="store_true",
+                    help="events as iCloud keeps them: the zone in each, Apple's lines, some long notes")
     ap.add_argument("--heapkb", type=int, default=0, help="HEAPKB= in ECAL.INF (0: ECal's own choice)")
     ap.add_argument("--secs", type=int, default=0, help="how long to watch after boot")
     ap.add_argument("--boots", type=int, default=1,
@@ -168,7 +209,7 @@ def main():
         rnd = random.Random(1960)
         total = 0
         for name in names:
-            for uid, text in events(name, a.events, rnd):
+            for uid, text in events(name, a.events, rnd, a.icloud):
                 bg.http("PUT", "/alice/%s/%s.ics" % (name.lower(), uid.split("@")[0]), text.encode(), "text/calendar")
                 total += 1
         print("the server has %d calendars of %d events (%d), the Atari none of them yet" %
@@ -207,7 +248,7 @@ def main():
             if fn.endswith(".DAT"):
                 cache += open(os.path.join(root, fn), "rb").read().decode("utf-8", "replace")
     kept = len(re.findall(r"^R ", cache, re.M))
-    print("events in the Atari's cache: %d" % kept)
+    print("events in the Atari's cache: %d (%d KB)" % (kept, len(cache.encode("utf-8", "replace")) // 1024))
     m = re.findall(r"memory: (\d+) KB in use, (\d+) KB at the most, of (\d+) KB.*next start (\d+) KB", log)
     check("the round's end logged its memory", bool(m))
     for k, x in enumerate(m):
