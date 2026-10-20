@@ -866,6 +866,7 @@ static int locate_folder(void)
 /* an accessory takes its memory once, now: later it would belong to
    whichever program is in front. HEAPKB=n in ECAL.INF overrides */
 static long boot_free, boot_taken;	/* KB at boot, for the log */
+extern long heap_st, heap_tt;		/* GEMDOS blocks the heap grew by (libc.c) */
 
 static void acc_heap(void)
 {
@@ -1022,6 +1023,9 @@ static int settings_step(void)
 		conn_log("ECal", "--", m, (long)strlen(m));
 		if (is_acc) {
 			snprintf(m, sizeof(m), "at boot: %ld KB free, the accessory took %ld KB", boot_free, boot_taken);
+			if (heap_st + heap_tt)	/* (a malloc before acc_heap: a bug) */
+				snprintf(m + strlen(m), sizeof(m) - strlen(m), ", and %ld KB before it",
+					 (heap_st + heap_tt) / 1024);
 			conn_log("ECal", "--", m, (long)strlen(m));
 		}
 		snprintf(m, sizeof(m), "the window is drawn %s", win_drawing());
@@ -1422,14 +1426,16 @@ static int work_kind(void)
 }
 
 /* a long answer coming in with the window closed: the machine handed
-   back now and then while it does (the waits for it already do) */
+   back now and then while it does (the waits for it already do), half a
+   slice after the last time, or after the slice began */
+static unsigned long net_back;
+
 static void net_tick(void)
 {
-	static unsigned long last;
 	unsigned long now = pf_ms();
-	if (!is_acc || win_h > 0 || now - last < slice_ms / 2)
+	if (!is_acc || win_h > 0 || now - net_back < slice_ms / 2)
 		return;
-	last = now;
+	net_back = now;
 	evnt_timer_(0);
 }
 
@@ -1680,9 +1686,6 @@ int main(void)
 	crash_cleanup = crash_quit;
 	alert_hebrew = alert_heb;
 	crash_report = conn_log_append;	/* the report in ECAL.LOG too */
-	/* names from EContact for invitations (the guidelines, 4.1): its
-	   memory before the accessory's heap is taken */
-	people_init(64, 0, dlg_names_came, editor_people_picked);
 	busy_message = busy_msg;
 	if (is_acc) {
 		/* GDOS fonts now or not at all (font.c): under NVDI always, else as ECAL.INF says */
@@ -1729,7 +1732,12 @@ int main(void)
 		acc_heap();
 		if (boot_taken < 512)
 			conn_log_hold_bytes = 0;	/* a small fixed heap: the log keeps its 4 KB through a refresh */
-	} else {
+	}
+	/* names from EContact for invitations (the guidelines, 4.1), from the
+	   accessory's heap: a malloc before it is taken grows the heap from
+	   GEMDOS instead, by 512 KB at once (common/atari/libc.c) */
+	people_init(64, 0, dlg_names_came, editor_people_picked);
+	if (!is_acc) {
 		/* the menu bar (the accessory has the toolbar's menu) */
 		if (mbar_build(&mb, bar, gl_wchar, gl_hchar, scr_w, scr_h) == 0)
 			has_menu = menu_bar(mb.tree, 1) != 0;
@@ -1923,6 +1931,7 @@ int main(void)
 			unsigned long s0 = pf_ms(), t;
 			int k, n = 0;
 			bg_begin();
+			net_back = s0;
 			do {
 				aes_profile_tag("work");
 				k = work_kind();
