@@ -78,6 +78,8 @@ def main():
     ap.add_argument("--events", type=int, default=500, help="events in each calendar")
     ap.add_argument("--heapkb", type=int, default=0, help="HEAPKB= in ECAL.INF (0: ECal's own choice)")
     ap.add_argument("--secs", type=int, default=0, help="how long to watch after boot")
+    ap.add_argument("--boots", type=int, default=1,
+                    help="start the Atari again this many times in all: the next start takes MEMKB=")
     a = ap.parse_args()
     os.environ["TZ"] = "Asia/Jerusalem"
     time.tzset()
@@ -174,16 +176,21 @@ def main():
 
         acc = "ECALST.ACC" if rig.is_st(a.machine) else "ECAL.ACC"
         shutil.copy(os.path.join(bg.PROF, acc), os.path.join(hd, "ECAL.ACC"))
-        r = rig.Rig(work, a.machine, network=True, auto=None)
-        # until the round's end is logged, or the time is up
         logf = os.path.join(folder, "ECAL.LOG")
-        t0 = time.time()
-        while time.time() - t0 < secs:
-            time.sleep(15)
-            if os.path.exists(logf) and b"memory:" in open(logf, "rb").read():
-                time.sleep(10)
-                break
-        r.shot("desktop")
+        for boot in range(a.boots):
+            # until the round's end is logged, or the time is up
+            before = open(logf, "rb").read().count(b"memory:") if os.path.exists(logf) else 0
+            r = rig.Rig(work, a.machine, network=True, auto=None)
+            t0 = time.time()
+            while time.time() - t0 < secs:
+                time.sleep(15)
+                if os.path.exists(logf) and open(logf, "rb").read().count(b"memory:") > before:
+                    time.sleep(10)
+                    break
+            r.shot("desktop-%d" % (boot + 1))
+            if boot + 1 < a.boots:
+                r.stop()
+                r = None
     finally:
         if r:
             r.stop()
@@ -203,10 +210,10 @@ def main():
     print("events in the Atari's cache: %d" % kept)
     m = re.findall(r"memory: (\d+) KB in use, (\d+) KB at the most, of (\d+) KB.*next start (\d+) KB", log)
     check("the round's end logged its memory", bool(m))
-    if m:
-        use, peak, taken, nxt = (int(x) for x in m[-1])
-        print("%s%s: %d KB in use, peak %d KB, of %d KB taken; MEMKB=%d for the next start" %
-              (a.machine, ", Falcon mode" if a.falcon_mode else ", through the gateway", use, peak, taken, nxt))
+    for k, x in enumerate(m):
+        use, peak, taken, nxt = (int(y) for y in x)
+        print("%s%s, round %d: %d KB in use, peak %d KB, of %d KB taken; MEMKB=%d for the next start" %
+              (a.machine, ", Falcon mode" if a.falcon_mode else ", through the gateway", k + 1, use, peak, taken, nxt))
     for l in log.splitlines():
         if "!!" in l and "HTTP" not in l:
             print("  problem: " + l.strip())
