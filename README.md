@@ -279,6 +279,9 @@ tests/hatari/quiet_test.py WORK [--machine M]     # make profile first: the acce
 tests/hatari/bgsync_test.py WORK [--machine M] [--falcon-mode]
                                                   # make profile first: a background refresh
                                                   # with the window closed, timed (Falcon)
+tests/hatari/mem_test.py WORK [--machine M] [--falcon-mode] [--cals 3] [--events 500] [--boots N]
+                                                  # make profile first: the accessory's memory
+                                                  # (heap peak, MEMKB=) as calendars come new
 tests/hatari/esc_test.py WORK [--machine M]       # Esc and Undo cancel dialogs and alerts, and
                                                   # nothing is written (Falcon)
 tests/hatari/people_test.py WORK [--machine M] [--acc]
