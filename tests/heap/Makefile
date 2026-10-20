@@ -17,13 +17,19 @@ $(B)/test_heap.m68k: $(SRC) stub/tos.h | $(B)
 	$(M68K) -m68000 $(CFLAGS) -static -o $@ $(SRC)
 $(B):
 	mkdir -p $@
-test: $(B)/test_heap
+TRACE  := $(B)/ecal-falconmode-3x500.trace
+
+$(TRACE): fixtures/ecal-falconmode-3x500.trace.gz | $(B)
+	gzip -dc $< > $@
+test: $(B)/test_heap $(TRACE)
 	@for c in $(CASES); do ./$(B)/test_heap $$c || exit 1; done
+	./$(B)/test_heap replay $(TRACE)
 	./$(B)/test_heap random 3000000 1
 	./$(B)/test_heap random 3000000 2
 	@if command -v $(firstword $(QEMU)) >/dev/null && command -v $(M68K) >/dev/null; then \
 	    $(MAKE) --no-print-directory $(B)/test_heap.m68k && \
 	    for c in $(CASES); do $(QEMU) ./$(B)/test_heap.m68k $$c || exit 1; done && \
+	    $(QEMU) ./$(B)/test_heap.m68k replay $(TRACE) && \
 	    $(QEMU) ./$(B)/test_heap.m68k random 1000000 3; \
 	else \
 	    echo "skipped: the 68000 half (apt install qemu-user-static gcc-m68k-linux-gnu libc6-dev-m68k-cross)"; \

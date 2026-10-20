@@ -11,6 +11,7 @@
 
 long acc_heap_bytes, acc_heap_avail;
 short acc_heap_tt;
+long acc_heap_leave = 32L * 1024;
 
 long acc_heap_take(long first, long tt_first, long heapkb, long memkb)
 {
@@ -33,8 +34,10 @@ long acc_heap_take(long first, long tt_first, long heapkb, long memkb)
 	cap = !known && avail >= 2048L * 1024 ? avail / 4 : avail / 2;
 	if (want > cap) {
 		want = cap & ~1L;
-		if (want < 96L * 1024)
-			want = avail - 32L * 1024;
+		/* little memory (a 1 MB ST): half is under 96 KB; then all but
+		   acc_heap_leave, when that is more than half */
+		if (want < 96L * 1024 && avail - acc_heap_leave > want)
+			want = (avail - acc_heap_leave) & ~1L;
 	}
 	if (want < 32L * 1024)
 		return 0;
