@@ -343,6 +343,46 @@ static void case_accearly(void)
 	_is_acc = 0;
 }
 
+/* ECal's refresh in Falcon mode (20 Oct 2026): an answer's buffer grows
+   by doubling and goes, while the events read from it stay, small; over
+   many answers the small ones must not end up all through the heap */
+static void case_frag(void)
+{
+	static char arena[4L * 1024 * 1024 + 16];
+	unsigned r;
+	int k, failed_big = 0;
+	long worst = 1L << 30;
+	heap_add(arena + 2, 4L * 1024 * 1024);
+	for (r = 0; r < 1500; r++) {
+		size_t n = 8192, top = 16384u << (r % 4);
+		char *answer = heap_malloc(12000 + r % 5000);	/* the gzip'd answer */
+		char *big = heap_malloc(n), *nb;
+		for (; big && n < top; n *= 2) {
+			/* inflate's output doubles; events are parsed meanwhile */
+			for (k = 0; k < 3; k++)
+				if (!heap_malloc(40 + (r * 37 + k * 101 + n) % 260))
+					failed_big++;
+			nb = heap_realloc(big, n * 2);
+			if (!nb)
+				break;
+			big = nb;
+		}
+		if (!answer || !big || n < top)
+			failed_big++;
+		heap_free(answer);
+		heap_free(big);
+		if (r % 50 == 49) {
+			heap_check(0);
+			if (heap_check_big < worst)
+				worst = heap_check_big;
+		}
+	}
+	check(failed_big == 0, "frag: every answer's buffer grew to its size, every event kept");
+	check(heap_check(0) >= 0, "frag: checks out");
+	check(worst >= 1024L * 1024, "frag: the largest free block never under 1 MB");
+	printf("frag: %ld KB free, largest %ld KB, worst %ld KB\n", heap_check(0) / 1024, heap_check_big / 1024, worst / 1024);
+}
+
 static void case_limited(void)
 {
 	int n = 0, i;
@@ -584,6 +624,8 @@ int main(int argc, char **argv)
 		case_fixed();
 	else if (!strcmp(c, "grow"))
 		case_grow();
+	else if (!strcmp(c, "frag"))
+		case_frag();
 	else if (!strcmp(c, "accearly"))
 		case_accearly();
 	else if (!strcmp(c, "limited"))
