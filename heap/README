@@ -1,0 +1,14 @@
+An allocation trace from ECal's accessory (whomper/ECal 29f16496 with a trace
+probe), Falcon:16 TOS 4.04, mem_test.py --falcon-mode, 3 calendars of 500 events:
+every malloc/realloc/free after heap_add, as block ids and sizes.
+
+  gunzip -k ecal-falconmode-3x500.trace.gz
+  lines: "A size" heap_add, "M id n" malloc (id 0: it failed on the Atari),
+         "F id" free, "R oldid newid n" realloc (newid 0: failed), "X" the
+         point where ECal's inflate failed (ECAL.LOG: "compressed answer is damaged")
+
+replay_case.c is a tests/heap case: add "long heap_largest;" to libc.c's
+HEAP_TEST heap_check (the largest free block it walks), then
+  qemu-m68k ./test_heap.m68k replay ecal-falconmode-3x500.trace
+gives the Atari's numbers: free 3655112 in 540 blocks, largest 39180, use 539188.
+conv.py made the trace from Hatari's console (H lines).
