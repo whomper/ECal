@@ -81,6 +81,13 @@ int main(void)
 	a = take(3660 * KB, 0, 1536 * KB, 0, 1200, 450);
 	check(a == 1200 * KB, "HEAPKB= wins over MEMKB=");
 
+	/* a 4 MB Falcon with NVDI's fonts: 1552 KB free when the accessories
+	   load; EContact, then ECal (EMail had 0 KB beside its program) */
+	a = take(1552 * KB, 0, 2048 * KB, 0, 0, 0);
+	check(a == 388 * KB, "4 MB Falcon with NVDI, 1552 KB free: a quarter, 388 KB");
+	b = take(st_free, 0, 1536 * KB, 0, 0, 0);
+	check(b == 291 * KB, "  the second a quarter of the rest, 291 KB: 873 KB left for the program");
+
 	/* a 1 MB ST with STinG: 400 KB free; one accessory */
 	a = take(400 * KB, 0, 2048 * KB, 0, 0, 0);
 	check(a == 200 * KB, "1 MB ST, 400 KB free: half (under 2 MB free, as before)");
