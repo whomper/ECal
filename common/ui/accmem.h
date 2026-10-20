@@ -27,8 +27,11 @@
  * so two accessories leave half of the machine to the program in front
  * (EMail with ECal and EContact on a 4 MB Falcon with NVDI had 432 KB,
  * 20 Oct 2026). Measured (MEMKB=) or chosen (HEAPKB=): at most half.
- * Never under 64 KB; when half is under 96 KB (a 1 MB ST with a network),
- * all but 32 KB, as before.
+ * Never under 64 KB. When half is under 96 KB (a 1 MB ST), all but
+ * acc_heap_leave, if that is more than half: 32 KB by default, what the
+ * desktop needs to start (ECal's and EContact's network accessories, as
+ * before); an accessory a program must run beside sets more first
+ * (EHypView: 96 KB, so ASKHELP.PRG starts on a 1 MB Falcon).
  */
 #ifndef AERA_ACCMEM_H
 #define AERA_ACCMEM_H
@@ -36,6 +39,7 @@
 extern long acc_heap_bytes;	/* taken (0: none, or the program) */
 extern long acc_heap_avail;	/* free when it was taken, where it was taken */
 extern short acc_heap_tt;	/* 1: in TT/Fast RAM */
+extern long acc_heap_leave;	/* the least left on a 1 MB machine (32 KB) */
 
 long acc_heap_take(long first, long tt_first, long heapkb, long memkb);
 long acc_mem_kb(long need, long margin);
