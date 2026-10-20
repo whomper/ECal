@@ -317,11 +317,11 @@ by name, anyone else by address; rest the mouse on a name for a moment to
 see the address. Two lines hold six or so; "+3 more" shows the rest, and
 « goes back to the start.
 
-- **Add...** asks for a name or an address. An address (or several, with
-  commas: `Dana Levi <dana@example.org>, sam@example.net`) is added as it
-  is. A name, or part of one, or nothing at all, opens EContact's window
-  to pick from, narrowed by what you typed: choose one or more people, or
-  a group for everyone in it, and the event comes back with them added.
+- **Add...** opens EContact's window to pick from, when EContact is
+  loaded: choose one or more people, or a group for everyone in it, and
+  the event comes back with them added. Without EContact it asks for an
+  address (or several, with commas: `Dana Levi <dana@example.org>,
+  sam@example.net`), added as typed.
 - Click a name to choose it, or Tab to the list and use the arrow keys;
   **Remove** or Delete takes the chosen one away.
 

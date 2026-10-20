@@ -10,9 +10,10 @@ contacts of its tests/hatari/sample.vcf.
 EContact is its latest release (the guidelines, 1.2), or the one given:
 ECONTACT.ACC from common/tools/getrelease.py, and card-cli and
 sample.vcf from its source at the same tag, to write the contacts. The
-release is printed, for the report. A new event's Add... with
-"Grace" typed closes the editor and opens EContact's window to choose;
-Return chooses Grace Baker and the editor comes back with her, by name.
+release is printed, for the report. A new event's Add... opens
+EContact's window to choose at once (no question first); "Grace" typed
+into its search and Return choose Grace Baker, and the editor comes back
+with her, by name.
 Saved, the event invites her with her name and address; opened again,
 she shows by the name ECal asks EContact for. With --acc ECal is the
 accessory (ECAL.ACC), opened from the Desk menu, as both usually are.
@@ -131,11 +132,10 @@ def main():
         r.wait(2)
         r.type("Planning")
         r.shot("2-new")
-        r.click(ADD_X, ADD_Y)			# Add...
-        r.wait(2)
-        r.type("Grace")
-        r.key(K["RETURN"])
-        r.wait(6)				# EContact's window, choosing
+        r.click(ADD_X, ADD_Y)			# Add...: EContact's window at once
+        r.wait(6)
+        r.type("Grace")				# into its search field
+        r.wait(3)
         r.shot("3-choosing")
         r.key(K["RETURN"])			# Grace chosen
         r.wait(6)

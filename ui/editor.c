@@ -670,9 +670,9 @@ void editor_people_picked(const PERSON *list, int n)
 }
 
 /* Add..., with the dialog closed (EContact's window can't open while
-   it holds the screen): an address typed is added; a name, or nothing,
-   opens EContact's window to pick from, narrowed by the name, and the
-   editor waits for its answer, reading only messages meanwhile */
+   it holds the screen): EContact's window opens at once to pick from,
+   and the editor waits for its answer, reading only messages meanwhile.
+   Without EContact an address is asked for instead */
 static void invite(void)
 {
 	static char text[60];
@@ -680,18 +680,17 @@ static void invite(void)
 	int nkept = 0, i;
 	unsigned long seen = pf_ms();
 	AEVENT e;
-	text[0] = 0;
-	if (!dlg_ask("Invite", "Name or address:", text, 40))
-		return;
-	str_trim(text);
-	if (strchr(text, '@')) {
-		ics_each_address(text, add_person, 0);
-	} else {
-		pick_done = 0;
-		if (!people_pick(text)) {
-			alert(1, "[1][Names come from EContact,|the contacts program: load it,|or type an address here.][ OK ]");
+	pick_done = 0;
+	if (!people_pick("")) {
+		text[0] = 0;
+		if (!dlg_ask("Invite", "Address:", text, 40))
 			return;
-		}
+		str_trim(text);
+		if (strchr(text, '@'))
+			ics_each_address(text, add_person, 0);
+		else if (text[0])
+			alert(1, "[1][Names come from EContact,|the contacts program: load it,|or type an address here.][ OK ]");
+	} else {
 		graf_mouse(ARROW, 0);
 		while (!pick_done && people_picking()) {
 			const char *s;
