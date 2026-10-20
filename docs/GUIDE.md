@@ -80,6 +80,11 @@ without a clock card starts each day at an old date; the Control Panel or
 a clock program at boot sets it). In Settings > Time zones, tell ECal which time
 zone the clock is in.
 
+**STinG's Delay.** With STinG, set the Delay in `STING.CPX` to suit the
+machine: 10 on a Falcon or TT, 25 to 50 on an ST, as STinG's manual says.
+STinG looks at the network card that often, so it sets the speed of every
+STinG program, ECal's refreshes among them.
+
 ## Settings
 
 Options > **Settings...** (^,), or the ≡ menu (the button at the right

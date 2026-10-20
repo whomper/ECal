@@ -85,6 +85,11 @@ needs a Falcon or TT.
 TOS keeps an entry in a small internal pool for every folder a program or accessory has looked
 into, and halts with "OUT OF INTERNAL MEMORY" when it runs out; FOLDRxxx makes the pool bigger.
 
+**With STinG, set the Delay in `STING.CPX` to suit the machine:** 10 on a Falcon or TT, 25 to 50 on
+an ST, as STinG's manual says. STinG looks at the network card that often, so it sets the speed of
+every STinG program: on Erez's Falcon with a NetUSBee, Delay 10 took EFTP's downloads from 40 to
+75 KB/s.
+
 ## How it reaches the servers
 
 Calendar servers want HTTPS. Like [EMail](https://github.com/whomper/EMail), ECal gets there one of two
