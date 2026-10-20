@@ -1559,11 +1559,18 @@ static void work_step(void)
 	last_refresh = pf_ms();
 	http_close_all();
 	{
-		/* what the data needs, for the accessory's heap (guidelines 2.1) */
+		/* what the data needs, for the accessory's heap (guidelines 2.1),
+		   and each account's problem this round */
 		char m[120];
+		int i;
 		snprintf(m, sizeof(m), "memory: %ld KB in use, at most %ld KB since the start, of %ld KB taken",
 			 heap_use / 1024, heap_peak / 1024, boot_taken);
 		conn_log("ECal", "--", m, (long)strlen(m));
+		for (i = 0; i < naccts; i++)
+			if (accts[i].err[0]) {
+				snprintf(m, sizeof(m), "%.30s: %.80s", accts[i].name, accts[i].err);
+				conn_log("ECal", "!!", m, (long)strlen(m));
+			}
 	}
 	conn_log_hold(0);	/* (writes it out) */
 	if (bg_changed & 2)
