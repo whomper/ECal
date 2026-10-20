@@ -373,6 +373,11 @@ static int exchange(const HTTPREQ *rq, const URL *u, const char *auth, HTTPRESP 
 	char hostport[120];
 	unsigned long t0 = pf_ms();
 	long body_start = 0, unpacked = -1;
+	/* the step that asks has worked a while by now (the query, on an ST
+	   30 ms), and the headers and the send take as long again: a turn
+	   for the others between the two, as while the answer comes in */
+	if (conn_tick)
+		conn_tick();
 	c = get_conn(u, gw, &reused, err, errlen);
 	if (!c)
 		return 0;

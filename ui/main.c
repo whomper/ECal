@@ -1422,14 +1422,16 @@ static int work_kind(void)
 }
 
 /* a long answer coming in with the window closed: the machine handed
-   back now and then while it does (the waits for it already do) */
+   back now and then while it does (the waits for it already do), half a
+   slice after the last time, or after the slice began */
+static unsigned long net_back;
+
 static void net_tick(void)
 {
-	static unsigned long last;
 	unsigned long now = pf_ms();
-	if (!is_acc || win_h > 0 || now - last < slice_ms / 2)
+	if (!is_acc || win_h > 0 || now - net_back < slice_ms / 2)
 		return;
-	last = now;
+	net_back = now;
 	evnt_timer_(0);
 }
 
@@ -1923,6 +1925,7 @@ int main(void)
 			unsigned long s0 = pf_ms(), t;
 			int k, n = 0;
 			bg_begin();
+			net_back = s0;
 			do {
 				aes_profile_tag("work");
 				k = work_kind();
