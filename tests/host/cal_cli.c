@@ -448,6 +448,49 @@ int main(int argc, char **argv)
 			return fail("delete");
 		return 0;
 	}
+	if (!strcmp(cmd, "read-ics") && argc == 4) {
+		/* what the New Event dialog gets from an invitation */
+		EVENT *e;
+		char method[16], t[24];
+		int n = cal_read_ics(argv[3], &e, method, sizeof(method));
+		if (n < 0)
+			return fail("read-ics");
+		printf("events %d\nmethod %s\n", n, method[0] ? method : "-");
+		if (e) {
+			printf("uid %s\nsummary %s\n", e->uid ? e->uid : "", e->summary ? e->summary : "");
+			ct_format_ics(e->start, e->allday ? 1 : 2, t, sizeof(t));
+			printf("start %s\n", t);
+			ct_format_ics(e->end, e->allday ? 1 : 2, t, sizeof(t));
+			printf("end %s\n", t);
+			printf("zone %s\nallday %d\nlocation %s\nnotes %s\norganizer %s\nattendees %s\nalarm %d\nrule %s\n",
+			       e->tz ? e->tz->name : "-", e->allday, e->location ? e->location : "",
+			       e->notes ? e->notes : "", e->organizer ? e->organizer : "",
+			       e->attendees ? e->attendees : "", e->alarm, e->rr ? "yes" : "no");
+			ev_free(e);
+		}
+		return 0;
+	}
+	if (!strcmp(cmd, "accept-ics") && argc == 5) {
+		/* the New Event dialog's OK on an invitation, unchanged: a new
+		   event with its UID, or the one it updates */
+		EVENT *e;
+		char method[16];
+		int ci = atoi(argv[3]), oc;
+		EVENT *old;
+		if (cal_read_ics(argv[4], &e, method, sizeof(method)) != 1 || !e)
+			return fail("accept-ics: not one event");
+		if ((old = cal_find_uid(e->uid, &oc)) != 0) {
+			ci = oc;
+			e->res = old->res;
+			e->cal = (short)oc;
+		}
+		if (!ev_save(e, ci, SAVE_ALL, CT_NONE))
+			return fail("accept-ics");
+		printf("%s %s\n", old ? "updated" : "saved", e->uid);
+		ev_free(e);
+		cal_invite_done();
+		return 0;
+	}
 	if (!strcmp(cmd, "import") && argc == 5) {
 		int n;
 		if (!cal_import(atoi(argv[3]), argv[4], &n))

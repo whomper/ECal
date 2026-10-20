@@ -564,6 +564,40 @@ expect "imported" "2 imported" "$out"
 out=$("$CLI" "$D" list $(d 20261026) $(d 20261027))
 expect "shown from the local calendar" "[Atari] Sukkot test day" "$out"
 
+echo "== invitations (.ics): one event for the New Event dialog, several imported"
+printf 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//EN\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nUID:invite-77@example.org\r\nDTSTAMP:20261020T100000Z\r\nDTSTART:%sT070000Z\r\nDTEND:%sT080000Z\r\nSUMMARY:Board meeting\r\nLOCATION:Room 4\r\nDESCRIPTION:Quarterly numbers\r\nORGANIZER;CN=Alice:mailto:alice@example.org\r\nATTENDEE;CN=Bob;PARTSTAT=NEEDS-ACTION:mailto:bob@example.org\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT30M\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n' $(d 20261105) $(d 20261105) > "$W/invite.ics"
+out=$("$CLI" "$D" read-ics "$W/invite.ics")
+expect "one event, an invitation" "events 1" "$out"
+expect "its METHOD" "method REQUEST" "$out"
+expect "its UID" "uid invite-77@example.org" "$out"
+expect "its title" "summary Board meeting" "$out"
+expect "its start" "start $(d 20261105)T070000" "$out"
+expect "in UTC, as sent" "zone UTC" "$out"
+expect "its place" "location Room 4" "$out"
+expect "its notes" "notes Quarterly numbers" "$out"
+expect "its organiser" "organizer Alice <alice@example.org>" "$out"
+expect "its invitees" "attendees Bob <bob@example.org>" "$out"
+expect "its reminder" "alarm 30" "$out"
+out=$("$CLI" "$D" accept-ics "$WORK" "$W/invite.ics") || bad "accept-ics: $out"
+expect "saved as a new event" "saved invite-77@example.org" "$out"
+raw=$("${CURL[@]}" "$BASE/alice/work/invite-77_example_org.ics")
+expect "on the server with the invitation's UID" "UID:invite-77@example.org" "$raw"
+expect "the organiser kept (Alice's invitation, not ours)" "ORGANIZER;CN=Alice:mailto:alice@example.org" "$raw"
+expect "the invitee kept" "mailto:bob@example.org" "$raw"
+absent "no METHOD in the calendar's copy" "METHOD:" "$raw"
+out=$("$CLI" "$D" list $(d 20261105) $(d 20261106))
+expect "shown on its day" "Board meeting" "$out"
+sed -i 's/SUMMARY:Board meeting/SUMMARY:Board meeting (moved)/; s/T070000Z/T090000Z/; s/T080000Z/T100000Z/' "$W/invite.ics"
+out=$("$CLI" "$D" accept-ics "$WORK" "$W/invite.ics") || bad "accept-ics again: $out"
+expect "the update matched by UID" "updated invite-77@example.org" "$out"
+out=$("$CLI" "$D" list $(d 20261105) $(d 20261106))
+expect "the update in its place" "Board meeting (moved)" "$out"
+[ "$(grep -c "Board meeting" <<<"$out")" = 1 ] && ok "one event, not two" || bad "the update made a second event: $out"
+cp "$W/feed/holidays.ics" "$W/two.ics"
+out=$("$CLI" "$D" read-ics "$W/two.ics")
+expect "several events: counted, none for the dialog" "events 2" "$out"
+absent "several events: no single one" "uid " "$out"
+
 if [ -n "${FALCON:-}" ]; then
   expect "the log shows TLS" "secure: TLS 1.2" "$(cat "$CAL_LOG")"
   # Radicale closes after every answer: the next connection resumes

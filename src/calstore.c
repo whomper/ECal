@@ -2822,6 +2822,51 @@ static int same_rule(const RRULE *a, const RRULE *b)
 	       !memcmp(a->bymd, b->bymd, sizeof(a->bymd));
 }
 
+/* an invitation read by cal_read_ics: its text, without METHOD:, for the
+   new event made from it to keep what ECal doesn't edit (ORGANIZER, the
+   ATTENDEEs and their answers), so it stays the organiser's */
+static char *inv_text, *inv_uid;
+static long inv_len;
+
+void cal_invite_done(void)
+{
+	free(inv_text);
+	free(inv_uid);
+	inv_text = inv_uid = 0;
+	inv_len = 0;
+}
+
+static void invite_keep(const char *path, const char *uid)
+{
+	long size = pf_size(path), n, i, o;
+	char *t;
+	cal_invite_done();
+	if (size <= 0 || size > 65536L || !uid || !(t = malloc(size + 1)))
+		return;
+	n = pf_read_at(path, 0, t, size);
+	if (n != size) {
+		free(t);
+		return;
+	}
+	/* METHOD: is for the message, not a calendar's copy (RFC 4791) */
+	for (i = o = 0; i < n;) {
+		long e = i;
+		while (e < n && t[e] != '\n')
+			e++;
+		if (e < n)
+			e++;
+		if (strncasecmp(t + i, "METHOD:", 7)) {
+			memmove(t + o, t + i, e - i);
+			o += e - i;
+		}
+		i = e;
+	}
+	t[o] = 0;
+	inv_text = t;
+	inv_len = o;
+	inv_uid = strdup(uid);
+}
+
 /* a new event (or a whole new series) into calendar ci */
 static int save_new(EVENT *e, int ci)
 {
@@ -2839,7 +2884,10 @@ static int save_new(EVENT *e, int ci)
 	new_href(e->uid, href, sizeof(href));
 	ics_now_utc = now_utc();
 	set_me(c);		/* the organizer of its invitations */
-	text = ics_build(e, 0, 0, &len);
+	if (inv_text && inv_uid && !strcmp(e->uid, inv_uid))
+		text = ics_build(e, inv_text, inv_len, &len);	/* an invitation's: its organiser's */
+	else
+		text = ics_build(e, 0, 0, &len);
 	if (!text) {
 		str_copy(cal_err, "out of memory", sizeof(cal_err));
 		return 0;
@@ -3066,6 +3114,73 @@ static int collect(EVENT *e, void *ud)
 	return 1;
 }
 
+/* an .ics file read at once (EMail writes the next over it): its events,
+   and its METHOD (an invitation's REQUEST, CANCEL...) from the head of
+   the file. The one event when it holds just one, for the New Event
+   dialog (*one, freed by the caller); the count, or -1 if unreadable */
+int cal_read_ics(const char *path, EVENT **one, char *method, int msize)
+{
+	GROUP g;
+	char head[2048];
+	long n;
+	int i, count;
+	*one = 0;
+	if (method && msize > 0)
+		method[0] = 0;
+	memset(&g, 0, sizeof(g));
+	ics_people = 1;		/* the organiser and the invitees too */
+	i = ics_parse_file(path, collect, &g, CT_NONE, CT_NONE);
+	ics_people = 0;
+	if (i < 0) {
+		str_copy(cal_err, "can't read the file", sizeof(cal_err));
+		return -1;
+	}
+	n = pf_read_at(path, 0, head, sizeof(head) - 1);
+	if (method && n > 0) {
+		char *m;
+		head[n] = 0;
+		for (m = head; (m = strstr(m, "METHOD:")) != 0; m += 7)
+			if (m == head || m[-1] == '\n') {
+				int k = 0;
+				for (m += 7; *m && *m != '\r' && *m != '\n' && k < msize - 1; m++)
+					method[k++] = (char)toupper((unsigned char)*m);
+				method[k] = 0;
+				break;
+			}
+	}
+	count = g.n;
+	cal_invite_done();
+	if (g.n == 1) {
+		*one = g.ev[0];
+		g.ev[0] = 0;
+		(*one)->res = -1;
+		invite_keep(path, (*one)->uid);
+	}
+	for (i = 0; i < g.n; i++)
+		ev_free(g.ev[i]);
+	free(g.ev);
+	return count;
+}
+
+/* the event (the series' master) with this UID, in any calendar: an
+   invitation updated, or one cancelled; *ci its calendar */
+EVENT *cal_find_uid(const char *uid, int *ci)
+{
+	int c, i;
+	if (!uid || !*uid)
+		return 0;
+	for (c = 0; c < ncals; c++)
+		for (i = 0; i < cals[c].nev; i++) {
+			EVENT *e = cals[c].ev[i];
+			if (e->recurid == CT_NONE && e->uid && !strcmp(e->uid, uid)) {
+				if (ci)
+					*ci = c;
+				return e;
+			}
+		}
+	return 0;
+}
+
 int cal_import(int ci, const char *path, int *count)
 {
 	GROUP g;
@@ -3076,7 +3191,10 @@ int cal_import(int ci, const char *path, int *count)
 		return 0;
 	}
 	memset(&g, 0, sizeof(g));
-	if (ics_parse_file(path, collect, &g, CT_NONE, CT_NONE) < 0) {
+	ics_people = 1;		/* kept as the file has them (ics_build writes them) */
+	i = ics_parse_file(path, collect, &g, CT_NONE, CT_NONE);
+	ics_people = 0;
+	if (i < 0) {
 		str_copy(cal_err, "can't read the file", sizeof(cal_err));
 		return 0;
 	}

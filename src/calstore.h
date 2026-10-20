@@ -235,5 +235,8 @@ int  ev_delete(EVENT *e, int how, CTIME occ);
 
 /* import an .ics file into a calendar */
 int  cal_import(int cal, const char *path, int *count);
+int  cal_read_ics(const char *path, EVENT **one, char *method, int msize);	/* events in it; the one, if one */
+void cal_invite_done(void);	/* the invitation cal_read_ics kept, let go */
+EVENT *cal_find_uid(const char *uid, int *cal);	/* the master with this UID, in any calendar */
 
 #endif

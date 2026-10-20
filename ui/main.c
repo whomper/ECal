@@ -485,20 +485,97 @@ void cmd_delete_selected(void)
 
 static void import_file(int cal, const char *path);
 
-void cmd_import(int cal)
+/* an .ics file picked in the file selector; 0 for none */
+static int pick_ics(char *path, int size)
 {
-	char path[200], name[20] = "", dir[200];
+	char name[20] = "", dir[200];
 	short button = 0;
 	snprintf(dir, sizeof(dir), "%s\\*.ICS", workdir);
 	if (!fsel_exinput(dir, name, &button, "Import which .ics file?") || !button || !name[0])
-		return;
+		return 0;
 	{
 		char *slash = strrchr(dir, '\\');
 		if (slash)
 			slash[1] = 0;
-		snprintf(path, sizeof(path), "%s%s", dir, name);
+		snprintf(path, size, "%s%s", dir, name);
 	}
-	import_file(cal, path);
+	return 1;
+}
+
+/* the sidebar's Import: every event in the file, into that calendar */
+void cmd_import(int cal)
+{
+	char path[200];
+	if (pick_ics(path, sizeof(path)))
+		import_file(cal, path);
+}
+
+static int cal_for_import(void);
+
+/* an .ics file, from the File menu or another program (VA_START: EMail's
+   invitations, the desktop): read at once, as EMail writes the next one
+   over it. One event (an invitation) opens the New Event dialog with its
+   details, or the event it updates (the same UID); several are imported
+   after asking; a cancellation offers to delete the event it cancels */
+static void open_ics(const char *path)
+{
+	EVENT *e, *old;
+	char method[16];
+	int n, ci;
+	busy(1);
+	n = cal_read_ics(path, &e, method, sizeof(method));
+	busy(0);
+	if (n < 0) {
+		alert(1, "[1][Couldn't read %s:|%s][ OK ]", path, cal_err);
+		return;
+	}
+	old = e ? cal_find_uid(e->uid, &ci) : 0;
+	if (!strcmp(method, "CANCEL")) {
+		if (old && cal_writable(&cals[ci])) {
+			if (alert(2, "[2][A cancellation: \"%.30s\"|was cancelled. Delete it|from %.30s?][Delete|Keep]",
+				  old->summary ? old->summary : "", cals[ci].name) == 1) {
+				busy(1);
+				if (!ev_delete(old, SAVE_ALL, CT_NONE))
+					alert(1, "[1][Couldn't delete it:|%s][ OK ]", cal_err);
+				busy(0);
+				after_change();
+			}
+		} else {
+			alert(1, "[1][A cancellation: \"%.30s\"|was cancelled (it isn't|in your calendars).][ OK ]",
+			      e && e->summary ? e->summary : "an event");
+		}
+		ev_free(e);
+		cal_invite_done();
+		return;
+	}
+	if (n == 1 && e) {
+		if (old) {
+			/* the same invitation again, updated: its details over the
+			   event's own, saved in its place */
+			if (alert(1, "[1][This invitation updates|\"%.30s\" in %.30s.][ Open | Cancel ]",
+				  old->summary ? old->summary : "", cals[ci].name) != 1) {
+				ev_free(e);
+				cal_invite_done();
+				return;
+			}
+			e->cal = (short)ci;
+			e->res = old->res;
+		}
+		editor_new_from(e);
+		cal_invite_done();
+		return;
+	}
+	ev_free(e);
+	cal_invite_done();
+	if (n == 0) {
+		alert(1, "[1][There are no events in|%s.][ OK ]", path);
+		return;
+	}
+	if (alert(2, "[2][%d events: import them all|into a calendar?][Import|Cancel]", n) == 1) {
+		int cal = cal_for_import();
+		if (cal >= 0)
+			import_file(cal, path);
+	}
 }
 
 /* the events in an .ics file into the calendar */
@@ -527,7 +604,7 @@ static void open_contacts(void)
 /* the commands of the menu bar (the program) and the toolbar's menu */
 enum { C_NONE, C_ABOUT, C_NEW, C_ADD, C_REFRESH, C_REFRESH_ALL, C_AGAIN, C_QUIT, C_COPY, C_DAY, C_WEEK,
        C_MONTH, C_YEAR, C_TODAY, C_GOTO, C_FIND, C_SIDE, C_HEB, C_SET, C_FONT, C_OFFL, C_FALC,
-       C_LOG, C_KBD, C_HELP, C_KEYS, C_CONTACTS };
+       C_LOG, C_KBD, C_HELP, C_KEYS, C_CONTACTS, C_IMPORT };
 
 static const MBAR_ITEM m_desk[] = {
 	{ "About ECal...", 0, C_ABOUT },
@@ -536,6 +613,7 @@ static const MBAR_ITEM m_desk[] = {
 static const MBAR_ITEM m_file[] = {
 	{ "New event", "^N", C_NEW },
 	{ "Add account or calendar...", 0, C_ADD },
+	{ "Import .ics...", 0, C_IMPORT },
 	{ "Contacts...", 0, C_CONTACTS },
 	{ "-", 0, 0 },
 	{ "Refresh", "^R", C_REFRESH },
@@ -666,6 +744,12 @@ static void command(int c)
 	case C_HELP: help_open(); break;
 	case C_KEYS: dlg_keys(); break;
 	case C_CONTACTS: open_contacts(); break;
+	case C_IMPORT: {
+		char path[200];
+		if (pick_ics(path, sizeof(path)))
+			open_ics(path);
+		break;
+	}
 	case C_QUIT:
 		quit_now = 1;
 		win_close();
@@ -683,6 +767,7 @@ void cmd_menu(short x, short y)
 		short cmd;
 	} m[] = {
 		{ "  Add account or calendar...", C_ADD },
+		{ "  Import .ics...", C_IMPORT },
 		{ "  New event            N", C_NEW },
 		{ "-", 0 },
 		{ "  Go to date...       ^G", C_GOTO },
@@ -1190,8 +1275,8 @@ static int cal_for_import(void)
 }
 
 /* VA_START (common/ui/av.c), from the desktop or another program:
-   nothing opens the window; .ics files are imported, a webcal: address
-   subscribed to */
+   nothing opens the window; .ics files are opened (open_ics: an
+   invitation in the New Event dialog), a webcal: address subscribed to */
 static void av_start(const char *s)
 {
 	char path[200];
@@ -1205,15 +1290,11 @@ static void av_start(const char *s)
 	}
 	while ((p = av_arg(p, path, sizeof(path))) != 0) {
 		long l = (long)strlen(path);
-		int cal;
 		if (l < 4 || strcasecmp(path + l - 4, ".ICS")) {
 			alert(1, "[1][ECal takes calendars (.ics|files, webcal: addresses):|%s isn't one.][ OK ]", path);
 			continue;
 		}
-		cal = cal_for_import();
-		if (cal < 0)
-			return;
-		import_file(cal, path);
+		open_ics(path);
 	}
 }
 

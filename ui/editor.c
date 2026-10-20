@@ -1325,28 +1325,50 @@ void editor_new_titled(long day, const char *text)
 	new_title = 0;
 }
 
+/* a new event's calendar: the last one used, else the first that takes
+   events; -1, said so, when none does */
+static short new_cal(void)
+{
+	short c = -1;
+	int i;
+	if (last_cal >= 0 && last_cal < ncals && cal_writable(&cals[last_cal]) && cals[last_cal].visible)
+		c = last_cal;
+	for (i = 0; i < ncals && c < 0; i++)
+		if (cal_writable(&cals[i]) && cals[i].visible)
+			c = (short)i;
+	for (i = 0; i < ncals && c < 0; i++)
+		if (cal_writable(&cals[i]))
+			c = (short)i;
+	if (c < 0)
+		alert(1, "[1][There is no calendar you can add events to yet.|Add an iCloud or other account, or an On My Atari calendar, from the \xF0 menu.][ OK ]");
+	return c;
+}
+
+/* an event read from an .ics file (an invitation): the New Event dialog
+   with its details; OK saves it as a new event, with its UID. e is ours.
+   With res set (the same invitation, updated), the event it updates */
+void editor_new_from(EVENT *e)
+{
+	int is_new = e->res < 0;
+	if (is_new && (e->cal = new_cal()) < 0) {
+		ev_free(e);
+		return;
+	}
+	if (run_editor(e, ev_wall(e, e->start, view_zone()), CT_NONE, is_new))
+		after_change();
+	ev_free(e);
+}
+
 void editor_new(long day, short minute, short allday)
 {
 	EVENT *e = ev_new();
 	CTIME start;
-	int i;
 	if (!e)
 		return;
-	/* which calendar: the last one used, else the first that takes events */
-	e->cal = -1;
-	if (last_cal >= 0 && last_cal < ncals && cal_writable(&cals[last_cal]) && cals[last_cal].visible)
-		e->cal = last_cal;
-	for (i = 0; i < ncals && e->cal < 0; i++)
-		if (cal_writable(&cals[i]) && cals[i].visible)
-			e->cal = (short)i;
-	for (i = 0; i < ncals && e->cal < 0; i++)
-		if (cal_writable(&cals[i]))
-			e->cal = (short)i;
 	if (new_title && *new_title)
 		ev_set(&e->summary, new_title);
-	if (e->cal < 0) {
+	if ((e->cal = new_cal()) < 0) {
 		ev_free(e);
-		alert(1, "[1][There is no calendar you can add events to yet.|Add an iCloud or other account, or an On My Atari calendar, from the \xF0 menu.][ OK ]");
 		return;
 	}
 	if (minute < 0) {

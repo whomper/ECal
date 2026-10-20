@@ -183,6 +183,7 @@ int   dlg_ask(const char *title, const char *label, char *buf, short len);
 int  editor_open(EVENT *e, CTIME occ_start, CTIME orig);	/* 1 if changed; orig: OCC.orig */
 void editor_new(long day, short hour_min, short allday);
 void editor_new_titled(long day, const char *text);	/* text dropped: a new event */
+void editor_new_from(EVENT *e);	/* an .ics file's event (an invitation), in the dialog; e is freed */
 /* an occurrence dragged to new_start (the view's wall time): 1 if saved */
 int  editor_move(EVENT *e, CTIME occ_start, CTIME orig, CTIME new_start);
 void dlg_subscribe(const char *url);
