@@ -206,8 +206,8 @@ class Rig:
     def ecal_row(self, rows=(59, 75, 91, 107)):
         """the open Desk menu's row with ECal's accessory: of the
         accessories listed, the shortest entry ("ECal"; EContact's, which
-        AERA_WITH_ACCS loads beside it, is longer). The first row when
-        only one is there or it can't tell"""
+        AERA_WITH_ACCS loads beside it, is longer); the first row's
+        middle when it can't tell"""
         from PIL import Image
         shot = self.shot("desk-menu-pick")
         im = Image.open(shot).convert("L")
@@ -220,9 +220,11 @@ class Rig:
             ink = [x for x in range(24, min(w, 150)) for dy in range(-3, 4)
                    if 0 <= y + dy < h and px[x, y + dy] < 128]
             return max(ink) - min(ink) + 1 if ink else 0
-        found = [(width(y), y) for y in rows]
+        # the drop-down's bottom line: rows below it are the desktop's
+        bottom = next((y for y in range(40, h) if sum(1 for x in range(16, 170) if px[x, y] < 128) > 140), h)
+        found = [(width(y), y) for y in rows if y + 4 < bottom]
         found = [(n, y) for n, y in found if 0 < n < 100]
-        return min(found)[1] if len(found) > 1 else rows[0] + 5
+        return min(found)[1] if found else rows[0] + 5     # (TOS 4's box ends at 67: its own row, not 64)
 
     def drag(self, x1, y1, x2, y2, secs=0.6):
         """press at (x1, y1), move to (x2, y2), release"""
