@@ -321,6 +321,28 @@ static void case_grow(void)
 	free(v);
 }
 
+short _is_acc;
+
+/* an accessory's malloc before its heap_add: 16 KB steps, not 512 KB */
+static void case_accearly(void)
+{
+	static char arena[100000 + 16];
+	void *p, *q;
+	pool_new(4L << 20);
+	_is_acc = 1;
+	p = heap_malloc(8000);
+	check(p != 0 && ngrants == 1 && grants[0] == 16384, "accearly: 8000 bytes take one 16 KB block");
+	check(heap_early == 16384 && heap_tt + heap_st == 16384, "accearly: counted in heap_early and the heap's total");
+	q = heap_malloc(20000);
+	check(q != 0 && ngrants == 2 && grants[1] == 32768, "accearly: 20000 more take 32 KB, not 512");
+	heap_add(arena + 2, 100000);
+	q = heap_malloc(50000);
+	check(q != 0 && ngrants == 2, "accearly: after heap_add, from the heap, no more GEMDOS");
+	check(heap_early == 49152, "accearly: heap_early stays as it was");
+	check(heap_check(0) >= 0, "accearly: checks out");
+	_is_acc = 0;
+}
+
 static void case_limited(void)
 {
 	int n = 0, i;
@@ -562,6 +584,8 @@ int main(int argc, char **argv)
 		case_fixed();
 	else if (!strcmp(c, "grow"))
 		case_grow();
+	else if (!strcmp(c, "accearly"))
+		case_accearly();
 	else if (!strcmp(c, "limited"))
 		case_limited();
 	else if (!strcmp(c, "tos1"))
