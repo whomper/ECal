@@ -389,6 +389,8 @@ void store_settings_text(SBUF *bp, int part)
 	char enc[200];
 	if (part == 1)
 		goto accounts;
+	if (part == 2)
+		goto options2;
 	sb_reserve(&b, 8192);
 	sb_adds(&b, "; ECal settings, written by ECAL.ACC / ECAL.PRG. Lines starting with ; are notes.\r\n"
 		    "; Most of these are set in the menu > Settings; see the guide (the Help key).\r\n"
@@ -413,6 +415,9 @@ void store_settings_text(SBUF *bp, int part)
 	sb_printf(&b, "; the gateway's port\r\nGATEPORT=%u\r\n\r\n", opt.gateport);
 	I("OFFLINE", offline, "work offline: no connections at all (the menu > Work offline)")
 	I("LOG", log, "write the conversation with the servers to ECAL.LOG (passwords left out)")
+	if (part == 0)
+		return;
+options2:
 	I("PAST_DAYS", past_days, "days back kept on this Atari; 0: from today, past events aren't copied")
 	I("FUTURE_DAYS", future_days, "days ahead kept on this Atari")
 	I("REFRESH", refresh, "minutes between refreshes of all calendars; 0: only by hand")
@@ -438,7 +443,7 @@ void store_settings_text(SBUF *bp, int part)
 	I("WIN_H", win_h, "the window's height, in pixels")
 #undef S
 #undef I
-	if (part == 0)
+	if (part == 2)
 		return;
 accounts:
 	for (i = 0; i < naccts; i++) {

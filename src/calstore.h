@@ -113,7 +113,7 @@ void store_init_text(char *text);	/* after store_init_begin: ECAL.INF already re
 extern unsigned long store_gen;	/* goes up with each of our writes to ECAL.INF or a cache */
 void store_save_settings(void);
 void store_write_settings(void);	/* the same without noting the files' stamps (store_mark_step) */
-void store_settings_text(SBUF *b, int part);	/* or in steps: its text in b (sb_init'ed; part 0, 1), */
+void store_settings_text(SBUF *b, int part);	/* or in steps: its text in b (sb_init'ed; parts 0, 2, 1), */
 void store_write_text(SBUF *b);		/* then the file written (b freed) */
 /* the accessory and ECAL.PRG (the AERA guidelines, 2.3): with store_watch
    set, our own writes are noted (store_mark), and store_changed() says

@@ -1479,15 +1479,19 @@ static void work_step(void)
 		return;
 	}
 	if (inf_stage) {
-		aes_profile_tag(inf_stage <= 2 ? "work: ECAL.INF (text)" : inf_stage == 3 ? "work: ECAL.INF (write)" :
-				"work: ECAL.INF (stamps)");
+		aes_profile_tag(inf_stage <= 3 ? "work: ECAL.INF (text)" : "work: ECAL.INF (write)");
 		if (inf_stage == 1) {
+			/* the options in two halves (an ST: 50 ms each), then the
+			   accounts and calendars */
 			sb_init(&inf_text);
 			store_settings_text(&inf_text, 0);
 			inf_stage = 2;
 		} else if (inf_stage == 2) {
-			store_settings_text(&inf_text, 1);
+			store_settings_text(&inf_text, 2);
 			inf_stage = 3;
+		} else if (inf_stage == 3) {
+			store_settings_text(&inf_text, 1);
+			inf_stage = 4;
 		} else {
 			store_write_text(&inf_text);	/* (the files' look takes it as ours later) */
 			inf_stage = 0;
