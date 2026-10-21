@@ -306,7 +306,7 @@ def main():
             os.makedirs(os.path.join(hd, "ECONTACT"))
             with open(os.path.join(hd, "ECONTACT", "CONTACTS.TXT"), "w", newline="") as f:
                 f.write("; EContact's contacts\r\n" +
-                        "".join("person%d@example.org\tPerson %d\r\n" % (k, k) for k in range(200)))
+                        "".join("P\tPerson %d\tperson%d@example.org\twork\r\n" % (k, k) for k in range(200)))
         with open(os.path.join(hd, "ECAL.INF"), "w", newline="") as f:
             f.write("\r\n".join(lines))
         if falcon:
