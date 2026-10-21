@@ -120,12 +120,25 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
   before today is copied, and repeating events show from today on. Fewer use
   less memory and sync faster.
 - **Connection**: how ECal reaches the servers:
-  - **Pi gateway**: the Pi's address and port (8180). Set the Pi up
-    from AERA-Gateway's own repository (`git clone
-    https://github.com/whomper/AERA-Gateway`, then `./update-pi.sh` and
-    `sudo gateway/aera-gateway install dav` in it; `./update-pi.sh`
-    again updates it); see [gateway/README.md](../gateway/README.md).
-    Any Atari can use it, and a Falcon can too, to save time.
+  - **Pi gateway**: the Pi's address (`PI_IP`) and port 8180. Any Atari
+    can use it, and a Falcon can too, to save time. Set the Pi up from
+    AERA-Gateway's own repository, typing on the Pi:
+
+    ```
+    sudo apt install -y git                  (Raspberry Pi OS Lite only)
+    git clone https://github.com/whomper/AERA-Gateway
+    cd AERA-Gateway
+    ./update-pi.sh
+    sudo gateway/aera-gateway install dav --allow ATARI_IP
+    ```
+
+    `ATARI_IP` is the Atari's address: only it may use the gateway.
+    - To update it: `cd ~/AERA-Gateway && ./update-pi.sh`.
+    - To check it: `gateway/aera-gateway status` in that folder, or
+      http://PI_IP:8180/ in a browser.
+
+    Then type `PI_IP` and port 8180 here. See
+    [gateway/README.md](../gateway/README.md).
   - **Falcon mode**: ECal makes the secure connections itself. Needs a
     68030 (Falcon or TT), `ECAL.ACC`, and `CACERT.PEM` and `ROOTS.DAT` in
     ECal's folder. **Check certificates on the DSP** lets the Falcon's

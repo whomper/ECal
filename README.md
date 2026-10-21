@@ -51,18 +51,21 @@ file on its own, or all of them in `ECAL-x.y.zip`.
    [gateway/README.md](gateway/README.md)):
 
    ```
+   sudo apt install -y git                  (Raspberry Pi OS Lite only)
    git clone https://github.com/whomper/AERA-Gateway
    cd AERA-Gateway
    ./update-pi.sh
-   sudo gateway/aera-gateway install dav
+   sudo gateway/aera-gateway install dav --allow ATARI_IP
    ```
 
-   The last command prints the address to type into ECal. Later, `./update-pi.sh` in that folder
-   updates the gateway to AERA-Gateway's latest release.
+   `ATARI_IP` is the Atari's address (e.g. 192.168.1.x): only it may use the gateway. The last command
+   prints the address to type into ECal.
+   - To update it to AERA-Gateway's latest release: `cd ~/AERA-Gateway && ./update-pi.sh`.
+   - To check it: `gateway/aera-gateway status` in that folder, or http://PI_IP:8180/ in a browser.
 4. Reboot and choose **ECal** in the Desk menu. Open **Settings...** (^, or the ≡ menu at the right of
    the toolbar):
-   - **Connection**: type the Pi's IP address (e.g. 192.168.1.x, not its name) and port 8180 into
-     **Pi gateway**; or, on a Falcon or TT, tick **Falcon mode**.
+   - **Connection**: type the Pi's IP address (`PI_IP`, e.g. 192.168.1.x, not its name) and port 8180
+     into **Pi gateway**; or, on a Falcon or TT, tick **Falcon mode**.
    - **Time zones**: set the zone the Atari's clock is in.
 5. Add your iCloud account with **Add account or calendar...** (the ≡ menu, or **File** in
    `ECAL.PRG`) and an [app-specific password](https://support.apple.com/en-us/102654); your Apple ID's

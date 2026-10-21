@@ -138,7 +138,7 @@ def convert(md, version):
     out += ["", "@endnode", ""]
     for t, body in sections:
         out += ['@node "%s"' % t, "@{U}%s@{u}" % t, ""]
-        para, tbl, code = [], [], False
+        para, tbl, code, code_ind = [], [], False, 0
 
         def flush_para():
             if para:
@@ -151,19 +151,22 @@ def convert(md, version):
                     bullet = "-" if m.group(2) in "-*" else m.group(2)
                     out.extend(finish(x) for x in wrap(inline(text, nodes), ind[:-2] + bullet + " ", ind + " " * (len(bullet) - 1)))
                 else:
-                    out.extend(finish(x) for x in wrap(inline(text, nodes)))
+                    # a paragraph inside a list item keeps the item's indent
+                    ind = " " * (len(lead) - len(lead.lstrip()))
+                    out.extend(finish(x) for x in wrap(inline(text, nodes), ind, ind))
                 out.append("")
                 para.clear()
 
         for ln in body:
-            if ln.startswith("```"):
+            if ln.lstrip().startswith("```"):
                 flush_para()
                 code = not code
+                code_ind = len(ln) - len(ln.lstrip())   # inside a list item: indented as it is
                 if not code:
                     out.append("")
                 continue
             if code:
-                out.append("  " + ln.replace("@", "@@"))
+                out.append(" " * (code_ind + 2) + ln[code_ind:].replace("@", "@@"))
                 continue
             if ln.startswith("|"):
                 flush_para()
