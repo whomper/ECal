@@ -47,8 +47,8 @@ def check(what, ok):
         fails.append(what)
 
 
-def contacts_file(hd, suffix="", cards=0):
-    folder = os.path.join(hd, "ECONTACT")
+def contacts_file(hd, suffix="", cards=0, folder="ECONTACT"):
+    folder = os.path.join(hd, folder)
     os.makedirs(folder, exist_ok=True)
     with open(os.path.join(folder, "CONTACTS.TXT"), "w", newline="") as f:
         f.write("; EContact's contacts, for EMail and ECal when EContact isn't loaded\r\n")
@@ -97,7 +97,10 @@ def main():
         t = re.sub(rb"\r\n(HEAPKB|MEMKB)=[^\r\n]*", b"", t)
         t = re.sub(rb"\r\nLOG=[^\r\n]*", b"", t)
         t = t.replace(b"[OPTIONS]\r\n", b"[OPTIONS]\r\nHEAPKB=%d\r\nLOG=1\r\n" % a.heapkb, 1)
-    t = t.replace(b"[OPTIONS]\r\n", b"[OPTIONS]\r\nPEOPLEFILE=1\r\nPEOPLEDIR=C:\\ECONTACT\r\n", 1)
+    # with EContact loaded (1.58 writes its own CONTACTS.TXT in C:\ECONTACT), a
+    # folder of the rig's: its access time tells whether ECal read the file
+    dirname = "ECFILE" if a.econtact else "ECONTACT"
+    t = t.replace(b"[OPTIONS]\r\n", b"[OPTIONS]\r\nPEOPLEFILE=1\r\nPEOPLEDIR=C:\\" + dirname.encode() + b"\r\n", 1)
     if a.acc:       # in the root, where the accessory reads HEAPKB= at boot, naming its folder
         os.remove(inf)
         inf = os.path.join(hd, "ECAL.INF")
@@ -108,11 +111,11 @@ def main():
         ec, tag = fetch_econtact(work, None)
         print("EContact", tag)
         econtact(hd, ec)
-        contacts_file(hd, " FILE")      # names EContact doesn't have: never to be seen
+        contacts_file(hd, " FILE", folder=dirname)  # names EContact doesn't have: never to be seen
     else:
         contacts_file(hd, cards=a.cards)
-    print("CONTACTS.TXT: %d KB" % ((os.path.getsize(os.path.join(hd, "ECONTACT", "CONTACTS.TXT")) + 1023) // 1024))
-    cfile = os.path.join(hd, "ECONTACT", "CONTACTS.TXT")
+    cfile = os.path.join(hd, dirname, "CONTACTS.TXT")
+    print("CONTACTS.TXT: %d KB" % ((os.path.getsize(cfile) + 1023) // 1024))
     os.utime(cfile, (1, os.stat(cfile).st_mtime))   # its access time: read or not
     r = Rig(work, a.machine, auto=None if a.acc else "C:\\ECAL.PRG")
     try:
