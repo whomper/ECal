@@ -4,12 +4,15 @@
 """EContact's contacts file when EContact isn't loaded (the guidelines,
 4.1: Settings > Contacts, PEOPLEFILE=1 and PEOPLEDIR=C:\\ECONTACT), in
 Hatari on a Falcon. C:\\ECONTACT\\CONTACTS.TXT is written here as
-EContact writes it (a ';' note line, then "address<TAB>name", CRLF).
+EContact (1.40's format) writes it: "; " notes, "P<TAB>name<TAB>email<TAB>label"
+a line per address and "G<TAB>group<TAB>Name <email>, ..." a line per
+group, CRLF.
 
 Without EContact: a new event's Add... opens the people dialog on the
 file; "Grace" typed into its Find line and Return take Grace Baker, and
-the event is saved inviting her by name. An event that invites Alice by
-address alone shows her name from the file.
+the event is saved inviting her by name; then "Team" taken adds the
+group's two. An event that invites Alice by address alone shows her
+name from the file.
 
 With --econtact (its latest release loaded, the file's names made
 different): the names are EContact's, and the file is never read.
@@ -44,9 +47,12 @@ def contacts_file(hd, suffix=""):
     os.makedirs(folder, exist_ok=True)
     with open(os.path.join(folder, "CONTACTS.TXT"), "w", newline="") as f:
         f.write("; EContact's contacts, for EMail and ECal when EContact isn't loaded\r\n")
-        f.write("alice@example.org\tAlice Archer%s\r\n" % suffix)
-        f.write("grace.baker@example.net\tGrace Baker%s\r\n" % suffix)
-        f.write("zed@example.com\tZed Zulu%s\r\n" % suffix)
+        f.write("P\tAlice Archer%s\talice@example.org\thome\r\n" % suffix)
+        f.write("P\tAvi Levi%s\tavi@example.org\twork\r\n" % suffix)
+        f.write("P\tGrace Baker%s\tgrace.baker@example.net\twork\r\n" % suffix)
+        f.write("P\tZed Zulu%s\tzed@example.com\t\r\n" % suffix)
+        f.write("G\tTeam\tGrace Baker%s <grace.baker@example.net>, Avi Levi%s <avi@example.org>\r\n"
+                % (suffix, suffix))
 
 
 def main():
@@ -111,6 +117,15 @@ def main():
         r.key(K["RETURN"])              # Grace taken
         r.wait(6)
         r.shot("4-back")
+        if not a.econtact:
+            r.click(ADD_X, ADD_Y)       # Add... again: the group
+            r.wait(6)
+            r.type("Team")
+            r.wait(3)
+            r.shot("4b-group")
+            r.key(K["RETURN"])
+            r.wait(6)
+            r.shot("4c-back")
         r.key(K["RETURN"])              # OK: saved
         r.wait(5)
         # the event inviting Alice by address: her name
@@ -152,6 +167,10 @@ def main():
     check("with her name from %s" % ("EContact" if a.econtact else "the file"),
           any("CN=Grace Baker" in ln or 'CN="Grace Baker"' in ln for ln in att))
     check("no name from the file", not any("FILE" in ln for ln in att))
+    if not a.econtact:
+        check("the group Team added its two: Avi too, once Grace",
+              any("mailto:avi@example.org" in ln for ln in att)
+              and sum("mailto:grace.baker@example.net" in ln for ln in att) == 1)
     w = text_width(os.path.join(shots, "5-budget.png"), PEOPLE_BOX)
     if a.econtact:
         # EContact's sample hasn't Alice: her address (136 px), not the file's name
