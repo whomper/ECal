@@ -695,18 +695,18 @@ static void invite(void)
 	for (i = 0; i < nfile_kept; i++)	/* the people dialog on EContact's file had them */
 		appl_write(ap_id, 16, file_kept[i]);
 	nfile_kept = 0;
-	if (!opened && opt.peoplefile && opt.peopledir[0] && appl_find("ECONTACT") < 0 && appl_find("ECONTST ") < 0) {
+	if (opened < 0) {
 		/* EContact's file chosen and there, but its list didn't fit
 		   in the memory left (the dialog holds it whole while open) */
 		char path[200];
-		long size = -1;
+		long size = 0;
 		snprintf(path, sizeof(path), "%s\\CONTACTS.TXT", opt.peopledir);
-		if (pf_info(path, &size) && size > 0)
-			alert(1, is_acc ? "[1][EContact's contacts file|(%ld KB) doesn't fit in|ECal's memory now.|HEAPKB= in ECAL.INF gives|the accessory more.][ OK ]"
+		pf_info(path, &size);
+		alert(1, is_acc ? "[1][EContact's contacts file|(%ld KB) doesn't fit in|ECal's memory now.|HEAPKB= in ECAL.INF gives|the accessory more.][ OK ]"
 					: "[1][EContact's contacts file|(%ld KB) doesn't fit in|ECal's memory now.][ OK ]",
 			      (size + 1023) / 1024);
 	}
-	if (!opened) {
+	if (opened <= 0) {
 		text[0] = 0;
 		if (!dlg_ask("Invite", "Address:", text, 40))
 			return;
