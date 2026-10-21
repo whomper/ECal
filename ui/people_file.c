@@ -511,15 +511,16 @@ static short members(const char *s, PERSON *out)
 	return n;
 }
 
-/* the file, its P and G lines cut in place; 0 when there is none */
+/* the file, its P and G lines cut in place; 0 when there is none, -1
+   when it is there and doesn't fit in memory */
 static int load(void)
 {
-	long len;
+	long len, size;
 	char *p, *name, *email;
 	short n = 0, i = 0;
 	text = pf_load(path, &len);
 	if (!text)
-		return 0;
+		return pf_info(path, &size) || size >= 0 ? -1 : 0;
 	for (p = text; *p; p++)
 		if (*p == '\n')
 			n++;
@@ -582,7 +583,8 @@ static int file_dialog(const char *partial, void (*picked)(const PERSON *list, i
 	graf_mouse(ARROW, 0);
 	if (r <= 0) {
 		unload();
-		return 0;		/* no file: as if EContact weren't there */
+		return r;		/* 0 no file: as if EContact weren't there;
+					   -1 no memory for it */
 	}
 	font_sys_push();
 	find[0] = 0;

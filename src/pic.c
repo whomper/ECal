@@ -672,6 +672,7 @@ typedef struct {
 const PIC_DSP *pic_dsp;
 int pic_dsp_failed;
 int pic_dsp_shrink = 1;
+int pic_dsp_dither = 1;
 static int dsp_state;			/* 0: not checked yet, 1: checked, -1: the 68030 does it */
 static int dsp_testing;			/* the check: 1 its DSP decodes, 2 its 68030 ones */
 
@@ -742,6 +743,25 @@ static int dsp_takes(j_decompress_ptr c, int k)
 	return c->num_components == 3 && c->jpeg_color_space == JCS_YCbCr && c->comps_in_scan == 3 &&
 	       ci[0].h_samp_factor <= 2 && ci[0].v_samp_factor <= 2 && ci[1].h_samp_factor == 1 &&
 	       ci[1].v_samp_factor == 1 && ci[2].h_samp_factor == 1 && ci[2].v_samp_factor == 1;
+}
+
+/* a JPEG libjpeg reads into coefficients (progressive or
+   arithmetic-coded), whose transform and colours the DSP may take: the
+   kinds it takes from the scan otherwise */
+static int dsp_takes_coef(j_decompress_ptr c, int k)
+{
+	jpeg_component_info *ci = c->comp_info;
+	int i;
+	if (k < 2 || c->data_precision != 8 || c->master->lossless || !(c->progressive_mode || c->arith_code))
+		return 0;
+	for (i = 0; i < c->num_components; i++)
+		if (ci[i].quant_table == NULL && c->quant_tbl_ptrs[ci[i].quant_tbl_no] == NULL)
+			return 0;
+	if (c->num_components == 1)
+		return c->jpeg_color_space == JCS_GRAYSCALE;
+	return c->num_components == 3 && c->jpeg_color_space == JCS_YCbCr && ci[0].h_samp_factor <= 2 &&
+	       ci[0].v_samp_factor <= 2 && ci[1].h_samp_factor == 1 && ci[1].v_samp_factor == 1 &&
+	       ci[2].h_samp_factor == 1 && ci[2].v_samp_factor == 1;
 }
 
 /* the M x 8 transform to M pixels a block: pixel i the mean of the
@@ -852,11 +872,62 @@ static void dsp_fixed(void)
 
 /* the scan's bytes for jpeg.a56, two to a word (b0 << 8 | b1): the 0
    after each $FF taken out, the data ending at a marker (a restart's
-   RST, or the end), and 0s past it */
+   RST, or the end), and 0s past it. Or (coef not NULL) a progressive
+   JPEG's coefficients, as libjpeg read them: for each block of each MCU
+   in turn, K and its first K in zigzag order (to the last other than 0) */
 typedef struct {
 	const unsigned char *p, *end;
 	int stop;
+	j_decompress_ptr c;
+	jvirt_barray_ptr *coef;
+	JBLOCKARRAY rows[3];		/* this row of MCUs' blocks, each component's */
+	long mx, my, mcols, mrows;	/* the next block's MCU, and how many */
+	int b, nb, hy, vy;		/* the block in it, of nb (hy x vy of luma) */
+	int bi, bn;			/* the words of the block being sent */
+	unsigned short bw[65];
 } DSPSRC;
+
+/* the next block's words, into bw */
+static void dsp_block(DSPSRC *s)
+{
+	JCOEFPTR q;
+	int ci, bx, by, k, n;
+	s->bi = 0;
+	s->bn = 1;
+	s->bw[0] = 0;				/* (past the last: 0s) */
+	if (s->my >= s->mrows)
+		return;
+	if (s->b == 0 && s->mx == 0)
+		for (ci = 0; ci < (s->nb == 1 ? 1 : 3); ci++) {
+			int v = ci == 0 ? s->vy : 1;
+			s->rows[ci] = (*s->c->mem->access_virt_barray)((j_common_ptr) s->c, s->coef[ci],
+								      (JDIMENSION) (s->my * v), (JDIMENSION) v, FALSE);
+		}
+	if (s->b < s->hy * s->vy) {
+		ci = 0;
+		bx = (int) (s->mx * s->hy) + s->b % s->hy;
+		by = s->b / s->hy;
+	} else {
+		ci = s->b - s->hy * s->vy + 1;
+		bx = (int) s->mx;
+		by = 0;
+	}
+	q = s->rows[ci][by][bx];
+	for (k = 63; k > 0 && q[jpeg_natural_order[k]] == 0; k--)
+		;
+	n = k + 1;
+	s->bw[0] = (unsigned short) n;
+	for (k = 0; k < n; k++)
+		s->bw[1 + k] = (unsigned short) q[jpeg_natural_order[k]];
+	s->bn = n + 1;
+	if (++s->b == s->nb) {
+		s->b = 0;
+		if (++s->mx == s->mcols) {
+			s->mx = 0;
+			s->my++;
+		}
+	}
+}
 
 static int dsp_byte(DSPSRC *s)
 {
@@ -889,6 +960,15 @@ static void dsp_feed(DSPSRC *s, int restart)
 {
 	static unsigned short w[256];
 	int i;
+	if (s->coef != NULL) {
+		for (i = 0; i < 256; i++) {
+			if (s->bi == s->bn)
+				dsp_block(s);
+			w[i] = s->bw[s->bi++];
+		}
+		pic_dsp->put16(w, 256);
+		return;
+	}
 	if (restart) {
 		/* to the next RSTn, past it (as libjpeg, given a good file) */
 		while (s->p + 1 < s->end && !(s->p[0] == 0xFF && s->p[1] >= 0xD0 && s->p[1] <= 0xD7))
@@ -1042,19 +1122,23 @@ static void dsp_read(LJ *j, PIC *p, unsigned char *band, DSPSRC *src, long x, lo
 
 /* 1 decoded, 0 not (why), -1 the DSP stopped answering, -2 it couldn't
    be had */
-static int decode_dsp(LJ *j, PIC *p, SCALER *sc, int k, int *why)
+static int decode_dsp(LJ *j, PIC *p, SCALER *sc, int k, int *why, jvirt_barray_ptr *coef)
 {
 	j_decompress_ptr c = &j->ci;
-	int nb = c->blocks_in_MCU, grey = c->num_components == 1, direct = c->out_color_space == JCS_RGB565;
+	int grey = c->num_components == 1, direct = c->out_color_space == JCS_RGB565;
 	int hy = grey ? 1 : c->comp_info[0].h_samp_factor, vy = grey ? 1 : c->comp_info[0].v_samp_factor;
+	int nb = coef == NULL ? c->blocks_in_MCU : hy * vy + (grey ? 0 : 2);
 	int mw = hy * k, mh = vy * k, b, i, ci, seen = 0, ok = 0, ft[3];
 	long ow = (long) c->output_width, oh = (long) c->output_height, mx, my;
+	/* MCUs across and down: the scan's, or (coefficients, read from
+	   every scan) the frame's */
+	long mcols = coef == NULL ? (long) c->MCUs_per_row : ((long) c->image_width + 8 * hy - 1) / (8 * hy);
+	long mrows = coef == NULL ? (long) c->MCU_rows_in_scan : ((long) c->image_height + 8 * vy - 1) / (8 * vy);
 	unsigned long w[64 * 3];
 	unsigned char *band = NULL;
 	DSPSRC src;
 	DSPSHR shr;
-	int shrink = !direct && pic_dsp_shrink &&
-		dsp_shrink_plan(&shr, ow, oh, mw, mh, (long) c->MCUs_per_row, (long) c->MCU_rows_in_scan, p->w, p->h);
+	int shrink = !direct && pic_dsp_shrink && dsp_shrink_plan(&shr, ow, oh, mw, mh, mcols, mrows, p->w, p->h);
 
 	if (!direct && !shrink) {
 		band = malloc((size_t) ow * mh * 3);
@@ -1064,7 +1148,7 @@ static int decode_dsp(LJ *j, PIC *p, SCALER *sc, int k, int *why)
 			return 0;
 		}
 	}
-	if (!pic_dsp->begin()) {
+	if (!pic_dsp->begin(PIC_DSP_JPEG)) {
 		free(band);
 		if (shrink)
 			dsp_shrink_free(&shr);
@@ -1082,22 +1166,23 @@ static int decode_dsp(LJ *j, PIC *p, SCALER *sc, int k, int *why)
 	w[0x04] = (unsigned long) vy;
 	w[0x05] = grey ? 1 : 3;
 	w[0x06] = direct ? 0 : 1;
-	w[0x09] = (unsigned long) c->MCUs_per_row;
-	w[0x0a] = (unsigned long) c->MCU_rows_in_scan;
-	w[0x0b] = (unsigned long) (ow - (long) (c->MCUs_per_row - 1) * mw);
+	w[0x09] = (unsigned long) mcols;
+	w[0x0a] = (unsigned long) mrows;
+	w[0x0b] = (unsigned long) (ow - (mcols - 1) * mw);
 	w[0x0c] = (unsigned long) mw * 3;
-	w[0x0e] = (unsigned long) (oh - (long) (c->MCU_rows_in_scan - 1) * mh);
+	w[0x0e] = (unsigned long) (oh - (mrows - 1) * mh);
 	w[0x0f] = (unsigned long) mh;
-	w[0x13] = (unsigned long) c->restart_interval;
+	w[0x13] = coef == NULL ? (unsigned long) c->restart_interval : 0;
 	/* the fast AC tables jpeg.a56 makes: Cr's is Cb's when they share
 	   their Huffman table, as they mostly do */
 	ft[0] = 0;
 	ft[1] = 1;
 	ft[2] = grey || c->comp_info[2].ac_tbl_no != c->comp_info[1].ac_tbl_no ? 2 : 1;
 	w[0x2b] = grey ? 1 : (unsigned long) ft[2] + 1;
+	w[0x2c] = coef != NULL ? 2 : 0;		/* V_SCALE: the coefficients come */
 	if (shrink) {
 		/* V_SCALE, the tables' places, the width shown */
-		w[0x2c] = 1;
+		w[0x2c] |= 1;
 		for (i = 0; i < 7; i++)
 			w[0x2d + i] = (unsigned long) (D_SHRINK + shr.at[i]);
 		w[0x34] = (unsigned long) p->w;
@@ -1107,7 +1192,8 @@ static int decode_dsp(LJ *j, PIC *p, SCALER *sc, int k, int *why)
 	   its Huffman tables and DC predictor */
 	for (b = 0; b < nb; b++) {
 		unsigned long *e = w + 8 * b;
-		ci = c->cur_comp_info[c->MCU_membership[b]]->component_index;
+		ci = coef != NULL ? (b < hy * vy ? 0 : b - hy * vy + 1) :
+		     c->cur_comp_info[c->MCU_membership[b]]->component_index;
 		e[0] = (unsigned long) (D_QT + 64 * ci);
 		if (ci == 0) {
 			e[1] = (unsigned long) (D_YPL + (seen / hy) * k * mw + (seen % hy) * k);
@@ -1136,7 +1222,7 @@ static int decode_dsp(LJ *j, PIC *p, SCALER *sc, int k, int *why)
 		dsp_load(D_LOADX, D_TRM, w, (long) k * k * 3);
 	}
 	dsp_fixed();
-	for (ci = 0; ci < (grey ? 1 : 3); ci++) {
+	for (ci = 0; ci < (grey ? 1 : 3) && coef == NULL; ci++) {
 		jpeg_component_info *cp = &c->comp_info[ci];
 		dsp_huff(c->dc_huff_tbl_ptrs[cp->dc_tbl_no], D_HLA + 0x200 * ci);
 		dsp_huff(c->ac_huff_tbl_ptrs[cp->ac_tbl_no], D_HLA + 0x100 + 0x200 * ci);
@@ -1169,14 +1255,21 @@ static int decode_dsp(LJ *j, PIC *p, SCALER *sc, int k, int *why)
 	}
 
 	/* the scan, from where libjpeg's headers end */
+	memset(&src, 0, sizeof src);
 	src.p = j->src.next_input_byte;
 	src.end = src.p + j->src.bytes_in_buffer;
-	src.stop = 0;
+	src.c = c;
+	src.coef = coef;
+	src.mcols = mcols;
+	src.mrows = mrows;
+	src.nb = nb;
+	src.hy = hy;
+	src.vy = vy;
 	w[0] = D_DECODE;
 	pic_dsp->put(w, 1);
-	for (my = 0; my < (long) c->MCU_rows_in_scan && !pic_dsp_failed; my++) {
+	for (my = 0; my < mrows && !pic_dsp_failed; my++) {
 		int rows = (int) (oh - my * mh < mh ? oh - my * mh : mh);
-		for (mx = 0; mx < (long) c->MCUs_per_row && !pic_dsp_failed; mx++)
+		for (mx = 0; mx < mcols && !pic_dsp_failed; mx++)
 			if (shrink)
 				dsp_read(j, p, NULL, &src, shr.xa[mx], shr.ya[my], shr.ce[mx], shr.re[my]);
 			else
@@ -1314,11 +1407,11 @@ const char *pic_dsp_state(void)
 	return pic_dsp == NULL || dsp_state < 0 ? "68030" : dsp_state > 0 ? "DSP" : "-";
 }
 
-static int decode_lj(const unsigned char *d, long n, PIC *p, SCALER *sc, int *why)
+static int decode_lj(const unsigned char *d, long n, PIC *p, SCALER *sc, int *why, int may)
 {
 	LJ *j;
 	long y, x;
-	int k, ok = 0, dsp = dsp_usable();
+	int k, ok = 0, dsp = may && dsp_usable();
 	j = calloc(1, sizeof *j);
 	if (j == NULL) {
 		*why = PIC_MEMORY;
@@ -1366,11 +1459,24 @@ static int decode_lj(const unsigned char *d, long n, PIC *p, SCALER *sc, int *wh
 		j->ci.out_color_space = JCS_RGB565;
 		j->ci.dither_mode = JDITHER_NONE;
 	}
-	jpeg_start_decompress(&j->ci);
 	p->how = PIC_JPEG;
 	p->scale = k;
+	if (dsp && dsp_takes_coef(&j->ci, k)) {
+		/* progressive: libjpeg reads every scan into coefficients, the
+		   DSP does the rest from them; if it can't be had, the whole
+		   picture again on the 68030 (decode_jpeg) */
+		jvirt_barray_ptr *coef = jpeg_read_coefficients(&j->ci);
+		ok = decode_dsp(j, p, sc, k, why, coef);
+		if (ok < 0 && ok != -2 && dsp_testing == 0)
+			dsp_state = -1;
+		jpeg_abort_decompress(&j->ci);
+		if (ok == -2)
+			ok = -1;
+		goto done;
+	}
+	jpeg_start_decompress(&j->ci);
 	if (dsp && dsp_takes(&j->ci, k)) {
-		ok = decode_dsp(j, p, sc, k, why);
+		ok = decode_dsp(j, p, sc, k, why, NULL);
 		if (ok != -2) {
 			/* -1: the DSP stopped answering; from now on the 68030
 			   does them, this one again (decode_jpeg) */
@@ -1433,13 +1539,14 @@ done:
 
 static int decode_jpeg(const unsigned char *d, long n, PIC *p, SCALER *sc, int *why)
 {
-	int ok = decode_lj(d, n, p, sc, why);
+	int ok = decode_lj(d, n, p, sc, why, 1);
 	if (ok < 0) {
-		/* the DSP stopped answering: again on the 68030 */
+		/* the DSP stopped answering, or couldn't be had for a
+		   progressive one: again on the 68030 */
 		sc_free(sc);
 		memset(sc, 0, sizeof *sc);
 		*why = PIC_OK;
-		ok = decode_lj(d, n, p, sc, why);
+		ok = decode_lj(d, n, p, sc, why, 0);
 	}
 	return ok;
 }
@@ -1449,8 +1556,14 @@ static int decode_jpeg(const unsigned char *d, long n, PIC *p, SCALER *sc, int *
 const PIC_DSP *pic_dsp;			/* (no DSP for TJpgDec's builds) */
 int pic_dsp_failed;
 int pic_dsp_shrink = 1;
+int pic_dsp_dither = 1;
 
 const char *pic_dsp_state(void)
+{
+	return "68000";
+}
+
+const char *pic_dither_state(void)
 {
 	return "68000";
 }
@@ -2082,10 +2195,205 @@ static void dither_many(const PIC *p, PIC_PAL *pal, unsigned char *out)
 	free(rows);
 }
 
+#ifdef PIC_LIBJPEG
+/* ---------------------------------------------------------------- the dither on the DSP */
+
+/* dsp/dither.a56 does dither_many's work to the bit: the 68030 sends the
+   palette's tables once (while the program stays on the DSP and the
+   palette is the same, its near table is kept), then each row's pixels,
+   and reads the row before's pens while the DSP dithers this one */
+
+#define DD_PAL    8
+#define DD_DITHER 9
+#define DD_WMAX   1280			/* the widest row it takes */
+#define DD_S1     0x800			/* x, y: the pens by red (red, green; blue, pen + 1) */
+#define DD_S2     0xa00
+#define DD_PR     0xc00			/* x, y, x: pen k - 1's red, green, blue */
+#define DD_PB     0xe00
+#define DD_NT     0x1000		/* y: the near table */
+#define DD_MASK   0xFFFFFFUL
+#define DD_FAR    1900L			/* past the pens at either end, by red */
+
+static int dd_state;			/* 0: not checked yet, 1: checked, -1: the 68030 does it */
+static int dd_n;			/* the palette the DSP has (0: none) */
+static unsigned char dd_rgb[256][3];
+
+/* the tables: the program's constants and the palette's */
+static void dd_palette(const PIC_PAL *pal)
+{
+	static const unsigned long consts[20] = {
+		0x001000, 0x000020, 0x000010, 0x40, 0x70, 0x700000, 0x300000, 0x500000, 0x100000,
+		0x50, 0x70, 0xb0, DD_PR, 0x010000, 0x000100, 1, 0x90, 0x400000, 0xff, 0xff8000
+	};
+	unsigned long w[3 * 258], shi;
+	long n = pal->n, i;
+	/* internal X $40..$E0: WR, WG, LO, WB, WI, and the pack's constant */
+	for (i = 0; i < 32; i++) {
+		long m = i - 16, mid = 16 * m + 136, lo = 0, hi = n;
+		while (lo < hi) {		/* nearest_far's first pen at or above the middle */
+			long k = (lo + hi) >> 1;
+			if (pal->rgb[pal->order[k]][0] < mid)
+				lo = k + 1;
+			else
+				hi = k;
+		}
+		w[i] = (unsigned long) (DD_NT + i * 352);
+		w[32 + i] = (unsigned long) (i * 11);
+		w[64 + i] = (unsigned long) (DD_S1 + 1 + lo);
+		w[96 + i] = (unsigned long) (i / 3);
+		w[128 + i] = 1UL << (8 * (i % 3));
+	}
+	w[160] = DD_MASK;
+	dsp_load(D_LOADX, 0x40, w, 161);
+	/* internal Y $00..$E0: TBR, TBG (signed), TBB (signed), MID, WS */
+	memset(w, 0, 0xe1 * sizeof *w);
+	for (i = 0; i < 64; i++) {
+		if (i < 32) {
+			w[i] = ((unsigned long) (8 * i - 128) << 15) & DD_MASK;
+			w[0x70 + (i < 16 ? i : i - 32)] = ((unsigned long) (8 * i - 128) << 15) & DD_MASK;
+			w[0x80 + i] = ((unsigned long) (16 * (i - 16) + 136) << 12) & DD_MASK;
+			w[0xa0 + i] = (0UL - (1UL << (23 - 8 * (i % 3)))) & DD_MASK;
+		}
+		w[0x40 + (i < 32 ? i : i - 64)] = ((unsigned long) (4 * i - 128) << 15) & DD_MASK;
+	}
+	w[0xe0] = 0xFDFDFEUL;			/* -$020202's low word */
+	dsp_load(D_LOADY, 0, w, 0xe1);
+	shi = (unsigned long) (DD_S1 + 1 + n);
+	dsp_load(D_LOADX, 0x19, &shi, 1);
+	dsp_load(D_LOADX, 0x20, consts, 20);
+	/* the pens by red, at the ends far below and above every one */
+	w[0] = (0UL - ((unsigned long) DD_FAR << 12)) & DD_MASK;
+	for (i = 0; i < n; i++)
+		w[1 + i] = (unsigned long) pal->rgb[pal->order[i]][0] << 12;
+	w[1 + n] = (unsigned long) (DD_FAR << 12);
+	dsp_load(D_LOADX, DD_S1, w, n + 2);
+	for (i = 0; i < n; i++) {
+		w[i] = (unsigned long) pal->rgb[pal->order[i]][1] << 12;
+		w[n + i] = (unsigned long) pal->rgb[pal->order[i]][2] << 12;
+		w[2 * n + i] = (unsigned long) pal->order[i] + 1;
+	}
+	dsp_load(D_LOADY, DD_S1 + 1, w, n);
+	dsp_load(D_LOADX, DD_S2 + 1, w + n, n);
+	dsp_load(D_LOADY, DD_S2 + 1, w + 2 * n, n);
+	/* each pen's colour by its pen + 1 */
+	for (i = 0; i < n; i++) {
+		w[i] = ((unsigned long) (pal->rgb[i][0] - 128) << 15) & DD_MASK;
+		w[n + i] = ((unsigned long) (pal->rgb[i][1] - 128) << 15) & DD_MASK;
+		w[2 * n + i] = ((unsigned long) (pal->rgb[i][2] - 128) << 15) & DD_MASK;
+	}
+	dsp_load(D_LOADX, DD_PR + 1, w, n);
+	dsp_load(D_LOADY, DD_PR + 1, w + n, n);
+	dsp_load(D_LOADX, DD_PB + 1, w + 2 * n, n);
+	w[0] = DD_PAL;
+	pic_dsp->put(w, 1);
+	dd_n = pal->n;
+	memcpy(dd_rgb, pal->rgb, (size_t) pal->n * 3);
+}
+
+/* 1: dithered on the DSP; 0: it couldn't be had; -1: it stopped
+   answering */
+static int dither_dsp(const PIC *p, PIC_PAL *pal, unsigned char *out)
+{
+	static unsigned char last[DD_WMAX + 2];
+	long w = p->w, wo = (w + 2) / 3, y;
+	unsigned long h[4];
+	int got = pic_dsp->begin(PIC_DSP_DITHER);
+	if (!got)
+		return 0;
+	pic_dsp_failed = 0;
+	if (got == 1 || dd_n != pal->n || memcmp(dd_rgb, pal->rgb, (size_t) pal->n * 3) != 0)
+		dd_palette(pal);
+	h[0] = DD_DITHER;
+	h[1] = (unsigned long) w;
+	h[2] = (unsigned long) p->h;
+	h[3] = (unsigned long) wo;
+	pic_dsp->put(h, 4);
+	/* a row in, then the row before's pens out (three to a word: the
+	   last word's spare bytes go to the next row's start, written over
+	   when it comes; the last row's through last) */
+	for (y = 0; y <= p->h && !pic_dsp_failed; y++) {
+		if (y < p->h) {
+			static const unsigned long pad[2] = { 1, 1 };
+			pic_dsp->putpx(p->px + y * w, p->alpha != NULL ? p->alpha + y * w : NULL, w);
+			pic_dsp->put(pad, 2);	/* (the last word of pens' spare bytes) */
+		}
+		if (y > 0) {
+			unsigned char *d = y < p->h ? out + (y - 1) * w : last;
+			if (pic_dsp->get24(d, (int) wo, 1, 0) != 0)
+				pic_dsp_failed = 1;
+			else if (y == p->h)
+				memcpy(out + (y - 1) * w, last, (size_t) w);
+		}
+	}
+	pic_dsp->end(!pic_dsp_failed);
+	if (pic_dsp_failed) {
+		dd_n = 0;
+		return -1;
+	}
+	return 1;
+}
+
+/* the check, the first time: a known picture (colours across the cube
+   and past its edges' reach, some of it clear) dithered on both, the same
+   pens to the bit: 1; 0 not; -1 the DSP couldn't be had */
+static int dd_check(PIC_PAL *pal)
+{
+	PIC t;
+	unsigned short px[40 * 12];
+	unsigned char al[40 * 12], a[40 * 12], b[40 * 12];
+	int i, r;
+	memset(&t, 0, sizeof t);
+	t.w = 40;
+	t.h = 12;
+	t.px = px;
+	t.alpha = al;
+	for (i = 0; i < 40 * 12; i++) {
+		int x = i % 40, y = i / 40;
+		px[i] = (unsigned short) ((((x * 31) / 39) << 11) | (((y * 63) / 11) << 5) | ((x + y * 7) & 31));
+		al[i] = (unsigned char) (x == 7 || (x + y) % 13 == 0 ? 0 : 255);
+	}
+	r = dither_dsp(&t, pal, a);
+	if (r == 0)
+		return -1;
+	dither_many(&t, pal, b);
+	return r > 0 && memcmp(a, b, sizeof a) == 0;
+}
+
+const char *pic_dither_state(void)
+{
+	return pic_dsp == NULL || dd_state < 0 ? "68030" : dd_state > 0 ? "DSP" : "-";
+}
+
+/* the DSP's, when it may: 1 done */
+static int dither_on_dsp(const PIC *p, PIC_PAL *pal, unsigned char *out)
+{
+	int r;
+	if (pic_dsp == NULL || !pic_dsp_dither || dd_state < 0 || p->w > DD_WMAX || p->w < 1 ||
+	    (long) p->w * p->h < 1024)
+		return 0;
+	if (dd_state == 0) {
+		r = dd_check(pal);
+		if (r <= 0) {
+			dd_state = r < 0 ? 0 : -1;
+			return 0;
+		}
+		dd_state = 1;
+	}
+	r = dither_dsp(p, pal, out);
+	if (r < 0)
+		dd_state = -1;		/* it stopped answering: the 68030 from now on */
+	return r > 0;
+}
+#endif
+
 void pic_dither(const PIC *p, PIC_PAL *pal, unsigned char *out)
 {
 	if (pal->n == 2)
 		dither_two(p, pal, out);
+#ifdef PIC_LIBJPEG
+	else if (dither_on_dsp(p, pal, out))
+		return;
+#endif
 	else
 		dither_many(p, pal, out);
 }
