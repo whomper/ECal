@@ -6,7 +6,12 @@ queue: Work (250 events), Home (150), Family (60, 30 of them yearly
 birthdays from long ago) and a 120-event calendar standing in for a
 subscription, around today, with series, exceptions and alerts.
 
-    bigcal.py OUTDIR [YYYYMMDD]   writes WORK.ICS HOME.ICS FAMILY.ICS SUBS.ICS
+    bigcal.py OUTDIR [YYYYMMDD] [--big]   writes WORK.ICS HOME.ICS FAMILY.ICS SUBS.ICS
+
+--big: about 1050 events, as many as Erez's calendars hold, Work 500,
+Home 350 and Family 200, the added ones spread over the year ahead with
+alerts on most (the reminders' queue, sorted at the start, grows with
+them).
 
 Import each with cal-cli DIR import CAL FILE. The same seed always gives
 the same events.
@@ -16,8 +21,10 @@ import os
 import random
 import sys
 
-out = sys.argv[1]
-today = dt.date.today() if len(sys.argv) < 3 else dt.datetime.strptime(sys.argv[2], "%Y%m%d").date()
+big = "--big" in sys.argv
+args = [x for x in sys.argv[1:] if x != "--big"]
+out = args[0]
+today = dt.date.today() if len(args) < 2 else dt.datetime.strptime(args[1], "%Y%m%d").date()
 rnd = random.Random(1960)
 TZ = "Asia/Jerusalem"
 VTZ = """BEGIN:VTIMEZONE\r
@@ -98,6 +105,9 @@ while work.n < 250:
     off = rnd.randint(-90, 40)
     work.add("Meeting %d" % work.n, at(off, rnd.randint(8, 17), rnd.choice([0, 30])), rnd.choice([30, 60, 90]),
              alert=rnd.choice([None, None, 10, 15, 30]))
+while big and work.n < 500:
+    work.add("Planning %d" % work.n, at(rnd.randint(0, 365), rnd.randint(8, 17), rnd.choice([0, 30])),
+             rnd.choice([30, 60]), alert=rnd.choice([None, 10, 15, 30]))
 work.write()
 
 home = Cal("Home")
@@ -106,6 +116,9 @@ home.add("Rubbish out", at(-800, 20), 15, "FREQ=WEEKLY;BYDAY=TU", alert=0)
 while home.n < 150:
     off = rnd.randint(-120, 60)
     home.add("Errand %d" % home.n, at(off, rnd.randint(9, 20)), 60, alert=rnd.choice([None, 60, 1440]))
+while big and home.n < 350:
+    home.add("Appointment %d" % home.n, at(rnd.randint(0, 365), rnd.randint(9, 20)), 60,
+             alert=rnd.choice([None, 30, 60, 1440]))
 home.write()
 
 fam = Cal("Family")
@@ -120,6 +133,8 @@ fam.add("Uncle's birthday", dt.date(1958, (today + dt.timedelta(days=5)).month, 
 while fam.n < 60:
     off = rnd.randint(-60, 60)
     fam.add("Family %d" % fam.n, at(off, rnd.randint(10, 19)), 120, alert=rnd.choice([None, 60]))
+while big and fam.n < 200:
+    fam.add("Visit %d" % fam.n, at(rnd.randint(0, 365), rnd.randint(10, 19)), 120, alert=rnd.choice([None, 60, 120]))
 fam.write()
 
 subs = Cal("Subs")

@@ -13,7 +13,9 @@ event calendar), it boots with START=20, sits on the desktop through
 the background reading and several reminder checks, and fails on any
 stretch over 50 ms on a Falcon or TT (100 ms on an ST).
 
-    make profile && tests/hatari/quiet_test.py WORKDIR [--machine Falcon|TT|ST:mono|...]
+    make profile && tests/hatari/quiet_test.py WORKDIR [--machine Falcon|TT|ST:mono|...] [--big] [--secs 150]
+
+--big seeds about 1050 events (bigcal.py --big), as Erez's calendars hold.
 """
 import argparse
 import os
@@ -31,7 +33,7 @@ CLI = os.path.join(ROOT, "build", "cal-cli")
 PROF = os.path.join(ROOT, "build", "prof", "bin")
 
 
-def seed(folder, work):
+def seed(folder, work, big=False):
     """the four calendars as ECal keeps them, in folder (C:\\ECAL)"""
     d = os.path.join(work, "seed")
     shutil.rmtree(d, ignore_errors=True)
@@ -40,7 +42,7 @@ def seed(folder, work):
         subprocess.run([CLI, d] + list(a), check=True, stdout=subprocess.DEVNULL)
 
     ics = os.path.join(work, "ics")
-    subprocess.run([sys.executable, os.path.join(ROOT, "tests", "host", "bigcal.py"), ics],
+    subprocess.run([sys.executable, os.path.join(ROOT, "tests", "host", "bigcal.py"), ics] + (["--big"] if big else []),
                    check=True, stdout=subprocess.DEVNULL)
     cli("zone", "Asia/Jerusalem")
     for i, name in enumerate(("Work", "Home", "Family", "Subs")):
@@ -67,6 +69,7 @@ def main():
     ap.add_argument("work")
     add_machine(ap, "Falcon")
     ap.add_argument("--secs", type=int, default=150, help="how long to watch after boot")
+    ap.add_argument("--big", action="store_true", help="about 1050 events (bigcal.py --big), as Erez's calendars")
     a = ap.parse_args()
     limit = 100 if is_st(a.machine) else 50
     hd = os.path.join(a.work, "hd")
@@ -75,7 +78,7 @@ def main():
     os.makedirs(folder)
     acc = "ECALST.ACC" if is_st(a.machine) else "ECAL.ACC"
     shutil.copy(os.path.join(PROF, acc), os.path.join(hd, "ECAL.ACC"))
-    seed(folder, a.work)
+    seed(folder, a.work, a.big)
     r = Rig(a.work, a.machine, auto=None)
     try:
         time.sleep(a.secs)

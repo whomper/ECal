@@ -681,6 +681,31 @@ static void test_alarms_idx(void)
 	CHECK(alarm_q[0].fire == b + 60 && alarm_q[2].fire == b + 24 * 60);
 	alarms_due(b + 60, b + 120, alarm_count, &n);	/* after 60, up to 120: one */
 	CHECK_EQ(n, 1);
+	{
+		/* many, in no order (past the index's first 32): in order of
+		   fire time, then start, and equal ones as they came */
+		int i, ok = 1;
+		alarms_begin_build();
+		for (i = 0; i < 100; i++)
+			alarms_add(b + (i * 37) % 100, b + 1000 - i % 3, 0, i == 50 ? "fifty" : "x", 0);
+		alarms_add(b + (50 * 37) % 100, b + 1000 - 50 % 3, 0, "after fifty", 0);
+		alarms_end_build(b);
+		CHECK_EQ(alarm_n, 101);
+		for (i = 1; i < alarm_n; i++)
+			if (alarm_q[i - 1].fire > alarm_q[i].fire ||
+			    (alarm_q[i - 1].fire == alarm_q[i].fire && alarm_q[i - 1].start > alarm_q[i].start))
+				ok = 0;
+		CHECK(ok);
+		for (i = 0; i < alarm_n && strcmp(alarm_q[i].title, "fifty"); i++)
+			;
+		CHECK(i + 1 < alarm_n && !strcmp(alarm_q[i + 1].title, "after fifty"));
+		/* the three again, for what follows */
+		alarms_begin_build();
+		alarms_add(b + 120, b + 130, 0, "Standup\twith a tab", "Room 2");
+		alarms_add(b + 60, b + 70, 0, "Coffee", 0);
+		alarms_add(b + 24 * 60, b + 25 * 60, 1, "Birthday", "");
+		alarms_end_build(b);
+	}
 	CHECK(alarms_save(idx, files, 1, alarms_stamp_add(ALARM_STAMP0, dep), 1, 1));
 	alarm_n = 0;
 	CHECK(alarms_load(idx, b + 10, &on, &h24));

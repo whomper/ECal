@@ -16,7 +16,8 @@ int alarm_n;
 CTIME alarm_built;
 
 static ALARM *nq;		/* the one being built */
-static int nn, nmax, qmax;
+static short *ord;		/* its entries in fire order, kept as they come */
+static int nn, nmax, qmax, omax, ord_ok;
 static int dirty = 1, building;
 
 void alarms_changed(void)
@@ -37,6 +38,7 @@ int alarms_stale(void)
 void alarms_begin_build(void)
 {
 	nn = 0;
+	ord_ok = 1;
 	building = 1;
 	dirty = 0;
 }
@@ -50,9 +52,18 @@ static void clean(char *out, int size, const char *s)
 			*p = ' ';
 }
 
+/* a before b: by fire time, then start */
+static int before(const ALARM *a, const ALARM *b)
+{
+	if (a->fire != b->fire)
+		return a->fire < b->fire;
+	return a->start < b->start;
+}
+
 void alarms_add(CTIME fire, CTIME start, int allday, const char *title, const char *place)
 {
 	ALARM *a;
+	int lo, hi, i;
 	if (nn >= nmax) {
 		int m = nmax ? nmax * 2 : 32;
 		ALARM *n = realloc(nq, m * sizeof(ALARM));
@@ -61,12 +72,39 @@ void alarms_add(CTIME fire, CTIME start, int allday, const char *title, const ch
 		nq = n;
 		nmax = m;
 	}
-	a = &nq[nn++];
+	if (ord_ok && nn >= omax) {
+		short *o = realloc(ord, nmax * sizeof(short));
+		if (o) {
+			ord = o;
+			omax = nmax;
+		} else {
+			ord_ok = 0;	/* sorted at the end instead */
+		}
+	}
+	a = &nq[nn];
 	a->fire = fire;
 	a->start = start;
 	a->allday = (unsigned char)(allday != 0);
 	clean(a->title, sizeof(a->title), title);
 	clean(a->place, sizeof(a->place), place);
+	if (ord_ok) {
+		/* its place in the order now, a step's worth at a time, not
+		   all of them sorted at the end: on an ST that took 60 ms for
+		   43 (the library's qsort, byte by byte through a pointer) */
+		lo = 0;
+		hi = nn;
+		while (lo < hi) {
+			int mid = (lo + hi) / 2;
+			if (before(a, &nq[ord[mid]]))
+				hi = mid;
+			else
+				lo = mid + 1;	/* after the equal ones: as they came */
+		}
+		for (i = nn; i > lo; i--)
+			ord[i] = ord[i - 1];
+		ord[lo] = (short)nn;
+	}
+	nn++;
 }
 
 /* sorted by an index of them: the library's qsort swaps byte by byte,
@@ -83,7 +121,7 @@ static int by_fire(const void *x, const void *y)
 
 void alarms_end_build(CTIME built)
 {
-	short *ix = malloc((nn + 1) * sizeof(short));
+	short *ix = ord_ok ? ord : malloc((nn + 1) * sizeof(short));
 	int i;
 	if (qmax < nn) {
 		ALARM *t = realloc(alarm_q, nn * sizeof(ALARM));
@@ -94,18 +132,21 @@ void alarms_end_build(CTIME built)
 	}
 	if (ix && qmax >= nn) {
 		/* in order into the old queue's memory, one copy each */
-		for (i = 0; i < nn; i++)
-			ix[i] = (short)i;
-		sort_base = nq;
-		if (nn > 1)
-			qsort(ix, nn, sizeof(short), by_fire);
+		if (!ord_ok) {
+			for (i = 0; i < nn; i++)
+				ix[i] = (short)i;
+			sort_base = nq;
+			if (nn > 1)
+				qsort(ix, nn, sizeof(short), by_fire);
+		}
 		for (i = 0; i < nn; i++)
 			alarm_q[i] = nq[ix[i]];
 		alarm_n = nn;
 	} else {
 		alarm_n = 0;		/* no memory: no reminders until the next build */
 	}
-	free(ix);
+	if (ix != ord)
+		free(ix);
 	nn = 0;
 	alarm_built = built;
 	building = 0;
