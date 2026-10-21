@@ -53,8 +53,9 @@ void people_forget(void);		/* AC_CLOSE: questions without answers go */
    it, 4.1): names from the file, and the people dialog on it, when
    neither edition of EContact is running */
 extern int (*people_scan_hook)(void (*line)(const char *addr, const char *name, void *ud),
-			       void *ud, int force);
+			       void *ud, int force);	/* force -1: stop a reading */
 extern int (*people_pick_hook)(const char *partial, void (*picked)(const PERSON *list, int n));
+extern int (*people_busy_hook)(void);	/* 1 while a reading in steps is under way */
 
 /* EContact's side */
 enum { PQ_NONE, PQ_NAMES, PQ_PICK };
