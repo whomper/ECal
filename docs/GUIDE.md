@@ -361,8 +361,11 @@ addresses (the family's PEOPLE messages; EContact 1.41 or later, loaded
 as an accessory or running). Without it, people show by address and are
 added by address, unless Settings > Contacts has ECal read EContact's
 contacts file: then they show by the names in it, and **Add...** opens a
-list of them (type to find someone; click marks, a double click takes
-one, Return the ones marked). **Contacts...** (the File menu in `ECAL.PRG`, the ≡ menu
+list of them and of your groups (type to find someone; click marks, a
+double click takes one, Return the ones marked; a group adds its people).
+The list takes about as much memory as the file while it is open (some
+75 KB for 600 cards); when the accessory hasn't that much left, an alert
+says so and ECal asks for an address instead. **Contacts...** (the File menu in `ECAL.PRG`, the ≡ menu
 in the accessory) opens EContact's window.
 
 ## From other programs

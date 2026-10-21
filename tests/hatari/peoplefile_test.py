@@ -16,8 +16,13 @@ name from the file.
 
 With --econtact (its latest release loaded, the file's names made
 different): the names are EContact's, and the file is never read.
+--cards N adds N more people (600: a 65 KB file, as EContact writes for
+600 cards); --heapkb K gives the accessory K KB (HEAPKB=), and with
+--too-small the list mustn't fit: an alert says so, and the address is
+asked for instead.
 
-    tests/hatari/peoplefile_test.py WORK [--machine Falcon|TT] [--acc] [--econtact]
+    tests/hatari/peoplefile_test.py WORK [--machine Falcon|TT|ST:mono] [--acc] [--econtact]
+                                    [--cards N] [--heapkb K [--too-small]]
 """
 import argparse
 import os
@@ -30,7 +35,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 import ui_tour  # noqa: E402
 from people_test import (cache_text, text_width, fetch_econtact, econtact, menu_entry_width,  # noqa: E402
                          ADD_X, ADD_Y, PEOPLE_BOX)
-from rig import Rig, K, SCAN, add_machine  # noqa: E402
+from rig import Rig, K, SCAN, add_machine, is_st  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 fails = []
@@ -42,7 +47,7 @@ def check(what, ok):
         fails.append(what)
 
 
-def contacts_file(hd, suffix=""):
+def contacts_file(hd, suffix="", cards=0):
     folder = os.path.join(hd, "ECONTACT")
     os.makedirs(folder, exist_ok=True)
     with open(os.path.join(folder, "CONTACTS.TXT"), "w", newline="") as f:
@@ -53,6 +58,11 @@ def contacts_file(hd, suffix=""):
         f.write("P\tZed Zulu%s\tzed@example.com\t\r\n" % suffix)
         f.write("G\tTeam\tGrace Baker%s <grace.baker@example.net>, Avi Levi%s <avi@example.org>\r\n"
                 % (suffix, suffix))
+        for k in range(cards):          # EContact's 600 cards: about 65 KB
+            f.write("P\tMember %04d Someone-Longname\tmember%04d.someone@example-company.org\twork\r\n"
+                    % (k, k))
+            if k % 3 == 0:
+                f.write("P\tMember %04d Someone-Longname\tm%04d@home.example.net\thome\r\n" % (k, k))
 
 
 def main():
@@ -61,6 +71,9 @@ def main():
     add_machine(ap, "Falcon")
     ap.add_argument("--acc", action="store_true", help="ECal as the accessory, opened from the Desk menu")
     ap.add_argument("--econtact", action="store_true", help="EContact's latest release loaded too")
+    ap.add_argument("--cards", type=int, default=0, help="more people in the file")
+    ap.add_argument("--heapkb", type=int, default=0, help="HEAPKB= for the accessory")
+    ap.add_argument("--too-small", action="store_true", help="the list mustn't fit: the alert expected")
     a = ap.parse_args()
     work = os.path.abspath(a.work)
     shutil.rmtree(work, ignore_errors=True)
@@ -68,7 +81,8 @@ def main():
     os.makedirs(hd)
     top = os.path.join(hd, "ECAL") if a.acc else hd
     if a.acc:
-        shutil.copy(os.path.join(ROOT, "binary", "ECAL.ACC"), os.path.join(hd, "ECAL.ACC"))
+        shutil.copy(os.path.join(ROOT, "binary", "ECALST.ACC" if is_st(a.machine) else "ECAL.ACC"),
+                    os.path.join(hd, "ECAL.ACC"))
         os.makedirs(top)
     else:
         shutil.copy(os.path.join(ROOT, "binary", "ECAL.PRG"), os.path.join(hd, "ECAL.PRG"))
@@ -79,7 +93,15 @@ def main():
     ui_tour.seed(top, english=True, more=more)
     inf = os.path.join(top, "ECAL.INF")
     t = re.sub(rb"\r\n(PEOPLEFILE|PEOPLEDIR)=[^\r\n]*", b"", open(inf, "rb").read())   # the last one counts
+    if a.heapkb:
+        t = re.sub(rb"\r\n(HEAPKB|MEMKB)=[^\r\n]*", b"", t)
+        t = re.sub(rb"\r\nLOG=[^\r\n]*", b"", t)
+        t = t.replace(b"[OPTIONS]\r\n", b"[OPTIONS]\r\nHEAPKB=%d\r\nLOG=1\r\n" % a.heapkb, 1)
     t = t.replace(b"[OPTIONS]\r\n", b"[OPTIONS]\r\nPEOPLEFILE=1\r\nPEOPLEDIR=C:\\ECONTACT\r\n", 1)
+    if a.acc:       # in the root, where the accessory reads HEAPKB= at boot, naming its folder
+        os.remove(inf)
+        inf = os.path.join(hd, "ECAL.INF")
+        t = re.sub(rb"\r\nFOLDER=[^\r\n]*", lambda m: b"\r\nFOLDER=C:\\ECAL", t)
     open(inf, "wb").write(t)
     tag = None
     if a.econtact:
@@ -88,7 +110,8 @@ def main():
         econtact(hd, ec)
         contacts_file(hd, " FILE")      # names EContact doesn't have: never to be seen
     else:
-        contacts_file(hd)
+        contacts_file(hd, cards=a.cards)
+    print("CONTACTS.TXT: %d KB" % ((os.path.getsize(os.path.join(hd, "ECONTACT", "CONTACTS.TXT")) + 1023) // 1024))
     cfile = os.path.join(hd, "ECONTACT", "CONTACTS.TXT")
     os.utime(cfile, (1, os.stat(cfile).st_mtime))   # its access time: read or not
     r = Rig(work, a.machine, auto=None if a.acc else "C:\\ECAL.PRG")
@@ -108,9 +131,27 @@ def main():
         r.key(SCAN["n"])                # a new event
         r.wait(2)
         r.type("Planning")
-        r.click(ADD_X, ADD_Y)           # Add...: the people dialog on the file, or EContact's window
-        r.wait(6)
+        r.shot("1b-new")
+        add = (ADD_X, ADD_Y) if r.machine.screen != "mono" else MONO_ADD
+        r.click(*add)                   # Add...: the people dialog on the file, or EContact's window
+        r.wait(8 if is_st(a.machine) else 6)
         r.shot("2-dialog")
+        if a.too_small:
+            r.key(K["RETURN"])          # the alert's OK
+            r.wait(3)
+            r.shot("2b-invite")         # the address asked for instead
+            r.type("grace.baker@example.net")
+            r.key(K["RETURN"])
+            r.wait(3)
+            r.shot("4-back")
+            r.key(K["RETURN"])          # OK: saved
+            r.wait(5)
+            r.stop()
+            text = cache_text(hd)
+            check("the list didn't fit: Grace added by address instead", "mailto:grace.baker@example.net" in text)
+            print("screenshots in", os.path.join(work, "shots"), "(2-dialog: the alert)")
+            print("people file test (too small):", "all passed" if not fails else "%d failed" % len(fails))
+            return 1 if fails else 0
         r.type("Grace")                 # its Find line
         r.wait(3)
         r.shot("3-found")
@@ -118,7 +159,7 @@ def main():
         r.wait(6)
         r.shot("4-back")
         if not a.econtact:
-            r.click(ADD_X, ADD_Y)       # Add... again: the group
+            r.click(*add)               # Add... again: the group
             r.wait(6)
             r.type("Team")
             r.wait(3)
@@ -171,7 +212,7 @@ def main():
         check("the group Team added its two: Avi too, once Grace",
               any("mailto:avi@example.org" in ln for ln in att)
               and sum("mailto:grace.baker@example.net" in ln for ln in att) == 1)
-    w = text_width(os.path.join(shots, "5-budget.png"), PEOPLE_BOX)
+    w = text_width(os.path.join(shots, "5-budget.png"), MONO_PEOPLE_BOX if is_st(a.machine) else PEOPLE_BOX)
     if a.econtact:
         # EContact's sample hasn't Alice: her address (136 px), not the file's name
         check("Alice by her address, not the file's name (%d px)" % w, w in range(130, 145))
@@ -185,6 +226,10 @@ def main():
           "all passed" if not fails else "%d failed" % len(fails))
     return 1 if fails else 0
 
+
+# the editor's Add... on an ST's 640x400 (people_test's ADD_X, ADD_Y on 640x480)
+MONO_ADD = (517, 103)
+MONO_PEOPLE_BOX = (170, 95, 466, 112)
 
 if __name__ == "__main__":
     sys.exit(main())
