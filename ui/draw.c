@@ -298,7 +298,9 @@ static short c16[NCOLORS] = { 2, 10, 6, 3, 4, 15, 14, 8, 7, 5, 12, 11 };
 
 /* The standard palettes differ (the ST's index 9 is dark grey, the
    Falcon's dark red), and the user may have changed them: pick, for each
-   of our colours, the nearest one the screen really has. */
+   of our colours, the nearest one the screen really has. Only among the
+   first 16 pens, the standard palette, in 256 colours and more too: the
+   calendars and the grey text look the same whichever the screen has. */
 static void pens_init(void)
 {
 	/* the most distinctive first: they get their nearest match, and the
@@ -306,8 +308,8 @@ static void pens_init(void)
 	   look the same (on 16 colours purple, brown and grey all came
 	   out the same grey) */
 	static const short order[NCOLORS] = { 0, 2, 3, 4, 5, 9, 8, 10, 11, 1, 6, 7 };
-	short j, i, n = ncolors > 256 || ncolors <= 0 ? 256 : ncolors, rgb[3];
-	unsigned char taken[256];
+	short j, i, n = 16, rgb[3];
+	unsigned char taken[16];
 	pens_ready = 1;
 	if (ncolors < 16)
 		return;
