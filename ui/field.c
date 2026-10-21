@@ -1003,6 +1003,28 @@ static void dlg_resend(void)
 	nkept = 0;
 }
 
+/* after the file selector over dialog d: the window under where it was
+   drawn again now (in its own font), then the dialog over it, rather
+   than the selector's picture left beside the dialog until it closes */
+void dlg_after_selector(DLG *d)
+{
+	short m[8];
+	AEVENT e;
+	for (;;) {
+		evnt_multi_(MU_MESAG | MU_TIMER, 0, 0, 0, 50, m, &e);
+		if (!(e.which & MU_MESAG))
+			break;
+		if (m[0] == WM_REDRAW) {
+			font_sys_pop();
+			win_message(m);
+			font_sys_push();
+		} else {
+			dlg_message(m);
+		}
+	}
+	dlg_redraw(d);
+}
+
 void dlg_names_came(void)
 {
 	if (cur_dlg && cur_dlg->names)

@@ -21,6 +21,7 @@
 #include "busy.h"
 #include "tls.h"
 #include "people_ask.h"
+#include "people_file.h"
 #include "../src/http.h"
 #include "../src/plat.h"
 #include "util.h"
@@ -594,6 +595,16 @@ static void import_file(int cal, const char *path)
 	after_change();
 }
 
+/* EContact's CONTACTS.TXT when EContact isn't loaded (the guidelines,
+   4.1): an option, off unless chosen in Settings > Contacts */
+void people_setup(void)
+{
+	if (opt.peoplefile && opt.peopledir[0])
+		people_file(opt.peopledir, editor_file_message);
+	else
+		people_file(0, 0);
+}
+
 /* EContact's window (github.com/whomper/EContact), where invitees are
    picked from: an empty VA_START opens it (common/ui/av.c) */
 static void open_contacts(void)
@@ -1117,6 +1128,7 @@ static int settings_step(void)
 			conn_log("ECal", "--", tos_clock(), (long)strlen(tos_clock()));
 		conn_log_flush();
 	}
+	people_setup();		/* EContact's file, if chosen */
 	settings_ready = 1;
 	return 0;
 }

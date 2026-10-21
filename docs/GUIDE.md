@@ -138,6 +138,12 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
     with the servers (passwords left out) when something doesn't work.
     Every line starts with the time of day ("14:05:31.27"), so the log
     shows where a sync spends its time.
+- **Contacts**: for a machine short of memory, where EContact runs now and
+  then as a program instead of as an accessory. Tick **When EContact
+  isn't loaded, read its contacts file** and give **EContact's folder**
+  (Choose... finds it): EContact writes `CONTACTS.TXT` there, and ECal
+  reads names from it while EContact isn't loaded. It is off unless you
+  tick it.
   - **Speed in Falcon mode**: the 68030 decrypts every byte and doesn't
     read from the network meanwhile, so the two take turns (about
     13 KB/s in EMail's measurements, against 37 KB/s through the Pi). A
@@ -353,7 +359,10 @@ people as the invitation has them (see From other programs).
 EContact keeps your contacts, and ECal asks it for the names behind the
 addresses (the family's PEOPLE messages; EContact 1.41 or later, loaded
 as an accessory or running). Without it, people show by address and are
-added by address. **Contacts...** (the File menu in `ECAL.PRG`, the ≡ menu
+added by address, unless Settings > Contacts has ECal read EContact's
+contacts file: then they show by the names in it, and **Add...** opens a
+list of them (type to find someone; click marks, a double click takes
+one, Return the ones marked). **Contacts...** (the File menu in `ECAL.PRG`, the ≡ menu
 in the accessory) opens EContact's window.
 
 ## From other programs

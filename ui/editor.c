@@ -659,6 +659,15 @@ static void names_shown(DLG *d)
 static PERSON *picked;
 static int npicked, pick_done;
 
+static short file_kept[8][8];
+static int nfile_kept;
+
+void editor_file_message(short *m)
+{
+	if (m && nfile_kept < 8)
+		memcpy(file_kept[nfile_kept++], m, sizeof(file_kept[0]));
+}
+
 void editor_people_picked(const PERSON *list, int n)
 {
 	free(picked);
@@ -677,11 +686,16 @@ static void invite(void)
 {
 	static char text[60];
 	short before = npeople, kept[8][8], m[8];
-	int nkept = 0, i;
+	int nkept = 0, i, opened;
 	unsigned long seen = pf_ms();
 	AEVENT e;
 	pick_done = 0;
-	if (!people_pick("")) {
+	nfile_kept = 0;
+	opened = people_pick("");
+	for (i = 0; i < nfile_kept; i++)	/* the people dialog on EContact's file had them */
+		appl_write(ap_id, 16, file_kept[i]);
+	nfile_kept = 0;
+	if (!opened) {
 		text[0] = 0;
 		if (!dlg_ask("Invite", "Address:", text, 40))
 			return;

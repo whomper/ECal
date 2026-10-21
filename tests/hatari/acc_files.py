@@ -7,7 +7,7 @@ Fdelete/Frename, Fseek, Fread and Fwrite on ECal's own files (ECAL.INF
 in the root and everything in ECal's folder), job by job:
 
     tests/hatari/acc_files.py WORK [--machine ST-1:mono|Falcon|...] [--run quiet|sync|falcon]
-                              [--bin DIR] [--roots]
+                              [--bin DIR] [--roots] [--peoplefile]
 
 Two CalDAV calendars of about 500 events between them (Radicale) and a
 subscription (a feed this computer serves), all copied to the Atari
@@ -21,6 +21,9 @@ first by cal-cli, as an earlier refresh left them.
           changed there and the feed changed (its .NEW)
   falcon  5 Falcon mode (no gateway): the first TLS connection's files;
           --roots without ROOTS.DAT, so CACERT.PEM is read (tls_read_at)
+
+--peoplefile: Settings > Contacts on (PEOPLEFILE=1, C:\\ECONTACT with a
+CONTACTS.TXT, EContact not loaded), the contacts file counted with ECal's.
 
 Hatari writes the trace to a pipe this script reads as it comes, so each
 call is put in the job going on at that moment. --bin takes the programs
@@ -90,7 +93,8 @@ class Trace:
     def ours(self, name):
         n = name.upper().replace("/", "\\")
         # ECAL.INF and its safe save's ECAL.IN$ in the root; ECal's folder
-        return re.search(r"(^|\\)ECAL\.IN[F$]$", n) is not None or "\\ECAL\\" in n
+        return (re.search(r"(^|\\)ECAL\.IN[F$]$", n) is not None or "\\ECAL\\" in n
+                or n.endswith("\\CONTACTS.TXT"))
 
     def add(self, call, name, nbytes=0):
         j = self.jobs.setdefault(self.job, {"calls": {}, "bytes": {}, "files": {}, "first": None, "last": None})
@@ -209,6 +213,7 @@ def main():
     ap.add_argument("--bin", default=os.path.join(ROOT, "binary"))
     ap.add_argument("--roots", action="store_true", help="falcon: without ROOTS.DAT (CACERT.PEM read)")
     ap.add_argument("--display", default=":98")
+    ap.add_argument("--peoplefile", action="store_true", help="EContact's contacts file chosen (PEOPLEFILE=1)")
     ap.add_argument("--timeline", action="store_true", help="each job's opens, looks, deletes and renames in order")
     a = ap.parse_args()
     os.environ["TZ"] = "Asia/Jerusalem"
@@ -290,13 +295,18 @@ def main():
         with open(os.path.join(seed, "ECAL.INF"), newline="") as f:
             lines = [l for l in f.read().split("\r\n")
                      if not l.upper().startswith(("START=", "SYNC_OPEN=", "SYNC_CLOSED=", "LOG=", "GATE=",
-                                                  "GATEPORT=", "FALCON=", "DSP=", "REFRESH="))]
+                                                  "GATEPORT=", "FALCON=", "DSP=", "REFRESH=", "PEOPLEFILE=", "PEOPLEDIR="))]
         i = next(k for k, l in enumerate(lines) if l.upper().startswith("FOLDER="))
         lines[i] = "FOLDER=C:\\ECAL"
         sync = a.run in ("sync", "falcon")
         conn = ["FALCON=1", "DSP=1"] if falcon else ["GATE=127.0.0.1", "GATEPORT=%d" % GW]
         lines[i + 1:i + 1] = ["START=20", "SYNC_OPEN=0", "SYNC_CLOSED=%d" % sync, "REFRESH=%d" % (2 if sync else 0),
-                              "LOG=0"] + conn
+                              "LOG=0"] + conn + (["PEOPLEFILE=1", "PEOPLEDIR=C:\\ECONTACT"] if a.peoplefile else [])
+        if a.peoplefile:
+            os.makedirs(os.path.join(hd, "ECONTACT"))
+            with open(os.path.join(hd, "ECONTACT", "CONTACTS.TXT"), "w", newline="") as f:
+                f.write("; EContact's contacts\r\n" +
+                        "".join("person%d@example.org\tPerson %d\r\n" % (k, k) for k in range(200)))
         with open(os.path.join(hd, "ECAL.INF"), "w", newline="") as f:
             f.write("\r\n".join(lines))
         if falcon:

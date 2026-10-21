@@ -161,10 +161,11 @@ static void set_opt(const char *k, const char *v)
 {
 #define S(name) if (!strcasecmp(k, #name)) { str_copy(opt.name, v, sizeof(opt.name)); return; }
 #define I(name) if (!strcasecmp(k, #name)) { opt.name = (short)atoi(v); return; }
-	S(home_tz) S(view_tz) S(gate) S(folder) S(start)
+	S(home_tz) S(view_tz) S(gate) S(folder) S(start) S(peopledir)
 	I(tzsupport) I(falcon) I(dsp) I(weekstart) I(h24) I(hebdates) I(view) I(daystart)
 	I(alarms) I(alarm_default) I(log) I(font_id) I(font_pt) I(hebfont) I(win_x) I(win_y)
 	I(win_w) I(win_h) I(sidebar) I(past_days) I(future_days) I(duration) I(refresh) I(sync_open) I(offline) I(hebrew) I(heapkb) I(memkb)
+	I(peoplefile)
 	if (!strcasecmp(k, "sync_closed")) {
 		opt.bgsync = (short)atoi(v);	/* (BGSYNC= before 2.7, off then: left behind) */
 		return;
@@ -436,6 +437,9 @@ options2:
 	I("DURATION", duration, "minutes a new event lasts")
 	I("ALARM_DEFAULT", alarm_default, "a new event's alert, minutes before; -1 none")
 	I("ALARMS", alarms, "show alerts")
+	I("PEOPLEFILE", peoplefile, "when EContact isn't loaded, names and invitees from its contacts file\r\n"
+	  "; (CONTACTS.TXT in PEOPLEDIR, which EContact writes)")
+	S("PEOPLEDIR", peopledir, "EContact's folder, e.g. C:\\ECONTACT")
 	I("VIEW", view, "the view: 0 day, 1 week, 2 month, 3 year")
 	I("SIDEBAR", sidebar, "show the calendar list")
 	I("FONT_ID", font_id, "the font, as a GDOS id; 1: the system font")

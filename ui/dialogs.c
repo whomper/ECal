@@ -450,17 +450,41 @@ static const char *const heb_items[] = { "  Atari (standard)", "  ISO-8859-8 fon
  * As in EMail: a list of sections on the left (the chosen one in a black
  * bar) and that section's settings on the right, under its name. */
 
-enum { S_GENERAL = 1, S_EVENTS, S_ZONES, S_REFRESH, S_CONN };
-static const char *const section_names[] = { "General", "Events", "Time zones", "Refresh", "Connection" };
+enum { S_GENERAL = 1, S_EVENTS, S_ZONES, S_REFRESH, S_CONN, S_CONTACTS };
+static const char *const section_names[] = { "General", "Events", "Time zones", "Refresh", "Connection", "Contacts" };
 
 #define SIDE 12			/* the list's width */
 #define CX (SIDE + 2)		/* where a section's settings start */
 #define VX (CX + 17)		/* and their values */
-#define SW (VX + 31)		/* the dialog's width */
+#define SW (VX + 35)		/* the dialog's width */
 
 static void in(FIELD *f, short page)
 {
 	f->page = page;
+}
+
+/* Contacts: Choose... picks EContact's folder with the file selector */
+static char people_dir[160];
+
+static void settings_changed(DLG *d, short i)
+{
+	char path[200], name[20] = "", *e;
+	short button = 0;
+	if (d->f[i].type != FT_BUTTON)
+		return;
+	if (people_dir[0])
+		snprintf(path, sizeof(path), "%s\\*.*", people_dir);
+	else
+		snprintf(path, sizeof(path), "%c:\\*.*", 'A' + boot_drive());
+	if (fsel_exinput(path, name, &button, "EContact's folder: any file") && button) {
+		e = strrchr(path, '\\');
+		if (e)
+			*e = 0;
+		str_copy(people_dir, path, sizeof(people_dir));
+		d->f[i - 1].cur = (short)strlen(people_dir);
+		d->f[i - 1].first = 0;
+	}
+	dlg_after_selector(d);
 }
 
 static void settings(short first)
@@ -470,6 +494,7 @@ static void settings(short first)
 	       L8, F8, F9, L10, F10,
 	       L11, F11, F12, F17, L18, F18, H3, L15, F15, L16, F16,
 	       C1, C2, N1, L3, C3, L4, C4, N2, C7,
+	       P1, P2, P3, P4, P5,
 	       BCAN, BOK, N };
 	FIELD f[N];
 	DLG d;
@@ -629,6 +654,22 @@ static void settings(short first)
 	for (i = C1; i <= C7; i++)
 		in(&f[i], S_CONN);
 
+	/* Contacts: EContact's file, for machines short of memory where it
+	   isn't loaded (the guidelines, 4.1) */
+	row = 3;
+	put(&f[P1], FT_CHECK, 0, CX, row, 52, "When EContact isn't loaded, read its contacts file");
+	f[P1].val = opt.peoplefile;
+	row += 2;
+	put(&f[P2], FT_LABEL, 0, CX, row, 0, "EContact's folder:");
+	row++;
+	str_copy(people_dir, opt.peopledir, sizeof(people_dir));
+	text(&f[P3], FF_LTR, CX, row, 34, people_dir, sizeof(people_dir) - 1);
+	put(&f[P4], FT_BUTTON, FF_ACTION, CX + 36, row, 10, "Choose...");
+	row++;
+	put(&f[P5], FT_LABEL, FF_LTR, CX, row, 0, "CONTACTS.TXT, which EContact writes there");
+	for (i = P1; i <= P5; i++)
+		in(&f[i], S_CONTACTS);
+
 	/* on every section */
 	row = 11;
 	put(&f[BCAN], FT_BUTTON, FF_CANCEL, SW - 24, row, 10, "Cancel");
@@ -642,7 +683,8 @@ static void settings(short first)
 	d.h = row + 1;
 	d.focus = -1;
 	d.pages = section_names;
-	d.npages = 5;
+	d.npages = 6;
+	d.changed = settings_changed;
 	d.side = SIDE;
 	d.page = first;
 	r = dlg_run(&d);
@@ -686,6 +728,15 @@ static void settings(short first)
 	opt.gateport = (unsigned short)(atoi(port) > 0 ? atoi(port) : 8180);
 	opt.dsp = f[C2].val;
 	opt.log = f[C7].val;
+	opt.peoplefile = f[P1].val;
+	str_trim(people_dir);
+	{
+		long l = (long)strlen(people_dir);
+		if (l > 3 && people_dir[l - 1] == '\\')
+			people_dir[l - 1] = 0;		/* C:\ECONTACT\ as C:\ECONTACT */
+	}
+	str_copy(opt.peopledir, people_dir, sizeof(opt.peopledir));
+	people_setup();
 	if (f[C1].val != opt.falcon)
 		falcon_mode_set(f[C1].val);
 	falcon_dsp_init();

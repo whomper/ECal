@@ -170,11 +170,16 @@ struct DLG {
 short dlg_run(DLG *d);		/* the button pressed (field index), -1 Esc */
 void  dlg_redraw_field(DLG *d, short i);
 void  dlg_redraw(DLG *d);		/* all of it (after a dialog opened from it) */
+void  dlg_after_selector(DLG *d);	/* the file selector closed over it: what was under it */
 extern void (*dlg_after)(void);	/* when the last dialog closes */
 void  dlg_names_came(void);
 /* people_init's picked: the people chosen in EContact's window (editor.c) */
 #include "people_ask.h"
-void  editor_people_picked(const PERSON *list, int n);	/* people_init's names_came: the open dialog's names() */
+void  editor_people_picked(const PERSON *list, int n);
+/* the messages that come while the people dialog on EContact's file is
+   open (common/ui/people_file.c): kept, and sent again after it */
+void  editor_file_message(short *m);
+void  people_setup(void);	/* EContact's file as Settings > Contacts says (main.c) */	/* people_init's names_came: the open dialog's names() */
 #include "alert.h"		/* alert(): common/ui */
 /* a list to pick from (a calendar, a zone): index or -1 */
 short dlg_pick(const char *title, const char *const *items, short n, short sel);
