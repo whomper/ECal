@@ -64,15 +64,21 @@ static void write_file(const char *path, int extra)
 {
 	FILE *f = fopen(path, "wb");
 	int i;
-	fprintf(f, "; CONTACTS.TXT - written by EContact\r\n");
-	fprintf(f, "avi@example.org\tAvi Levi\r\n");
+	fprintf(f, "; CONTACTS.TXT - written by EContact\r\n; made from 1A2B3C4D\r\n");
+	fprintf(f, "P\tAvi Levi\tavi@example.org\thome\r\n");
+	/* a group longer than a piece's spare: passed over whole */
+	fprintf(f, "G\tEveryone\t");
+	for (i = 0; i < 300; i++)
+		fprintf(f, "%sPerson %d <person%d@example.org>", i ? ", " : "", i, i);
+	fprintf(f, "\r\n");
 	/* enough lines that the file is read in several pieces */
 	for (i = 0; i < 300; i++)
-		fprintf(f, "person%d@example.org\tPerson %d\r\n", i, i);
-	fprintf(f, "grace@x.org\tGrace Baker\r\n");
+		fprintf(f, "P\tPerson %d\tperson%d@example.org\twork\r\n", i, i);
+	fprintf(f, "P\tGrace Baker\tgrace@x.org\t\r\n");
+	fprintf(f, "Pbad line\r\n");
 	if (extra)
-		fprintf(f, "new@x.org\tNew One\r\n");
-	fprintf(f, "last@x.org\tThe Last");	/* no line end */
+		fprintf(f, "P\tNew One\tnew@x.org\tother\r\n");
+	fprintf(f, "P\tThe Last\tlast@x.org\thome");	/* no line end */
 	fclose(f);
 }
 
@@ -101,10 +107,12 @@ int main(void)
 	CHECK(s && !strcmp(s, "Grace Baker"), "on: Grace's name from the file");
 	CHECK(opens == 1, "on: one open");
 	CHECK(people_name("GRACE@X.ORG") && !strcmp(people_name("GRACE@X.ORG"), "Grace Baker"), "any case");
+	people_name("person0@example.org");
 	people_name("person299@example.org");
 	people_name("last@x.org");
 	people_name("nobody@x.org");
 	people_poll();
+	CHECK(!strcmp(people_name("person0@example.org"), "Person 0"), "the line after a long group line");
 	CHECK(!strcmp(people_name("person299@example.org"), "Person 299"), "a line past the first piece");
 	CHECK(!strcmp(people_name("last@x.org"), "The Last"), "the last line, without its end");
 	CHECK(people_name("nobody@x.org") && !*people_name("nobody@x.org"), "not in the file: no name");

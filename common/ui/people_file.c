@@ -21,12 +21,39 @@ static long seen_size = -2;
 
 static int file_dialog(const char *partial, void (*picked)(const PERSON *list, int n));
 
+/* a P line, cut in place: "P<TAB>name<TAB>email<TAB>label"; 1 with an
+   address that fits */
+static int p_line(char *s, char **name, char **email)
+{
+	char *t;
+	if (s[0] != 'P' || s[1] != '\t')
+		return 0;
+	*name = s + 2;
+	if (!(t = strchr(*name, '\t')))
+		return 0;
+	*t = 0;
+	*email = t + 1;
+	if ((t = strchr(*email, '\t')) != 0)
+		*t = 0;
+	if (strlen(*name) > PEOPLE_NAME - 1)
+		(*name)[PEOPLE_NAME - 1] = 0;
+	return **email && strlen(*email) < PEOPLE_ADDR;
+}
+
+/* a line's end: the 0 in place of its CR */
+static void no_cr(char *s)
+{
+	long l = (long)strlen(s);
+	if (l && s[l - 1] == '\r')
+		s[l - 1] = 0;
+}
+
 static int scan(void (*line)(const char *addr, const char *name, void *ud), void *ud, int force)
 {
-	char buf[PIECE + LINE + 1], addr[PEOPLE_ADDR], name[PEOPLE_NAME];
+	char buf[PIECE + LINE + 1], *name, *email;
 	long size, got, have = 0;
 	unsigned long date = pf_info(path, &size);
-	int h;
+	int h, skip = 0;
 	if (!date && size < 0)
 		return -1;
 	if (!force && date == seen_date && size == seen_size)
@@ -42,11 +69,12 @@ static int scan(void (*line)(const char *addr, const char *name, void *ud), void
 		buf[have] = 0;
 		/* whole lines; the last one, cut, waits for the next piece */
 		while ((end = strchr(p, '\n')) != 0 || (got == 0 && *p)) {
-			const char *q;
 			if (end)
 				*end = 0;
-			if (*p != ';' && (q = people_read_line(p, addr, name)) != 0 && addr[0])
-				line(addr, name, ud);
+			no_cr(p);
+			if (!skip && p_line(p, &name, &email))
+				line(email, name, ud);
+			skip = 0;
 			if (!end)
 				break;
 			p = end + 1;
@@ -54,8 +82,10 @@ static int scan(void (*line)(const char *addr, const char *name, void *ud), void
 		if (got == 0)
 			break;
 		have = (long)strlen(p);
-		if (have > LINE)	/* a line too long for anything: dropped */
+		if (have > LINE) {	/* a long line (a group's): passed over */
+			skip = 1;
 			have = 0;
+		}
 		memmove(buf, p, (size_t)have);
 	}
 	pf_close(h);
@@ -104,6 +134,7 @@ static int file_dialog(const char *partial, void (*picked)(const PERSON *list, i
 static char *text;		/* the file, its lines cut in place */
 static char **la, **ln;		/* each line's address and name */
 static char *mark;		/* marked lines */
+static char *group;		/* 1: a group, la its members */
 static short *shown;		/* the lines the Find text keeps */
 static short nlines, nshown, top, cur, rows;
 static char find[32];
@@ -250,8 +281,10 @@ static void draw_list(void)
 		short k = shown[top + i], y = r.y + i * gl_hchar, fl = TX_LTR;
 		row[0] = mark[k] ? 8 : ' ';	/* the system font's tick */
 		row[1] = ' ';
-		strcpy(row + 2, ln[k][0] ? ln[k] : la[k]);
-		if (ln[k][0]) {
+		strcpy(row + 2, ln[k][0] || group[k] ? ln[k] : la[k]);
+		if (group[k])
+			strcat(row, "  (group)");
+		else if (ln[k][0]) {
 			strcat(row, "  <");
 			strcat(row, la[k]);
 			strcat(row, ">");
@@ -414,11 +447,43 @@ static int on_click(short mx, short my, short clicks)
 	return 0;
 }
 
-/* the file, its lines cut in place; 0 when there is none */
+/* a group's members, "Name <email>, Name <email>": each to out (when
+   given); how many */
+static short members(const char *s, PERSON *out)
+{
+	short n = 0;
+	while (*s) {
+		const char *lt = strchr(s, '<'), *gt = lt ? strchr(lt, '>') : 0, *a = s;
+		long nl, el;
+		if (!gt)
+			break;
+		while (*a == ' ' || *a == ',')
+			a++;
+		nl = lt - a;
+		while (nl > 0 && a[nl - 1] == ' ')
+			nl--;
+		el = gt - lt - 1;
+		if (el > 0 && el < PEOPLE_ADDR) {
+			if (out) {
+				if (nl > PEOPLE_NAME - 1)
+					nl = PEOPLE_NAME - 1;
+				memcpy(out[n].addr, lt + 1, (size_t)el);
+				out[n].addr[el] = 0;
+				memcpy(out[n].name, a, (size_t)nl);
+				out[n].name[nl] = 0;
+			}
+			n++;
+		}
+		s = gt + 1;
+	}
+	return n;
+}
+
+/* the file, its P and G lines cut in place; 0 when there is none */
 static int load(void)
 {
 	long len;
-	char *p;
+	char *p, *name, *email;
 	short n = 0, i = 0;
 	text = pf_load(path, &len);
 	if (!text)
@@ -430,26 +495,26 @@ static int load(void)
 	la = malloc((size_t)n * sizeof(char *));
 	ln = malloc((size_t)n * sizeof(char *));
 	mark = calloc((size_t)n, 1);
+	group = calloc((size_t)n, 1);
 	shown = malloc((size_t)n * sizeof(short));
-	if (!la || !ln || !mark || !shown)
+	if (!la || !ln || !mark || !group || !shown)
 		return -1;
 	for (p = text; *p && i < n;) {
-		char *e = strchr(p, '\n'), *t, *c;
+		char *e = strchr(p, '\n'), *t;
 		if (e)
 			*e = 0;
-		if ((c = strchr(p, '\r')) != 0)
-			*c = 0;
-		if (*p && *p != ';') {
-			la[i] = p;
-			ln[i] = "";
-			if ((t = strchr(p, '\t')) != 0) {
-				*t = 0;
-				ln[i] = t + 1;
-				if (strlen(ln[i]) > PEOPLE_NAME - 1)
-					ln[i][PEOPLE_NAME - 1] = 0;
-			}
-			if (strlen(la[i]) < PEOPLE_ADDR)
-				i++;
+		no_cr(p);
+		if (p_line(p, &name, &email)) {
+			ln[i] = name;
+			la[i++] = email;
+		} else if (p[0] == 'G' && p[1] == '\t' && (t = strchr(p + 2, '\t')) != 0) {
+			*t = 0;			/* a group: its name, its members */
+			ln[i] = p + 2;
+			if (strlen(ln[i]) > PEOPLE_NAME - 1)
+				ln[i][PEOPLE_NAME - 1] = 0;
+			la[i] = t + 1;
+			if (members(la[i], 0))
+				group[i++] = 1;
 		}
 		if (!e)
 			break;
@@ -465,8 +530,9 @@ static void unload(void)
 	free(la);
 	free(ln);
 	free(mark);
+	free(group);
 	free(shown);
-	text = mark = 0;
+	text = mark = group = 0;
 	la = ln = 0;
 	shown = 0;
 	nlines = nshown = 0;
@@ -529,15 +595,21 @@ static int file_dialog(const char *partial, void (*picked)(const PERSON *list, i
 	wind_update(END_UPDATE);
 	font_sys_pop();
 	if (done > 0) {
+		short k = 0;
 		for (i = 0; i < nlines; i++)
-			n += mark[i];
-		if (!n && nshown)	/* none marked: the one the cursor is on */
-			mark[shown[cur]] = n = 1;
+			k += mark[i];
+		if (!k && nshown)	/* none marked: the one the cursor is on */
+			mark[shown[cur]] = 1;
+		for (i = 0; i < nlines; i++)
+			if (mark[i])
+				n += group[i] ? members(la[i], 0) : 1;
 		list = n ? malloc((size_t)n * sizeof(PERSON)) : 0;
 		if (!list)
 			n = 0;
 		for (i = 0, r = 0; list && i < nlines; i++)
-			if (mark[i]) {
+			if (mark[i] && group[i])
+				r += members(la[i], list + r);	/* a group: its people */
+			else if (mark[i]) {
 				strcpy(list[r].addr, la[i]);
 				strcpy(list[r].name, ln[i]);
 				r++;
