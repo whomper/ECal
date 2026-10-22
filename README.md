@@ -11,6 +11,7 @@ Atari (ECal,     --plain HTTP, proxy form--> Pi  ecalgate  --HTTPS--> caldav.icl
        EContact)
 Atari (EFTP)     --plain FTP-->              Pi  eftpgate  --FTPS-->  ftp.example.org
                                                            --SFTP-->  my.server.net
+Atari (EWeb)     --plain HTTP, proxy form--> Pi  webgate   --HTTPS--> any web site
 Atari (ClaudeST) --STinG or a serial cable-> Pi  claude-st --HTTPS--> claude.ai
 ```
 
@@ -24,16 +25,24 @@ of them.
 | `mail`   | EMail               | `emailgate.py`             | 143 IMAP, 587 SMTP, 110 POP3             |
 | `dav`    | ECal and EContact   | `ecalgate.py`              | 8180                                     |
 | `ftp`    | EFTP                | `eftpgate.py`              | 2121, and 30000-30099 for data           |
+| `web`    | EWeb                | `webgate.py`               | 8280                                     |
 | `claude` | ClaudeST            | ClaudeST's bridge          | 2323 (or a serial cable)                 |
 
 This folder is AERA-Gateway's
 ([whomper/AERA-Gateway](https://github.com/whomper/AERA-Gateway)). EMail,
-ECal, EContact, EFTP and ClaudeST carry a copy of it, as they carry
+ECal, EContact, EFTP, EWeb and ClaudeST carry a copy of it, as they carry
 `common/` from AERA-Atari: change it in AERA-Gateway, never in a copy.
 
 ## Setting it up
 
-On the Pi, in your home folder:
+On a new Pi, everything for your Atari in one line (mail only with
+`--mail`; `--browser` for web's browser):
+
+```
+sudo apt install -y git && git clone https://github.com/whomper/AERA-Gateway ~/AERA-Gateway && ~/AERA-Gateway/update-pi.sh --allow ATARI_IP --mail imap.gmail.com smtp.gmail.com
+```
+
+Or step by step, in your home folder:
 
 ```
 sudo apt install -y git                   Raspberry Pi OS Lite comes without it
@@ -43,13 +52,18 @@ cd AERA-Gateway
 sudo gateway/aera-gateway install mail imap.gmail.com smtp.gmail.com pop.gmail.com
 sudo gateway/aera-gateway install dav
 sudo gateway/aera-gateway install ftp
+sudo gateway/aera-gateway install web
 sudo gateway/aera-gateway install claude --network --atari 192.168.1.20
 ```
 
-(only the ones you need). Set the Pi up from AERA-Gateway's own copy, as
+(only the ones you need), or all of them at once for your Atari:
+`sudo gateway/aera-gateway install all --allow ATARI_IP --mail IMAP SMTP[:587] [POP3]`
+(without `--mail`, mail is left out; `--browser` for web's browser; one
+that fails doesn't stop the others; those already installed keep their
+settings). Set the Pi up from AERA-Gateway's own copy, as
 here: `./update-pi.sh` keeps it at the latest release; the copies of this
 folder inside the apps are for their tests. Each gateway runs as a
-service of its own (`emailgate`, `ecalgate`, `eftpgate`, `claude-st`)
+service of its own (`emailgate`, `ecalgate`, `eftpgate`, `webgate`, `claude-st`)
 under a user of its own with no access to the rest of the Pi, starts now
 and at every boot, and `install` prints what to type into the Atari
 program.
@@ -193,6 +207,72 @@ certificate comes from its own CA: copy the CA's certificate to the Pi
 and give `--cafile /path/to/ca.pem`. `-v` logs every command (never the
 passwords).
 
+## web: EWeb's gateway
+
+```
+sudo gateway/aera-gateway install web
+```
+
+EWeb's ST edition can't make secure connections at a usable speed, and
+some sites take only TLS 1.3, so EWeb sends every request to the Pi in
+plain HTTP, in proxy form (`GET https://host/path HTTP/1.1`), and
+webgate makes it, checking the server's certificate (TLS 1.2 or 1.3). The
+answer goes back as it came: the server's gzip or deflate as they are
+(only those are asked for), a long answer a piece at a time, redirects,
+cookies and error pages unchanged. When webgate can't help, EWeb's
+"can't open" page shows a line that starts with "webgate:".
+
+In EWeb, Settings > Secure: Pi gateway = the Pi's IP address, port 8280.
+Check it from any browser on your network: `http://PI_IP:8280/` answers "webgate X.Y
+is running".
+
+Pictures come smaller: EWeb says how wide its page is, and webgate
+decodes a picture that is wider, or of a kind the Atari can't read
+(WebP, AVIF, TIFF, BMP), and sends a JPEG (or a 256-colour PNG, for
+transparency) no wider, with its real size inside so that the page looks
+the same. A 2560-pixel photo of 865 KB comes as about 70 KB. `install
+web` installs Pillow (python3-pil) for that.
+
+EWeb can also ask for a picture as its screen will show it: in the
+Atari's own colours, already scaled and dithered, made by aerapens, the
+same code EWeb runs on the Atari (AERA-Atari's), so the result is the
+same to the bit and the Atari only copies it to the screen. `install web`
+builds aerapens from AERA-Gateway's `pens/` folder (it installs gcc and
+make if they aren't there; `remove web` leaves them) and runs one
+aerapens a picture, through `webgate-pens.socket`, as a user of its own
+with 64 MB and 2 seconds at most, no network and nothing to open. If
+it's missing, fails or takes too long, the picture comes as a JPEG or
+PNG, as above.
+
+`--allow-local` lets it reach servers on your home network too (a
+router's or a NAS's pages); `--port N` gives it another port; `--cafile`
+checks servers against your own CA; `-v` logs every request (the
+server, never the address's path). Like ecalgate, it follows
+`HTTPS_PROXY` (`sudo systemctl edit webgate`).
+
+### The Pi's browser: snapshots and live view
+
+Some sites are made by their scripts, and EWeb can't run those. With
+
+```
+sudo gateway/aera-gateway install web --browser
+```
+
+the Pi runs Chromium for EWeb, full screen in a screen of its own (Xvfb,
+no monitor needed), with webgate's extension. EWeb then gets a page as
+it stands after its scripts ran (a snapshot), and `http://webgate/live`
+in EWeb shows the browser's screen: a click on the picture clicks on
+the Pi, typing types there, for the logins and CAPTCHAs a snapshot can't
+do. The browser's profile, with any logins, stays in
+`/var/lib/webgate/browser`.
+
+It needs a Pi with 2 GB of memory or more (Chromium takes about 400 MB
+with one page) and installs Chromium, Xvfb and xdotool (about 600 MB). It runs as webgate's own user, as two more services,
+`webgate-screen` and `webgate-browser`, and the browser goes out only
+through webgate, so the home-network rule holds for it too: nothing at
+home without `--allow-local`, whatever a name's answer says, and no
+files from the Pi. `install web --no-browser` turns it off again.
+
 ## claude: ClaudeST's bridge
 
 The bridge is ClaudeST's own (it changes with `CLAUDEST.PRG`);
@@ -227,7 +307,7 @@ ports. Then its journal, which says who connected, where to, and why it
 ended:
 
 ```
-sudo journalctl -u emailgate -n 30        or ecalgate, eftpgate, claude-st; -f to watch
+sudo journalctl -u emailgate -n 30        or ecalgate, eftpgate, webgate, claude-st; -f to watch
 ```
 
 - **The Atari can't connect at all.** Ping the Pi from the Atari. Check
@@ -241,14 +321,16 @@ sudo journalctl -u emailgate -n 30        or ecalgate, eftpgate, claude-st; -f t
   it: `sudo ss -ltnp '( sport = :N )'`. Stop that program, or give the
   gateway other ports (`--ports`, `--port`) and type those into the
   Atari program.
-- **EMail says "emailgate: ...".** The Pi couldn't reach your provider,
-  or its certificate didn't check out: the line says which. Check the
-  server names in `status`, and that the Pi itself is online.
+- **EMail says "emailgate: ...", or EWeb "webgate: ...".** The Pi
+  couldn't reach the server, or its certificate didn't check out: the
+  line says which. Check the server names in `status`, and that the Pi
+  itself is online.
 - **The provider refuses the login.** That is between EMail and your
   provider: most want an app password (see mail above).
 - **ECal or EContact can't reach a server at home** (a Radicale, a
   Nextcloud): `sudo gateway/aera-gateway install dav --allow-local`. The
-  same for EFTP and a NAS: `install ftp --allow-local`.
+  same for EFTP and a NAS (`install ftp --allow-local`), and for EWeb
+  and your router's pages (`install web --allow-local`).
 - **EFTP: an SFTP server is refused because its key changed.** If the
   server was really reinstalled, remove its line from
   `/var/lib/eftpgate/known_hosts`.
@@ -270,10 +352,11 @@ ports on your router.
   were forwarded. If others share your network, `--allow ATARI_IP` limits
   a gateway to your Atari (several: `--allow IP1,IP2`; `--allow any` for
   the home network again).
-- ecalgate and eftpgate connect onwards anywhere the Atari asks, except
-  your own network: without `--allow-local` they refuse a server whose
-  address is at home, and they connect to the address they checked, so a
-  name can't change its answer in between and lead them home.
+- ecalgate, eftpgate and webgate connect onwards anywhere the Atari
+  asks, except your own network: without `--allow-local` they refuse a
+  server whose address is at home, and they connect to the address they
+  checked, so a name can't change its answer in between and lead them
+  home.
 - They use TLS 1.2 or newer and check every server's certificate and
   name.
 - Their journals (`sudo journalctl -u emailgate`) say who connected where
@@ -296,7 +379,7 @@ commands still work and hand on to `aera-gateway`.
 ## Tests
 
 ```
-pip install paramiko pyftpdlib pyopenssl
+pip install paramiko pyftpdlib pyopenssl pillow
 python3 -m unittest discover -s gateway -p 'test_*.py'
 ```
 
@@ -306,6 +389,11 @@ python3 -m unittest discover -s gateway -p 'test_*.py'
   vouches for, the wrong name, a provider that can't be reached.
 - `test_ecalgate.py`: trimming, compression, chunked answers, redirects,
   the home-network rule, a log without paths.
+- `test_webgate.py`: the proxy against a local server (compression,
+  chunked answers, redirects, cookies, the home-network rule), pictures
+  made smaller (with Pillow), the Pi's browser's way out with a stand-in
+  name server, and snapshots and live view with stand-ins for the
+  browser.
 - `test_eftpgate.py`: an SFTP and an FTPS server on this computer, and a
   plain FTP client (and EFTP's own FTP core, when built) talking to
   eftpgate as the Atari does.
