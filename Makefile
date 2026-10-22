@@ -100,10 +100,12 @@ $(BIN)/ECAL.ACC: $(OBJDIR)/cal.elf common/tools/elf2tos.py | $(BIN)
 $(BIN)/ECAL.PRG: $(BIN)/ECAL.ACC
 	cp $< $@
 
-# ECal's icon for the desktop: icons/ (ui/icon*.h too), drawn by
-# tools/icon and committed; a release carries them
+# ECal's icon for the desktop: icons/, ui/icon*.h and docs/icon*.png, from
+# its drawing in common/icons/ECAL.txt (the guidelines, 5.5), committed; a
+# release carries icons/
 icons:
-	python3 tools/icon/make_rsc.py
+	python3 common/tools/appicon.py ECAL --rsc icons/ECAL.RSC --icn icons/ECAL.ICN --mask icons/ECALMK.ICN \
+		--headers ui --docs docs
 
 # a stand-in ST-Guide for tests/hatari/help_test.py
 fakeguide: $(OBJDIR)/ST-GUIDE.ACC
