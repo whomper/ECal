@@ -321,6 +321,8 @@ tests/hatari/notes_test.py WORK [--machine M] [--acc]
 tests/hatari/field_test.py WORK [--machine M] [--acc]
                                                   # fields hold more than they show (5.4):
                                                   # a long title, ^C ^V, a long address
+tests/hatari/title_test.py WORK [--machine M]     # the toolbar's title fits ("18-24 Oct", not
+                                                  # "18-24 Oct 202"), each view (Falcon)
 tests/hatari/twin_test.py WORK [--machine M]      # ECAL.PRG and ECAL.ACC on one machine
                                                   # (EmuTOS: its desktop is clicked)
 tests/hatari/help_test.py WORK [--machine M]      # the Help key (make fakeguide first; Falcon)

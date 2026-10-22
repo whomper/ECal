@@ -212,20 +212,41 @@ static void draw_toolbar(GRECT *clip)
 	for (i = 0; i < NBUT; i++)
 		draw_button(i);
 	views_title(t, sizeof(t));
-	if ((short)strlen(t) > r_title.w / cw && (cur_view == V_DAY || cur_view == V_WEEK)) {
-		/* the short form when the toolbar is narrow */
+	if ((short)strlen(t) > r_title.w / cw && cur_view != V_YEAR) {
+		/* shorter forms when the toolbar is narrow: the first that fits,
+		   short month names, then without the year ("18-24 Oct") */
 		DT d, e;
 		long first = cur_day;
+		char f[3][40];
+		int k;
 		if (cur_view == V_WEEK)
 			first -= (wday_of(cur_day) - opt.weekstart + 7) % 7;
 		ct_split(first * MIN_PER_DAY, &d);
 		ct_split((first + 6) * MIN_PER_DAY, &e);
-		if (cur_view == V_DAY)
-			snprintf(t, sizeof(t), "%s %d %s %d", wday_short[d.wday], d.day, month_short[d.mon - 1], d.year);
-		else if (d.mon == e.mon)
-			snprintf(t, sizeof(t), "%d-%d %s %d", d.day, e.day, month_short[d.mon - 1], e.year);
-		else
-			snprintf(t, sizeof(t), "%d %s-%d %s", d.day, month_short[d.mon - 1], e.day, month_short[e.mon - 1]);
+		if (cur_view == V_DAY) {
+			snprintf(f[0], sizeof(f[0]), "%s %d %s %d", wday_short[d.wday], d.day, month_short[d.mon - 1], d.year);
+			snprintf(f[1], sizeof(f[1]), "%s %d %s", wday_short[d.wday], d.day, month_short[d.mon - 1]);
+			snprintf(f[2], sizeof(f[2]), "%d %s", d.day, month_short[d.mon - 1]);
+		} else if (cur_view == V_MONTH) {
+			snprintf(f[0], sizeof(f[0]), "%s %d", month_short[d.mon - 1], d.year);
+			snprintf(f[1], sizeof(f[1]), "%s", month_short[d.mon - 1]);
+			f[2][0] = 0;
+		} else if (d.mon == e.mon) {
+			snprintf(f[0], sizeof(f[0]), "%d-%d %s %d", d.day, e.day, month_short[d.mon - 1], e.year);
+			snprintf(f[1], sizeof(f[1]), "%d-%d %s", d.day, e.day, month_short[d.mon - 1]);
+			f[2][0] = 0;
+		} else {
+			snprintf(f[0], sizeof(f[0]), "%d %s-%d %s %d", d.day, month_short[d.mon - 1], e.day,
+				 month_short[e.mon - 1], e.year);
+			snprintf(f[1], sizeof(f[1]), "%d %s-%d %s", d.day, month_short[d.mon - 1], e.day,
+				 month_short[e.mon - 1]);
+			f[2][0] = 0;
+		}
+		for (k = 0; k < 3 && f[k][0]; k++) {
+			str_copy(t, f[k], sizeof(t));
+			if ((short)strlen(t) <= r_title.w / cw)
+				break;
+		}
 	}
 	text_at(r_title.x, r_title.y, t, (long)strlen(t), r_title.w / cw, TX_BOLD | TX_LTR);
 	hline(work.x, work.x + work.w - 1, work.y + r_tool.h - 1);

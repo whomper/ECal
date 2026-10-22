@@ -782,7 +782,9 @@ void dlg_goto(void)
 	y = n >= 3 ? v[2] : d.year;
 	if (y < 100)
 		y += 2000;
-	if (m < 1 || m > 12 || dd < 1 || dd > days_in_month(y, m)) {
+	/* a year far off would overflow the minutes ECal counts in (typed
+	   onto the date already there: 22.10.202630) */
+	if (y < 1900 || y > 2199 || m < 1 || m > 12 || dd < 1 || dd > days_in_month(y, m)) {
 		alert(1, "[1][That isn't a date.][ OK ]");
 		return;
 	}
