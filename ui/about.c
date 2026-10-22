@@ -13,6 +13,7 @@
 #include "iconify.h"
 #include "icon.h"
 #include "icon16.h"
+#include "icon256.h"
 #include "../src/version.h"
 #include "../src/plat.h"
 
@@ -38,7 +39,7 @@ void dlg_about(void)
 	static char conn[100];
 	const char *ram = about_ram();
 	ABOUT a = { "ECal", cal_version, "A calendar for the Atari ST, TT and Falcon", { conn, 0, 0 }, { 0, 0, 0 },
-		    icon_bits, icon16_px, icon16_rgb };
+		    icon_bits, icon16_px, icon16_rgb, icon256_px, icon256_rgb };
 	snprintf(conn, sizeof(conn), "%s  \xF9  %s  \xF9  %s%s%s",
 		 strcmp(net_stack(), "none") ? net_stack() : "no network",
 		 opt.falcon ? (strcmp(falcon_dsp_state(), "DSP") ? "Falcon" : "Falcon/DSP") : opt.gate[0] ? "Gateway" : "No gateway",
