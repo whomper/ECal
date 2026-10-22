@@ -303,6 +303,9 @@ tests/hatari/peoplefile_test.py WORK [--machine M] [--acc] [--econtact]
 tests/hatari/notes_test.py WORK [--machine M] [--acc]
                                                   # notes read from the cache when wanted:
                                                   # Find, the details, saved with an edit
+tests/hatari/field_test.py WORK [--machine M] [--acc]
+                                                  # fields hold more than they show (5.4):
+                                                  # a long title, ^C ^V, a long address
 tests/hatari/twin_test.py WORK [--machine M]      # ECAL.PRG and ECAL.ACC on one machine
                                                   # (EmuTOS: its desktop is clicked)
 tests/hatari/help_test.py WORK [--machine M]      # the Help key (make fakeguide first; Falcon)

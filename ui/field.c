@@ -860,7 +860,9 @@ static int edit_key(DLG *d, FIELD *f, short kstate, short key)
 		break;
 	case 0x4b:		/* left: on screen, so backwards in Hebrew */
 	case 0x4d:
-		if ((scan == 0x4b) != (rtl != 0)) {
+		if (kstate & (K_LSHIFT | K_RSHIFT))	/* with Shift: to that end */
+			f->cur = (scan == 0x4b) != (rtl != 0) ? 0 : n;
+		else if ((scan == 0x4b) != (rtl != 0)) {
 			if (f->cur > 0)
 				f->cur--;
 		} else if (f->cur < n) {

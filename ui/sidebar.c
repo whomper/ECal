@@ -226,8 +226,8 @@ static void acct_menu(short mx, short my, int a)
 	if (accts[a].kind == AK_LOCAL) {
 		k = win_popup(mx, my, local_items, 3);
 		if (k == 0) {
-			char name[40] = "";
-			if (dlg_ask("New calendar", "Name:", name, 30) && name[0]) {
+			char name[64] = "";
+			if (dlg_ask("New calendar", "Name:", name, sizeof(name) - 1) && name[0]) {
 				cal_add(a, name);
 				store_save_settings();
 				after_change();

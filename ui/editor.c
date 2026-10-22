@@ -684,7 +684,7 @@ void editor_people_picked(const PERSON *list, int n)
    Without EContact an address is asked for instead */
 static void invite(void)
 {
-	static char text[60];
+	static char text[256];	/* an address: up to 254 */
 	short before = npeople, kept[8][8], m[8];
 	int nkept = 0, i, opened;
 	unsigned long seen = pf_ms();
@@ -708,7 +708,7 @@ static void invite(void)
 	}
 	if (opened <= 0) {
 		text[0] = 0;
-		if (!dlg_ask("Invite", "Address:", text, 40))
+		if (!dlg_ask("Invite", "Address:", text, sizeof(text) - 1))
 			return;
 		str_trim(text);
 		if (strchr(text, '@'))
@@ -905,7 +905,7 @@ static int run_editor(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 
 static int edit_event(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 {
-	static char title[200], loc[120], sdate[16], stime[12], edate[16], etime[12], notes[1200];
+	static char title[200], loc[200], sdate[16], stime[12], edate[16], etime[12], notes[1200];
 	static char invitees[2000], invitees0[2000];
 	ED x;
 	DLG d;

@@ -113,7 +113,7 @@ static int try_account(int a)
 
 static int edit_caldav(ACCOUNT *a, int is_new, int icloud)
 {
-	static char name[40], url[200], user[80], pass[80];
+	static char name[40], url[400], user[80], pass[80];
 	enum { L1, F1, L2, F2, L3, F3, L4, F4, N1, N2, N3, BDEL, BCAN, BOK, N };
 	FIELD f[N];
 	short r, row = 1;
@@ -122,7 +122,7 @@ static int edit_caldav(ACCOUNT *a, int is_new, int icloud)
 	str_copy(user, a->user, sizeof(user));
 	str_copy(pass, a->pass, sizeof(pass));
 	put(&f[L1], FT_LABEL, 0, 0, row, 0, "Name:");
-	text(&f[F1], 0, 13, row, 30, name, 31);
+	text(&f[F1], 0, 13, row, 30, name, sizeof(name));
 	row++;
 	put(&f[L2], FT_LABEL, icloud ? FF_DISABLED : 0, 0, row, 0, icloud ? "" : "Server:");
 	text(&f[F2], FF_LTR | (icloud ? FF_DISABLED : 0), 13, row, 42, url, sizeof(url));
@@ -189,7 +189,7 @@ static const char *const start_val[4] = { "now", "60", "300", "opened" };
 
 static int edit_subscription(ACCOUNT *a, CALENDAR *c, int is_new)
 {
-	static char url[300], name[60], user[80], pass[80];
+	static char url[400], name[64], user[80], pass[80];
 	enum { L1, F1, L2, F2, L3, F3, L4, F4, L5, F5, N1, BDEL, BCAN, BOK, N };
 	FIELD f[N];
 	short r, row = 1, i;
@@ -201,7 +201,7 @@ static int edit_subscription(ACCOUNT *a, CALENDAR *c, int is_new)
 	text(&f[F1], FF_LTR, 12, row, 46, url, sizeof(url));
 	row++;
 	put(&f[L2], FT_LABEL, 0, 0, row, 0, "Name:");
-	text(&f[F2], 0, 12, row, 30, name, 40);
+	text(&f[F2], 0, 12, row, 30, name, sizeof(name));
 	row++;
 	put(&f[L3], FT_LABEL, 0, 0, row, 0, "Refresh:");
 	put(&f[F3], FT_POPUP, 0, 12, row, 22, 0);
@@ -326,9 +326,9 @@ void dlg_add_account(void)
 	} else if (r == B3) {
 		dlg_subscribe("");
 	} else if (r == B4) {
-		char name[40] = "Atari";
+		char name[64] = "Atari";
 		int i, a = -1;
-		if (!dlg_ask("New calendar on this Atari", "Name:", name, 30) || !name[0])
+		if (!dlg_ask("New calendar on this Atari", "Name:", name, sizeof(name) - 1) || !name[0])
 			return;
 		for (i = 0; i < naccts; i++)
 			if (accts[i].kind == AK_LOCAL)
@@ -392,7 +392,7 @@ int dlg_calendar(int ci)
 	int renamable = a->kind != AK_CALDAV;
 	str_copy(name, c->name, sizeof(name));
 	put(&f[L1], FT_LABEL, 0, 0, row, 0, "Name:");
-	text(&f[F1], renamable ? 0 : FF_DISABLED, 10, row, 34, name, 60);
+	text(&f[F1], renamable ? 0 : FF_DISABLED, 10, row, 34, name, sizeof(name));
 	row += 2;
 	put(&f[L2], FT_LABEL, 0, 0, row, 0, "Colour:");
 	put(&f[F2], FT_COLOR, 0, 10, row, NCOLORS * 3, 0);
@@ -643,7 +643,7 @@ static void settings(short first)
 							  : "Needs a 68030 (Falcon or TT)");
 	row += 2;
 	put(&f[L3], FT_LABEL, 0, CX, row, 0, "Pi gateway:");
-	text(&f[C3], FF_LTR, CX + 12, row, 20, gate, 60);
+	text(&f[C3], FF_LTR, CX + 12, row, 20, gate, sizeof(gate));
 	put(&f[L4], FT_LABEL, 0, CX + 34, row, 0, "Port:");
 	text(&f[C4], FF_LTR | FF_DIGITS, CX + 40, row, 6, port, 6);
 	row++;
@@ -663,7 +663,7 @@ static void settings(short first)
 	put(&f[P2], FT_LABEL, 0, CX, row, 0, "EContact's folder:");
 	row++;
 	str_copy(people_dir, opt.peopledir, sizeof(people_dir));
-	text(&f[P3], FF_LTR, CX, row, 34, people_dir, sizeof(people_dir) - 1);
+	text(&f[P3], FF_LTR, CX, row, 34, people_dir, sizeof(people_dir));
 	put(&f[P4], FT_BUTTON, FF_ACTION, CX + 36, row, 10, "Choose...");
 	row++;
 	put(&f[P5], FT_LABEL, FF_LTR, CX, row, 0, "CONTACTS.TXT, which EContact writes there");
@@ -797,7 +797,7 @@ void dlg_find(void)
 	OCCLIST l;
 	CTIME now = now_view();
 	int i, k;
-	if (!dlg_ask("Find events", "Find:", what, 40) || !what[0])
+	if (!dlg_ask("Find events", "Find:", what, sizeof(what) - 1) || !what[0])
 		return;
 	busy(1);
 	memset(&l, 0, sizeof(l));

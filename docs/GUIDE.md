@@ -490,6 +490,12 @@ an alert without Cancel, it picks the button that does nothing, such as
 OK under a reminder). In a text field too: it doesn't clear the field,
 it closes the dialog.
 
+A text field holds more than it shows: the text scrolls with the
+cursor, so a long address, folder or title fits whole. Left and right
+move the cursor, with Shift to the start or the end; Clr/Home goes to
+the start (Shift+Clr/Home the end). ^C, ^X and ^V copy, cut and paste
+the whole field; a password is never copied out.
+
 While the busy bee shows (a refresh, saving an event to the server), Esc
 or Undo stops what ECal is waiting for from the server, at once rather
 than after the minute it would wait: the alert then says "stopped".
