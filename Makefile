@@ -71,11 +71,14 @@ all: $(BIN)/ECAL.ACC $(BIN)/ECAL.PRG $(BIN)/ECALST.ACC $(BIN)/ROOTS.DAT
 
 # the ST edition: no TLS of its own (it uses the Pi gateway), about 120 KB
 # smaller; only BearSSL's MD5 (for Digest logins), as 68000 code. Only
-# ever an accessory, so no crash catcher (crash_none.c)
+# ever an accessory, so no crash catcher (crash_none.c); never in 256
+# colours, so the About box without the 256-colour icon (NO_ICON256)
 STBSSL  := hash/md5 codec/dec32le codec/enc32le
+STOWN   := about aboutbox
 STOBJS  := $(OBJDIR)/crt0_st.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o $(OBJDIR)/crash_none.o \
-           $(addprefix $(OBJDIR)/,$(addsuffix .o,$(filter-out tls,$(CORE)) $(ATARI) $(UI) tls_none dsp_ec_none)) \
-           $(addprefix $(OBJDIR)/st/,$(addsuffix .o,$(notdir $(STBSSL)))) $(OBJDIR)/version.o
+           $(addprefix $(OBJDIR)/,$(addsuffix .o,$(filter-out tls,$(CORE)) $(ATARI) \
+                                   $(filter-out $(STOWN),$(UI)) tls_none dsp_ec_none)) \
+           $(addprefix $(OBJDIR)/st/,$(addsuffix .o,$(notdir $(STBSSL)) $(STOWN))) $(OBJDIR)/version.o
 
 $(BIN)/ECALST.ACC: $(OBJDIR)/ecalst.elf common/tools/elf2tos.py | $(BIN)
 	PRGFLAGS=7 python3 common/tools/elf2tos.py $< $@
@@ -92,6 +95,12 @@ $(OBJDIR)/st/%.o: $(BSSL)/src/hash/%.c
 $(OBJDIR)/st/%.o: $(BSSL)/src/codec/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(STBSSLCF) -c -o $@ $<
+$(OBJDIR)/st/about.o: ui/about.c $(HDRS)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -DNO_ICON256 -c -o $@ $<
+$(OBJDIR)/st/aboutbox.o: common/ui/aboutbox.c $(HDRS)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -DNO_ICON256 -c -o $@ $<
 
 # one program, two names: it sees at start-up whether TOS loaded it as
 # an accessory or started it as an application
