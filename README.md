@@ -82,7 +82,8 @@ The [user guide](docs/GUIDE.md) describes the rest.
 **Needs:** TOS 1.04 to 4.x, EmuTOS, MagiC or MiNT; ST medium, ST high, TT or Falcon resolution (not ST
 low); 1 MB of RAM, where `ECALST.ACC` runs beside STinG (2 MB or more for big calendars); STinG or
 MiNTnet. On an ST or STE, a Raspberry Pi (or any Debian or Ubuntu computer) for the gateway; Falcon mode
-needs a Falcon or TT.
+needs a Falcon or TT. On a 1 MB ST, `ECALST.ACC` or EContact's `ECONTST.ACC`, not both: together
+they leave TOS no memory and the ST stops at boot. Run the other as a program.
 
 **Under TOS, put Atari's `FOLDR100.PRG` first in `AUTO`**, renamed for more room (`FOLDR400.PRG`).
 TOS keeps an entry in a small internal pool for every folder a program or accessory has looked
