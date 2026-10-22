@@ -16,13 +16,14 @@ CalDAV server.
 - **Hebrew** throughout: right-to-left text, the Israeli keyboard (F10), Hebrew dates and
   Hebrew-calendar repeats.
 - **Every repeat:** all of RFC 5545's rules, with "only this one" or "all future ones" edits.
-- **Invitations:** invite people by name from [EContact](https://github.com/whomper/EContact) or by
-  address; iCloud sends the invitations, and their answers are kept.
+- **Invitations:** invite people by name from [EContact](https://github.com/whomper/EContact) (or
+  its contacts file when it isn't loaded) or by address; iCloud sends the invitations, and their
+  answers are kept.
 - **Always to hand:** reminders over any program, time zones, and its own copy on disk, so it works
   offline.
 - **Makes the most of the machine:** TT RAM when there is some, GDOS fonts, hover tooltips.
 
-![ECal's month view on a Falcon (Hatari): October 2026 with the Home, Work and Family calendars in red, olive and yellow, today (the 13th) in red, and the calendar list and a small month on the left](docs/month.png)
+![ECal's month view on a Falcon (Hatari): October 2026 with the Home, Work and Family calendars in red, olive and yellow, today in red, and the calendar list and a small month on the left](docs/month.png)
 
 ## Getting started
 
@@ -48,7 +49,14 @@ file on its own, or all of them in `ECAL-x.y.zip`.
    **Use C:\ECAL** to have it make that one).
 3. On an ST or STE, set up the gateway on a Raspberry Pi from
    [AERA-Gateway](https://github.com/whomper/AERA-Gateway)'s own repository (see
-   [gateway/README.md](gateway/README.md)):
+   [gateway/README.md](gateway/README.md)). On a new Pi, every AERA gateway for your Atari in one
+   line, ECal's among them (e-mail's only with `--mail`):
+
+   ```
+   sudo apt install -y git && git clone https://github.com/whomper/AERA-Gateway ~/AERA-Gateway && ~/AERA-Gateway/update-pi.sh --allow ATARI_IP
+   ```
+
+   Or step by step, only ECal's:
 
    ```
    sudo apt install -y git                  (Raspberry Pi OS Lite only)
@@ -58,12 +66,12 @@ file on its own, or all of them in `ECAL-x.y.zip`.
    sudo gateway/aera-gateway install dav --allow ATARI_IP
    ```
 
-   `ATARI_IP` is the Atari's address (e.g. 192.168.1.x): only it may use the gateway. The last command
-   prints the address to type into ECal.
+   `ATARI_IP` is the Atari's address (e.g. 192.168.1.x): only it may use the gateway. Either way the
+   install prints the address to type into ECal.
    - To update it to AERA-Gateway's latest release: `cd ~/AERA-Gateway && ./update-pi.sh`.
    - To check it: `gateway/aera-gateway status` in that folder, or http://PI_IP:8180/ in a browser.
-4. Reboot and choose **ECal** in the Desk menu. Open **Settings...** (^, or the ≡ menu at the right of
-   the toolbar):
+4. Reboot and choose **ECal** in the Desk menu. Open **Settings...** (Control and comma, or the ≡ menu
+   at the right of the toolbar):
    - **Connection**: type the Pi's IP address (`PI_IP`, e.g. 192.168.1.x, not its name) and port 8180
      into **Pi gateway**; or, on a Falcon or TT, tick **Falcon mode**.
    - **Time zones**: set the zone the Atari's clock is in.
@@ -154,9 +162,9 @@ The gateway's own README, with its options and how to keep it private:
   Exchange), or invitations you declined.
 - **Find** (^F) through titles, places and notes.
 - **Tooltips**: rest the mouse on an event to see its title and times.
-- **Fonts**: the system font or any monospaced GDOS font (NVDI, SpeedoGDOS), picked in EMail's font
-  selector; twelve calendar colours. With NVDI the views draw several times faster than with TOS's own
-  VDI.
+- **Fonts**: the system font or any monospaced GDOS font (NVDI, SpeedoGDOS), picked in the family's
+  Font dialog; twelve calendar colours, the same in 16 and 256 colours. With NVDI the views draw
+  several times faster than with TOS's own VDI.
 - **The calendar list** hides with a toolbar button (or ⇧^S), leaving the window to the calendar.
 - **Offline**: ECal keeps a copy of everything on disk, so it opens at once, shows today before it
   syncs, and works offline (**Work offline** in the Options or ≡ menu, as in EMail).
@@ -254,7 +262,7 @@ docs/     the user guide (GUIDE.md, the source of ECAL.HYP) and its pictures
 ```
 make test                    # the core: dates, Hebrew dates, zones, iCalendar, repeats,
                              # repeat rules with all of RFC 5545's examples, XML, URLs
-                             # (287 checks); the fuzz inputs again (tests/fuzz/seeds,
+                             # (305 checks); the fuzz inputs again (tests/fuzz/seeds,
                              # and found/: what once broke a parser); the gateway's tests
 make fuzz                    # the CalDAV answers, iCalendar, repeat rules, XML and
                              # inflate from libFuzzer (clang), FUZZTIME seconds each
@@ -275,6 +283,13 @@ would from the Control Panel:
 
 ```
 tests/hatari/acc_test.py WORK [--machine M]       # as a desk accessory (Falcon)
+tests/hatari/acc_files.py WORK [--machine M] [--run quiet|sync|falcon]
+                                                  # the accessory's disk access, job by job,
+                                                  # from Hatari's GEMDOS trace (ST-1:mono)
+tests/hatari/font_acc.py WORK [--machine M] [--prg] [--font-id N]
+                                                  # a GDOS font chosen: the window redraws in
+                                                  # it, and opens again (Falcon; skipped
+                                                  # without a GDOS)
 tests/hatari/edit_test.py WORK [--machine M]      # add, Hebrew title, find, delete, one occurrence,
                                                   # custom repeats (Falcon; on an ST up to delete)
 tests/hatari/alarm_test.py WORK [--machine M]     # reminders from ALARMS.IDX at boot (Falcon)
@@ -313,7 +328,8 @@ tests/hatari/hypview_test.py WORK                 # the guide in EHypView's late
                                                   # help first): Falcon:16, Falcon:256, TT:mono
 tests/hatari/ui_tour.py WORK [--machine M]        # screenshots of every view (Falcon)
 TZ=America/New_York tests/hatari/docs_shots.py WORK --update
-                                                  # the screenshots in docs/ (Falcon:16, ST:mono)
+                                                  # the screenshots in docs/ (Falcon:16, ST:mono,
+                                                  # EmuTOS), and docs/help/WINDOW.IMG
 ```
 
 Which machines a change passes (the family's guidelines): the ECALST.ACC rigs on `ST` and `ST-1`, in

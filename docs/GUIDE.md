@@ -23,6 +23,7 @@ F:\...\ECAL.APP\          ECal's folder, wherever you keep it (this one is an ex
     ECAL.PRG              the program, if you use it
     ECAL.KEY              the key the passwords in ECAL.INF are encrypted with
     CACHE\                a copy of every calendar
+    ALARMS.IDX            the coming reminders, for a quick start
     ECAL.FNT              which GDOS fonts are fixed-width (made by Font...)
     CACERT.PEM            Falcon mode: root certificates (copy them here)
     ROOTS.DAT             Falcon mode: the same, decoded ahead of time
@@ -124,7 +125,15 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
 - **Connection**: how ECal reaches the servers:
   - **Pi gateway**: the Pi's address (`PI_IP`) and port 8180. Any Atari
     can use it, and a Falcon can too, to save time. Set the Pi up from
-    AERA-Gateway's own repository, typing on the Pi:
+    AERA-Gateway's own repository, typing on the Pi. On a new Pi, every
+    AERA gateway for your Atari in one line, ECal's among them (e-mail's
+    only with `--mail`):
+
+    ```
+    sudo apt install -y git && git clone https://github.com/whomper/AERA-Gateway ~/AERA-Gateway && ~/AERA-Gateway/update-pi.sh --allow ATARI_IP
+    ```
+
+    Or step by step, only ECal's:
 
     ```
     sudo apt install -y git                  (Raspberry Pi OS Lite only)
@@ -429,7 +438,7 @@ its own switch too (subscriptions start with theirs off).
 
 The accessory doesn't have to be opened for its reminders, and it
 reminds from the moment the desktop is up: it keeps the next eight days'
-reminders in `ALARMS.IDX` next to its calendars, and at boot reads only
+reminders in `ALARMS.IDX` in its folder, and at boot reads only
 that. The calendars themselves it reads later, a minute after boot (or
 as **Read calendars** in Settings > Refresh says), or when you open it.
 It reads them a little at a time, between the moments the program in
@@ -520,7 +529,8 @@ they are.
 ## ECAL.INF
 
 The settings file explains itself, like EMail's: a note before each
-setting, `1` for on and `0` for off. It can be edited with any text
+setting and an empty line after it, so each reads as a paragraph of its
+own; `1` for on and `0` for off. It can be edited with any text
 editor while ECal isn't running (keys in any case, a note after a value
 with ` ;`). A password typed in there in plain text is encrypted with
 ECAL.KEY the next time ECal starts. ECal writes the file anew as
@@ -533,7 +543,7 @@ next time ECal saves its settings.
 
 `START=` near the top says when the accessory reads its calendars:
 `now`, `opened`, or a number of seconds after boot (60 at first).
-`ALARMS.IDX`, next to the calendars, is ECal's own copy of the coming
+`ALARMS.IDX`, in ECal's folder, is ECal's own copy of the coming
 reminders and of what they were made from; it can be deleted at any
 time, and is made again once the calendars are read.
 `SYNC_CLOSED=` is **Also with the window closed** (`1` at first; the

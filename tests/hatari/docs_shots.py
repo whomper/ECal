@@ -6,11 +6,17 @@ events, Hebrew dates off and a New York clock:
 
     TZ=America/New_York tests/hatari/docs_shots.py WORK [--update]
 
-On the Falcon (16 colours) and an ST in mono. They land in WORK/*/shots; --update copies them into docs/.
+On the Falcon (16 colours) and an ST in mono, under EmuTOS (as anyone
+building ECal would take them). The people invited in new-event.png
+come from a contacts file as EContact writes it (Settings > Contacts).
+They land in WORK/*/shots; --update copies them into docs/ and makes
+docs/help/WINDOW.IMG, the help front page's picture, from week.png.
 """
 import argparse
 import os
+import re
 import shutil
+import subprocess
 import sys
 import time
 
@@ -20,6 +26,21 @@ import ui_tour  # noqa: E402
 
 ROOT = ui_tour.ROOT
 BIN = os.path.join(ROOT, "binary")
+os.environ["AERA_TOS"] = "emutos"
+
+
+def contacts(hd):
+    """EContact's CONTACTS.TXT in C:\\ECONTACT, and ECAL.INF reading it"""
+    os.makedirs(os.path.join(hd, "ECONTACT"))
+    with open(os.path.join(hd, "ECONTACT", "CONTACTS.TXT"), "w", newline="") as f:
+        f.write("; EContact's contacts\r\n"
+                "P\tAlex Morgan\talex.morgan@example.org\thome\r\n"
+                "P\tJo Lee\tjo@example.org\twork\r\n"
+                "P\tSam Taylor\tsam.taylor@example.net\twork\r\n")
+    inf = os.path.join(hd, "ECAL.INF")
+    t = re.sub(rb"\r\n(PEOPLEFILE|PEOPLEDIR)=[^\r\n]*", b"", open(inf, "rb").read())
+    t = t.replace(b"[OPTIONS]\r\n", b"[OPTIONS]\r\nPEOPLEFILE=1\r\nPEOPLEDIR=C:\\ECONTACT\r\n", 1)
+    open(inf, "wb").write(t)
 
 
 def program(work, machine, shots):
@@ -29,6 +50,7 @@ def program(work, machine, shots):
     os.makedirs(hd)
     shutil.copy(os.path.join(BIN, "ECAL.PRG"), os.path.join(hd, "ECAL.PRG"))
     ui_tour.seed(hd, english=True)
+    contacts(hd)
     r = Rig(work, machine)
     try:
         time.sleep(16)
@@ -51,15 +73,15 @@ def falcon_shots(r):
     r.key(SCAN["n"]); time.sleep(1.5)
     r.type("Coffee with Alex", pace=0.08)
     time.sleep(0.5)
-    for who in ("alex", "sam", "jo@example.org"):  # People: Add...
-        r.click(515, 125); time.sleep(1.2)
+    for who in ("alex", "sam", "jo"):     # People: Add..., the contacts file's
+        r.click(515, 125); time.sleep(6)
         r.type(who, pace=0.08)
-        r.key(K["RETURN"]); time.sleep(1.5)
+        time.sleep(2)
+        r.key(K["RETURN"]); time.sleep(4)
     r.click(170, 81); time.sleep(0.5)       # back to the title
     r.shot("new-event")
     r.key(K["ESC"]); time.sleep(1.5)
-    r.click(600, 73); time.sleep(1.5)       # the menu
-    r.click(460, 363); time.sleep(2)        # Settings...
+    r.key(SCAN[","], ctrl=True); time.sleep(2)     # Settings...
     r.shot("settings")
     r.key(K["ESC"]); time.sleep(1)
 
@@ -83,6 +105,16 @@ def main():
             print(os.path.join(d, f))
             if a.update:
                 shutil.copy(os.path.join(d, f), os.path.join(ROOT, "docs", f))
+    if a.update:
+        # numbered: 1 the calendar list, 2 the view buttons, 3 today's
+        # Team meeting (in today's column of the week), 4 the little month
+        wday = (time.localtime().tm_wday + 1) % 7
+        out = os.path.join(ROOT, "docs", "help", "WINDOW.IMG")
+        subprocess.check_call([sys.executable, os.path.join(ROOT, "common", "tools", "helpfront.py"), "thumb",
+                               os.path.join(ROOT, "docs", "week.png"), out, "16,18,600,396",
+                               "60,118", "404,73", "%d,215" % (275 + 52 * wday), "104,348"])
+        os.remove(os.path.splitext(out)[0] + ".png")
+        print(out)
 
 
 if __name__ == "__main__":
