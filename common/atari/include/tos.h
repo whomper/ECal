@@ -138,6 +138,14 @@ static inline long trap14_ww(short fn, short a)
 	return r;
 }
 
+static inline long trap14_www(short fn, short a, short b)
+{
+	register long r __asm__("d0");
+	__asm__ volatile("move.w %3,-(%%sp)\n\tmove.w %2,-(%%sp)\n\tmove.w %1,-(%%sp)\n\ttrap #14\n\taddq.l #6,%%sp"
+		: "=r"(r) : "r"(fn), "r"(a), "r"(b) : TRAP_CLOBBER);
+	return r;
+}
+
 /* Rsconf(speed, flow, ucr, rsr, tsr, scr) */
 static inline long trap14_w6(short fn, short a, short b, short c, short d, short e, short f)
 {

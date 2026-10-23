@@ -19,10 +19,14 @@ read both ways.
 It writes, each when asked:
   --rsc      a GEM resource for the desktop: one tree with a G_ICON (the
              monochrome image and mask, for TOS 1 and 2) and a G_CICON with
-             it and the 16- and 256-colour images, each with its selected
-             one, both labelled --label (NAME). Desktop
-             icons bring no palette, so a pixel is a register of the
-             screen's standard palette. Copy it into DESKCICN.RSC with a
+             it and the 16-colour image, each with its selected one, both
+             labelled --label (NAME). Desktop icons bring no palette and
+             the desktop draws a pixel as a register, so the 256-colour
+             image is left out (23 Oct 2026): NVDI's 256 colours share 4
+             registers with TOS's, and the 256-colour image came out in
+             the wrong colours there. Registers 0-15 hold the same 16
+             colours, near enough, under TOS, EmuTOS and NVDI, and the
+             desktop shows the 16-colour image in 256 colours too. Copy it into DESKCICN.RSC with a
              resource editor (Interface, ORCS, RSM...), or use it as it is
              in Thing or Teradesk.
   --icn      the monochrome image, ICN text (resource editors read it);
@@ -140,7 +144,7 @@ def write_rsc(path, label, d):
     other) and the G_CICON side by side"""
     mono = [[1 if c == "X" else 0 for c in r] for r in d[2]]
     mmask = mask(d[2])
-    s16, s256 = selected(d[16], LIT16, GLOW16), selected(d[256], LIT256, GLOW256)
+    s16 = selected(d[16], LIT16, GLOW16)
     reg16 = {k: v[0] for k, v in C16.items()}
     text = label.encode("ascii")[:11]
     text += b"\0" * (12 - len(text))
@@ -167,11 +171,9 @@ def write_rsc(path, label, d):
     body = objects + iconblk(off_imdata + 128, off_imdata, off_text) + plane(mono) + plane(mmask) + text + \
         struct.pack(">l", off_obj)
     assert HDR + len(body) == rssize
-    ciconblk = (iconblk(0, 0, 0) + struct.pack(">l", 2) + plane(mono) + plane(mmask) + text +
-                struct.pack(">hlllll", 4, 1, 1, 1, 1, 1) + planes(d[16], reg16, 4) + plane(mask(d[16])) +
-                planes(s16, reg16, 4) + plane(mask(s16)) +
-                struct.pack(">hlllll", 8, 1, 1, 1, 1, 0) + planes(d[256], REG256, 8) + plane(mask(d[256])) +
-                planes(s256, REG256, 8) + plane(mask(s256)))
+    ciconblk = (iconblk(0, 0, 0) + struct.pack(">l", 1) + plane(mono) + plane(mmask) + text +
+                struct.pack(">hlllll", 4, 1, 1, 1, 1, 0) + planes(d[16], reg16, 4) + plane(mask(d[16])) +
+                planes(s16, reg16, 4) + plane(mask(s16)))
     total = rssize + 12 + 8 + len(ciconblk)
     hdr = struct.pack(">18H", 0x0004, off_obj, rssize, off_ib, rssize, off_trindex, off_text, off_imdata,
                       off_trindex, off_trindex, nobs, 1, 0, 1, 0, 0, 0, rssize)

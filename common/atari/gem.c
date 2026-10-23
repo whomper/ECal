@@ -693,6 +693,73 @@ void vq_color(short h, short index, short *rgb)
 	rgb[2] = vintout[3];
 }
 
+/* the hardware register a VDI pen draws with, by the screen's planes
+   (TOS's and NVDI's alike: a pen 0-15 has its VDI number, not the
+   register's; with 8 planes black, pen 1, is register 255) */
+static short pen_register(short planes, short pen)
+{
+	static const unsigned char reg16[16] = { 0, 15, 1, 2, 4, 6, 3, 5, 7, 8, 9, 10, 12, 14, 11, 13 };
+	if (planes == 1)
+		return pen & 1;
+	if (planes == 2)
+		return pen == 1 ? 3 : pen == 2 ? 1 : pen == 3 ? 2 : 0;
+	if (pen == 1 && planes == 8)
+		return 255;
+	if (pen == 255)
+		return 15;
+	return pen < 16 ? reg16[pen] : pen;
+}
+
+static long video;	/* _VDO's high word + 1: 1 ST, 2 STE, 3 TT, 4 Falcon; 0 not looked yet */
+
+void vq_color_seen(short h, short planes, short pen, short *rgb)
+{
+	short reg, k;
+	long v;
+	if (!video)
+		video = (get_cookie(0x5F56444FL) >> 16) + 1;	/* _VDO */
+	if (planes < 2 || planes > 8 || video > 4) {	/* mono: black and white */
+		vq_color(h, pen, rgb);
+		return;
+	}
+	reg = pen_register(planes, pen);
+	if (video == 4) {			/* Falcon: VgetRGB, 8 bits a gun */
+		long *p = &v;
+		register long r __asm__("d0");
+		__asm__ volatile("move.l %3,-(%%sp)\n\tmove.w #1,-(%%sp)\n\tmove.w %2,-(%%sp)\n\t"
+				 "move.w #94,-(%%sp)\n\ttrap #14\n\tlea 10(%%sp),%%sp"
+			: "=r"(r) : "0"(0L), "r"(reg), "r"((long)p) : "d1", "d2", "a0", "a1", "a2", "memory", "cc");
+		(void)r;
+		for (k = 0; k < 3; k++)
+			rgb[k] = (short)(((v >> (16 - 8 * k)) & 255) * 1000 / 255);
+		return;
+	}
+	if (video == 3) {			/* TT: EgetPalette, 4 bits a gun */
+		short w;
+		register long r __asm__("d0");
+		__asm__ volatile("move.l %3,-(%%sp)\n\tmove.w #1,-(%%sp)\n\tmove.w %2,-(%%sp)\n\t"
+				 "move.w #85,-(%%sp)\n\ttrap #14\n\tlea 10(%%sp),%%sp"
+			: "=r"(r) : "0"(0L), "r"(reg), "r"((long)&w) : "d1", "d2", "a0", "a1", "a2", "memory", "cc");
+		(void)r;
+		v = w;
+	} else {				/* ST and STE: Setcolor(reg, -1) */
+		if (reg > 15) {
+			vq_color(h, pen, rgb);
+			return;
+		}
+		v = trap14_www(7, reg, -1);
+	}
+	for (k = 0; k < 3; k++) {
+		short n = (short)((v >> (8 - 4 * k)) & 15);
+		if (video == 1)			/* ST: 3 bits */
+			rgb[k] = (short)((n & 7) * 1000 / 7);
+		else if (video == 2)		/* STE: the 4th bit is the lowest */
+			rgb[k] = (short)((((n & 7) << 1) | (n >> 3)) * 1000 / 15);
+		else
+			rgb[k] = (short)(n * 1000 / 15);
+	}
+}
+
 void vr_recfl(short h, const short *pxy)
 {
 	ptsin[0] = pxy[0];
