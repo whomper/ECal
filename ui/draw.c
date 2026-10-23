@@ -422,7 +422,7 @@ static void pens_init(void)
 		memcpy(want[j], tos_pen[j] >= 0 ? tos_pal[tos_pen[j]] : mac_rgb[j], sizeof(want[j]));
 	/* and on this screen */
 	for (i = 0; i < 16; i++)
-		vq_color(vdi_h, i, pal[i]);
+		vq_color_seen(vdi_h, planes, i, pal[i]);	/* the colour on the screen (COLORVDI.CPX sets the hardware, not NVDI's table) */
 	memset(taken, 0, sizeof(taken));
 	pick_greys((const short (*)[3])pal, taken, &grey_dark, &grey_light);
 	pick_pens((const short (*)[3])want, (const short (*)[3])pal, taken, tos_pen, 1);

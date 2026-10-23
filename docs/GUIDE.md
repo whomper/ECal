@@ -556,8 +556,11 @@ time, and is made again once the calendars are read.
 ECal's icon is a desk calendar with a clock, drawn in 256 colours, in
 TOS's 16 and in black and white, like the other AERA programs' icons.
 The release has it for the desktop (in the zip, in `icons/`): `ECAL.RSC`
-holds the black and white one (for TOS 1 and 2) and a colour one with
-all three, to copy into `DESKICON.RSC` / `DESKCICN.RSC` (or Thing's,
+holds the black and white one (for TOS 1 and 2) and a colour one in
+TOS's 16 colours, which the desktop shows in 256 colours too: the
+desktop takes a pixel's colour straight from the screen's palette, and
+only the 16 standard colours are the same everywhere (under NVDI the
+256-colour drawing came out in wrong colours). Copy it into `DESKICON.RSC` / `DESKCICN.RSC` (or Thing's,
 TeraDesk's or Jinnee's icon file) with a resource editor, and `ECAL.ICN` / `ECALMK.ICN` are the image and mask
 for icon editors. For EmuTOS, `tools/icon/add_to_emuicon.py` adds it to
 `EMUICON.RSC`; then pick it with Options > Install icon.
