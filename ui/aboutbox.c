@@ -145,23 +145,21 @@ static void icon256_draw(const unsigned char *px, const unsigned char *map, shor
 		}
 }
 
-/* for each colour of the icon, the pen that shows it now: its own when the
+/* for each colour of the icon, the pen that has it now: its own when the
    palette is TOS's, else the nearest (an app's theme may have taken pens
-   16 and up: EMail's; under NVDI pens 16 and up are NVDI's own). The
-   colours are read from the hardware (vq_color_seen): a palette loaded at
-   boot isn't in NVDI's table. Nothing is lent, so nothing else on the
-   screen changes colour while the box is open. */
+   16 and up: EMail's). Nothing is lent, so nothing else on the screen
+   changes colour while the box is open. */
 static void icon256_pens(const short (*rgb)[4], unsigned char *map)
 {
 	short i, p, have[3];
 	for (i = 0; rgb[i][0]; i++) {
 		long best = -1;
 		short pen = rgb[i][0];
-		vq_color_seen(vdi_h, planes, pen, have);
+		vq_color(vdi_h, pen, have);
 		if (abs(have[0] - rgb[i][1]) + abs(have[1] - rgb[i][2]) + abs(have[2] - rgb[i][3]) > 24)
 			for (p = 0; p < 256; p++) {
 				long d;
-				vq_color_seen(vdi_h, planes, p, have);
+				vq_color(vdi_h, p, have);
 				d = (long)(have[0] - rgb[i][1]) * (have[0] - rgb[i][1]) +
 				    (long)(have[1] - rgb[i][2]) * (have[1] - rgb[i][2]) +
 				    (long)(have[2] - rgb[i][3]) * (have[2] - rgb[i][3]);
@@ -314,7 +312,7 @@ void about_show(const ABOUT *a)
 #endif
 	if (colour) {
 		for (i = 0; i < 8; i++) {
-			vq_color_seen(vdi_h, planes, 8 + i, saved_rgb[i]);	/* the screen's, not NVDI's table */
+			vq_color(vdi_h, 8 + i, saved_rgb[i]);
 			vs_color(vdi_h, 8 + i, a->icon16_rgb[i]);
 		}
 		about_icon16(a->icon16, dx + (dw - ICON_W * sx) / 2, y, sx, sy, 0);

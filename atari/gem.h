@@ -246,11 +246,6 @@ void vst_alignment(short h, short hor, short ver);
 void vst_height(short h, short height, short *cw, short *ch);
 void vs_color(short h, short index, const short *rgb);
 void vq_color(short h, short index, short *rgb);
-/* the colour a pen shows on the screen now, 0-1000, read from the video
-   hardware (ST, STE, TT, Falcon; vq_color in true colour or elsewhere):
-   a palette loaded at boot (COLORVDI.CPX) reaches the hardware but not
-   NVDI's own table, which vq_color reads (the guidelines 5.2) */
-void vq_color_seen(short h, short planes, short pen, short *rgb);
 void v_gtext_n(short h, short x, short y, const char *s, short n);
 typedef struct {
 	void *fd_addr;

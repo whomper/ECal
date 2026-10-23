@@ -4,8 +4,8 @@
 """appicon.py - an AERA app's icon, from its drawing in common/icons/NAME.txt
 (the guidelines, 5.6; Erez, 22 Oct 2026):
 
-    python3 common/tools/appicon.py NAME [--rsc icons/NAME.RSC] [--rsc16 icons/NAME16.RSC]
-            [--icn icons/NAME.ICN] [--mask icons/NAMEMK.ICN] [--headers DIR] [--docs DIR] [--label TEXT]
+    python3 common/tools/appicon.py NAME [--rsc icons/NAME.RSC] [--icn icons/NAME.ICN]
+            [--mask icons/NAMEMK.ICN] [--headers DIR] [--docs DIR] [--label TEXT]
     python3 common/tools/appicon.py --sheet FILE.png      (all of them, for review)
 
 The drawing is 32 x 32 pixels in three depths, as letters, each drawn by
@@ -20,18 +20,11 @@ It writes, each when asked:
   --rsc      a GEM resource for the desktop: one tree with a G_ICON (the
              monochrome image and mask, for TOS 1 and 2) and a G_CICON with
              it and the 16- and 256-colour images, each with its selected
-             one, both labelled --label (NAME). Desktop icons bring no
-             palette: the desktop draws a pixel as a register, so the
-             256-colour image is right with TOS's 256 colours (TOS, EmuTOS,
-             or NVDI with TOS's palette loaded, COLORVDI.CPX on Erez's
-             Falcon), and wrong under NVDI's own 256 colours, which share 4
-             registers with TOS's. Copy it into DESKCICN.RSC with a
+             one, both labelled --label (NAME). Desktop
+             icons bring no palette, so a pixel is a register of the
+             screen's standard palette. Copy it into DESKCICN.RSC with a
              resource editor (Interface, ORCS, RSM...), or use it as it is
              in Thing or Teradesk.
-  --rsc16    the same without the 256-colour image (23 Oct 2026), for NVDI
-             with its own palette: the desktop then shows the 16-colour
-             image in 256 colours too, and registers 0-15 hold the same 16
-             colours, near enough, under TOS, EmuTOS and NVDI.
   --icn      the monochrome image, ICN text (resource editors read it);
   --mask     its mask, ICN text;
   --headers  icon.h (icon_bits, one plane), icon16.h (icon16_px in VDI
@@ -142,7 +135,7 @@ def planes(rows, reg, n):
     return b"".join(plane([[(p >> k) & 1 for p in r] for r in pix]) for k in range(n))
 
 
-def write_rsc(path, label, d, with256=True):
+def write_rsc(path, label, d):
     """one tree: a box with the monochrome G_ICON (TOS 1 and 2 know no
     other) and the G_CICON side by side"""
     mono = [[1 if c == "X" else 0 for c in r] for r in d[2]]
@@ -174,12 +167,11 @@ def write_rsc(path, label, d, with256=True):
     body = objects + iconblk(off_imdata + 128, off_imdata, off_text) + plane(mono) + plane(mmask) + text + \
         struct.pack(">l", off_obj)
     assert HDR + len(body) == rssize
-    ciconblk = (iconblk(0, 0, 0) + struct.pack(">l", 2 if with256 else 1) + plane(mono) + plane(mmask) + text +
-                struct.pack(">hlllll", 4, 1, 1, 1, 1, 1 if with256 else 0) + planes(d[16], reg16, 4) +
-                plane(mask(d[16])) + planes(s16, reg16, 4) + plane(mask(s16)))
-    if with256:
-        ciconblk += (struct.pack(">hlllll", 8, 1, 1, 1, 1, 0) + planes(d[256], REG256, 8) + plane(mask(d[256])) +
-                     planes(s256, REG256, 8) + plane(mask(s256)))
+    ciconblk = (iconblk(0, 0, 0) + struct.pack(">l", 2) + plane(mono) + plane(mmask) + text +
+                struct.pack(">hlllll", 4, 1, 1, 1, 1, 1) + planes(d[16], reg16, 4) + plane(mask(d[16])) +
+                planes(s16, reg16, 4) + plane(mask(s16)) +
+                struct.pack(">hlllll", 8, 1, 1, 1, 1, 0) + planes(d[256], REG256, 8) + plane(mask(d[256])) +
+                planes(s256, REG256, 8) + plane(mask(s256)))
     total = rssize + 12 + 8 + len(ciconblk)
     hdr = struct.pack(">18H", 0x0004, off_obj, rssize, off_ib, rssize, off_trindex, off_text, off_imdata,
                       off_trindex, off_trindex, nobs, 1, 0, 1, 0, 0, 0, rssize)
@@ -311,7 +303,6 @@ def main(argv):
     ap = argparse.ArgumentParser()
     ap.add_argument("name", nargs="?")
     ap.add_argument("--rsc")
-    ap.add_argument("--rsc16")
     ap.add_argument("--icn")
     ap.add_argument("--mask")
     ap.add_argument("--headers")
@@ -330,8 +321,6 @@ def main(argv):
     d = load(a.name)
     if a.rsc:
         write_rsc(a.rsc, a.label or a.name, d)
-    if a.rsc16:
-        write_rsc(a.rsc16, a.label or a.name, d, with256=False)
     if a.icn:
         write_icn(a.icn, [[1 if c == "X" else 0 for c in r] for r in d[2]])
     if a.mask:
