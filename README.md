@@ -37,7 +37,7 @@ file on its own, or all of them in `ECAL-x.y.zip`.
 | `ECAL.PRG` | the same as `ECAL.ACC`, to start from the desktop, with a menu bar |
 | `CACERT.PEM`, `ROOTS.DAT` | the root certificates for Falcon mode |
 | `ECAL.HYP`, `ECAL.REF` | the guide, for EHypView, ST-Guide or HypView, opened by the Help key |
-| `ECAL.RSC`, `ECAL16.RSC`, `ECAL.ICN`, `ECALMK.ICN` | ECal's desktop icon in black and white, 16 and 256 colours; take `ECAL.RSC` under TOS, EmuTOS or NVDI with TOS's palette (COLORVDI), `ECAL16.RSC` (no 256-colour image) under NVDI with its own palette; in the zip's `icons/` folder (see the guide's [The desktop icon](docs/GUIDE.md#the-desktop-icon)) |
+| `ECAL.RSC`, `ECAL.ICN`, `ECALMK.ICN` | ECal's desktop icon, in black and white, 16 and 256 colours; in the zip's `icons/` folder (see the guide's [The desktop icon](docs/GUIDE.md#the-desktop-icon)) |
 | `ECAL-x.y.zip` | all of these in one file |
 
 1. Copy `ECAL.ACC` (Falcon, TT) or `ECALST.ACC` (ST, STE; renamed to `ECAL.ACC` or not) to the root
