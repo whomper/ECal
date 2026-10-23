@@ -113,7 +113,8 @@ $(BIN)/ECAL.PRG: $(BIN)/ECAL.ACC
 # its drawing in common/icons/ECAL.txt (the guidelines, 5.5), committed; a
 # release carries icons/
 icons:
-	python3 common/tools/appicon.py ECAL --rsc icons/ECAL.RSC --icn icons/ECAL.ICN --mask icons/ECALMK.ICN \
+	python3 common/tools/appicon.py ECAL --rsc icons/ECAL.RSC --rscnv icons/ECALNV.RSC \
+		--icn icons/ECAL.ICN --mask icons/ECALMK.ICN \
 		--headers ui --docs docs
 
 # a stand-in ST-Guide for tests/hatari/help_test.py
@@ -225,7 +226,7 @@ $(BIN)/ECAL.HYP: docs/GUIDE.md tools/guide2stg.py VERSION docs/front.json docs/h
 # dist/ECAL-x.y.zip (the icons in icons/), for the release workflow
 DIST    := $(BIN)/ECAL.ACC $(BIN)/ECALST.ACC $(BIN)/ECAL.PRG $(BIN)/CACERT.PEM $(BIN)/ROOTS.DAT \
            $(BIN)/ECAL.HYP $(BIN)/ECAL.REF
-ICONS   := icons/ECAL.RSC icons/ECAL.ICN icons/ECALMK.ICN
+ICONS   := icons/ECAL.RSC icons/ECALNV.RSC icons/ECAL.ICN icons/ECALMK.ICN
 dist: all help
 	rm -rf dist
 	mkdir -p dist/zip/icons
