@@ -5,7 +5,9 @@
 shown, a long title takes a shorter form ("18-24 Oct", "Sep 2026")
 instead of being cut ("18-24 Oct 202"). For each view and date below,
 Go to date (^G) and the view's key, then the width of the title's ink
-is measured against the form expected (8 pixels a character).
+(8 pixels a character) must be one of the title's forms, whole: which
+one depends on the room the AES leaves (13 characters under EmuTOS, 14
+under TOS 1.04).
 
     tests/hatari/title_test.py WORK [--machine Falcon|TT|ST:mono|...]
 """
@@ -20,16 +22,29 @@ from edit_test import empty  # noqa: E402
 from people_test import text_width  # noqa: E402
 from rig import Rig, K, SCAN, add_machine  # noqa: E402
 
-# the title's place in the toolbar, between the → button and Day
-TITLE_BOX = (161, 66, 284, 80)
-# (date, view key, the title expected); the week starts on Sunday
+# the title's place in the toolbar, between the → button and Day, up
+# from the toolbar's bottom line
+TITLE_X = (161, 284)
+# (date, view key, its forms, longest first); the week starts on Sunday
 CASES = [
-    ("22.10.2026", "w", "18-24 Oct"),           # "18-24 Oct 2026" is a character too long
-    ("30.9.2026", "w", "27 Sep-3 Oct"),
-    ("30.9.2026", "d", "Wed 30 Sep"),
-    ("30.9.2026", "m", "Sep 2026"),             # "September 2026"
-    ("22.10.2026", "m", "October 2026"),        # fits as it is
+    ("22.10.2026", "w", ["18 - 24 October 2026", "18-24 Oct 2026", "18-24 Oct"]),
+    ("30.9.2026", "w", ["27 Sep - 3 Oct 2026", "27 Sep-3 Oct 2026", "27 Sep-3 Oct"]),
+    ("30.9.2026", "d", ["Wednesday, 30 September 2026", "Wed 30 Sep 2026", "Wed 30 Sep", "30 Sep"]),
+    ("30.9.2026", "m", ["September 2026", "Sep 2026", "Sep"]),
+    ("22.10.2026", "m", ["October 2026", "Oct 2026", "Oct"]),
 ]
+
+
+def title_box(shot):
+    """the title's box: above the toolbar's bottom line, the last black
+    line from the → button past Day before the view (y 84 under EmuTOS,
+    79 under TOS 1.04)"""
+    from PIL import Image
+    im = Image.open(shot).convert("L")
+    px = im.load()
+    lines = [y for y in range(30, 100) if all(px[x, y] < 128 for x in range(150, 300))]
+    y = lines[-1] if lines else 84
+    return (TITLE_X[0], y - 18, TITLE_X[1], y - 4)
 fails = []
 
 
@@ -54,7 +69,7 @@ def main():
     shots = []
     try:
         r.wait(16)
-        for i, (date, view, want) in enumerate(CASES):
+        for i, (date, view, forms) in enumerate(CASES):
             r.ctrl("g")
             r.wait(1.5)
             empty(r)                    # the date shown, typed over
@@ -66,10 +81,11 @@ def main():
             shots.append(r.shot("%d-%s-%s" % (i + 1, view, date)))
     finally:
         r.stop()
-    for (date, view, want), shot in zip(CASES, shots):
-        w = text_width(shot, TITLE_BOX)
-        check("%s, %s: \"%s\" whole (%d px, %d expected)" % (date, view.upper(), want, w, 8 * len(want)),
-              8 * len(want) - 4 <= w <= 8 * len(want) + 1)
+    for (date, view, forms), shot in zip(CASES, shots):
+        w = text_width(shot, title_box(shot))
+        whole = [f for f in forms if 8 * len(f) - 4 <= w <= 8 * len(f) + 1 and 8 * len(f) <= TITLE_X[1] - TITLE_X[0]]
+        check("%s, %s: a form drawn whole (%d px: %s)" % (date, view.upper(), w, '"%s"' % whole[0] if whole else "cut"),
+              bool(whole))
     print("screenshots in", os.path.join(work, "shots"))
     print("title test:", "all passed" if not fails else "%d failed" % len(fails))
     return 1 if fails else 0
