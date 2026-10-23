@@ -1229,6 +1229,8 @@ static void load_calendars(void)
 
 /* First the window, then today from the copies on disk, and only then,
    from the event loop once everything is drawn, the refresh */
+static int welcomed;		/* "Welcome to ECal!" said this session */
+
 static void open_window(void)
 {
 	if (no_vdi) {
@@ -1267,10 +1269,13 @@ static void open_window(void)
 	after_change();			/* today's events, from what is kept here */
 	updated_status();
 	tell_lost();
-	if (!naccts) {
+	if (!naccts && !welcomed) {
+		/* once a session: opened again (the accessory, after its
+		   window was closed), Add account... is in the menu */
+		welcomed = 1;
 		alert(1, "[1][Welcome to ECal!||Let's add your iCloud or other calendar.][ OK ]");
 		dlg_add_account();
-	} else if (opt.sync_open && !opt.offline) {
+	} else if (naccts && opt.sync_open && !opt.offline) {
 		sync_pending = 1;	/* as EMail's first check: problems in an alert */
 	}
 }
