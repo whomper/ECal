@@ -31,6 +31,15 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
   `VERSION` as it is (there is no `-dev` label). Don't
   commit built programs, help files or certificates (`binary/`, `dist/`). Never reuse a number.
 - **Only formal releases leave the build machine.** Erez gets vX.Y releases made by the Release workflow from `main`, nothing else: no test builds, no CI artifacts, no builds from a branch. Work lands on `main`; to try a fix on real hardware, release it. If a release doesn't work, roll back with a release: revert on `main`, release the next number, and run the Withdraw workflow (`.github/workflows/withdraw.yml`) on the bad one: it puts "Withdrawn: use vX.Y" at the top of its notes.
+- **Releases go out without asking Erez** (his decision, 23 Oct 2026; guidelines 1.2). Release when
+  work on `main` is ready:
+  - this repo's checks pass;
+  - the rigs on his TOS pass, where this file asks for them;
+  - the hub's family checks pass.
+
+  Then give Erez the link in one line, with anything he has to do, and send the hub the link. Roll
+  back a bad release the same way. Decisions that are his (design, Pi packages, ports, a change to
+  what a user sees that wasn't asked for) still go to him first.
 - **Testing with another AERA program uses its latest release**, what Erez runs, never a build of its
   `main`: `common/tools/getrelease.py APP DIR FILE...` fetches it. Only for a change both programs are
   still making, test against the other's `main` at a named commit, say so, and test again against its
@@ -61,7 +70,7 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
   Hatari rigs in `tests/hatari/`, on the family's machines (`--machine`, from
   `common/tools/machines.py`): the ECALST.ACC rigs on `ST` and `ST-1` (`:mono` and `:med`), the
   others on `TT` and `Falcon`, drawing also on `Falcon:256`.
-- **Before asking Erez for a GEM release**, run these rigs on his TOS images (`~/.aera/tos`: TOS 1.04 on
+- **Before a GEM release**, run these rigs on his TOS images (`~/.aera/tos`: TOS 1.04 on
   ST/ST-1, TOS 4.04 on the Falcons; and his NVDI in `~/.aera/nvdi/x` with `AERA_WITH_NVDI=1`), then send the
   hub the commit and the results; the hub runs only the family checks (`acc_all.py`):
   - `acc_test.py` and `font_acc.py` (accessory, `--prg`, `--font-id`) on `Falcon:16` and `Falcon-4:16`,
