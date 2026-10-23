@@ -8,8 +8,10 @@
  * EMail's draw.c).
  */
 #include <string.h>
+#include <stdio.h>
 #include "ui.h"
 #include "bidi.h"
+#include "conn.h"
 
 static short next_text_color = 1;
 
@@ -296,85 +298,149 @@ static const short mac_rgb[NCOLORS][3] = {
 };
 static short c16[NCOLORS] = { 2, 10, 6, 3, 4, 15, 14, 8, 7, 5, 12, 11 };
 
-/* The standard palettes differ (the ST's index 9 is dark grey, the
-   Falcon's dark red), and the user may have changed them: pick, for each
-   of our colours, the nearest one the screen really has. Only among the
-   first 16 pens, the standard palette, in 256 colours and more too: the
-   calendars and the grey text look the same whichever the screen has. */
-static void pens_init(void)
+/* TOS's own 16 colours on a TT or Falcon (VDI's 0-1000), as the
+   calendars were made to look */
+static const short tos_pal[16][3] = {
+	{ 1000, 1000, 1000 }, { 0, 0, 0 }, { 1000, 0, 0 }, { 0, 1000, 0 },
+	{ 0, 0, 1000 }, { 0, 1000, 1000 }, { 1000, 1000, 0 }, { 1000, 0, 1000 },
+	{ 733, 733, 733 }, { 533, 533, 533 }, { 667, 0, 0 }, { 0, 667, 0 },
+	{ 0, 0, 667 }, { 0, 667, 667 }, { 667, 667, 0 }, { 667, 0, 667 },
+};
+
+/* the two greys for text in palette pal: a real grey (red, green and
+   blue alike) nearest each target, taken from the calendars' pens */
+static void pick_greys(const short (*pal)[3], unsigned char *taken, short *dark, short *light)
 {
-	/* the most distinctive first: they get their nearest match, and the
-	   others the nearest one still free, so no two calendar colours
-	   look the same (on 16 colours purple, brown and grey all came
-	   out the same grey) */
-	static const short order[NCOLORS] = { 0, 2, 3, 4, 5, 9, 8, 10, 11, 1, 6, 7 };
-	short j, i, n = 16, rgb[3];
-	unsigned char taken[16];
-	pens_ready = 1;
-	if (ncolors < 16)
-		return;
-	memset(taken, 0, sizeof(taken));
-	/* first the two greys for text, kept from the calendars' colours: a
-	   real grey (red, green and blue alike) nearest each target */
-	{
-		static const short want[2] = { 420, 690 };	/* dark, light (0-1000) */
-		short g;
-		for (g = 0; g < 2; g++) {
-			short pick = -1;
-			long best = 0x7fffffffL;
-			for (i = 2; i < n; i++) {
-				short lo, hi;
-				long dist;
-				if (taken[i])
-					continue;
-				vq_color(vdi_h, i, rgb);
-				lo = rgb[0] < rgb[1] ? rgb[0] : rgb[1];
-				lo = lo < rgb[2] ? lo : rgb[2];
-				hi = rgb[0] > rgb[1] ? rgb[0] : rgb[1];
-				hi = hi > rgb[2] ? hi : rgb[2];
-				if (hi - lo > 120 || hi < 200 || lo > 900)
-					continue;	/* not a grey, or too near black or white (NVDI's index 8 is 851) */
-				dist = (long)(rgb[0] + rgb[1] + rgb[2]) / 3 - want[g];
-				dist = dist < 0 ? -dist : dist;
-				if (dist < best) {
-					best = dist;
-					pick = i;
-				}
-			}
-			if (pick >= 0) {
-				taken[pick] = 1;
-				if (g)
-					grey_light = pick;
-				else
-					grey_dark = pick;
-			}
-		}
-		if (grey_dark == 1 && grey_light != 1)
-			grey_dark = grey_light;	/* only one grey: for both */
-		if (grey_light == 1 && grey_dark != 1)
-			grey_light = grey_dark;	/* never black for the light grey */
-	}
-	for (j = 0; j < NCOLORS; j++) {
-		short k = order[j], pick = -1;
+	static const short want[2] = { 420, 690 };	/* dark, light (0-1000) */
+	short g, i;
+	*dark = *light = 1;
+	for (g = 0; g < 2; g++) {
+		short pick = -1;
 		long best = 0x7fffffffL;
-		for (i = 2; i < n; i++) {
-			long dr, dg, db, dist;
+		for (i = 2; i < 16; i++) {
+			short lo, hi;
+			long dist;
 			if (taken[i])
 				continue;
-			vq_color(vdi_h, i, rgb);
-			dr = rgb[0] - mac_rgb[k][0];
-			dg = rgb[1] - mac_rgb[k][1];
-			db = rgb[2] - mac_rgb[k][2];
-			dist = dr * dr * 3 + dg * dg * 4 + db * db * 2;
+			lo = pal[i][0] < pal[i][1] ? pal[i][0] : pal[i][1];
+			lo = lo < pal[i][2] ? lo : pal[i][2];
+			hi = pal[i][0] > pal[i][1] ? pal[i][0] : pal[i][1];
+			hi = hi > pal[i][2] ? hi : pal[i][2];
+			if (hi - lo > 120 || hi < 200 || lo > 900)
+				continue;	/* not a grey, or too near black or white (NVDI's index 8 is 851) */
+			dist = (long)(pal[i][0] + pal[i][1] + pal[i][2]) / 3 - want[g];
+			dist = dist < 0 ? -dist : dist;
 			if (dist < best) {
 				best = dist;
 				pick = i;
 			}
 		}
 		if (pick >= 0) {
-			c16[k] = pick;
+			taken[pick] = 1;
+			if (g)
+				*light = pick;
+			else
+				*dark = pick;
+		}
+	}
+	if (*dark == 1 && *light != 1)
+		*dark = *light;		/* only one grey: for both */
+	if (*light == 1 && *dark != 1)
+		*light = *dark;		/* never black for the light grey */
+}
+
+static long colour_dist(const short *a, const short *b)
+{
+	long dr = a[0] - b[0], dg = a[1] - b[1], db = a[2] - b[2];
+	return dr * dr * 3 + dg * dg * 4 + db * db * 2;
+}
+
+/* each colour of want[] its pen in palette pal: the most distinctive
+   first, each the nearest still free, so no two calendar colours look
+   the same (on 16 colours purple, brown and grey all came out the same
+   grey). With swap, then two colours trade pens while that brings both
+   nearer together: NVDI's light cyan, nearest to TOS's dark cyan, would
+   otherwise go to the blue calendar and leave the teal one dark */
+static void pick_pens(const short (*want)[3], const short (*pal)[3], unsigned char *taken, short *pen, int swap)
+{
+	static const short order[NCOLORS] = { 0, 2, 3, 4, 5, 9, 8, 10, 11, 1, 6, 7 };
+	short j, i, again;
+	for (j = 0; j < NCOLORS; j++) {
+		short k = order[j], pick = -1;
+		long best = 0x7fffffffL;
+		pen[k] = -1;
+		for (i = 2; i < 16; i++) {
+			long dist;
+			if (taken[i])
+				continue;
+			dist = colour_dist(pal[i], want[k]);
+			if (dist < best) {
+				best = dist;
+				pick = i;
+			}
+		}
+		if (pick >= 0) {
+			pen[k] = pick;
 			taken[pick] = 1;
 		}
+	}
+	for (again = swap; again; ) {
+		again = 0;
+		for (j = 0; j < NCOLORS; j++)
+			for (i = j + 1; i < NCOLORS; i++)
+				if (pen[j] >= 0 && pen[i] >= 0 &&
+				    colour_dist(pal[pen[i]], want[j]) + colour_dist(pal[pen[j]], want[i]) <
+				    colour_dist(pal[pen[j]], want[j]) + colour_dist(pal[pen[i]], want[i])) {
+					short t = pen[j];
+					pen[j] = pen[i];
+					pen[i] = t;
+					again = 1;
+				}
+	}
+}
+
+/* Only among the first 16 pens, the standard palette, in 256 colours
+   and more too (other programs set the pens above 15 as they please):
+   the calendars and the grey text look the same whichever the screen
+   has. Those pens' colours differ, though: NVDI's index 14 is khaki
+   where TOS's is olive, its 7 pink where TOS's is magenta, and the
+   user may have changed them. So each calendar first finds the pen it
+   gets in TOS's own palette, then takes, from the screen's real
+   colours, the pen nearest to that one: under NVDI as under TOS. */
+static void pens_init(void)
+{
+	short i, j, pal[16][3], want[NCOLORS][3], tos_pen[NCOLORS], d, l;
+	unsigned char taken[16];
+	pens_ready = 1;
+	if (ncolors < 16)
+		return;
+	/* how the calendars look under TOS */
+	memset(taken, 0, sizeof(taken));
+	pick_greys(tos_pal, taken, &d, &l);
+	pick_pens(mac_rgb, tos_pal, taken, tos_pen, 0);
+	for (j = 0; j < NCOLORS; j++)
+		memcpy(want[j], tos_pen[j] >= 0 ? tos_pal[tos_pen[j]] : mac_rgb[j], sizeof(want[j]));
+	/* and on this screen */
+	for (i = 0; i < 16; i++)
+		vq_color(vdi_h, i, pal[i]);
+	memset(taken, 0, sizeof(taken));
+	pick_greys((const short (*)[3])pal, taken, &grey_dark, &grey_light);
+	pick_pens((const short (*)[3])want, (const short (*)[3])pal, taken, tos_pen, 1);
+	for (j = 0; j < NCOLORS; j++)
+		if (tos_pen[j] >= 0)
+			c16[j] = tos_pen[j];
+	{
+		/* for the log: the screen's 16 pens, and the one each calendar
+		   colour and the two greys took */
+		char m[400];
+		int n = snprintf(m, sizeof(m), "pens:");
+		for (i = 0; i < 16 && n < (int)sizeof(m) - 16; i++)
+			n += snprintf(m + n, sizeof(m) - n, " %d=%d,%d,%d", i, pal[i][0], pal[i][1], pal[i][2]);
+		n += snprintf(m + n, sizeof(m) - n, "; calendars");
+		for (j = 0; j < NCOLORS && n < (int)sizeof(m) - 6; j++)
+			n += snprintf(m + n, sizeof(m) - n, " %d", c16[j]);
+		snprintf(m + n, sizeof(m) - n, "; greys %d %d", grey_dark, grey_light);
+		conn_log("ECal", "--", m, (long)strlen(m));
 	}
 }
 
