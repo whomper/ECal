@@ -104,7 +104,7 @@ int tls_ovl_load(char *err, int errlen)
 	if (!image) {
 		if (pf_size(tls_ovl_path) < 0)
 			str_copy(err, "TLS.OVL is missing: copy it from the program's release, "
-				 "next to the program", errlen);
+				 "beside CACERT.PEM", errlen);
 		return 0;
 	}
 	tos_supexec((void *)flush);
