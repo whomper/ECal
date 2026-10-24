@@ -65,7 +65,7 @@ def main():
     shutil.rmtree(a.work, ignore_errors=True)
     folder = os.path.join(hd, "ECAL")
     os.makedirs(folder)
-    shutil.copy(os.path.join(ROOT, "binary", "ECALST.ACC" if is_st(a.machine) else "ECAL.ACC"),
+    shutil.copy(os.path.join(ROOT, "binary", "ECAL.ACC"),
                 os.path.join(hd, "ECAL.ACC"))
     # an event 13 minutes on: its reminder (10 minutes before) comes in 3
     soon = time.localtime(time.time() + 13 * 60)

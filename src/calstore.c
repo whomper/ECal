@@ -413,7 +413,7 @@ void store_settings_text(SBUF *bp, int part)
 	S("HOME_TZ", home_tz, "the time zone the Atari's clock is set to (Settings > Time zones)")
 	S("VIEW_TZ", view_tz, "the zone times are shown in, with time zone support on")
 	I("TZSUPPORT", tzsupport, "time zone support: each event shows and edits its own zone")
-	I("FALCON", falcon, "Falcon mode: TLS on this Atari (Falcon, TT); 0: through the Pi gateway")
+	I("FALCON", falcon, "Direct connection: TLS on this Atari (68020 or better, TLS.OVL in ECal's folder); 0: through the Pi gateway")
 	I("DSP", dsp, "check certificates on the Falcon's DSP56001")
 	S("GATE", gate, "the Raspberry Pi gateway's address (Settings > Connection)")
 	sb_printf(&b, "; the gateway's port\r\nGATEPORT=%u\r\n\r\n", opt.gateport);

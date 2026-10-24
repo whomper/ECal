@@ -240,7 +240,7 @@ static CONN *get_conn(const URL *u, int gw, int *reused, char *err, int errlen)
 	}
 	if (!gw && u->tls && !http_cfg.falcon) {
 		snprintf(err, errlen, "%s needs a secure connection: set up the Raspberry Pi "
-			 "gateway in Settings > Connection, or turn on Falcon mode", u->host);
+			 "gateway in Settings > Connection, or turn on Direct connection", u->host);
 		return 0;
 	}
 	snprintf(key, sizeof(key), "%s:%u:%d", host, port, sec);

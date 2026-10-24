@@ -40,7 +40,9 @@ endif
 LDFLAGS := -m68000 -nostdlib -static -no-pie -Wl,--emit-relocs -Wl,-T,common/atari/link.ld \
            -Wl,--build-id=none -Wl,-z,noexecstack -Wl,--no-warn-rwx-segments
 
-# BearSSL 0.6 for Falcon mode, built for the 68030 (the rest stays 68000 code)
+# BearSSL 0.6: on the Atari only its MD5 (Digest logins), as 68000 code; the
+# TLS is TLS.OVL's (the guidelines, 7.4). The build machine's tests link it
+# all, with src/tls.c
 BSSL    := common/third_party/bearssl
 BSSLSRC := $(wildcard $(BSSL)/src/*/*.c)
 BSSLDEF := -DBR_USE_URANDOM=0 -DBR_USE_GETENTROPY=0 -DBR_USE_UNIX_TIME=0 \
@@ -48,18 +50,20 @@ BSSLDEF := -DBR_USE_URANDOM=0 -DBR_USE_GETENTROPY=0 -DBR_USE_UNIX_TIME=0 \
 BSSLCF  := -m68030 -O2 -fomit-frame-pointer -ffreestanding -fno-builtin -fno-pic -fno-pie \
            -fno-tree-loop-distribute-patterns -fno-asynchronous-unwind-tables -w \
            -nostdinc -isystem $(GCCINC) -Iatari/include -Icommon/atari/include -I$(BSSL)/inc -I$(BSSL)/src $(BSSLDEF)
-BSSLOBJ  = $(patsubst $(BSSL)/src/%.c,$(OBJDIR)/bssl/%.o,$(BSSLSRC))
 HBSSLOBJ = $(patsubst $(BSSL)/src/%.c,$(OBJDIR)/hbssl/%.o,$(BSSLSRC))
 
 CORE    := util charset conn tls bidi secret futil ctime tz ics rrule xml inflate http caldav calstore alarms
-ATARI   := libc tos plat_tos net_tos sting gem dsprsa
-UI      := main win draw popup dsp views sidebar editor dialogs field about font fontsel help av alert aboutbox iconify clip dd mbar twin busy bgwork accmem dialog av_people people_ask people_file
+# on the Atari the TLS is TLS.OVL's: tls_ovl.c and ovl.c load it and hand
+# tls.h's calls on, dsp_ovl.c the DSP's (common/README.md, "TLS.OVL")
+ACORE   := $(filter-out tls,$(CORE)) ovl
+ATARI   := libc tos plat_tos net_tos sting gem tls_ovl
+UI      := main win draw popup dsp_ovl views sidebar editor dialogs field about font fontsel help av alert aboutbox iconify clip dd mbar twin busy bgwork accmem dialog av_people people_ask people_file
+STBSSL  := hash/md5 codec/dec32le codec/enc32le
 
 OBJDIR  := build
-# Falcon mode's elliptic curves on the DSP (common/README.md); not in the ST edition
-ECDSP   := ecdsp dspec dsp_ec
 OBJS0   := $(OBJDIR)/crt0.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o $(OBJDIR)/crash.o $(OBJDIR)/crash_s.o \
-           $(addprefix $(OBJDIR)/,$(addsuffix .o,$(CORE) $(ATARI) $(UI) $(ECDSP)))
+           $(addprefix $(OBJDIR)/,$(addsuffix .o,$(ACORE) $(ATARI) $(UI))) \
+           $(addprefix $(OBJDIR)/st/,$(addsuffix .o,$(notdir $(STBSSL))))
 OBJS    := $(OBJS0) $(OBJDIR)/version.o
 HDRS    := $(wildcard src/*.h atari/*.h atari/include/*.h ui/*.h \
            common/src/*.h common/atari/*.h common/atari/include/*.h common/ui/*.h common/dsp/*.h)
@@ -67,24 +71,12 @@ HDRS    := $(wildcard src/*.h atari/*.h atari/include/*.h ui/*.h \
 # what goes onto the Atari: binary/ (built, never committed)
 BIN     := binary
 
-all: $(BIN)/ECAL.ACC $(BIN)/ECAL.PRG $(BIN)/ECALST.ACC $(BIN)/ROOTS.DAT
+all: $(BIN)/ECAL.ACC $(BIN)/ECAL.PRG $(BIN)/TLS.OVL $(BIN)/ROOTS.DAT
 
-# the ST edition: no TLS of its own (it uses the Pi gateway), about 120 KB
-# smaller; only BearSSL's MD5 (for Digest logins), as 68000 code. Only
-# ever an accessory, so no crash catcher (crash_none.c); never in 256
-# colours, so the About box without the 256-colour icon (NO_ICON256)
-STBSSL  := hash/md5 codec/dec32le codec/enc32le
-STOWN   := about aboutbox
-STOBJS  := $(OBJDIR)/crt0_st.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o $(OBJDIR)/crash_none.o \
-           $(addprefix $(OBJDIR)/,$(addsuffix .o,$(filter-out tls,$(CORE)) $(ATARI) \
-                                   $(filter-out $(STOWN),$(UI)) tls_none dsp_ec_none)) \
-           $(addprefix $(OBJDIR)/st/,$(addsuffix .o,$(notdir $(STBSSL)) $(STOWN))) $(OBJDIR)/version.o
-
-$(BIN)/ECALST.ACC: $(OBJDIR)/ecalst.elf common/tools/elf2tos.py | $(BIN)
-	PRGFLAGS=7 python3 common/tools/elf2tos.py $< $@
-
-$(OBJDIR)/ecalst.elf: $(STOBJS) common/atari/link.ld
-	$(CC) $(LDFLAGS) -o $@ $(STOBJS) -lgcc
+# TLS.OVL: the family's, built in AERA-Atari and taken with common/,
+# never built here (the guidelines, 7.4)
+$(BIN)/TLS.OVL: common/tlsovl/TLS.OVL | $(BIN)
+	cp $< $@
 
 # as 68000 code: no stores or loads joined into words (an odd address
 # would be an address error), as in CFLAGS
@@ -95,12 +87,6 @@ $(OBJDIR)/st/%.o: $(BSSL)/src/hash/%.c
 $(OBJDIR)/st/%.o: $(BSSL)/src/codec/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(STBSSLCF) -c -o $@ $<
-$(OBJDIR)/st/about.o: ui/about.c $(HDRS)
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -DNO_ICON256 -c -o $@ $<
-$(OBJDIR)/st/aboutbox.o: common/ui/aboutbox.c $(HDRS)
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -DNO_ICON256 -c -o $@ $<
 
 # one program, two names: it sees at start-up whether TOS loaded it as
 # an accessory or started it as an application
@@ -126,16 +112,8 @@ $(OBJDIR)/fakeguide.elf: $(OBJDIR)/crt0.o $(OBJDIR)/gem.o $(OBJDIR)/fakeguide.o 
 $(OBJDIR)/fakeguide.o: tests/hatari/fakeguide.c common/atari/gem.h | $(OBJDIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(OBJDIR)/cal.elf: $(OBJS) $(OBJDIR)/libbearssl.a common/atari/link.ld
-	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(OBJDIR)/libbearssl.a -lgcc
-
-$(OBJDIR)/bssl/%.o: $(BSSL)/src/%.c
-	@mkdir -p $(dir $@)
-	$(CC) $(BSSLCF) -c -o $@ $<
-
-$(OBJDIR)/libbearssl.a: $(BSSLOBJ)
-	rm -f $@
-	$(CROSS)ar rcs $@ $^
+$(OBJDIR)/cal.elf: $(OBJS) common/atari/link.ld
+	$(CC) $(LDFLAGS) -o $@ $(OBJS) -lgcc
 
 $(OBJDIR)/%.o: src/%.c $(HDRS) | $(OBJDIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -149,14 +127,14 @@ $(OBJDIR)/%.o: common/atari/%.c $(HDRS) | $(OBJDIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 $(OBJDIR)/%.o: common/ui/%.c $(HDRS) | $(OBJDIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
-$(OBJDIR)/crt0.o: common/atari/crt0.S | $(OBJDIR)
-	$(CC) -m68000 -c -o $@ $<
-# the ST edition's stack: what the rigs measured (tests/hatari, STACKFREE
-# with make STACKPROBE=1: 13.8 KB at most, syncing), with room to spare
-# for STinG, whose calls run on it; 48 KB left a 1 MB ST's desktop none
-ST_STACK ?= 20480
-$(OBJDIR)/crt0_st.o: common/atari/crt0.S | $(OBJDIR)
-	$(CC) -m68000 -DSTACK_SIZE=$(ST_STACK) -c -o $@ $<
+# the stack, one size for every Atari: what the rigs measured (STACKFREE
+# with make STACKPROBE=1: 16.8 KB at most, a Direct connection's TLS
+# handshake on the Falcon; 14 KB syncing through the Pi on the 1 MB ST),
+# with room for STinG, whose calls run on it; 48 KB left a 1 MB ST's
+# desktop none
+STACK   ?= 24576
+$(OBJDIR)/crt0.o: common/atari/crt0.S Makefile | $(OBJDIR)
+	$(CC) -m68000 -DSTACK_SIZE=$(STACK) -c -o $@ $<
 $(OBJDIR)/sting_s.o: common/atari/sting.S | $(OBJDIR)
 	$(CC) -m68000 -c -o $@ $<
 $(OBJDIR)/nf.o: common/atari/nf.S | $(OBJDIR)
@@ -224,7 +202,7 @@ $(BIN)/ECAL.HYP: docs/GUIDE.md tools/guide2stg.py VERSION docs/front.json docs/h
 
 # a release's files: each one in dist/, and all of them in
 # dist/ECAL-x.y.zip (the icons in icons/), for the release workflow
-DIST    := $(BIN)/ECAL.ACC $(BIN)/ECALST.ACC $(BIN)/ECAL.PRG $(BIN)/CACERT.PEM $(BIN)/ROOTS.DAT \
+DIST    := $(BIN)/ECAL.ACC $(BIN)/ECAL.PRG $(BIN)/TLS.OVL $(BIN)/CACERT.PEM $(BIN)/ROOTS.DAT \
            $(BIN)/ECAL.HYP $(BIN)/ECAL.REF
 ICONS   := icons/ECAL.RSC icons/ECALNV.RSC icons/ECAL.ICN icons/ECALMK.ICN
 dist: all help

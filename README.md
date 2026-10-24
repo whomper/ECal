@@ -11,8 +11,8 @@ CalDAV server.
   two-way sync, `.ics` subscriptions and calendars kept only on the Atari, each in its own colour.
 - **Modern but Atari:** a desk accessory that opens over whatever program you're working in, or a
   program; right-click menus, drag and drop, iconify, help in EHypView or ST-Guide.
-- **Secure:** TLS 1.2 on the Falcon and TT, with RSA and the elliptic curves on the DSP; ST and STE through a Raspberry Pi
-  gateway.
+- **Secure:** a Direct connection on the TT and Falcon (TLS 1.2 from `TLS.OVL`, with RSA and the
+  elliptic curves on the DSP); ST and STE through a Raspberry Pi gateway. One program for every Atari.
 - **Hebrew** throughout: right-to-left text, the Israeli keyboard (F10), Hebrew dates and
   Hebrew-calendar repeats.
 - **Every repeat:** all of RFC 5545's rules, with "only this one" or "all future ones" edits.
@@ -32,18 +32,17 @@ file on its own, or all of them in `ECAL-x.y.zip`.
 
 | File | What it is |
 |---|---|
-| `ECAL.ACC` | Falcon and TT: the desk accessory with Falcon mode (TLS, DSP); also works through the Pi |
-| `ECALST.ACC` | ST and STE: the same accessory without TLS (about 120 KB smaller), through the Pi |
+| `ECAL.ACC` | the desk accessory, for every ST, STE, TT and Falcon |
 | `ECAL.PRG` | the same as `ECAL.ACC`, to start from the desktop, with a menu bar |
-| `CACERT.PEM`, `ROOTS.DAT` | the root certificates for Falcon mode |
+| `TLS.OVL` | the Direct connection (TLS on a TT or Falcon, RSA and curves on the DSP), loaded only when used; an ST leaves it on the disk |
+| `CACERT.PEM`, `ROOTS.DAT` | the root certificates for a Direct connection |
 | `ECAL.HYP`, `ECAL.REF` | the guide, for EHypView, ST-Guide or HypView, opened by the Help key |
 | `ECAL.RSC`, `ECALNV.RSC`, `ECAL.ICN`, `ECALMK.ICN` | ECal's desktop icon, in black and white, 16 and 256 colours: `ECAL.RSC` under TOS, EmuTOS or NVDI with TOS's palette loaded (COLORVDI), `ECALNV.RSC` under NVDI with its own palette; in the zip's `icons/` folder (see the guide's [The desktop icon](docs/GUIDE.md#the-desktop-icon)) |
 | `ECAL-x.y.zip` | all of these in one file |
 
-1. Copy `ECAL.ACC` (Falcon, TT) or `ECALST.ACC` (ST, STE; renamed to `ECAL.ACC` or not) to the root
-   of your boot drive, e.g. `C:\`.
+1. Copy `ECAL.ACC` to the root of your boot drive, e.g. `C:\`.
 2. Choose a folder for ECal's own files (its calendars, keys and log): any folder, on any drive.
-   For Falcon mode, put `CACERT.PEM` and `ROOTS.DAT` in it. `FOLDER=` in the settings file, which is
+   For a Direct connection (TT, Falcon), put `TLS.OVL`, `CACERT.PEM` and `ROOTS.DAT` in it. `FOLDER=` in the settings file, which is
    always `ECAL.INF` in the root of the boot drive, says where the folder is: starting `ECAL.PRG`
    from the folder writes it, and the accessory asks the first time you open it (**Locate...**, or
    **Use C:\ECAL** to have it make that one).
@@ -73,7 +72,7 @@ file on its own, or all of them in `ECAL-x.y.zip`.
 4. Reboot and choose **ECal** in the Desk menu. Open **Settings...** (Control and comma, or the ≡ menu
    at the right of the toolbar):
    - **Connection**: type the Pi's IP address (`PI_IP`, e.g. 192.168.1.x, not its name) and port 8180
-     into **Pi gateway**; or, on a Falcon or TT, tick **Falcon mode**.
+     into **Pi gateway**; or, on a Falcon or TT, tick **Direct connection**.
    - **Time zones**: set the zone the Atari's clock is in.
 5. Add your iCloud account with **Add account or calendar...** (the ≡ menu, or **File** in
    `ECAL.PRG`) and an [app-specific password](https://support.apple.com/en-us/102654); your Apple ID's
@@ -82,16 +81,17 @@ file on its own, or all of them in `ECAL-x.y.zip`.
    and press **Help** in ECal for the guide (EHypView, ST-Guide or HypView must be running).
 
 **Updating:** copy the new release's files over the old ones (the accessory, `ECAL.PRG`, the guide,
-and for Falcon mode the certificates) and reboot. The settings, passwords and calendars stay as they
-are.
+and for a Direct connection `TLS.OVL` and the certificates) and reboot. The settings, passwords and
+calendars stay as they are. Before 2.25 an ST had `ECALST.ACC`: delete it, `ECAL.ACC` runs on every
+Atari now.
 
 The [user guide](docs/GUIDE.md) describes the rest.
 
 **Needs:** TOS 1.04 to 4.x, EmuTOS, MagiC or MiNT; ST medium, ST high, TT or Falcon resolution (not ST
-low); 1 MB of RAM, where `ECALST.ACC` runs beside STinG (2 MB or more for big calendars); STinG or
-MiNTnet. On an ST or STE, a Raspberry Pi (or any Debian or Ubuntu computer) for the gateway; Falcon mode
-needs a Falcon or TT. On a 1 MB ST, `ECALST.ACC` or EContact's `ECONTST.ACC`, not both: together
-they leave TOS no memory and the ST stops at boot. Run the other as a program.
+low); 1 MB of RAM, where `ECAL.ACC` runs beside STinG (2 MB or more for big calendars); STinG or
+MiNTnet. On an ST or STE, a Raspberry Pi (or any Debian or Ubuntu computer) for the gateway; a Direct
+connection needs a 68020 or better (a TT or Falcon). On a 1 MB ST, ECal's accessory or EContact's,
+not both: together they leave TOS no memory and the ST stops at boot. Run the other as a program.
 
 **Under TOS, put Atari's `FOLDR100.PRG` first in `AUTO`**, renamed for more room (`FOLDR400.PRG`).
 TOS keeps an entry in a small internal pool for every folder a program or accessory has looked
@@ -108,16 +108,18 @@ Calendar servers want HTTPS. Like [EMail](https://github.com/whomper/EMail), ECa
 ways:
 
 ```
-ST, STE:     Atari (ECALST.ACC) --plain HTTP, home LAN--> Raspberry Pi (ecalgate.py) --HTTPS--> the server
-Falcon, TT:  Atari (ECAL.ACC, TLS 1.2, RSA, curves on the DSP) ------------------------HTTPS--> the server
+ST, STE:     Atari (ECAL.ACC) --plain HTTP, home LAN--> Raspberry Pi (ecalgate.py) --HTTPS--> the server
+Falcon, TT:  Atari (ECAL.ACC + TLS.OVL: TLS 1.2, RSA, curves on the DSP) -------------HTTPS--> the server
+             (a Direct connection; or through the Pi, as an ST)
 ```
 
 - **Through the Pi.** `gateway/ecalgate.py` on a Raspberry Pi takes the Atari's requests and makes the
   HTTPS connections. It also does what an 8 MHz machine finds hard: it unpacks compressed answers,
   keeps connections to the servers open, and cuts multi-megabyte subscription feeds down to the months
   you keep. Any Atari can use it, a Falcon too, to save time.
-- **Falcon mode.** On a Falcon (or a TT), ECal does TLS 1.2 itself with
-  [BearSSL](https://bearssl.org/), and the DSP56001 checks the servers' RSA signatures (about 0.1 s
+- **Direct connection.** On a Falcon (or a TT), ECal does TLS 1.2 itself with
+  [BearSSL](https://bearssl.org/), from `TLS.OVL`, the family's file it loads the first time it
+  needs it (about 140 KB; an ST never loads it), and the DSP56001 checks the servers' RSA signatures (about 0.1 s
   each), as in EMail, and does the elliptic curves: the key exchange (X25519: two steps of about 0.07 s
   each, 0.4 s on a 16 MHz 68030) and ECDSA certificates (P-256, P-384).
 
@@ -177,7 +179,7 @@ Where the work happens decides the speed. Figures are from the emulated Falcon (
 counting 68030 instructions; a real iCloud sync also depends on the network and on how many events
 change.
 
-| | ST through the Pi | Falcon through the Pi | Falcon mode, DSP | Falcon mode, no DSP |
+| | ST through the Pi | Falcon through the Pi | Direct connection, DSP | Direct connection, no DSP |
 |---|---|---|---|---|
 | TLS, certificates | on the Pi | on the Pi | 68030 + DSP | 68030 alone |
 | New secure connection | none on the Atari | none on the Atari | a few seconds once, then ~0.7 s (resumed) | slower: the RSA check runs on the 68030 |
@@ -190,7 +192,7 @@ change.
 - **Through the Pi** is the fastest way for any Atari: the Atari only sends and reads plain HTTP on
   the home network, and the Pi keeps the connections to the servers open. On an 8 MHz ST, drawing and
   reading the calendar data take most of the time, not the network.
-- **Falcon mode** needs no Pi. After the first connection each request costs well under a second;
+- **A Direct connection** needs no Pi. After the first connection each request costs well under a second;
   most of a first sync goes into the first handshake and into decrypting what comes back, which
   compression keeps small. Saving an event takes about a second.
 - **The DSP** only speeds up the handshake at the start of each new connection (the certificate checks
@@ -198,7 +200,7 @@ change.
   there are few of those, so it matters most for the first sync after starting ECal.
 - On a TT or an accelerated Falcon, running in TT/Fast RAM makes everything ECal does itself faster.
 
-In Falcon mode the 68030 decrypts every byte itself and doesn't read from STinG while it does, so
+With a Direct connection the 68030 decrypts every byte itself and doesn't read from STinG while it does, so
 receiving and decrypting take turns: the speed is about 1/(1/network + 1/decrypt). EMail measured
 13 KB/s that way against 37 KB/s through the Pi. Faster decryption is all ECal can do about it
 (table-based AES and the fastest GHASH, 16 KB reads, long copies on the 68030); a bigger TCP receive
@@ -210,7 +212,7 @@ its time.
 
 ```sh
 sudo apt install gcc gcc-m68k-linux-gnu python3 zip   # Debian/Ubuntu; no MiNTLib needed
-make                          # binary/ECAL.ACC, ECAL.PRG, ECALST.ACC, CACERT.PEM, ROOTS.DAT
+make                          # binary/ECAL.ACC, ECAL.PRG, TLS.OVL (common's), CACERT.PEM, ROOTS.DAT
 make test                     # the core's unit tests on this computer, the fuzz inputs, the gateway's tests
 make itest                    # against a local CalDAV server (Radicale)
 make help HCP=/path/to/hcp    # binary/ECAL.HYP from docs/GUIDE.md (hcp: common/tools/build-hcp.sh)
@@ -221,8 +223,10 @@ make icons                    # icons/, ui/icon*.h, docs/icon*.png: ECal's icon 
 
 The program is freestanding (no MiNTLib): the C library and the TOS runtime are in `common/atari/`,
 and `common/tools/elf2tos.py` writes the TOS executable. One binary is both the accessory and the
-program: the start-up code (`common/atari/crt0.S`) sees which way TOS started it. Everything is 68000
-code except BearSSL, which is built for the 68030.
+program: the start-up code (`common/atari/crt0.S`) sees which way TOS started it. It is all 68000
+code, for every Atari. The TLS (BearSSL and the DSP's code, built for the 68030) is in `TLS.OVL`, the
+family's file built in AERA-Atari and taken with `common/` (`common/tlsovl/`), never built here; the
+build machine's tests link the same TLS code (`common/src/tls.c`) into cal-cli.
 
 `binary/` and `dist/` are what make builds; they are never committed, and a build changes no tracked
 file.
@@ -277,8 +281,9 @@ FALCON=1 make itest          # rest, changes from elsewhere, subscriptions, impo
 `tests/hatari/` runs the real accessory in the [Hatari](https://hatari.tuxfamily.org/) emulator with
 [EmuTOS](https://emutos.sourceforge.io/) 1.4, driven by Xvfb and xdotool. The machine is one of the
 family's test machines from `common/tools/machines.py`, named with `--machine`: `ST` (Erez's 1040 ST,
-4 MB) and `ST-1` (1 MB), each with `:mono` or `:med`, for ECALST.ACC; `TT` and `Falcon` (`:16` or
-`:256` colours) for ECAL.ACC and ECAL.PRG. Each rig has a default, and prints the machine and TOS it
+4 MB) and `ST-1` (1 MB), each with `:mono` or `:med`; `TT` and `Falcon` (`:16` or `:256` colours),
+where the Direct connection rigs run. The program is ECAL.ACC or ECAL.PRG on all of them; the rigs put
+`binary/TLS.OVL` in ECal's folder. Each rig has a default, and prints the machine and TOS it
 ran on. An ST has no clock, so the rigs set its date and time at boot (`C:\AUTO\CLOCK.PRG`), as you
 would from the Control Panel:
 
@@ -295,7 +300,10 @@ tests/hatari/edit_test.py WORK [--machine M]      # add, Hebrew title, find, del
                                                   # custom repeats (Falcon; on an ST up to delete)
 tests/hatari/alarm_test.py WORK [--machine M]     # reminders from ALARMS.IDX at boot (Falcon)
 tests/hatari/net_test.py WORK [--machine M]       # syncing through ecalgate (ST)
-tests/hatari/net_test.py WORK --falcon-mode       # TLS on the Falcon, RSA and X25519 on the DSP
+tests/hatari/net_test.py WORK --falcon-mode       # a Direct connection on the Falcon (TLS.OVL),
+                                                  # RSA and X25519 on the DSP
+tests/hatari/tlsovl_test.py WORK [--machine M]    # Direct connection ticked: without TLS.OVL an
+                                                  # alert, no crash; with it, loaded (Falcon)
 tests/hatari/stop_test.py WORK [--machine M]      # Esc stops a server that says nothing (ST)
 tests/hatari/quiet_test.py WORK [--machine M]     # make profile first: the accessory's quiet
                                                   # start, timed between event calls (Falcon)
@@ -335,12 +343,12 @@ TZ=America/New_York tests/hatari/docs_shots.py WORK --update
                                                   # EmuTOS), and docs/help/WINDOW.IMG
 ```
 
-Which machines a change passes (the family's guidelines): the ECALST.ACC rigs on `ST` and `ST-1`, in
-mono and medium resolution; the others on `TT` and `Falcon`; what draws also on `Falcon:256`.
-On `ST-1` with the network the desktop must still start beside ECALST.ACC and FAKESTNG; ECal's log
-says how much memory was free at boot and how much the accessory took. `make STACKPROBE=1` builds
-the programs to report the least stack left untouched (`STACKFREE` in Hatari's log), which sets the
-ST edition's stack (`ST_STACK` in the Makefile).
+Which machines a change passes (the family's guidelines): the accessory's rigs on `ST` and `ST-1`, in
+mono and medium resolution; the others, the Direct connection ones among them, on `TT` and `Falcon`;
+what draws also on `Falcon:256`. On `ST-1` with the network the desktop must still start beside
+ECAL.ACC and FAKESTNG; ECal's log says how much memory was free at boot and how much the accessory
+took. `make STACKPROBE=1` builds the programs to report the least stack left untouched (`STACKFREE`
+in Hatari's log), which sets the stack (`STACK` in the Makefile).
 
 The network tests use the family's `FAKESTNG.PRG`, which carries the emulated Atari's TCP over its
 serial port to `serial_bridge.py` (both in `common/tools/fakesting`, started by `machines.py`); it's
@@ -362,9 +370,9 @@ Copyright (C) 2026 AERA | Erez Yaary.
 
 It includes, under their own licences (compatible with the GPL):
 
-- [BearSSL](common/third_party/bearssl) by Thomas Pornin: MIT licence
-  ([LICENSE.txt](common/third_party/bearssl/LICENSE.txt))
-- `CACERT.PEM`, the root certificates for Falcon mode, from Mozilla's CA
+- [BearSSL](common/third_party/bearssl) by Thomas Pornin, in `TLS.OVL` and (MD5) in the program:
+  MIT licence ([LICENSE.txt](common/third_party/bearssl/LICENSE.txt))
+- `CACERT.PEM`, the root certificates for a Direct connection, from Mozilla's CA
   list (Mozilla Public License 2.0)
 
 ---

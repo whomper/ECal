@@ -40,7 +40,7 @@ def main():
         os.makedirs(hd)
     else:
         shutil.rmtree(os.path.join(work, "shots"), ignore_errors=True)
-    acc = "ECALST.ACC" if is_st(a.machine) else "ECAL.ACC"
+    acc = "ECAL.ACC"
     binary = os.path.join(ROOT, "binary")
     if a.prg:
         shutil.copy(os.path.join(binary, "ECAL.PRG"), os.path.join(hd, "ECAL.PRG"))

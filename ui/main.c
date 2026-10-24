@@ -20,6 +20,7 @@
 #include "secret.h"
 #include "busy.h"
 #include "tls.h"
+#include "tlsovl.h"
 #include "people_ask.h"
 #include "people_file.h"
 #include "../src/http.h"
@@ -192,21 +193,28 @@ void after_change(void)
 	win_redraw(0);
 }
 
-/* ---------------- Falcon mode ---------------- */
+/* ---------------- Direct connection ---------------- */
 
+/* Direct connection (FALCON= in ECAL.INF): the TLS on this Atari, from
+   TLS.OVL in ECal's folder (the guidelines, 7.4). Loaded now, when it is
+   ticked, so a missing file or a 68000 is said at once */
 int falcon_mode_set(int on)
 {
 	if (on) {
-		if (!tls_available) {
-			alert(1, "[3][This is the ST edition: Falcon mode is in ECAL.ACC.][ OK ]");
-			return 0;
-		}
-		if (get_cookie(0x5F435055L) < 20) {	/* _CPU */
-			alert(1, "[3][Falcon mode needs a 68020 or better (Falcon, TT): this Atari is too slow for TLS.][ OK ]");
+		char err[160];
+		if (!tls_ovl_load(err, sizeof(err))) {
+			if (strstr(err, "TLS.OVL is missing"))	/* "next to the program": ECal's is in its folder */
+				str_copy(err, "TLS.OVL is missing: copy it from ECal's release into ECal's folder, with CACERT.PEM", sizeof(err));
+			if (is_acc && strstr(err, "no memory")) {
+				mem_ran_out();	/* more at the next start (MEMKB=) */
+				alert(1, "[3][%s.|ECal takes more memory at the next start: restart, then tick it again.][ OK ]", err);
+			} else {
+				alert(1, "[3][%s.][ OK ]", err);
+			}
 			return 0;
 		}
 		if (!pf_exists(conn_cacert)) {
-			alert(1, "[3][Falcon mode needs the root certificates: put CACERT.PEM and ROOTS.DAT in ECal's folder.][ OK ]");
+			alert(1, "[3][A Direct connection needs the root certificates: put CACERT.PEM and ROOTS.DAT in ECal's folder.][ OK ]");
 			return 0;
 		}
 	}
@@ -658,7 +666,7 @@ static const MBAR_ITEM m_opts[] = {
 	{ "Font...", 0, C_FONT },
 	{ "-", 0, 0 },
 	{ "Work offline", 0, C_OFFL },
-	{ "Falcon mode (TLS)", 0, C_FALC },
+	{ "Direct connection (TLS)", 0, C_FALC },
 	{ "Write a log", 0, C_LOG },
 	{ "Hebrew keyboard", "F10", C_KBD },
 	{ 0, 0, 0 }
@@ -795,7 +803,7 @@ void cmd_menu(short x, short y)
 		{ "-", 0 },
 		/* as EMail's Options menu */
 		{ "  Work offline", C_OFFL },
-		{ "  Falcon mode (TLS)", C_FALC },
+		{ "  Direct connection (TLS)", C_FALC },
 		{ "  Write a log", C_LOG },
 		{ "-", 0 },
 		{ "  Settings...         ^,", C_SET },
@@ -978,9 +986,18 @@ static void acc_heap(void)
 	heapkb = atol(kb);
 	inf_value("memkb=", kb, sizeof(kb));
 	memkb = atol(kb);
-	if (!acc_heap_take(tls_available && get_cookie(0x5F435055L) >= 30 ? 1536L * 1024 : 256L * 1024,
-			   4096L * 1024, heapkb, memkb))
-		heap_add(0, 0);		/* none, and never more later */
+	{
+		/* a 68030 first takes 1.5 MB; a 68020 with a Direct connection
+		   on, 256 KB and TLS.OVL's 140 KB (MEMKB= then measures it) */
+		long cpu = get_cookie(0x5F435055L), first = 256L * 1024;
+		inf_value("falcon=", kb, sizeof(kb));
+		if (cpu >= 30)
+			first = 1536L * 1024;
+		else if (cpu >= 20 && atol(kb))
+			first += 160L * 1024;
+		if (!acc_heap_take(first, 4096L * 1024, heapkb, memkb))
+			heap_add(0, 0);	/* none, and never more later */
+	}
 	boot_free = acc_heap_avail / 1024;
 	boot_taken = acc_heap_bytes / 1024;
 }
@@ -1067,6 +1084,7 @@ static int settings_step(void)
 	}
 	if (settings_stage == 2) {
 		path_join(conn_cacert, sizeof(conn_cacert), workdir, "CACERT.PEM");
+		path_join(tls_ovl_path, sizeof(tls_ovl_path), workdir, "TLS.OVL");
 		path_join(tls_roots_cache, sizeof(tls_roots_cache), workdir, "ROOTS.DAT");
 		path_join(tls_seed_path, sizeof(tls_seed_path), workdir, "SEED.DAT");
 		/* CACERT.PEM read a piece at a time, never open across the
@@ -1542,7 +1560,7 @@ static void net_tick(void)
 }
 
 /* a step that waits for the server; the opening of a connection in it
-   (with Falcon mode, the TLS handshake on the Atari) is timed apart,
+   (with a Direct connection, the TLS handshake on the Atari) is timed apart,
    up to an event call once it is open */
 static void net_tag(void)
 {
@@ -1744,7 +1762,7 @@ static void crash_quit(const char *what)
 #ifdef STACK_PROBE
 /* make STACKPROBE=1: the stack painted at start, and on the console
    (natfeats) the least of it never touched so far, STACKFREE bytes, as
-   the rigs drive ECal (how big the ST edition's can be: ST_STACK) */
+   the rigs drive ECal (how big it can be: STACK in the Makefile) */
 static unsigned long *stk_lo, stk_best;
 static void stk_paint(void)
 {

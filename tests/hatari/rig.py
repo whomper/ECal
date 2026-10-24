@@ -41,17 +41,25 @@ def add_machine(ap, default):
 
 
 def is_st(spec):
-    """an ST (68000) machine: ECALST.ACC's"""
+    """an ST (68000) machine: no Direct connection, never TLS.OVL"""
     return spec.partition(":")[0] in ("ST", "ST-1")
 
 
 class Rig:
     def __init__(self, work, machine="Falcon", display=":99", network=False, extra=(),
-                 auto="C:\\ECAL.PRG"):
+                 auto="C:\\ECAL.PRG", tls_ovl=True):
         """machine: NAME[:SCREEN] from machines.py, drive C: is work/hd;
         network: FAKESTNG in C:\\AUTO and its bridge (machines.py's
-        network()), the Atari's TCP connections becoming this computer's"""
+        network()), the Atari's TCP connections becoming this computer's;
+        tls_ovl: binary/TLS.OVL in ECal's folder (C:\\ECAL, or the root
+        where ECAL.PRG is), as the release's notes say"""
         self.work, self.display = work, display
+        hd = os.path.join(work, "hd")
+        ovl = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "binary", "TLS.OVL")
+        if tls_ovl and os.path.exists(ovl):
+            for d in (hd, os.path.join(hd, "ECAL")):
+                if os.path.isdir(d) and not os.path.exists(os.path.join(d, "TLS.OVL")):
+                    shutil.copy(ovl, os.path.join(d, "TLS.OVL"))
         self.machine = machines.Machine(machine, os.path.join(work, "hd"))
         self.env = self.machine.env(dict(os.environ, DISPLAY=display, SDL_VIDEODRIVER="x11",
                                          SDL_AUDIODRIVER="dummy"))

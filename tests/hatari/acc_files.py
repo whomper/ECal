@@ -315,7 +315,9 @@ def main():
             if not a.roots:
                 subprocess.run([os.path.join(ROOT, "build", "mkroots"), os.path.join(folder, "CACERT.PEM"),
                                 os.path.join(folder, "ROOTS.DAT")], check=True, capture_output=True)
-        acc = "ECALST.ACC" if rig.is_st(a.machine) else "ECAL.ACC"
+        acc = "ECAL.ACC"
+        if rig.is_st(a.machine) and os.path.exists(os.path.join(a.bin, "ECALST.ACC")):
+            acc = "ECALST.ACC"         # a release before 2.25 (--bin)
         shutil.copy(os.path.join(a.bin, acc), os.path.join(hd, "ECAL.ACC"))
 
         pipe = os.path.join(work, "trace.pipe")

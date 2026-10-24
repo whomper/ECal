@@ -8,7 +8,7 @@ cache (the iCalendar text that would go to the server).
 
     tests/hatari/edit_test.py WORKDIR [--machine Falcon|TT|ST:mono|ST-1:med|...]
 
-On an ST (ST, ST-1) the accessory is ECALST.ACC, else ECAL.ACC.
+The accessory is ECAL.ACC on every machine (TLS.OVL beside it on a TT or Falcon).
 Exit status 0 when every check passes.
 """
 import argparse
@@ -68,7 +68,7 @@ def main():
     hd = os.path.join(a.work, "hd")
     shutil.rmtree(a.work, ignore_errors=True)
     os.makedirs(os.path.join(hd, "ECAL"))
-    shutil.copy(os.path.join(ui_tour.ROOT, "binary", "ECALST.ACC" if is_st(a.machine) else "ECAL.ACC"),
+    shutil.copy(os.path.join(ui_tour.ROOT, "binary", "ECAL.ACC"),
                 os.path.join(hd, "ECAL.ACC"))
     ui_tour.seed(os.path.join(hd, "ECAL"))
     fails = []

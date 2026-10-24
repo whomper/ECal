@@ -8,8 +8,11 @@ choose it.
 
 | Your Atari        | Copy to `C:\`    | Connects                        |
 |-------------------|------------------|---------------------------------|
-| Falcon, TT        | `ECAL.ACC`       | by itself (Falcon mode) or through the Pi |
-| ST, STE, Mega ST  | `ECALST.ACC`     | through the Raspberry Pi gateway |
+| Falcon, TT        | `ECAL.ACC`       | by itself (Direct connection, with `TLS.OVL`) or through the Pi |
+| ST, STE, Mega ST  | `ECAL.ACC`       | through the Raspberry Pi gateway |
+
+One program for every Atari: an ST never loads `TLS.OVL`, so it can
+leave it out. Before 2.25 an ST had `ECALST.ACC`: delete it.
 
 The settings are in `ECAL.INF` in the root of the boot drive, next to
 the accessory, where it can always find them. Everything else is in
@@ -25,8 +28,9 @@ F:\...\ECAL.APP\          ECal's folder, wherever you keep it (this one is an ex
     CACHE\                a copy of every calendar
     ALARMS.IDX            the coming reminders, for a quick start
     ECAL.FNT              which GDOS fonts are fixed-width (made by Font...)
-    CACERT.PEM            Falcon mode: root certificates (copy them here)
-    ROOTS.DAT             Falcon mode: the same, decoded ahead of time
+    TLS.OVL               Direct connection: the TLS, loaded when first needed (copy it here)
+    CACERT.PEM            Direct connection: root certificates (copy them here)
+    ROOTS.DAT             Direct connection: the same, decoded ahead of time
     ECAL.LOG              with Write a log on
     CRASH.LOG             what happened, if ECAL.PRG ever crashes
 ```
@@ -62,7 +66,7 @@ Each refresh then measures what your calendars need and keeps it as
 or a setting did), with room to spare, and the next start takes that.
 When little is free it takes all but the 32 KB the desktop needs to
 start. A 1 MB ST runs it with STinG; with big calendars, 2 MB or more is
-better. On a 1 MB ST, load ECALST.ACC or EContact's ECONTST.ACC, not
+better. On a 1 MB ST, load ECal's accessory or EContact's, not
 both: together they leave TOS no memory and the ST stops at boot. Run
 the other as a program. `HEAPKB=` in ECAL.INF sets an amount of your own, in kilobytes,
 and ECal then keeps to it. With **Write a log** on, the log says how much
@@ -113,7 +117,7 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
   little at a time while the machine is idle and fetches only what
   changed; problems show in the calendar list the next time you open
   ECal. (Through the Pi gateway that costs the Atari next to nothing;
-  in Falcon mode each new connection's TLS handshake holds the machine
+  with a Direct connection each new connection's TLS handshake holds the machine
   for a second or two, so it starts one only while you aren't working.)
   **Read calendars** (the accessory only): when it reads the calendars
   kept on disk: **After a minute** (as at first), at once (**At start**),
@@ -150,9 +154,12 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
 
     Then type `PI_IP` and port 8180 here. See
     [gateway/README.md](../gateway/README.md).
-  - **Falcon mode**: ECal makes the secure connections itself. Needs a
-    68030 (Falcon or TT), `ECAL.ACC`, and `CACERT.PEM` and `ROOTS.DAT` in
-    ECal's folder. **Check certificates on the DSP** lets the Falcon's
+  - **Direct connection: TLS on this Atari (68020 or better)**: ECal
+    makes the secure connections itself. Needs a TT or Falcon, and
+    `TLS.OVL`, `CACERT.PEM` and `ROOTS.DAT` in ECal's folder. ECal loads
+    TLS.OVL (about 140 KB) when you tick it, and says at once if it is
+    missing or the Atari has no 68020; the accessory takes that memory
+    from its own (MEMKB= then counts it). **Check certificates on the DSP** lets the Falcon's
     DSP56001 do the RSA arithmetic and the elliptic curves of each new
     connection (much faster than the 68030); the log says what it did
     ("X25519 on the DSP, 70 ms").
@@ -168,7 +175,7 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
   (Choose... finds it): EContact writes `CONTACTS.TXT` there, and ECal
   reads names from it while EContact isn't loaded. It is off unless you
   tick it.
-  - **Speed in Falcon mode**: the 68030 decrypts every byte and doesn't
+  - **Speed with a Direct connection**: the 68030 decrypts every byte and doesn't
     read from the network meanwhile, so the two take turns (about
     13 KB/s in EMail's measurements, against 37 KB/s through the Pi). A
     bigger TCP receive window in STinG's configuration lets them overlap.
@@ -284,7 +291,7 @@ As in EMail, the Options menu (and the ≡ menu) has three ticks:
 - **Work offline**: no connections at all; the calendars stay as they
   are on the Atari, and Refresh says ECal is offline. The info line says
   "Working offline".
-- **Falcon mode (TLS)**: the same as the tick in Settings > Connection.
+- **Direct connection (TLS)**: the same as the tick in Settings > Connection.
 - **Write a log**: ECAL.LOG, the conversation with the servers.
 
 While the Hebrew keyboard is on, the info line ends with "Hebrew keyboard
@@ -522,8 +529,8 @@ ECal > **About ECal...** (or the ≡ menu > **About ECal**) shows the version, e
 how ECal is connected. The number goes up with every release.
 
 **Updating**: copy the new release's files over the old ones (the
-accessory, `ECAL.PRG`, `ECAL.HYP` and `ECAL.REF`, and for Falcon mode the
-certificates) and reboot. The settings, passwords and calendars stay as
+accessory, `ECAL.PRG`, `ECAL.HYP` and `ECAL.REF`, and for a Direct
+connection `TLS.OVL` and the certificates) and reboot. The settings, passwords and calendars stay as
 they are.
 
 ## ECAL.INF
@@ -572,14 +579,17 @@ for icon editors. For EmuTOS, `tools/icon/add_to_emuicon.py` adds it to
 
 ## When something goes wrong
 
-- **"needs a secure connection"**: set up the Pi gateway, or Falcon mode.
+- **"needs a secure connection"**: set up the Pi gateway, or a Direct connection.
+- **"TLS.OVL is missing"** when you tick Direct connection: copy TLS.OVL
+  from the release into ECal's folder. "Needs a 68020 or better": an ST
+  connects through the Pi gateway.
 - **"Can't reach the gateway"**: is the Pi on, and is `ecalgate` running?
   Open `http://PI-ADDRESS:8180/` in any browser: it should answer. Use the
   Pi's IP address, not its name.
 - **"refused the user name or password"**: iCloud wants an app-specific
   password, not your Apple ID's.
 - **"certificate is out of date (or the Atari's clock is wrong)"**: in
-  Falcon mode the clock must be right to check certificates.
+  a Direct connection the clock must be right to check certificates.
 - An **!** next to an account in the sidebar: its last refresh failed; the
   calendar's info (double-click) shows why.
 - `ECAL.LOG` (Settings > Connection > Write a log) has the details.

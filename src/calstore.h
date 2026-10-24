@@ -57,7 +57,7 @@ typedef struct {
 	char home_tz[40];	/* the zone the Atari's clock runs in */
 	char view_tz[40];	/* the zone times are shown in (time zone support) */
 	short tzsupport;	/* show and edit zones per event */
-	short falcon, dsp;	/* Falcon mode: TLS here, RSA on the DSP */
+	short falcon, dsp;	/* Direct connection: TLS here (TLS.OVL), RSA on the DSP */
 	char gate[64];		/* the Raspberry Pi gateway */
 	unsigned short gateport;
 	short weekstart;	/* 0 Sunday, 1 Monday, 6 Saturday */

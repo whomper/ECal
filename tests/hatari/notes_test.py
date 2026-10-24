@@ -8,7 +8,7 @@ written with them.
 
     tests/hatari/notes_test.py WORKDIR [--machine Falcon|TT|ST:mono|...] [--acc]
 
-ECAL.PRG, or with --acc the accessory (ECALST.ACC on an ST).
+ECAL.PRG, or with --acc the accessory.
 Screenshots in WORKDIR/shots: 6-details shows the notes in the day's details.
 """
 import argparse
@@ -51,7 +51,7 @@ def main():
                 "DTEND:%sT160000Z\r\nSUMMARY:Repair cafe\r\nDESCRIPTION:%s\\nand the scope\r\n"
                 "END:VEVENT\r\nEND:VCALENDAR\r\n" % (day, day, NOTES))
     if a.acc:
-        acc = "ECALST.ACC" if is_st(a.machine) else "ECAL.ACC"
+        acc = "ECAL.ACC"
         shutil.copy(os.path.join(ui_tour.ROOT, "binary", acc), os.path.join(hd, "ECAL.ACC"))
         os.makedirs(os.path.join(hd, "ECAL"))
         top = os.path.join(hd, "ECAL")

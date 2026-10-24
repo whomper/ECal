@@ -76,7 +76,7 @@ def main():
     shutil.rmtree(a.work, ignore_errors=True)
     folder = os.path.join(hd, "ECAL")
     os.makedirs(folder)
-    acc = "ECALST.ACC" if is_st(a.machine) else "ECAL.ACC"
+    acc = "ECAL.ACC"
     shutil.copy(os.path.join(PROF, acc), os.path.join(hd, "ECAL.ACC"))
     seed(folder, a.work, a.big)
     r = Rig(a.work, a.machine, auto=None)

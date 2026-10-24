@@ -52,7 +52,7 @@ def main():
     subprocess.run(["make", "-s", "-C", AV, "build/THING.ACC"], check=True)
     shutil.copy(os.path.join(AV, "build", "THING.ACC"), os.path.join(hd, "THING.ACC"))
     if a.acc:
-        acc = "ECALST.ACC" if is_st(a.machine) else "ECAL.ACC"
+        acc = "ECAL.ACC"
         shutil.copy(os.path.join(ROOT, "binary", acc), os.path.join(hd, "ECAL.ACC"))
         os.makedirs(os.path.join(hd, "ECAL"))
         ui_tour.seed(os.path.join(hd, "ECAL"), english=True)

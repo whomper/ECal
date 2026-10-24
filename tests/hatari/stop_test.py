@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright (C) 2026 AERA | Erez Yaary
-"""Esc stops the network (the AERA guidelines, 7.1): ECALST.ACC refreshes
+"""Esc stops the network (the AERA guidelines, 7.1): ECAL.ACC refreshes
 through a "gateway" that takes the connection and never answers, as a
 server can. Esc while the busy bee shows must end the wait at once, not
 after the 60 s timeout, and ECal must carry on: a key typed meanwhile
@@ -82,7 +82,7 @@ def main():
 
     stop = threading.Event()
     threading.Thread(target=silent_server, args=(stop,), daemon=True).start()
-    shutil.copy(os.path.join(ROOT, "binary", "ECALST.ACC"), os.path.join(hd, "ECAL.ACC"))
+    shutil.copy(os.path.join(ROOT, "binary", "ECAL.ACC"), os.path.join(hd, "ECAL.ACC"))
     with open(os.path.join(hd, "ECAL", "ECAL.INF"), "w", newline="") as f:
         f.write("home_tz=Asia/Jerusalem\r\nview_tz=Asia/Jerusalem\r\ngate=127.0.0.1\r\ngateport=%d\r\n"
                 "sync_open=1\r\nlog=1\r\n[account]\r\nname=Server\r\nkind=0\r\n"

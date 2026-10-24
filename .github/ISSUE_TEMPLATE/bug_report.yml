@@ -14,7 +14,7 @@ body:
     id: edition
     attributes:
       label: Which file
-      options: ["ECAL.ACC (Falcon/TT)", "ECAL.PRG (Falcon/TT)", "ECALST.ACC (ST/STE)", "the Pi gateway (ecalgate.py)"]
+      options: ["ECAL.ACC", "ECAL.PRG", "ECAL.ACC or ECAL.PRG with a Direct connection (TLS.OVL)", "ECALST.ACC (before 2.25)", "the Pi gateway (ecalgate.py)"]
     validations:
       required: true
   - type: input

@@ -60,16 +60,18 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
 
 ## ECal
 
-- **A release** carries `ECAL.ACC`, `ECAL.PRG`, `ECALST.ACC`, `ECAL.HYP` and `.REF` (hcp from
-  `common/tools/build-hcp.sh`), `CACERT.PEM`, `ROOTS.DAT` and the icon. The icons are committed in
+- **A release** carries `ECAL.ACC`, `ECAL.PRG`, `TLS.OVL` (common's, never built here; guidelines
+  7.4), `ECAL.HYP` and `.REF` (hcp from `common/tools/build-hcp.sh`), `CACERT.PEM`, `ROOTS.DAT` and
+  the icon. The icons are committed in
   `icons/` (`make icons`).
 - Before pushing: `make test` (the core, the fuzz inputs again, the
   gateway), `make itest` (cal-cli against Radicale: `pip install
   radicale`; also `GATEWAY=1` and `FALCON=1` when the connection code
   changes), and `make` with no warnings. When the GEM side changes, the
   Hatari rigs in `tests/hatari/`, on the family's machines (`--machine`, from
-  `common/tools/machines.py`): the ECALST.ACC rigs on `ST` and `ST-1` (`:mono` and `:med`), the
-  others on `TT` and `Falcon`, drawing also on `Falcon:256`.
+  `common/tools/machines.py`): the accessory's rigs on `ST` and `ST-1` (`:mono` and `:med`), the
+  others, Direct connection among them, on `TT` and `Falcon`, drawing also on `Falcon:256`. One
+  ECAL.ACC/PRG for every machine; the rigs put `binary/TLS.OVL` in ECal's folder.
 - **Before a GEM release**, run these rigs on his TOS images (`~/.aera/tos`: TOS 1.04 on
   ST/ST-1, TOS 4.04 on the Falcons; and his NVDI in `~/.aera/nvdi/x` with `AERA_WITH_NVDI=1`), then send the
   hub the commit and the results; the hub runs only the family checks (`acc_all.py`):

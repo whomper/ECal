@@ -16,7 +16,7 @@ redraw after the choice, or the accessory, opened again, draws nothing.
 Without a GDOS the list has only the system font (or the accessory says
 to choose a GDOS font in ECAL.PRG): "no GDOS fonts, skipped", and it
 passes. --release fetches that ECal release (common/tools/getrelease.py)
-instead of binary/ (--bin: another folder with ECAL.ACC, ECALST.ACC,
+instead of binary/ (--bin: another folder with ECAL.ACC,
 ECAL.PRG); --font-id puts FONT_ID= in ECAL.INF first, as a font chosen
 before the machine started. Under NVDI it needs a machine with it
 installed (AERA_WITH_NVDI=1 on the hub, common/tools/machines.py).
@@ -135,7 +135,7 @@ def main():
     shutil.rmtree(work, ignore_errors=True)
     hd = os.path.join(work, "hd")
     os.makedirs(hd)
-    acc = "ECALST.ACC" if is_st(a.machine) else "ECAL.ACC"
+    acc = "ECAL.ACC"
     binary = a.bin
     if a.release:
         binary = os.path.join(work, "release")

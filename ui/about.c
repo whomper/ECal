@@ -11,6 +11,7 @@
 #include "ui.h"
 #include "aboutbox.h"
 #include "iconify.h"
+#include "tlsovl.h"
 #include "icon.h"
 #include "icon16.h"
 #include "icon256.h"
@@ -37,12 +38,17 @@ void icon_window(GRECT *area)
 void dlg_about(void)
 {
 	static char conn[100];
-	const char *ram = about_ram();
+	char direct[48];
+	const char *ram = about_ram(), *ver = tls_ovl_version();
 	ABOUT a = { "ECal", cal_version, "A calendar for the Atari ST, TT and Falcon", { conn, 0, 0 }, { 0, 0, 0 },
 		    icon_bits, icon16_px, icon16_rgb, icon256_px, icon256_rgb };
+	/* "Direct connection/DSP (TLS.OVL 1.0)": TLS.OVL's version once it is
+	   loaded (the guidelines, 7.4) */
+	snprintf(direct, sizeof(direct), "Direct connection%s%s%s%s", strcmp(falcon_dsp_state(), "DSP") ? "" : "/DSP",
+		 ver[0] ? " (TLS.OVL " : "", ver, ver[0] ? ")" : "");
 	snprintf(conn, sizeof(conn), "%s  \xF9  %s  \xF9  %s%s%s",
 		 strcmp(net_stack(), "none") ? net_stack() : "no network",
-		 opt.falcon ? (strcmp(falcon_dsp_state(), "DSP") ? "Falcon" : "Falcon/DSP") : opt.gate[0] ? "Gateway" : "No gateway",
+		 opt.falcon ? direct : opt.gate[0] ? "Gateway" : "No gateway",
 		 opt.offline ? "offline" : "ready", ram[0] ? "  \xF9  " : "", ram);
 	about_show(&a);
 }

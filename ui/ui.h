@@ -240,9 +240,9 @@ const char *mem_full_advice(void);	/* a "memory is full" alert's last lines */
 void settings_flush(void);	/* now, if anything is waiting */
 void closing_down(int quitting);	/* the last steps, on the info line */
 unsigned char key_char(short kstate, short key);	/* honours the Hebrew layout */
-void falcon_dsp_init(void);		/* dsp.c */
+void falcon_dsp_init(void);		/* dsp_ovl.c */
 const char *falcon_dsp_state(void);
-void falcon_dsp_ec_init(void);		/* dsp_ec.c (dsp_ec_none.c in the ST edition) */
+void falcon_dsp_ec_init(void);		/* dsp_ovl.c (TLS.OVL's DSP) */
 const char *falcon_dsp_ec_state(void);
 int  falcon_mode_set(int on);
 extern short quit_now;

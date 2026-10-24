@@ -8,7 +8,7 @@ and opens it again, as one does with an accessory.
 
     tests/hatari/acc_test.py WORKDIR [--machine Falcon|TT|ST:mono|...]
 
-On an ST (ST, ST-1) the accessory is ECALST.ACC, else ECAL.ACC.
+The accessory is ECAL.ACC on every machine (TLS.OVL beside it on a TT or Falcon).
 """
 import argparse
 import os
@@ -35,7 +35,7 @@ def main():
     shutil.rmtree(a.work, ignore_errors=True)
     folder = os.path.join(hd, *(a.folder or "ECAL").split("\\"))
     os.makedirs(folder)
-    shutil.copy(os.path.join(ROOT, "binary", "ECALST.ACC" if is_st(a.machine) else "ECAL.ACC"),
+    shutil.copy(os.path.join(ROOT, "binary", "ECAL.ACC"),
                 os.path.join(hd, "ECAL.ACC"))
     ui_tour.seed(folder)
     if a.folder:

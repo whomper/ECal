@@ -7,7 +7,7 @@
  *  - through the Raspberry Pi gateway (ecalgate.py): every request goes
  *    to the Pi in plain HTTP, in proxy form ("GET https://host/path"),
  *    and the Pi makes the HTTPS connection. Any Atari can do this.
- *  - Falcon mode: TLS 1.2 on the Atari itself (tls.c, RSA on the DSP).
+ *  - Direct connection: TLS 1.2 on the Atari itself (tls.c, in TLS.OVL; RSA on the DSP).
  * Plain http:// addresses are reached directly in both modes when no
  * gateway is set.
  */

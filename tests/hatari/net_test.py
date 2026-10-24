@@ -9,8 +9,8 @@ no network card, so FAKESTNG.PRG in C:\\AUTO carries the Atari's TCP
 connections over the emulated serial port to serial_bridge.py
 (common/tools/machines.py's network()). The accessory syncs, shows the
 server's Hebrew event, and an event added on the Atari must arrive on
-the server. On an ST (ST, ST-1) the accessory is ECALST.ACC, else
-ECAL.ACC.
+the server. The accessory is ECAL.ACC on every machine; --falcon-mode
+connects directly, with TLS.OVL.
 
     tests/hatari/net_test.py WORKDIR [--machine ST:mono|ST-1:med|TT|Falcon|...]
 
@@ -121,7 +121,7 @@ def main():
     if a.prg:
         shutil.copy(os.path.join(ROOT, "binary", "ECAL.PRG"), os.path.join(hd, "ECAL", "ECAL.PRG"))
     else:
-        shutil.copy(os.path.join(ROOT, "binary", "ECALST.ACC" if rig.is_st(a.machine) else "ECAL.ACC"),
+        shutil.copy(os.path.join(ROOT, "binary", "ECAL.ACC"),
                     os.path.join(hd, "ECAL.ACC"))
     if a.falcon_mode:
         # the Mozilla roots ECal ships, plus the test certificate, decoded here

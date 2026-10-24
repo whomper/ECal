@@ -3,7 +3,7 @@
 /*
  * inflate.c - gzip/DEFLATE decompression (RFC 1951, 1952).
  *
- * In Falcon mode every byte from the server is decrypted on the 68030,
+ * With a Direct connection every byte from the server is decrypted on the 68030,
  * and AES-GCM costs some 400 instructions a byte there. CalDAV answers
  * are XML and iCalendar text, which shrink five to eight times when the
  * server compresses them, and undoing that costs far less than

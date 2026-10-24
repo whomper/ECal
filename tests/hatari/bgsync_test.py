@@ -200,7 +200,7 @@ def main():
         gone = "/alice/work/w%03d.ics" % kept[2]
         http("DELETE", gone)
 
-        acc = "ECALST.ACC" if rig.is_st(a.machine) else "ECAL.ACC"
+        acc = "ECAL.ACC"
         shutil.copy(os.path.join(PROF, acc), os.path.join(hd, "ECAL.ACC"))
         r = rig.Rig(work, a.machine, network=True, auto=None)
         time.sleep(secs)

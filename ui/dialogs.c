@@ -93,7 +93,7 @@ static int connection_ready(const char *url)
 	URL u;
 	if (!url_parse(url, &u) || !u.tls || opt.falcon || opt.gate[0])
 		return 1;
-	if (alert(1, "[1][Calendar servers want a secure connection. Set up the Raspberry Pi gateway, or Falcon mode, in Settings, Connection.][Settings|Cancel]") == 1)
+	if (alert(1, "[1][Calendar servers want a secure connection. Set up the Raspberry Pi gateway, or a Direct connection, in Settings, Connection.][Settings|Cancel]") == 1)
 		dlg_connection();
 	return opt.falcon || opt.gate[0];
 }
@@ -456,7 +456,7 @@ static const char *const section_names[] = { "General", "Events", "Time zones", 
 #define SIDE 12			/* the list's width */
 #define CX (SIDE + 2)		/* where a section's settings start */
 #define VX (CX + 17)		/* and their values */
-#define SW (VX + 35)		/* the dialog's width */
+#define SW (VX + 40)		/* the dialog's width: the Direct connection line */
 
 static void in(FIELD *f, short page)
 {
@@ -502,7 +502,7 @@ static void settings(short first)
 	static const char *hz_items[2], *vz_items[2];
 	static char hz_lab[50], vz_lab[50];
 	short r, i, row;
-	int can_falcon = tls_available && get_cookie(0x5F435055L) >= 20;	/* _CPU: 68020 or better */
+	int can_falcon = get_cookie(0x5F435055L) >= 20;	/* _CPU: 68020 or better, for TLS.OVL */
 	str_copy(hz, opt.home_tz, sizeof(hz));
 	str_copy(vz, opt.view_tz, sizeof(vz));
 	str_copy(gate, opt.gate, sizeof(gate));
@@ -632,15 +632,14 @@ static void settings(short first)
 
 	/* Connection */
 	row = 3;
-	put(&f[C1], FT_CHECK, 0, CX, row, 44, "Falcon mode: TLS on this Atari");
+	put(&f[C1], FT_CHECK, 0, CX, row, 58, "Direct connection: TLS on this Atari (68020 or better)");
 	f[C1].val = opt.falcon;
 	row++;
 	put(&f[C2], FT_CHECK, 0, CX + 3, row, 40, "Check certificates on the DSP");
 	f[C2].val = opt.dsp;
 	row++;
-	put(&f[N1], FT_LABEL, FF_LTR, CX + 3, row, 0, can_falcon ? "CACERT.PEM, ROOTS.DAT go in ECal's folder"
-							  : !tls_available ? "Not in the ST edition: ECAL.ACC has it"
-							  : "Needs a 68030 (Falcon or TT)");
+	put(&f[N1], FT_LABEL, FF_LTR, CX + 3, row, 0, can_falcon ? "TLS.OVL, CACERT.PEM, ROOTS.DAT in ECal's folder"
+							  : "Needs a 68020 or better (TT, Falcon)");
 	row += 2;
 	put(&f[L3], FT_LABEL, 0, CX, row, 0, "Pi gateway:");
 	text(&f[C3], FF_LTR, CX + 12, row, 20, gate, sizeof(gate));

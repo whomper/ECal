@@ -81,7 +81,7 @@ def main():
     os.makedirs(hd)
     top = os.path.join(hd, "ECAL") if a.acc else hd
     if a.acc:
-        shutil.copy(os.path.join(ROOT, "binary", "ECALST.ACC" if is_st(a.machine) else "ECAL.ACC"),
+        shutil.copy(os.path.join(ROOT, "binary", "ECAL.ACC"),
                     os.path.join(hd, "ECAL.ACC"))
         os.makedirs(top)
     else:

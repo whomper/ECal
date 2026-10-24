@@ -215,7 +215,7 @@ def main():
         print("the server has %d calendars of %d events (%d), the Atari none of them yet" %
               (a.cals, a.events, total))
 
-        acc = "ECALST.ACC" if rig.is_st(a.machine) else "ECAL.ACC"
+        acc = "ECAL.ACC"
         shutil.copy(os.path.join(bg.PROF, acc), os.path.join(hd, "ECAL.ACC"))
         logf = os.path.join(folder, "ECAL.LOG")
         for boot in range(a.boots):
