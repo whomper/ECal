@@ -5,7 +5,7 @@
 in Hatari on a Falcon: ECAL.PRG, and EContact's accessory with the
 contacts of its tests/hatari/sample.vcf.
 
-    tests/hatari/people_test.py WORK [--machine Falcon|TT] [--acc] [--econtact v1.43]
+    tests/hatari/people_test.py WORK [--machine Falcon|TT|ST:mono] [--acc] [--econtact v1.43]
 
 EContact is its latest release (the guidelines, 1.2), or the one given:
 ECONTACT.ACC from common/tools/getrelease.py, and card-cli and
@@ -132,7 +132,9 @@ def main():
         r.wait(2)
         r.type("Planning")
         r.shot("2-new")
-        r.click(ADD_X, ADD_Y)			# Add...: EContact's window at once
+        mono = r.machine.screen == "mono"
+        box = MONO_PEOPLE_BOX if mono else PEOPLE_BOX
+        r.click(*(MONO_ADD if mono else (ADD_X, ADD_Y)))	# Add...: EContact's window at once
         r.wait(6)
         r.type("Grace")				# into its search field
         r.wait(3)
@@ -170,9 +172,9 @@ def main():
     check("with her name from EContact", any("CN=Grace Baker" in l or 'CN="Grace Baker"' in l for l in att))
     shots = os.path.join(work, "shots")
     check("back from the pick, she shows by her name",
-          text_width(os.path.join(shots, "4b-later.png"), PEOPLE_BOX, inverse=True) in range(80, 100))
+          text_width(os.path.join(shots, "4b-later.png"), box, inverse=True) in range(80, 100))
     check("opened again, her name asked of EContact",
-          text_width(os.path.join(shots, "6-opened.png"), PEOPLE_BOX) in range(80, 100))
+          text_width(os.path.join(shots, "6-opened.png"), box) in range(80, 100))
     crash = [os.path.join(d, f) for d, _, fs in os.walk(hd) for f in fs if f.upper() == "CRASH.LOG"]
     check("no crash (CRASH.LOG)", not crash)
     print("screenshots in", os.path.join(work, "shots"))
@@ -201,6 +203,9 @@ def text_width(shot, box, inverse=False):
 # first line of its People field
 ADD_X, ADD_Y = 517, 125
 PEOPLE_BOX = (170, 117, 466, 134)
+# and on an ST's 640x400 (peoplefile_test.py takes them from here)
+MONO_ADD = (517, 103)
+MONO_PEOPLE_BOX = (170, 95, 466, 112)
 
 if __name__ == "__main__":
     sys.exit(main())

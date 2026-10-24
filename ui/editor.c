@@ -738,7 +738,7 @@ static void invite(void)
 			if (pf_ms() - seen >= 2000UL) {
 				/* EContact gone (or never answering): stop waiting */
 				seen = pf_ms();
-				if (appl_find("ECONTACT") < 0 && appl_find("ECONTST ") < 0) {
+				if (appl_find("ECONTACT") < 0) {
 					people_forget();
 					break;
 				}

@@ -615,7 +615,7 @@ void people_setup(void)
    picked from: an empty VA_START opens it (common/ui/av.c) */
 static void open_contacts(void)
 {
-	if (!av_send("ECONTACT", "") && !av_send("ECONTST ", ""))
+	if (!av_send("ECONTACT", ""))
 		alert(1, "[1][EContact isn't loaded: put ECONTACT.ACC|in the root of the boot drive|and restart.][ OK ]");
 }
 
@@ -1801,7 +1801,7 @@ int main(void)
 	ap_id = appl_init();
 	if (ap_id < 0)
 		return 1;
-	twin_init("ECAL|ECALST");
+	twin_init("ECAL");
 	if (!is_acc && twin_handover(av_command())) {
 		appl_exit();		/* ECAL.ACC runs, and has it */
 		return 0;
@@ -1862,7 +1862,7 @@ int main(void)
 	if (!no_vdi)
 		win_buffer_init();
 	help_init();
-	av_init("ECAL|ECALST");		/* the desktop's AV server, if one runs yet */
+	av_init("ECAL");		/* the desktop's AV server, if one runs yet */
 	dlg_after = win_frame_refresh;
 	if (!is_acc && !screen_check("ECal", scr_w)) {	/* not in ST low */
 		v_clsvwk(vdi_h);
@@ -1965,7 +1965,7 @@ int main(void)
 				if (msg[4] == menu_id) {
 					if (twin_pass(""))	/* ECAL.PRG runs: its window to the front */
 						break;
-					av_init("ECAL|ECALST");	/* a desktop started since */
+					av_init("ECAL");	/* a desktop started since */
 					open_window();
 				}
 				break;

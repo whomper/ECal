@@ -34,7 +34,7 @@ import time
 sys.path.insert(0, os.path.dirname(__file__))
 import ui_tour  # noqa: E402
 from people_test import (cache_text, text_width, fetch_econtact, econtact, menu_entry_width,  # noqa: E402
-                         ADD_X, ADD_Y, PEOPLE_BOX)
+                         ADD_X, ADD_Y, PEOPLE_BOX, MONO_ADD, MONO_PEOPLE_BOX)
 from rig import Rig, K, SCAN, add_machine, is_st  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -229,10 +229,6 @@ def main():
           "all passed" if not fails else "%d failed" % len(fails))
     return 1 if fails else 0
 
-
-# the editor's Add... on an ST's 640x400 (people_test's ADD_X, ADD_Y on 640x480)
-MONO_ADD = (517, 103)
-MONO_PEOPLE_BOX = (170, 95, 466, 112)
 
 if __name__ == "__main__":
     sys.exit(main())
