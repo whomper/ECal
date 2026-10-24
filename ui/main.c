@@ -203,8 +203,6 @@ int falcon_mode_set(int on)
 	if (on) {
 		char err[160];
 		if (!tls_ovl_load(err, sizeof(err))) {
-			if (strstr(err, "TLS.OVL is missing"))	/* "next to the program": ECal's is in its folder */
-				str_copy(err, "TLS.OVL is missing: copy it from ECal's release into ECal's folder, with CACERT.PEM", sizeof(err));
 			if (is_acc && strstr(err, "no memory")) {
 				mem_ran_out();	/* more at the next start (MEMKB=) */
 				alert(1, "[3][%s.|ECal takes more memory at the next start: restart, then tick it again.][ OK ]", err);
