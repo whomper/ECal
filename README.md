@@ -334,18 +334,22 @@ EContact's photos. EContact and ECal keep their own copies until their sessions 
 | `third_party/libjpeg-turbo/`, `src/pic_lj8.c` | libjpeg-turbo 3.1.4 | the decoder only, 8-bit (`AERA.md`): every JPEG a page has, unpacked at n/8 of its size; for a 68030 with memory to spare (EWeb). On a 68030 1.4 times as quick as TJpgDec at full size, three times on a photo shown at 40%, five on a big one shown small |
 | `src/png.c/.h` | new | PNG: every colour type and depth, interlaced, `tRNS`; rows out as they are unfiltered, so a picture that isn't interlaced is never whole in memory at four bytes a pixel |
 | `third_party/nsgif/` | NetSurf | libnsgif, unchanged (`AERA.md`) |
-| `src/pic.c/.h` | new | `pic_kind`, `pic_size` from the header, `pic_decode(data, len, w, h, max_px, &why)`: JPEG, PNG or GIF straight to the size shown (averaged when smaller, a JPEG unpacked smaller first; repeated when larger), RGB 5-6-5 with an alpha only when it has one; `pic_dither` to the screen's pens (Floyd-Steinberg, serpentine; a colour wanted past the cube's edges finds the pen that lies that way, so light blue on 16 colours stays blue). JPEG by TJpgDec and jpegdc, or with `-DPIC_LIBJPEG` by libjpeg-turbo |
+| `third_party/libwebp/` | libwebp 1.6.0 | Google's decoder only, unchanged but for its build settings and a float-free `random_utils.c` (`AERA.md`; BSD licence); with `-DPIC_LIBWEBP` (EWeb's `EWEB.PRG`, 24 Oct 2026). 93 KB of 68030 code in `EWEB.PRG`; a lossy picture takes about 193 68030 instructions a pixel at any size shown (a JPEG 96 at its size, 32 shown at a third: libjpeg unpacks it smaller), so 1 megapixel is about 40 s on a DFB1 |
+| `src/pic.c/.h` | new | `pic_kind`, `pic_size` from the header, `pic_decode(data, len, w, h, max_px, &why)`: JPEG, PNG or GIF (WebP with `-DPIC_LIBWEBP`) straight to the size shown (averaged when smaller, a JPEG unpacked smaller first; repeated when larger), RGB 5-6-5 with an alpha only when it has one; `pic_dither` to the screen's pens (Floyd-Steinberg, serpentine; a colour wanted past the cube's edges finds the pen that lies that way, so light blue on 16 colours stays blue). JPEG by TJpgDec and jpegdc, or with `-DPIC_LIBJPEG` by libjpeg-turbo. A lossy WebP comes to the scaler a band of rows at a time (libwebp's `VP8Io`), never whole; a lossless one is whole while it is decoded (libwebp's way, 8 bytes a pixel); an animated one isn't taken |
 
 `tests/pic`: `fetch.sh` (PngSuite, libjpeg-turbo's and libnsgif's test pictures, at fixed commits),
-then `make test` compares every picture with Pillow, with each JPEG decoder (PNG and GIF the same
-in every pixel, JPEG close), shrunk and enlarged against a model of the scaler, dithered, and cut
-short or damaged under AddressSanitizer and UBSan; `make test68k` checks that the 68030 builds
-(qemu-m68k) give the very same bytes.
+then `make test` compares every picture with Pillow, with each JPEG decoder (PNG, GIF and lossless
+WebP the same in every pixel, JPEG and lossy WebP close: their chroma, nearest rather than
+smoothed), shrunk and enlarged against a model of the scaler, dithered, and cut short or damaged
+under AddressSanitizer and UBSan; WebP (made by Pillow: lossy and lossless, with alpha, an odd
+size, a big one, an animation that is refused) in libjpeg-turbo's builds, refused in TJpgDec's;
+`make test68k` checks that the 68030 builds (qemu-m68k) give the very same bytes.
 
 Build: `-Icommon/third_party/nsgif/include`, and either `-Icommon/third_party/tjpgd` with
 `jpegdc.c` and `tjpgd.c` (built with `-fwrapv`: its IDCT wraps on damaged data, as it does on the
-68000) or libjpeg-turbo's flags (its `AERA.md`) with `pic_lj8.c`. `atari/include/stdio.h` names
-`FILE` (no functions) for libjpeg's prototypes.
+68000) or libjpeg-turbo's flags (its `AERA.md`) with `pic_lj8.c`; for WebP too, `-DPIC_LIBWEBP
+-DHAVE_CONFIG_H -Icommon/third_party/libwebp` and libwebp's files (its `AERA.md`, `tests/pic/Makefile`'s
+`WP_SRC`). `atari/include/stdio.h` names `FILE` (no functions) for libjpeg's prototypes.
 
 ### JPEGs and the dither on the DSP (20 and 21 Oct 2026, from EWeb)
 
