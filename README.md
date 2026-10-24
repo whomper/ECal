@@ -167,6 +167,9 @@ The gateway's own README, with its options and how to keep it private:
 - **Fonts**: the system font or any monospaced GDOS font (NVDI, SpeedoGDOS), picked in the family's
   Font dialog; twelve calendar colours, the same in 16 and 256 colours. With NVDI the views draw
   several times faster than with TOS's own VDI.
+- **3D dialogs**: where the AES draws 3D (TOS 4, MagiC, N.AES, XaAES, EmuTOS in colour), ECal's
+  dialogs and alerts take its look in 16 colours or more: grey ground, raised buttons, white fields.
+  **3D dialogs** in Settings > General turns it off; TOS 1 to 3 keep the flat look.
 - **The calendar list** hides with a toolbar button (or ⇧^S), leaving the window to the calendar.
 - **Offline**: ECal keeps a copy of everything on disk, so it opens at once, shows today before it
   syncs, and works offline (**Work offline** in the Options or ≡ menu, as in EMail).

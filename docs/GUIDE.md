@@ -106,6 +106,11 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
   the first hour the day and week views show, the 24-hour clock, Hebrew
   dates next to the civil ones, which character set your font has
   Hebrew in, and whether ECal starts with the Hebrew keyboard.
+  **3D dialogs** (on at first): where the AES draws dialogs in 3D (TOS 4,
+  MagiC, N.AES, XaAES, EmuTOS in colour), ECal's dialogs and alerts take
+  that look with 16 colours or more: a grey ground, raised buttons, white
+  fields. Off, they stay flat and white. It is greyed where the AES has
+  no 3D (TOS 1 to 3).
 - **Events**: how long a new event lasts and the alert it starts with;
   **Show alerts** turns all reminders on or off.
 - **Time zones**: see [Time zones](#time-zones).
