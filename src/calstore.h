@@ -69,6 +69,7 @@ typedef struct {
 	short alarm_default;	/* minutes before, for new events; -1 none */
 	short log;
 	short font_id, font_pt, hebfont;
+	short dialogs3d;	/* dialogs in the AES's 3D look, where it has one (guidelines 5.6) */
 	short win_x, win_y, win_w, win_h;
 	short sidebar;
 	short past_days, future_days;	/* what is kept from the servers */

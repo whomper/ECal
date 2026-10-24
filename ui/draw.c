@@ -255,11 +255,15 @@ static short pens_ready;
 static short grey_dark = 1, grey_light = 1;
 static void pens_init(void);
 
+short on_3d;
+
 short grey_color(void)
 {
 	if (ncolors < 16)
 		return 1;
 	text_grey(0);
+	if (on_3d)
+		return grey_dark;
 	return grey_light != 1 ? grey_light : 8;
 }
 
@@ -269,7 +273,7 @@ short text_grey(int pale)
 		return 1;
 	if (!pens_ready)
 		pens_init();
-	return pale ? grey_light : grey_dark;
+	return pale && !on_3d ? grey_light : grey_dark;
 }
 
 /* the Mac's colours (red orange yellow green blue purple brown grey) on

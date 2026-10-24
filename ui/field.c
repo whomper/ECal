@@ -22,12 +22,45 @@
 #include "../src/plat.h"
 #include "av.h"
 #include "people_ask.h"
+#include "dialog.h"
 
 static GRECT box;		/* the dialog on screen */
 static short rh;		/* pixels per row */
 static short pad;
 static short depth;		/* dialogs open (one can open another: Custom repeat) */
 void (*dlg_after)(void);	/* called when the last dialog closes (window frame) */
+
+/* the 3D look (the guidelines, 5.6): where the AES draws its dialogs in
+   3D and the setting (DIALOGS3D=) wants it, ECal's own look the same:
+   the box on the AES's 3D background, exit buttons and pop-ups raised,
+   fields and tick boxes white. It takes the AES's greys, so 16 colours
+   or more; everywhere else the box stays white */
+#define BG3D 8			/* LWHITE: the 3D background of TOS 4 and MagiC */
+#define SHADE3D 9		/* LBLACK: a raised object's shadow */
+static short bg;		/* the box's colour: 0, or BG3D */
+
+static void look_3d(void)
+{
+	bg = dlg_3d_ok() && dlg_3d_on && ncolors >= 16 ? BG3D : 0;
+}
+
+/* drawing on the box: the greys follow its colour (draw.c) */
+static void on_box(int on)
+{
+	on_3d = on ? bg : 0;
+}
+
+/* an object raised in the 3D look: light at the top and left, the shadow
+   at the bottom and right, inside its frame; pressed, the other way */
+static void raised(const GRECT *r, int pressed)
+{
+	short x0 = r->x + 1, y0 = r->y + 1, x1 = r->x + r->w - 2, y1 = r->y + r->h - 2;
+	short lt = pressed ? SHADE3D : 0, dk = pressed ? 0 : SHADE3D;
+	line_col(x0, y0, x1 - 1, y0, lt);
+	line_col(x0, y0, x0, y1 - 1, lt);
+	line_col(x0, y1, x1, y1, dk);
+	line_col(x1, y0, x1, y1, dk);
+}
 
 #define FX(f) (box.x + pad + (f)->x * cw)
 #define FY(f) (box.y + pad + (f)->y * rh)
@@ -550,8 +583,10 @@ static void draw_field(DLG *d, short i)
 		break;
 	case FT_BUTTON:
 		field_rect(f, &r);
-		fill(&r, 0);
+		fill(&r, bg);
 		frame(&r, dis ? grey_color() : 1);
+		if (bg)
+			raised(&r, 0);
 		if (f->flags & FF_DEFAULT) {
 			GRECT r2 = r;
 			r2.x--;
@@ -583,11 +618,15 @@ static void draw_field(DLG *d, short i)
 	case FT_POPUP: {
 		const char *l = f->val >= 0 && f->val < f->nitems ? f->items[f->val] : "";
 		field_rect(f, &r);
-		fill(&r, 0);
+		fill(&r, bg);
 		frame(&r, dis ? grey_color() : 1);
-		/* a shadow says "menu" */
-		line_col(r.x + 1, r.y + r.h, r.x + r.w, r.y + r.h, 1);
-		line_col(r.x + r.w, r.y + 1, r.x + r.w, r.y + r.h, 1);
+		if (bg)
+			raised(&r, 0);	/* raised, as the AES's pop-ups */
+		else {
+			/* a shadow says "menu" */
+			line_col(r.x + 1, r.y + r.h, r.x + r.w, r.y + r.h, 1);
+			line_col(r.x + r.w, r.y + 1, r.x + r.w, r.y + r.h, 1);
+		}
 		while (*l == ' ')
 			l++;
 		text_at(FX(f) + cw / 2, FY(f), l, (long)strlen(l), f->w - 2,
@@ -605,7 +644,7 @@ static void draw_field(DLG *d, short i)
 			b.y = FY(f) - 1;
 			b.w = 2 * cw;
 			b.h = ch + 2;
-			fill(&b, 0);
+			fill(&b, bg);
 			b.x += 2;
 			b.y += 2;
 			b.w -= 4;
@@ -618,7 +657,7 @@ static void draw_field(DLG *d, short i)
 			b.y -= 2;
 			b.w += 4;
 			b.h += 4;
-			frame(&b, f->val == k ? 1 : 0);
+			frame(&b, f->val == k ? 1 : bg);
 			if (f->val == k) {
 				b.x--;
 				b.y--;
@@ -668,7 +707,7 @@ static void draw_sections(DLG *d)
 		GRECT r;
 		const char *s = d->pages[k];
 		section_rect(d, k, &r);
-		fill(&r, k + 1 == d->page ? 1 : 0);
+		fill(&r, k + 1 == d->page ? 1 : bg);
 		text_at(r.x + cw, r.y + 3, s, (long)strlen(s), d->side, TX_LTR | (k + 1 == d->page ? TX_INVERSE : 0));
 	}
 	line_col(lx, box.y + ch + 6, lx, box.y + box.h - 4, 1);
@@ -707,7 +746,8 @@ static void draw_all_in(DLG *d, const GRECT *clip)
 		return;
 	clip_on(&c);
 	graf_mouse(M_OFF, 0);
-	fill(&box, 0);
+	on_box(1);
+	fill(&box, bg);
 	frame(&box, 1);
 	{
 		GRECT in = box;
@@ -732,6 +772,7 @@ static void draw_all_in(DLG *d, const GRECT *clip)
 	for (i = 0; i < d->n; i++)
 		if (shown_now(&d->f[i]))
 			draw_field(d, i);
+	on_box(0);
 	graf_mouse(M_ON, 0);
 }
 
@@ -748,15 +789,17 @@ void dlg_redraw_field(DLG *d, short i)
 		r.y = FY(f) - 3;
 		r.h = ch + 6;
 		rect_and(&r, &box);
-		fill(&r, 0);
+		fill(&r, bg);
 	} else {
 		r.x -= 2;
 		r.y -= 2;
 		r.w += 5;
 		r.h += 5;
-		fill(&r, 0);
+		fill(&r, bg);
 	}
+	on_box(1);
 	draw_field(d, i);
+	on_box(0);
 	graf_mouse(M_ON, 0);
 }
 
@@ -791,6 +834,13 @@ static void press_effect(DLG *d, short i)
 	field_rect(&d->f[i], &r);
 	clip_on(&box);
 	graf_mouse(M_OFF, 0);
+	if (bg) {		/* pressed in, then out again */
+		raised(&r, 1);
+		evnt_timer_(90);
+		raised(&r, 0);
+		graf_mouse(M_ON, 0);
+		return;
+	}
 	set_wrmode(3);
 	fill(&r, 1);
 	evnt_timer_(90);
@@ -1042,6 +1092,7 @@ short dlg_run(DLG *d)
 	short outer_rh = rh, outer_pad = pad;
 	DLG *outer_dlg = cur_dlg;
 	font_sys_push();
+	look_3d();
 	cur_dlg = d;
 	if (d->npages && (d->page < 1 || d->page > d->npages))
 		d->page = 1;
@@ -1262,9 +1313,13 @@ short dlg_pick(const char *title, const char *const *items, short n, short sel)
 			first = 0;
 		clip_on(&b);
 		graf_mouse(M_OFF, 0);
-		fill(&b, 0);
+		look_3d();
+		on_box(1);
+		fill(&b, bg);
 		frame(&b, 1);
 		text_at(b.x + cw, b.y + 4, title, (long)strlen(title), w, TX_BOLD | TX_LTR);
+		if (bg)
+			fill(&list, 0);	/* the list white, as a field */
 		frame(&list, 1);
 		for (i = 0; i < rows && first + i < n; i++) {
 			GRECT r;
@@ -1277,6 +1332,7 @@ short dlg_pick(const char *title, const char *const *items, short n, short sel)
 				(first + i == sel ? TX_INVERSE : 0) | (line_rtl(items[first + i], (long)strlen(items[first + i])) ? 0 : TX_LTR));
 		}
 		text_at(b.x + cw, list.y + list.h + 4, "\x01\x02 Return: choose  Esc: cancel", 29, w, TX_GREY | TX_LTR);
+		on_box(0);
 		graf_mouse(M_ON, 0);
 		evnt_multi_(MU_KEYBD | MU_BUTTON | MU_MESAG, 0x102, 3, 0, 0, m, &e);
 		if (e.which & MU_MESAG) {

@@ -36,6 +36,7 @@
 #include "twin.h"
 #include "bgwork.h"
 #include "accmem.h"
+#include "dialog.h"
 #include "../src/alarms.h"
 
 short vdi_h, cw, ch, scr_w, scr_h, desk_x, desk_y, desk_w, desk_h, planes;
@@ -1118,6 +1119,7 @@ static int settings_step(void)
 	if (store_plain_passwords && !store_lost_passwords)
 		store_save_settings();
 	hebrew_kbd = opt.hebrew;
+	dlg_3d_on = opt.dialogs3d != 0;
 	{
 		/* where TOS put us: TT/Fast RAM starts at 16 MB */
 		char m[100];
@@ -1846,6 +1848,12 @@ int main(void)
 	}
 	store_watch = is_acc;
 	find_workdir();
+	{
+		/* the 3D look (the guidelines, 5.6) before the first dialog or alert */
+		char v[8];
+		inf_value("dialogs3d=", v, sizeof(v));
+		dlg_3d_on = !v[0] || atoi(v) != 0;
+	}
 	crash_install(workdir, "ECal", cal_version);	/* the program only */
 	crash_cleanup = crash_quit;
 	alert_hebrew = alert_heb;

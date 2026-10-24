@@ -16,6 +16,7 @@
 #include "../src/plat.h"
 #include "tls.h"
 #include "bgwork.h"
+#include "dialog.h"
 
 static void put(FIELD *f, short type, short flags, short x, short y, short w, const char *label)
 {
@@ -489,7 +490,7 @@ static void settings_changed(DLG *d, short i)
 
 static void settings(short first)
 {
-	enum { L1, F1, L2, F2, F3, F4, L13, F13, F14,
+	enum { L1, F1, L2, F2, F3, F4, L13, F13, F14, F19,
 	       L5, F5, L6, F6, F7,
 	       L8, F8, F9, L10, F10,
 	       L11, F11, F12, F17, L18, F18, H3, L15, F15, L16, F16,
@@ -538,7 +539,11 @@ static void settings(short first)
 	row++;
 	put(&f[F14], FT_CHECK, 0, VX, row, 32, "Start with the Hebrew keyboard");
 	f[F14].val = opt.hebrew;
-	for (i = L1; i <= F14; i++)
+	row++;
+	/* the AES's 3D look (the guidelines, 5.6), greyed where it has none */
+	put(&f[F19], FT_CHECK, dlg_3d_ok() ? 0 : FF_DISABLED, VX, row, 32, "3D dialogs");
+	f[F19].val = opt.dialogs3d;
+	for (i = L1; i <= F19; i++)
 		in(&f[i], S_GENERAL);
 
 	/* Events */
@@ -697,6 +702,8 @@ static void settings(short first)
 	opt.hebfont = f[F13].val;
 	opt.hebrew = f[F14].val;
 	set_hebrew_kbd(opt.hebrew);
+	opt.dialogs3d = f[F19].val;
+	dlg_3d_on = opt.dialogs3d;	/* the next dialog follows it */
 	opt.duration = len_min[f[F5].val];
 	opt.alarm_default = alert_min[f[F6].val];
 	opt.alarms = f[F7].val;

@@ -71,6 +71,10 @@ short win_popup(short x, short y, const char *const *labels, short n);
 short red_color(void);		/* "today" */
 short grey_color(void);		/* lines (the light grey) */
 short text_grey(int pale);	/* the dark (0) or light (1) grey for text; 1 (black) without */
+/* the AES's 3D background under what is drawn (a dialog in the 3D look,
+   field.c), or 0 (white): the light grey would vanish on it, so the
+   dark one takes its place */
+extern short on_3d;
 
 /* ---- the window (win.c) ---- */
 extern short win_h;		/* AES handle, -1 when closed */
