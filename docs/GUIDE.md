@@ -110,7 +110,9 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
   MagiC, N.AES, XaAES, EmuTOS in colour), ECal's dialogs and alerts take
   that look with 16 colours or more: a grey ground, raised buttons, white
   fields. Off, they stay flat and white. It is greyed where the AES has
-  no 3D (TOS 1 to 3).
+  no 3D (TOS 1 to 3). Under MiNT (XaAES, N.AES, MyAES) and MagiC each
+  dialog opens in a window of its own, which you can move by its title
+  bar and close with its closer or Esc, and the alerts are the AES's.
 - **Events**: how long a new event lasts and the alert it starts with;
   **Show alerts** turns all reminders on or off.
 - **Time zones**: see [Time zones](#time-zones).

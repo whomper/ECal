@@ -170,6 +170,9 @@ The gateway's own README, with its options and how to keep it private:
 - **3D dialogs**: where the AES draws 3D (TOS 4, MagiC, N.AES, XaAES, EmuTOS in colour), ECal's
   dialogs and alerts take its look in 16 colours or more: grey ground, raised buttons, white fields.
   **3D dialogs** in Settings > General turns it off; TOS 1 to 3 keep the flat look.
+- **MiNT and MagiC**: where the AES runs several programs at once (XaAES, N.AES, MyAES, MagiC),
+  alerts are the AES's own and each dialog opens in a window of its own, named after it: move it
+  by its title bar, close it with its closer or Esc, and the other programs go on running.
 - **The calendar list** hides with a toolbar button (or ⇧^S), leaving the window to the calendar.
 - **Offline**: ECal keeps a copy of everything on disk, so it opens at once, shows today before it
   syncs, and works offline (**Work offline** in the Options or ≡ menu, as in EMail).
