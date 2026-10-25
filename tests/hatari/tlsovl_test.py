@@ -5,13 +5,15 @@
 Options > Direct connection (TLS), first without TLS.OVL in ECal's
 folder, then with it. Without it an alert says so, the tick stays off
 and ECAL.INF keeps FALCON=0; with it TLS.OVL is loaded at once (the
-log says "TLS.OVL 1.0 loaded"), the tick is on and FALCON=1 is written.
+log says "TLS.OVL 1.2 loaded", whatever its version), the tick is on and
+FALCON=1 is written.
 No crash either way.
 
     tests/hatari/tlsovl_test.py WORK [--machine Falcon|TT|...]
 """
 import argparse
 import os
+import re
 import shutil
 import sys
 import time
@@ -66,6 +68,9 @@ def run(work, machine, with_ovl):
     return t, log, crash, os.path.join(work, "shots")
 
 
+# the log's line when it is loaded, whatever TLS.OVL's version
+LOADED = re.compile(r"TLS\.OVL \d+\.\d+ loaded")
+
 # ECAL.PRG's menu bar on 640x480: Options, and its Direct connection line
 OPTIONS_X, DIRECT_Y = 244, 91
 
@@ -78,12 +83,12 @@ def main():
     work = os.path.abspath(a.work)
     t, log, crash, shots = run(os.path.join(work, "without"), a.machine, False)
     check("without TLS.OVL: FALCON=0 kept", "\r\nFALCON=0" in t)
-    check("without TLS.OVL: nothing loaded", "TLS.OVL 1.0 loaded" not in log)
+    check("without TLS.OVL: nothing loaded", not LOADED.search(log))
     check("without TLS.OVL: no crash (CRASH.LOG)", not crash)
     print("  (the alert: %s)" % os.path.join(shots, "2-ticked.png"))
     t, log, crash, shots = run(os.path.join(work, "with"), a.machine, True)
     check("with TLS.OVL: loaded at once (%s)" % next((l.strip() for l in log.splitlines() if "TLS.OVL" in l), "no log line"),
-          "TLS.OVL 1.0 loaded" in log)
+          bool(LOADED.search(log)))
     check("with TLS.OVL: FALCON=1 written", "\r\nFALCON=1" in t)
     check("with TLS.OVL: no crash (CRASH.LOG)", not crash)
     print("TLS.OVL test:", "all passed" if not fails else "%d failed" % len(fails))
