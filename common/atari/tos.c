@@ -46,6 +46,53 @@ static void sup_bootdev(void)
 	__asm__ volatile("move.w 0x446.w,%0" : "=d"(bootdev));	/* _bootdev */
 }
 
+/* the command line: the basepage's, or, where the parent passed it the
+   ARGV way (MiNT and MagiC launching a GEM program: the length byte 127
+   and the words in the environment after "ARGV="), the words after the
+   program's name, joined by spaces, a word with a space in quotes */
+const char *cmd_line(void)
+{
+	static char arg[256];
+	const unsigned char *bp = (const unsigned char *)_BasePage;
+	const unsigned char *cmd = bp ? bp + 0x80 : 0;
+	long n = 0;
+	if (!cmd)
+		return "";
+	if (cmd[0] == 127) {
+		const char *env = *(const char *const *)(bp + 0x2c);
+		while (env && *env && strncmp(env, "ARGV=", 5))
+			env += strlen(env) + 1;
+		if (env && *env) {
+			env += strlen(env) + 1;			/* "ARGV=..." */
+			if (*env)
+				env += strlen(env) + 1;		/* the program's name */
+			while (*env && n < (long)sizeof(arg) - 4) {
+				long k = (long)strlen(env);
+				int q = strchr(env, ' ') != 0;
+				if (n)
+					arg[n++] = ' ';
+				if (q)
+					arg[n++] = '"';
+				if (k > (long)sizeof(arg) - 3 - n)
+					k = (long)sizeof(arg) - 3 - n;
+				memcpy(arg + n, env, k);
+				n += k;
+				if (q)
+					arg[n++] = '"';
+				env += strlen(env) + 1;
+			}
+			arg[n] = 0;
+			return arg;
+		}
+	}
+	n = cmd[0] < 127 ? cmd[0] : 126;
+	memcpy(arg, cmd + 1, n);
+	arg[n] = 0;
+	while (n > 0 && (arg[n - 1] == ' ' || arg[n - 1] == '\r' || arg[n - 1] == '\n'))
+		arg[--n] = 0;
+	return arg;
+}
+
 short boot_drive(void)
 {
 	Supexec(sup_bootdev);
