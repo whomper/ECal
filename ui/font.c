@@ -215,6 +215,26 @@ void font_sys_pop(void)
 		font_apply();
 }
 
+/* the window's own font for a while, however many dialogs are open: the
+   window drawn again under a dialog window (dlg_redraw_hook) */
+short font_sys_suspend(void)
+{
+	short k = sys_depth;
+	if (k) {
+		sys_depth = 0;
+		font_apply();
+	}
+	return k;
+}
+
+void font_sys_resume(short k)
+{
+	if (k) {
+		sys_depth = k;
+		use_sys();
+	}
+}
+
 /* ---------------- the fonts ---------------- */
 
 /* the format of the font with this id (0 not known, 1 bitmap, 2 Speedo,

@@ -62,6 +62,19 @@ static void raised(const GRECT *r, int pressed)
 	line_col(x1, y0, x1, y1, dk);
 }
 
+/* where the dialog may be drawn now: all of it on TOS; in a window (MiNT,
+   MagiC: the guidelines, 3.5) only while it is in front or within the
+   piece the AES asked for, else 0 and the AES is asked to have it drawn
+   (common/ui/dialog.c) */
+static int clip_box(const GRECT *in)
+{
+	GRECT c = *in;
+	if (!rect_and(&c, &box) || !dlg_cut(&c.x, &c.y, &c.w, &c.h))
+		return 0;
+	clip_on(&c);
+	return 1;
+}
+
 #define FX(f) (box.x + pad + (f)->x * cw)
 #define FY(f) (box.y + pad + (f)->y * rh)
 
@@ -518,8 +531,9 @@ static void tip_put(const char *s, short mx, short my)
 		r.x = box.x + 3;
 	if (r.y + r.h > box.y + box.h - 3)
 		r.y = my - r.h - 2;
+	if (!clip_box(&box))
+		return;
 	graf_mouse(M_OFF, 0);
-	clip_on(&box);
 	fill(&r, 0);
 	frame(&r, 1);
 	text_at(r.x + cw, r.y + 3, s, n, n, (line_rtl(s, n) ? TX_RIGHT : TX_LTR));
@@ -739,12 +753,11 @@ static void draw_all(DLG *d)
 /* the dialog, or the part of it in clip */
 static void draw_all_in(DLG *d, const GRECT *clip)
 {
-	GRECT t, c = *clip;
+	GRECT t;
 	short i;
 	char title[80];
-	if (!rect_and(&c, &box))
+	if (!clip_box(clip))
 		return;
-	clip_on(&c);
 	graf_mouse(M_OFF, 0);
 	on_box(1);
 	fill(&box, bg);
@@ -761,12 +774,18 @@ static void draw_all_in(DLG *d, const GRECT *clip)
 	t.y = box.y + 3;
 	t.w = box.w - 6;
 	t.h = ch + 2;
-	fill(&t, 1);
-	snprintf(title, sizeof(title), "%s", d->title ? d->title : "");
-	text_at(t.x, t.y + 1, title, (long)strlen(title), t.w / cw, TX_INVERSE | TX_BOLD | TX_CENTER |
-		(line_rtl(title, (long)strlen(title)) ? 0 : TX_LTR));
-	if (hebrew_kbd)
-		text_at(t.x + t.w - 4 * cw, t.y + 1, "\xD3\xC3", 2, 2, TX_INVERSE);	/* "עב": Hebrew keyboard */
+	if (dlg_in_window()) {
+		/* the window's title bar names it */
+		if (hebrew_kbd)
+			text_at(t.x + t.w - 4 * cw, t.y + 1, "\xD3\xC3", 2, 2, TX_BOLD);	/* "עב": Hebrew keyboard */
+	} else {
+		fill(&t, 1);
+		snprintf(title, sizeof(title), "%s", d->title ? d->title : "");
+		text_at(t.x, t.y + 1, title, (long)strlen(title), t.w / cw, TX_INVERSE | TX_BOLD | TX_CENTER |
+			(line_rtl(title, (long)strlen(title)) ? 0 : TX_LTR));
+		if (hebrew_kbd)
+			text_at(t.x + t.w - 4 * cw, t.y + 1, "\xD3\xC3", 2, 2, TX_INVERSE);	/* "עב": Hebrew keyboard */
+	}
 	if (d->npages)
 		draw_sections(d);
 	for (i = 0; i < d->n; i++)
@@ -780,7 +799,8 @@ void dlg_redraw_field(DLG *d, short i)
 {
 	GRECT r;
 	FIELD *f = &d->f[i];
-	clip_on(&box);
+	if (!clip_box(&box))
+		return;
 	graf_mouse(M_OFF, 0);
 	field_rect(f, &r);
 	if (f->type == FT_LABEL || f->type == FT_HEAD || f->type == FT_CHECK || f->type == FT_COLOR) {
@@ -832,7 +852,8 @@ static void press_effect(DLG *d, short i)
 {
 	GRECT r;
 	field_rect(&d->f[i], &r);
-	clip_on(&box);
+	if (!clip_box(&box))
+		return;
 	graf_mouse(M_OFF, 0);
 	if (bg) {		/* pressed in, then out again */
 		raised(&r, 1);
@@ -1063,7 +1084,7 @@ void dlg_after_selector(DLG *d)
 	short m[8];
 	AEVENT e;
 	for (;;) {
-		evnt_multi_(MU_MESAG | MU_TIMER, 0, 0, 0, 50, m, &e);
+		dlg_evnt(MU_MESAG | MU_TIMER, 0, 0, 0, 50, m, &e);
 		if (!(e.which & MU_MESAG))
 			break;
 		if (m[0] == WM_REDRAW) {
@@ -1083,9 +1104,57 @@ void dlg_names_came(void)
 		cur_dlg->names(cur_dlg);
 }
 
+/* a piece of the dialog drawn again when the AES asks (in a window) */
+static void area_draw(short x, short y, short w, short h)
+{
+	GRECT c;
+	c.x = x;
+	c.y = y;
+	c.w = w;
+	c.h = h;
+	if (cur_dlg)
+		draw_all_in(cur_dlg, &c);
+}
+
+/* where the dialog is now: in a window it may have been moved */
+static void box_now(void)
+{
+	dlg_area(&box.x, &box.y, &box.w, &box.h);
+}
+
+/* a box of ours opened: on MiNT and MagiC a window of the AES's (the
+   guidelines, 3.5; common/ui/dialog.c); on TOS and EmuTOS over the screen
+   as ECal always drew it, the AES told of 2 pixels more, which TOS
+   1.04's redraw of the window under it needs. 1: close it with
+   dlg_close */
+static int open_box(GRECT *b, const char *name, void (*draw)(short x, short y, short w, short h))
+{
+	if (dlg_windowed()) {
+		dlg_name(name);
+		dlg_open_area(draw, &b->x, &b->y, &b->w, &b->h);
+		return 1;
+	}
+	wind_update(BEG_UPDATE);
+	wind_update(3);		/* BEG_MCTRL: the dialog owns the mouse */
+	form_dial(FMD_START, b->x, b->y, b->w + 2, b->h + 2);
+	draw(b->x, b->y, b->w, b->h);
+	return 0;
+}
+
+static void close_box(const GRECT *b, int via_dlg)
+{
+	if (via_dlg) {
+		dlg_close();
+		return;
+	}
+	form_dial(FMD_FINISH, b->x, b->y, b->w + 2, b->h + 2);
+	wind_update(2);
+	wind_update(END_UPDATE);
+}
+
 short dlg_run(DLG *d)
 {
-	short result = -2, i, mx, my, mb, ks, m[8], tips = 0, hx = -1, hy = -1, tip_tried = 1;
+	short result = -2, i, mx, my, mb, ks, m[8], tips = 0, hx = -1, hy = -1, tip_tried = 1, via;
 	unsigned long hover_at = 0;
 	AEVENT e;
 	GRECT outer = box;		/* the dialog under this one, if any */
@@ -1119,11 +1188,10 @@ short dlg_run(DLG *d)
 	if (d->focus >= 0 && !focusable(&d->f[d->focus]))
 		d->focus = -1;
 	depth++;
-	wind_update(BEG_UPDATE);
-	wind_update(3);		/* BEG_MCTRL: the dialog owns the mouse */
-	form_dial(FMD_START, box.x, box.y, box.w + 2, box.h + 2);
+	/* over the screen on TOS, drawn at once; a window of the AES's on
+	   MiNT and MagiC (the guidelines, 3.5) */
+	via = open_box(&box, d->title, area_draw);
 	graf_mouse(ARROW, 0);
-	draw_all(d);
 	/* a people field: what the mouse rests on tells its address */
 	for (i = 0; i < d->n; i++)
 		if (d->f[i].type == FT_PEOPLE && d->f[i].tips)
@@ -1134,7 +1202,8 @@ short dlg_run(DLG *d)
 	while (result == -2) {
 		if (tips) {
 			evnt_set_m1(1, hx, hy, 1, 1);
-			evnt_multi_(MU_KEYBD | MU_BUTTON | MU_M1 | MU_MESAG | MU_TIMER, 0x102, 3, 0, 100, m, &e);
+			dlg_evnt(MU_KEYBD | MU_BUTTON | MU_M1 | MU_MESAG | MU_TIMER, 0x102, 3, 0, 100, m, &e);
+			box_now();
 			if (e.which & (MU_KEYBD | MU_BUTTON | MU_M1))
 				tip_take(d);
 			if (e.which & MU_M1) {
@@ -1147,7 +1216,8 @@ short dlg_run(DLG *d)
 				tip_for(d, hx, hy);
 			}
 		} else {
-			evnt_multi_(MU_KEYBD | MU_BUTTON | MU_MESAG | MU_TIMER, 0x102, 3, 0, 200, m, &e);
+			dlg_evnt(MU_KEYBD | MU_BUTTON | MU_MESAG | MU_TIMER, 0x102, 3, 0, 200, m, &e);
+			box_now();
 		}
 		if (e.which & MU_MESAG)
 			dlg_message(m);
@@ -1255,9 +1325,7 @@ short dlg_run(DLG *d)
 	}
 	tip_take(d);
 	clip_off();
-	form_dial(FMD_FINISH, box.x, box.y, box.w + 2, box.h + 2);
-	wind_update(2);
-	wind_update(END_UPDATE);
+	close_box(&box, via);
 	/* back to the dialog underneath: its place, and the caller repaints it */
 	box = outer;
 	rh = outer_rh;
@@ -1274,10 +1342,63 @@ short dlg_run(DLG *d)
 
 /* ---------------- a list to pick from ---------------- */
 
+/* the list being picked from, for its drawing (also when the AES asks
+   for a piece of its window) */
+static struct {
+	const char *title;
+	const char *const *items;
+	short n, sel, first, rows, w;
+	GRECT b, list;
+} pk;
+
+/* where the list's parts are, from where its box is now */
+static void pick_place(void)
+{
+	pk.list.x = pk.b.x + cw;
+	pk.list.y = pk.b.y + 2 * (ch + 2);
+	pk.list.w = pk.b.w - 2 * cw;
+	pk.list.h = pk.rows * (ch + 2);
+}
+
+static void pick_draw(short x, short y, short w, short h)
+{
+	GRECT c;
+	short i;
+	c.x = x;
+	c.y = y;
+	c.w = w;
+	c.h = h;
+	if (!rect_and(&c, &pk.b) || !dlg_cut(&c.x, &c.y, &c.w, &c.h))
+		return;
+	clip_on(&c);
+	graf_mouse(M_OFF, 0);
+	look_3d();
+	on_box(1);
+	fill(&pk.b, bg);
+	frame(&pk.b, 1);
+	text_at(pk.b.x + cw, pk.b.y + 4, pk.title, (long)strlen(pk.title), pk.w, TX_BOLD | TX_LTR);
+	if (bg)
+		fill(&pk.list, 0);	/* the list white, as a field */
+	frame(&pk.list, 1);
+	for (i = 0; i < pk.rows && pk.first + i < pk.n; i++) {
+		GRECT r;
+		const char *s = pk.items[pk.first + i];
+		r.x = pk.list.x + 1;
+		r.y = pk.list.y + i * (ch + 2) + 1;
+		r.w = pk.list.w - 2;
+		r.h = ch + 1;
+		fill(&r, pk.first + i == pk.sel ? 1 : 0);
+		text_at(r.x + cw, r.y, s, (long)strlen(s), pk.w,
+			(pk.first + i == pk.sel ? TX_INVERSE : 0) | (line_rtl(s, (long)strlen(s)) ? 0 : TX_LTR));
+	}
+	text_at(pk.b.x + cw, pk.list.y + pk.list.h + 4, "\x01\x02 Return: choose  Esc: cancel", 30, pk.w, TX_GREY | TX_LTR);
+	on_box(0);
+	graf_mouse(M_ON, 0);
+}
+
 short dlg_pick(const char *title, const char *const *items, short n, short sel)
 {
-	short rows = (desk_h - 8 * ch) / (ch + 2), w = 10, i, first, res = -2, m[8];
-	GRECT b, list;
+	short rows = (desk_h - 8 * ch) / (ch + 2), w = 10, i, first, res = -2, m[8], via;
 	AEVENT e;
 	if (rows > n)
 		rows = n;
@@ -1288,53 +1409,35 @@ short dlg_pick(const char *title, const char *const *items, short n, short sel)
 			w = (short)strlen(items[i]);
 	if ((short)strlen(title) > w)
 		w = (short)strlen(title);
-	if (w < 29)
-		w = 29;		/* the hint at the bottom */
+	if (w < 30)
+		w = 30;		/* the hint at the bottom */
 	w += 4;
 	if (sel < 0)
 		sel = 0;
 	first = sel - rows / 2;
-	b.w = w * cw + 4 * cw;
-	b.h = (rows + 3) * (ch + 2) + ch;
-	b.x = desk_x + (desk_w - b.w) / 2;
-	b.y = desk_y + (desk_h - b.h) / 2;
-	list.x = b.x + cw;
-	list.y = b.y + 2 * (ch + 2);
-	list.w = b.w - 2 * cw;
-	list.h = rows * (ch + 2);
-	wind_update(BEG_UPDATE);
-	wind_update(3);
-	form_dial(FMD_START, b.x, b.y, b.w + 2, b.h + 2);
+	if (first > n - rows)
+		first = n - rows;
+	if (first < 0)
+		first = 0;
+	pk.title = title;
+	pk.items = items;
+	pk.n = n;
+	pk.sel = sel;
+	pk.first = first;
+	pk.rows = rows;
+	pk.w = w;
+	pk.b.w = w * cw + 4 * cw;
+	pk.b.h = (rows + 3) * (ch + 2) + ch;
+	pk.b.x = desk_x + (desk_w - pk.b.w) / 2;
+	pk.b.y = desk_y + (desk_h - pk.b.h) / 2;
+	pick_place();
+	via = open_box(&pk.b, title, pick_draw);
+	pick_place();
 	while (res == -2) {
 		short mx, my, mb, ks;
-		if (first > n - rows)
-			first = n - rows;
-		if (first < 0)
-			first = 0;
-		clip_on(&b);
-		graf_mouse(M_OFF, 0);
-		look_3d();
-		on_box(1);
-		fill(&b, bg);
-		frame(&b, 1);
-		text_at(b.x + cw, b.y + 4, title, (long)strlen(title), w, TX_BOLD | TX_LTR);
-		if (bg)
-			fill(&list, 0);	/* the list white, as a field */
-		frame(&list, 1);
-		for (i = 0; i < rows && first + i < n; i++) {
-			GRECT r;
-			r.x = list.x + 1;
-			r.y = list.y + i * (ch + 2) + 1;
-			r.w = list.w - 2;
-			r.h = ch + 1;
-			fill(&r, first + i == sel ? 1 : 0);
-			text_at(r.x + cw, r.y, items[first + i], (long)strlen(items[first + i]), w,
-				(first + i == sel ? TX_INVERSE : 0) | (line_rtl(items[first + i], (long)strlen(items[first + i])) ? 0 : TX_LTR));
-		}
-		text_at(b.x + cw, list.y + list.h + 4, "\x01\x02 Return: choose  Esc: cancel", 29, w, TX_GREY | TX_LTR);
-		on_box(0);
-		graf_mouse(M_ON, 0);
-		evnt_multi_(MU_KEYBD | MU_BUTTON | MU_MESAG, 0x102, 3, 0, 0, m, &e);
+		dlg_evnt(MU_KEYBD | MU_BUTTON | MU_MESAG, 0x102, 3, 0, 0, m, &e);
+		dlg_area(&pk.b.x, &pk.b.y, &pk.b.w, &pk.b.h);
+		pick_place();
 		if (e.which & MU_MESAG) {
 			dlg_message(m);
 			people_poll();
@@ -1370,8 +1473,8 @@ short dlg_pick(const char *title, const char *const *items, short n, short sel)
 			}
 		}
 		if (e.which & MU_BUTTON) {
-			if (rect_hit(&list, e.mx, e.my)) {
-				short k = first + (e.my - list.y) / (ch + 2);
+			if (rect_hit(&pk.list, e.mx, e.my)) {
+				short k = first + (e.my - pk.list.y) / (ch + 2);
 				if (k < n) {
 					if (k == sel && e.breturn >= 2)
 						res = sel;
@@ -1379,22 +1482,29 @@ short dlg_pick(const char *title, const char *const *items, short n, short sel)
 					if (e.breturn >= 2)
 						res = sel;
 				}
-			} else if (!rect_hit(&b, e.mx, e.my)) {
+			} else if (!rect_hit(&pk.b, e.mx, e.my)) {
 				res = -1;
-			} else if (e.my < list.y) {
+			} else if (e.my < pk.list.y) {
 				first -= rows - 1;
-			} else if (e.my > list.y + list.h) {
+			} else if (e.my > pk.list.y + pk.list.h) {
 				first += rows - 1;
 			}
 			do {
 				graf_mkstate(&mx, &my, &mb, &ks);
 			} while (mb & 3);
 		}
+		if (first > n - rows)
+			first = n - rows;
+		if (first < 0)
+			first = 0;
+		if (res == -2 && (sel != pk.sel || first != pk.first)) {
+			pk.sel = sel;
+			pk.first = first;
+			pick_draw(pk.b.x, pk.b.y, pk.b.w, pk.b.h);
+		}
 	}
 	clip_off();
-	form_dial(FMD_FINISH, b.x, b.y, b.w + 2, b.h + 2);
-	wind_update(2);
-	wind_update(END_UPDATE);
+	close_box(&pk.b, via);
 	if (!depth)
 		dlg_resend();
 	return res;

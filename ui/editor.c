@@ -15,6 +15,7 @@
 #include "people_ask.h"
 #include "av.h"
 #include "../src/plat.h"
+#include "dialog.h"
 
 static short last_cal = -1;	/* new events go where the last one went */
 
@@ -719,7 +720,7 @@ static void invite(void)
 		graf_mouse(ARROW, 0);
 		while (!pick_done && people_picking()) {
 			const char *s;
-			evnt_multi_(MU_MESAG | MU_TIMER, 0, 0, 0, 200, m, &e);
+			dlg_evnt(MU_MESAG | MU_TIMER, 0, 0, 0, 200, m, &e);	/* over the New Event dialog */
 			if (e.which & MU_MESAG) {
 				switch (av_message(m, &s)) {
 				case AV_PEOPLE:

@@ -1787,6 +1787,16 @@ static void stk_check(void)
 	}
 }
 #endif
+/* the window drawn again under a dialog window (MiNT, MagiC: the
+   guidelines, 3.5), in its own font */
+static void redraw_under(const short *m)
+{
+	short mm[8], k = font_sys_suspend();
+	memcpy(mm, m, sizeof(mm));
+	win_message(mm);
+	font_sys_resume(k);
+}
+
 int main(void)
 {
 	short work_out[57], msg[8], d;
@@ -1872,6 +1882,8 @@ int main(void)
 	help_init();
 	av_init("ECAL");		/* the desktop's AV server, if one runs yet */
 	dlg_after = win_frame_refresh;
+	dlg_title = "ECal";		/* dialog windows on MiNT and MagiC (the guidelines, 3.5) */
+	dlg_redraw_hook = redraw_under;
 	if (!is_acc && !screen_check("ECal", scr_w)) {	/* not in ST low */
 		v_clsvwk(vdi_h);
 		appl_exit();

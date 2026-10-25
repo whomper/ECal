@@ -224,6 +224,8 @@ extern short heb_mode;
 extern unsigned short heb_idx[27];
 void font_sys_push(void);	/* the system font, for a dialog or popup */
 void font_sys_pop(void);	/* back to the window's font */
+short font_sys_suspend(void);	/* the window's font under open dialogs */
+void font_sys_resume(short k);
 const char *zone_pick(const char *current);	/* a zone name, or NULL */
 
 /* ---- main.c ---- */
