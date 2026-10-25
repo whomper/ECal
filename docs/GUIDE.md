@@ -31,6 +31,8 @@ F:\...\ECAL.APP\          ECal's folder, wherever you keep it (this one is an ex
     TLS.OVL               Direct connection: the TLS, loaded when first needed (copy it here)
     CACERT.PEM            Direct connection: root certificates (copy them here)
     ROOTS.DAT             Direct connection: the same, decoded ahead of time
+    SEED.DAT              Direct connection: the random seed, kept between sessions
+    SIGS.DAT              Direct connection: certificates already checked, for a quicker connect
     ECAL.LOG              with Write a log on
     CRASH.LOG             what happened, if ECAL.PRG ever crashes
 ```

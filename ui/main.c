@@ -1086,6 +1086,7 @@ static int settings_step(void)
 		path_join(tls_ovl_path, sizeof(tls_ovl_path), workdir, "TLS.OVL");
 		path_join(tls_roots_cache, sizeof(tls_roots_cache), workdir, "ROOTS.DAT");
 		path_join(tls_seed_path, sizeof(tls_seed_path), workdir, "SEED.DAT");
+		path_join(tls_sigs_path, sizeof(tls_sigs_path), workdir, "SIGS.DAT");
 		/* CACERT.PEM read a piece at a time, never open across the
 		   network's waits (guidelines 2.2); ROOTS.DAT then checked by
 		   its date and size, from one directory look */
