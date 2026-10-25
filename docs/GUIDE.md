@@ -212,15 +212,16 @@ and from then on the accessory has its fonts too.
 
 File > **Add account or calendar...** (in the accessory, the ≡ menu):
 
-- **iCloud**: your Apple ID and an **app-specific password**. Make one at
-  [appleid.apple.com](https://appleid.apple.com) > Sign-In and Security >
-  App-Specific Passwords; your normal password won't work. ECal finds
+- **iCloud**: your Apple ID and an **app-specific password** (see
+  [App passwords](#app-passwords-icloud-fastmail-yahoo)); your normal
+  password won't work. ECal finds
   all your iCloud calendars, with their colours. The password shows as
   `*****`; click the eye beside it to see what you typed, as in EMail.
 - **Other CalDAV account**: the server's address and your login, e.g.
   `https://caldav.fastmail.com/`, `https://cloud.example.org/remote.php/dav`
   (Nextcloud), `https://caldav.calendar.yahoo.com`. The address of one
-  calendar works too.
+  calendar works too. Fastmail and Yahoo want an
+  [app password](#app-passwords-icloud-fastmail-yahoo) too.
 - **Subscribe to a published calendar**: a `webcal://` or `https://`
   address of an `.ics` file: public holidays, a sports team, a school, or a
   Google calendar (Google's CalDAV needs an OAuth sign-in ECal can't do,
@@ -234,6 +235,42 @@ or hide it; double-click for its name, colour (twelve to choose from) and
 whether its alerts show; right-click for more (show only this one, refresh, import,
 unsubscribe). Right-click an account to refresh it, change its settings or
 delete it from the Atari (nothing is deleted on the server).
+
+## App passwords (iCloud, Fastmail, Yahoo)
+
+iCloud, Fastmail and Yahoo refuse your normal password from a program
+like ECal. Each lets you make an **app password** instead: a password
+for ECal alone, which you type into ECal's **Password** field in place of
+your normal one. You can revoke it on the same page at any time, and your
+normal password stays as it is.
+
+- **iCloud** (needs two-factor authentication on your Apple Account):
+  sign in at [account.apple.com](https://account.apple.com), choose
+  **Sign-In and Security**, then **App-Specific Passwords**, and generate
+  one (name it ECal). In ECal: your Apple ID's address in **Apple ID**,
+  the app-specific password in **Password**. Changing your Apple Account
+  password revokes every app-specific password, so make a new one then.
+  Apple's page: <https://support.apple.com/en-us/102654>.
+- **Fastmail** (not on the Basic plan, which has no CalDAV): Settings >
+  **Privacy & Security** > **Manage app passwords and access** > **New
+  app password**, with access to calendars (CalDAV). In ECal: Other CalDAV
+  account, `https://caldav.fastmail.com/`, your full Fastmail address as
+  the user, the app password in **Password**. Fastmail shows it only once.
+  Fastmail's page: <https://www.fastmail.help/hc/en-us/articles/360058752854>.
+- **Yahoo**: sign in to Yahoo's **Account Security** page, and under
+  **External connections** choose **Create app password**, name it ECal
+  and generate it. In ECal: Other CalDAV account,
+  `https://caldav.calendar.yahoo.com`, your Yahoo address as the user,
+  the app password in **Password**. Yahoo's page:
+  <https://help.yahoo.com/kb/SLN15241.html>.
+- **Google**: an app password doesn't help. Google's CalDAV takes only an
+  OAuth sign-in, which ECal can't do. Subscribe instead: in Google
+  Calendar on a computer, Settings, choose the calendar under **Settings
+  for my calendars**, then **Integrate calendar**, and copy the **Secret
+  address in iCal format** into ECal's **Subscribe to a published
+  calendar**. It is read-only in ECal; keep the address to yourself
+  (**Reset** there makes a new one). Google's page:
+  <https://support.google.com/calendar/answer/37648>.
 
 ## The window
 
@@ -593,8 +630,9 @@ for icon editors. For EmuTOS, `tools/icon/add_to_emuicon.py` adds it to
 - **"Can't reach the gateway"**: is the Pi on, and is `ecalgate` running?
   Open `http://PI-ADDRESS:8180/` in any browser: it should answer. Use the
   Pi's IP address, not its name.
-- **"refused the user name or password"**: iCloud wants an app-specific
-  password, not your Apple ID's.
+- **"refused the user name or password"**: iCloud, Fastmail and Yahoo
+  want an app password, not your normal one: see
+  [App passwords](#app-passwords-icloud-fastmail-yahoo).
 - **"certificate is out of date (or the Atari's clock is wrong)"**: in
   a Direct connection the clock must be right to check certificates.
 - An **!** next to an account in the sidebar: its last refresh failed; the

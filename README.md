@@ -75,8 +75,8 @@ file on its own, or all of them in `ECAL-x.y.zip`.
      into **Pi gateway**; or, on a Falcon or TT, tick **Direct connection**.
    - **Time zones**: set the zone the Atari's clock is in.
 5. Add your iCloud account with **Add account or calendar...** (the ≡ menu, or **File** in
-   `ECAL.PRG`) and an [app-specific password](https://support.apple.com/en-us/102654); your Apple ID's
-   own password won't work.
+   `ECAL.PRG`) and an app-specific password; your Apple ID's own password won't work (see
+   [App passwords](#app-passwords-icloud-fastmail-yahoo) below).
 6. Copy `ECAL.HYP` and `ECAL.REF` into ECal's folder or your viewer's help folder (e.g. `C:\GUIDES\`),
    and press **Help** in ECal for the guide (EHypView, ST-Guide or HypView must be running).
 
@@ -86,6 +86,42 @@ calendars stay as they are. Before 2.25 an ST had `ECALST.ACC`: delete it, `ECAL
 Atari now.
 
 The [user guide](docs/GUIDE.md) describes the rest.
+
+### App passwords (iCloud, Fastmail, Yahoo)
+
+iCloud, Fastmail and Yahoo refuse your normal password from a program
+like ECal. Each lets you make an **app password** instead: a password
+for ECal alone, which you type into ECal's **Password** field in place of
+your normal one. You can revoke it on the same page at any time, and your
+normal password stays as it is.
+
+- **iCloud** (needs two-factor authentication on your Apple Account):
+  sign in at [account.apple.com](https://account.apple.com), choose
+  **Sign-In and Security**, then **App-Specific Passwords**, and generate
+  one (name it ECal). In ECal: your Apple ID's address in **Apple ID**,
+  the app-specific password in **Password**. Changing your Apple Account
+  password revokes every app-specific password, so make a new one then.
+  Apple's page: <https://support.apple.com/en-us/102654>.
+- **Fastmail** (not on the Basic plan, which has no CalDAV): Settings >
+  **Privacy & Security** > **Manage app passwords and access** > **New
+  app password**, with access to calendars (CalDAV). In ECal: Other CalDAV
+  account, `https://caldav.fastmail.com/`, your full Fastmail address as
+  the user, the app password in **Password**. Fastmail shows it only once.
+  Fastmail's page: <https://www.fastmail.help/hc/en-us/articles/360058752854>.
+- **Yahoo**: sign in to Yahoo's **Account Security** page, and under
+  **External connections** choose **Create app password**, name it ECal
+  and generate it. In ECal: Other CalDAV account,
+  `https://caldav.calendar.yahoo.com`, your Yahoo address as the user,
+  the app password in **Password**. Yahoo's page:
+  <https://help.yahoo.com/kb/SLN15241.html>.
+- **Google**: an app password doesn't help. Google's CalDAV takes only an
+  OAuth sign-in, which ECal can't do. Subscribe instead: in Google
+  Calendar on a computer, Settings, choose the calendar under **Settings
+  for my calendars**, then **Integrate calendar**, and copy the **Secret
+  address in iCal format** into ECal's **Subscribe to a published
+  calendar**. It is read-only in ECal; keep the address to yourself
+  (**Reset** there makes a new one). Google's page:
+  <https://support.google.com/calendar/answer/37648>.
 
 **Needs:** TOS 1.04 to 4.x, EmuTOS, MagiC or MiNT; ST medium, ST high, TT or Falcon resolution (not ST
 low); 1 MB of RAM, where `ECAL.ACC` runs beside STinG (2 MB or more for big calendars); STinG or

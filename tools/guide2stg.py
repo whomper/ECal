@@ -54,7 +54,8 @@ def inline(s, nodes):
     def link(m):
         text, target = m.group(1), m.group(2)
         if target.startswith("#") and target[1:] in nodes:
-            return "\x00L%s\x00%s\x00" % (text, nodes[target[1:]])
+            # spaces in a link are \x01 until finish(): wrap() keeps it whole
+            return ("\x00L%s\x00%s\x00" % (text, nodes[target[1:]])).replace(" ", "\x01")
         if target.startswith("http"):
             return "%s (%s)" % (text, target)
         return text
@@ -68,7 +69,7 @@ def inline(s, nodes):
 def finish(s):
     """the markers left by inline() -> ST-Guide commands, after wrapping"""
     s = re.sub("\x00L([^\x00]*)\x00([^\x00]*)\x00", r'@{"\1" LINK "\2"}', s)
-    return s.replace("\x00B", "@{B}").replace("\x00b", "@{b}")
+    return s.replace("\x00B", "@{B}").replace("\x00b", "@{b}").replace("\x01", " ")
 
 
 def wrap(text, indent="", hang=""):
