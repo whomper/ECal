@@ -2005,10 +2005,65 @@ static void sn_event(SNB *o, const EVENT *e)
 	sn_n(o, e->seq, 2);
 }
 
+/* what the steps made, held and written in pieces of SNAP_HOLD: one
+   open each rather than one a step (a first start opened the files 47
+   times, the guidelines' 6.5 allow 20). Without the memory, each step's
+   piece is written as it is made */
+#define SNAP_HOLD 16384L
+static unsigned char *sw_buf;
+static long sw_n;
+static int sw_made;		/* the file begun */
+
+static int sw_write(const unsigned char *p, long n)
+{
+	int h;
+	if (!n)
+		return 1;
+	h = pf_open(sw.path, sw_made ? PF_APPEND : PF_WRITE);
+	if (h < 0)
+		return 0;
+	sw_made = 1;
+	if (pf_write(h, p, n) != n) {
+		pf_close(h);
+		return 0;
+	}
+	pf_close(h);
+	return 1;
+}
+
+static int sw_flush(void)
+{
+	long n = sw_n;
+	sw_n = 0;
+	return sw_write(sw_buf, n);
+}
+
+static int sw_hold(const unsigned char *p, long n)
+{
+	if (!sw_buf)
+		sw_buf = malloc(SNAP_HOLD);
+	if (!sw_buf || n > SNAP_HOLD)
+		return sw_flush() && sw_write(p, n);
+	if (sw_n + n > SNAP_HOLD && !sw_flush())
+		return 0;
+	memcpy(sw_buf + sw_n, p, n);
+	sw_n += n;
+	return 1;
+}
+
+static void sw_free(void)
+{
+	free(sw_buf);
+	sw_buf = 0;
+	sw_n = 0;
+	sw_made = 0;
+}
+
 static void sw_drop(void)
 {
-	if (sw.id >= 0 && sw.path[0])
+	if (sw.id >= 0 && sw.path[0] && sw_made)
 		pf_remove(sw.path);
+	sw_free();
 	sw.id = -1;
 	sw.path[0] = 0;
 }
@@ -2019,7 +2074,7 @@ int cal_snap_step(void)
 	CALENDAR *c;
 	SNB o;
 	unsigned long t0 = pf_ms();
-	int h, k;
+	int k;
 	if (sw.id < 0) {
 		/* the next calendar asked for: begun if it is read and still there */
 		if (!nsnap_wanted)
@@ -2037,6 +2092,8 @@ int cal_snap_step(void)
 		sw.nres = c->nres;
 		sw.nev = c->nev;
 		sw.notes = notes_gen;
+		sw_n = 0;
+		sw_made = 0;
 		snap_path(c, "SN$", sw.path, sizeof(sw.path));
 	}
 	c = cal_by_id(sw.id);
@@ -2087,10 +2144,7 @@ int cal_snap_step(void)
 			sn_n(&o, z->off.min, 2);
 		}
 		sn_n(&o, c->nres, 4);
-		h = pf_open(sw.path, PF_WRITE);
 		sw.part = 1;
-	} else {
-		h = pf_open(sw.path, PF_APPEND);
 	}
 	if (sw.part == 1 && !o.bad) {
 		for (k = 0; k < 96 && sw.i < c->nres && (!k || pf_ms() - t0 < SNAP_MS); k++, sw.i++) {
@@ -2130,17 +2184,15 @@ int cal_snap_step(void)
 	}
 	if (sw.part != 3 && !o.bad)
 		snap_add(&sw.sum, o.b, o.n);
-	if (h < 0 || o.bad || pf_write(h, o.b, o.n) != o.n) {
-		if (h >= 0)
-			pf_close(h);
+	if (o.bad || !sw_hold(o.b, o.n) || (sw.part == 3 && !sw_flush())) {
 		free(o.b);
 		sw_drop();
 		return 1;
 	}
-	pf_close(h);
 	free(o.b);
 	if (sw.part == 3) {
 		char snp[200];
+		sw_free();
 		snap_path(c, "SNP", snp, sizeof(snp));
 		pf_remove(snp);
 		if (pf_rename(sw.path, snp) != 0)
