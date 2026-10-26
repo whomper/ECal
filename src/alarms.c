@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include "alarms.h"
+#include "calstore.h"
 #include "plat.h"
 #include "util.h"
 
@@ -183,6 +184,7 @@ static int stamp_listed(const char *name, long size, unsigned long stamp, void *
 {
 	unsigned long *h = ud, x = 5381;
 	const char *dot = strrchr(name, '.');
+	cal_listed(name, size, stamp);	/* (the snapshots' reading uses it too) */
 	if (!dot || (strcasecmp(dot, ".DAT") && strcasecmp(dot, ".ICS")))
 		return 0;
 	for (; *name; name++)
@@ -213,6 +215,7 @@ unsigned long alarms_stamp_add(unsigned long h, const char *file)
 	size_t n = strlen(file);
 	if (n && (file[n - 1] == '\\' || file[n - 1] == '/')) {
 		unsigned long sum = 0;
+		cal_listed_begin();
 		pf_list(file, stamp_listed, &sum);	/* one look for the lot */
 		return (h * 33) ^ sum;
 	}

@@ -44,6 +44,8 @@ typedef struct {
 	RESOURCE *res;
 	int nres, maxres;
 	int ndead;		/* superseded records in the cache file (rewritten when many) */
+	unsigned long dat_stamp;	/* its cache file's time and size when last read: the */
+	long dat_size;			/* snapshot's header (0: not known, looked up) */
 } CALENDAR;
 
 typedef struct {
@@ -221,6 +223,11 @@ typedef struct {
 	int limit;		/* at most this many (0: no limit) */
 } OCCLIST;
 
+/* the cache folder's listing (alarms.c's, one look for the lot): what it
+   says of the calendars' files, for their first reading, without a look
+   each (the guidelines, 6.5) */
+void cal_listed_begin(void);
+void cal_listed(const char *name, long size, unsigned long stamp);
 void occ_collect(OCCLIST *l, CTIME from, CTIME to);	/* sorted: all-day first, then by start */
 void occ_collect_begin(OCCLIST *l, CTIME from, CTIME to);
 int occ_collect_step(OCCLIST *l, unsigned long ms);	/* 1 while there is more */

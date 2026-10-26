@@ -1564,13 +1564,99 @@ static int snap_again(const RESOURCE *r)
 	return !r->dead && r->beyond != CT_NONE && r->beyond <= ld.to + 2 * MIN_PER_DAY;
 }
 
+/* ---- the cache folder as listed (cal_listed) ----
+ * A calendar's first reading takes its cache file's and snapshot's sizes
+ * and times from the listing rather than a look at each; a reading after
+ * that (the files may have been written since) looks again. */
+#define LISTED_MAX 48
+static struct {
+	char name[14];
+	long size;
+	unsigned long stamp;
+} listed[LISTED_MAX];
+static int nlisted, listed_ok;
+static short listed_done[LISTED_MAX];	/* calendars (id) whose first reading used it */
+static int nlisted_done;
+
+void cal_listed_begin(void)
+{
+	nlisted = 0;
+	listed_ok = 1;
+}
+
+void cal_listed(const char *name, long size, unsigned long stamp)
+{
+	const char *dot = strrchr(name, '.');
+	if (!dot || (strcasecmp(dot, ".DAT") && strcasecmp(dot, ".SNP")))
+		return;
+	if (nlisted >= LISTED_MAX || strlen(name) >= sizeof(listed[0].name)) {
+		listed_ok = 0;		/* (more than it holds: not trusted) */
+		return;
+	}
+	str_copy(listed[nlisted].name, name, sizeof(listed[0].name));
+	listed[nlisted].size = size;
+	listed[nlisted].stamp = stamp;
+	nlisted++;
+}
+
+/* path's time and size from the listing: 1 listed, 0 not there, -1 not
+   known (no listing, or c read since it) */
+static int listed_info(const CALENDAR *c, const char *path, unsigned long *stamp, long *size)
+{
+	const char *b = strrchr(path, '\\'), *f = strrchr(path, '/');
+	int i;
+	if (f > b)
+		b = f;
+	b = b ? b + 1 : path;
+	if (!listed_ok)
+		return -1;
+	for (i = 0; i < nlisted_done; i++)
+		if (listed_done[i] == c->id)
+			return -1;
+	for (i = 0; i < nlisted; i++)
+		if (!strcasecmp(listed[i].name, b)) {
+			*stamp = listed[i].stamp;
+			*size = listed[i].size;
+			return 1;
+		}
+	return 0;
+}
+
+static void listed_used(const CALENDAR *c)
+{
+	if (nlisted_done < LISTED_MAX)
+		listed_done[nlisted_done++] = c->id;
+}
+
 static int snap_begin(CALENDAR *c, const char *dat)
 {
 	char path[200], hd[SNAP_HEAD];
 	long size, i;
-	unsigned long stamp = pf_info(dat, &size);
+	unsigned long stamp = 0, sstamp = 0;
+	long ssize = 0;
+	int known;
 	snap_path(c, "SNP", path, sizeof(path));
-	if (!stamp || pf_read_at(path, 0, hd, SNAP_HEAD) != SNAP_HEAD || memcmp(hd, SNAP_MAGIC, 7) ||
+	/* the snapshot first, from the listing where it can (on a first
+	   start there is none: no look for the cache file then either); the
+	   cache file's time and size kept for the snapshot written after */
+	known = listed_info(c, path, &sstamp, &ssize);
+	if (!known) {
+		if (listed_info(c, dat, &stamp, &size) == 1) {
+			c->dat_stamp = stamp;
+			c->dat_size = size;
+		}
+		listed_used(c);
+		return 0;
+	}
+	if (known < 0)
+		sstamp = pf_info(path, &ssize);
+	if (listed_info(c, dat, &stamp, &size) != 1)
+		stamp = pf_info(dat, &size);
+	listed_used(c);
+	c->dat_stamp = stamp;
+	c->dat_size = size;
+	if (!stamp || !sstamp || ssize < SNAP_HEAD ||
+	    pf_read_at(path, 0, hd, SNAP_HEAD) != SNAP_HEAD || memcmp(hd, SNAP_MAGIC, 7) ||
 	    hd[7] != SNAP_FORMAT)
 		return 0;
 	load_open(path, 8);
@@ -2009,9 +2095,10 @@ static void sn_event(SNB *o, const EVENT *e)
    open each rather than one a step (a first start opened the files 47
    times, the guidelines' 6.5 allow 20). Without the memory, each step's
    piece is written as it is made */
-#define SNAP_HOLD 16384L
+#define SNAP_HOLD 16384L	/* at least; SNAP_HOLD_MAX where the memory allows */
+#define SNAP_HOLD_MAX 65536L
 static unsigned char *sw_buf;
-static long sw_n;
+static long sw_n, sw_cap;
 static int sw_made;		/* the file begun */
 
 static int sw_write(const unsigned char *p, long n)
@@ -2040,11 +2127,19 @@ static int sw_flush(void)
 
 static int sw_hold(const unsigned char *p, long n)
 {
-	if (!sw_buf)
-		sw_buf = malloc(SNAP_HOLD);
-	if (!sw_buf || n > SNAP_HOLD)
+	if (!sw_buf) {
+		/* the largest that can be had, at once (grown later, the old
+		   and the new block would be wanted together: on a 1 MB ST
+		   that failed where the larger one alone fits) */
+		for (sw_cap = SNAP_HOLD_MAX; sw_cap >= SNAP_HOLD; sw_cap /= 2)
+			if ((sw_buf = malloc(sw_cap)) != 0)
+				break;
+		if (!sw_buf)
+			sw_cap = 0;
+	}
+	if (!sw_buf || n > sw_cap)
 		return sw_flush() && sw_write(p, n);
-	if (sw_n + n > SNAP_HOLD && !sw_flush())
+	if (sw_n + n > sw_cap && !sw_flush())
 		return 0;
 	memcpy(sw_buf + sw_n, p, n);
 	sw_n += n;
@@ -2055,7 +2150,7 @@ static void sw_free(void)
 {
 	free(sw_buf);
 	sw_buf = 0;
-	sw_n = 0;
+	sw_n = sw_cap = 0;
 	sw_made = 0;
 }
 
@@ -2109,7 +2204,15 @@ int cal_snap_step(void)
 		int i;
 		CTIME from, to;
 		cache_path(c, "DAT", dat, sizeof(dat));
-		stamp = pf_info(dat, &size);
+		if (c->dat_stamp) {
+			/* as it was when read (no look; if it has been written
+			   since, the next start finds them different and reads
+			   the text, as it should) */
+			stamp = c->dat_stamp;
+			size = c->dat_size;
+		} else {
+			stamp = pf_info(dat, &size);
+		}
 		window(&from, &to);
 		set_me(c);
 		sw.nz = 0;
@@ -2264,6 +2367,7 @@ static void cw_flush(CW *w)
 static int cw_open(CW *w, CALENDAR *c)
 {
 	int h;
+	listed_ok = 0;		/* a cache file written: the listing no longer says */
 	memset(w, 0, sizeof(*w));
 	w->c = c;
 	w->oh = -1;
@@ -2478,6 +2582,7 @@ static int cache_change(CALENDAR *c, int drop, const char *href, const char *eta
 {
 	char path[200], head[700];
 	long size;
+	listed_ok = 0;		/* a cache file written: the listing no longer says */
 	int h, n, ok = 1;
 	cache_path(c, "DAT", path, sizeof(path));
 	size = pf_size(path);
