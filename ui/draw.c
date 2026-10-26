@@ -566,8 +566,22 @@ void text_color(short color)
 long prof_texts, prof_texts_off, prof_texts_bold;	/* for VIEWMS: what text cost */
 #endif
 
+/* Set while the window is drawn (win.c): text goes on a byte. TOS's VDI
+   writes text off a byte boundary several times slower (TOS 1.04 36.5
+   ms against 5.4 a line, TOS 4.04 9.1 against 3.4; the guidelines,
+   Speed). Not in ECal's dialogs, whose cursors are placed by the pixel */
+short text_bytes;
+
+/* where text_at puts left-anchored text that starts at x: for a box
+   drawn round it */
+short text_x(short x)
+{
+	return text_bytes ? (short)((x + 7) & ~7) : x;
+}
+
 void text_at(short x, short y, const char *s, long n, short cols, short flags)
 {
+	short orig_x = x;
 	char vis[BIDI_MAX];
 	const char *out = s;
 	short i, color = next_text_color, effects;
@@ -595,6 +609,22 @@ void text_at(short x, short y, const char *s, long n, short cols, short flags)
 	}
 	if (flags & TX_CENTER)
 		x += (cols - (short)n) * cw / 2;
+	if (text_bytes && (x & 7)) {
+		/* centred: to the nearest byte; against the right edge (Hebrew):
+		   left, into the room it leaves; else right, a column less if
+		   it filled its room */
+		if (flags & TX_CENTER)
+			x = (x + 3) & ~7;
+		else if (x > orig_x)
+			x &= ~7;
+		else {
+			x = (x + 7) & ~7;
+			if (n >= cols)
+				n = cols - 1;
+			if (n <= 0)
+				return;
+		}
+	}
 	/* the greys where the screen has them; disabled text is light grey,
 	   or dotted (the light effect) without colours */
 	effects = ((flags & TX_BOLD) ? 1 : 0) | ((flags & TX_UNDER) ? 8 : 0);

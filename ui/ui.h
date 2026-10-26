@@ -41,6 +41,7 @@ void xor_frame(GRECT *r);	/* an outline in XOR (twice: gone) */
 void clip_on(GRECT *r);
 void clip_off(void);
 void text_at(short x, short y, const char *s, long n, short cols, short flags);
+short text_x(short x);			/* where text_at puts text that starts at x */
 void text_color(short color);	/* for the next text_at; 1 = black, reset after */
 void hline(short x1, short x2, short y);
 void vline(short x, short y1, short y2);

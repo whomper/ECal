@@ -45,7 +45,7 @@ static void side_layout(void)
 	/* the small month at the bottom, if there is room */
 	mini.w = 21 * cw;
 	mini.h = 8 * ch + 4;
-	mini.x = r_side.x + (r_side.w - mini.w) / 2;
+	mini.x = (r_side.x + (r_side.w - mini.w) / 2) & ~7;	/* its text on bytes */
 	mini.y = r_side.y + r_side.h - mini.h - ch / 2;
 	if (mini.y < y || r_side.w < mini.w)
 		mini.h = 0;

@@ -197,7 +197,7 @@ static void draw_button(int i)
 			line_col(x0 - dir * c, cy - sh, x0 - dir * c, cy + sh, 1);
 		return;
 	}
-	text_at(r.x + (r.w - n * cw) / 2, r.y + 1, l, n, n, TX_LTR | (on ? TX_INVERSE : 0) |
+	text_at((r.x + (r.w - n * cw) / 2 + 3) & ~7, r.y + 1, l, n, n, TX_LTR | (on ? TX_INVERSE : 0) |
 		(i == B_TODAY ? TX_BOLD : 0));
 }
 
@@ -256,12 +256,15 @@ static void draw_toolbar(GRECT *clip)
 static unsigned long ms_tool, ms_side;	/* the last draw_all's, for REDRAWMS */
 #endif
 
+extern short text_bytes;
+
 static void draw_all(GRECT *clip)
 {
 	GRECT r;
 #ifdef AES_PROFILE
 	unsigned long t0 = pf_ms();
 #endif
+	text_bytes = 1;		/* the window's text on bytes (draw.c) */
 	clip_on(clip);
 	draw_toolbar(clip);
 #ifdef AES_PROFILE
@@ -281,6 +284,7 @@ static void draw_all(GRECT *clip)
 	if (rect_and(&r, clip))
 		views_draw(&r);
 	clip_off();
+	text_bytes = 0;
 }
 
 /* ---- drawing off the screen ----

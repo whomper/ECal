@@ -588,7 +588,7 @@ static void event_box(const ITEM *it, GRECT *clip, int bar)
 	PEN p;
 	GRECT r = it->r, strip;
 	int sel = sel_occ.ev == e && sel_occ.start == o->start;
-	short tx = r.x + 4, ty = r.y, cols_, fl = 0;
+	short tx = text_x(r.x + 4), ty = r.y, cols_, fl = 0;	/* (text on a byte, draw.c) */
 	char line[160], tm[16];
 	const char *title = e->summary ? e->summary : "New Event";
 	pen_of(e->cal, &p);
@@ -612,7 +612,7 @@ static void event_box(const ITEM *it, GRECT *clip, int bar)
 		fill(&strip, sel ? 0 : p.color);
 	if (!sel && (e->status == ST_TENTATIVE || e->status == ST_CANCELLED))
 		fl |= TX_GREY;
-	cols_ = (r.w - 6) / cw;
+	cols_ = (r.x + r.w - 2 - tx) / cw;
 	if (cols_ <= 0)
 		return;
 	if (bar) {
@@ -741,7 +741,7 @@ static void draw_month(GRECT *clip)
 				char n[4];
 				GRECT nb;
 				snprintf(n, sizeof(n), "%d", d);
-				nb.x = cell.x + 2;
+				nb.x = text_x(cell.x + 2 + cw / 2) - cw / 2;	/* round its text, on a byte */
 				nb.y = cell.y + 1;
 				nb.w = ((short)strlen(n) + 1) * cw;
 				nb.h = ch + 1;
@@ -753,7 +753,8 @@ static void draw_month(GRECT *clip)
 						TX_LTR | (m != m0 ? TX_PALE : 0) | (d == 1 ? TX_BOLD : 0));
 				}
 				if (d == 1 && cell.w >= 9 * cw)
-					text_at(nb.x + nb.w, nb.y, month_short[m - 1], 3, 3, TX_LTR | TX_BOLD);
+					text_at(nb.x + cw / 2 + ((short)strlen(n) + 1) * cw, nb.y, month_short[m - 1], 3, 3,
+						TX_LTR | TX_BOLD);
 			}
 			if (opt.hebdates && cell.w >= 7 * cw) {
 				HDATE h;
@@ -765,7 +766,7 @@ static void draw_month(GRECT *clip)
 				else
 					hebrew_numeral(h.day, hs, sizeof(hs));
 				n = (short)strlen(hs);
-				text_at(cell.x + cell.w - (n + 1) * cw, cell.y + 1, hs, n, n, TX_GREY);
+				text_at((cell.x + cell.w - (n + 1) * cw) & ~7, cell.y + 1, hs, n, n, TX_GREY);
 			}
 		}
 	/* the grid: whole lines rather than four sides per cell (each VDI
@@ -929,12 +930,12 @@ static void draw_days(GRECT *clip)
 			/* today red, the selected day black, white letters: as in
 			   the small month on the left */
 			GRECT b;
-			b.x = x + 2;
+			b.x = text_x(x + 2 + cw / 2) - cw / 2;	/* round its text, on a byte */
 			b.y = r_view.y + 2;
 			b.w = (n + 1) * cw;
 			b.h = ch + 1;
 			fill(&b, day == t ? red_color() : 1);
-			text_at(x + 2 + cw / 2, r_view.y + 2, s, n, n, TX_INVERSE | TX_LTR);
+			text_at(x + 2 + cw / 2, r_view.y + 2, s, n, n + 1, TX_INVERSE | TX_LTR);
 		} else {
 			text_at(x + 2 + cw / 2, r_view.y + 2, s, n, cell_w / cw - 1, TX_LTR);
 		}
@@ -955,7 +956,7 @@ static void draw_days(GRECT *clip)
 	}
 	if (cy0 < grid.y) {
 		line_col(r_view.x, r_view.y + head_h - 1, grid.x + grid.w - 1, r_view.y + head_h - 1, 1);
-		text_at(r_view.x + 2, r_view.y + head_h + 2, "all-day", 7, gutter / cw, TX_GREY | TX_LTR);
+		text_at(r_view.x, r_view.y + head_h + 2, "all-day", 7, gutter / cw, TX_GREY | TX_LTR);
 		line_col(r_view.x, grid.y - 1, grid.x + grid.w - 1, grid.y - 1, 1);
 	}
 	/* hours */
@@ -1084,13 +1085,13 @@ static void draw_year(GRECT *clip)
 	year_geom(&mw, &mh, &pc);
 	clip_on(clip);
 	for (m = 0; m < 12; m++) {
-		short ox = r_view.x + (m % pc) * mw + (mw - 21 * cw) / 2, oy = r_view.y + (m / pc) * mh + ch / 2;
+		short ox = (r_view.x + (m % pc) * mw + (mw - 21 * cw) / 2) & ~7, oy = r_view.y + (m / pc) * mh + ch / 2;
 		long first = days_from_civil(y0, m + 1, 1), d;
 		short off = (short)((wday_of(first) - opt.weekstart + 7) % 7), k, dim = (short)days_in_month(y0, m + 1);
 		text_at(ox, oy, month_names[m], (long)strlen(month_names[m]), 20,
 			TX_BOLD | TX_LTR | (m + 1 == m0 ? TX_UNDER : 0));
 		for (k = 0; k < 7; k++)
-			text_at(ox + k * 3 * cw, oy + ch + 2, wday_short[(k + opt.weekstart) % 7], 2, 2, TX_LTR | TX_GREY);
+			text_at(ox + k * 3 * cw, oy + ch + 2, wday_short[(k + opt.weekstart) % 7], 2, 3, TX_LTR | TX_GREY);
 		/* a week row at a time, consecutive days of the same look in one
 		   piece of text: on an 8 MHz ST each text call costs milliseconds */
 		{
@@ -1351,7 +1352,7 @@ static long year_day_at(short mx, short my, short *minute)
 		return -1;
 	civil_from_days(cur_day, &y0, &m0, &d0);
 	first = days_from_civil(y0, m + 1, 1);
-	col = (mx - (r_view.x + (m % pc) * mw + (mw - 21 * cw) / 2)) / (3 * cw);
+	col = (mx - ((r_view.x + (m % pc) * mw + (mw - 21 * cw) / 2) & ~7)) / (3 * cw);	/* (on a byte, as drawn) */
 	row = (my - (r_view.y + (m / pc) * mh + ch / 2) - 4) / ch - 2;
 	if (row < 0 || col < 0 || col > 6) {
 		if (minute)
