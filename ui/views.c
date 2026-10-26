@@ -50,6 +50,34 @@ static long first_day, ndays;	/* the days shown */
 static short rows, cols;	/* month: weeks x 7; week: 1 x 7; day: 1 x 1 */
 static GRECT grid;		/* month cells / day-week time grid */
 static short head_h, allday_h, gutter, hour_h, cell_w, cell_h;
+/* the columns' left edges (colx[cols]: the grid's right edge), each on a
+   byte so that the text set from them is on one (the guidelines, Speed);
+   they differ in width by 8 pixels at most. cell_w: the narrowest */
+static short colx[8];
+
+static void columns(void)
+{
+	short c;
+	for (c = 0; c < cols && c < 7; c++)
+		colx[c] = grid.x + (short)(((long)c * grid.w / cols) & ~7L);
+	colx[c] = grid.x + grid.w;
+	cell_w = 32767;
+	for (c = 0; c < cols && c < 7; c++)
+		if (colx[c + 1] - colx[c] < cell_w)
+			cell_w = colx[c + 1] - colx[c];
+}
+
+/* the column under x, -1 for none */
+static short col_at(short x)
+{
+	short c;
+	for (c = 0; c < cols && c < 7; c++)
+		if (x >= colx[c] && x < colx[c + 1])
+			return c;
+	return -1;
+}
+
+#define COLW(c) (colx[(c) + 1] - colx[c])
 static GRECT detail;		/* day view: the selected event's details */
 static long glide_left;		/* a key's hour still to glide, pixels, up when negative (views_glide) */
 
@@ -299,11 +327,11 @@ static void layout_month(void)
 	head_h = ch + 4;
 	rows = (short)(ndays / 7);
 	cols = 7;
-	grid.x = r_view.x;
+	grid.x = (r_view.x + 7) & ~7;	/* on a byte (the columns too: columns()) */
 	grid.y = r_view.y + head_h;
-	grid.w = r_view.w;
+	grid.w = r_view.x + r_view.w - grid.x;
 	grid.h = r_view.h - head_h;
-	cell_w = grid.w / 7;
+	columns();
 	cell_h = grid.h / rows;
 	if (!lane)
 		return;
@@ -350,9 +378,9 @@ static void layout_month(void)
 				a = 0;
 			if (b > 6)
 				b = 6;
-			box.x = grid.x + (short)a * cell_w + 1;
+			box.x = colx[a] + 1;
 			box.y = grid.y + r * cell_h + ch + 3 + lane[i] * line_h;
-			box.w = (short)(b - a + 1) * cell_w - 2;
+			box.w = colx[b + 1] - colx[a] - 2;
 			box.h = line_h - 1;
 			add_item(&box, IT_EVENT, (short)i, d0 + a, occ_first_day(o) < d0 + a);
 		}
@@ -376,9 +404,9 @@ static void layout_month(void)
 			short di = (short)(r * 7 + c), n = 0, total = di < 42 ? day_n[di] : 0, room = maxl - count[c];
 			for (i = total ? day_head[di] : -1; i >= 0 && room > 0; i = lane[lane_cap + i]) {
 				GRECT box;
-				box.x = grid.x + c * cell_w + 1;
+				box.x = colx[c] + 1;
 				box.y = grid.y + r * cell_h + ch + 3 + (count[c] + n) * line_h;
-				box.w = cell_w - 2;
+				box.w = COLW(c) - 2;
 				box.h = line_h - 1;
 				if (n == room - 1 && total > room) {
 					add_item(&box, IT_MORE, (short)(total - n), day, 0);
@@ -470,8 +498,8 @@ static void layout_days(void)
 	cols = (short)ndays;
 	rows = 1;
 	detail.w = 0;
-	grid.x = r_view.x + gutter;
-	grid.w = r_view.w - gutter;
+	grid.x = (r_view.x + gutter + 7) & ~7;	/* on a byte (the columns too: columns()) */
+	grid.w = r_view.x + r_view.w - grid.x;
 	if (cur_view == V_DAY && r_view.w > 70 * cw) {
 		/* the day view shows the selected event's details on the right */
 		detail.w = r_view.w * 2 / 5;
@@ -480,7 +508,7 @@ static void layout_days(void)
 		detail.h = r_view.h;
 		grid.w -= detail.w;
 	}
-	cell_w = grid.w / cols;
+	columns();
 	lanes = lane ? assign_lanes(first_day, ndays, lane, maxl) : 0;
 	allday_h = (lanes ? lanes : 1) * line_h + 4;
 	grid.y = r_view.y + head_h + allday_h;
@@ -509,18 +537,18 @@ static void layout_days(void)
 				a = 0;
 			if (b >= ndays)
 				b = ndays - 1;
-			box.x = grid.x + (short)a * cell_w + 1;
+			box.x = colx[a] + 1;
 			box.y = r_view.y + head_h + 2 + lane[i] * line_h;
-			box.w = (short)(b - a + 1) * cell_w - 2;
+			box.w = colx[b + 1] - colx[a] - 2;
 			box.h = line_h - 1;
 			add_item(&box, IT_EVENT, (short)i, first_day + a, occ_first_day(o) < first_day + a);
 		}
 	}
 	for (c = 0; c < cols; c++) {
 		GRECT col;
-		col.x = grid.x + c * cell_w;
+		col.x = colx[c];
 		col.y = grid.y;
-		col.w = cell_w;
+		col.w = COLW(c);
 		col.h = grid.h;
 		layout_column(first_day + c, &col);
 	}
@@ -702,10 +730,10 @@ static void draw_month(GRECT *clip)
 	clip_on(clip);
 	/* weekday names */
 	for (c = 0; c < 7; c++) {
-		const char *wn = cell_w >= 10 * cw ? wday_names[(c + opt.weekstart) % 7] : wday_short[(c + opt.weekstart) % 7];
+		const char *wn = COLW(c) >= 10 * cw ? wday_names[(c + opt.weekstart) % 7] : wday_short[(c + opt.weekstart) % 7];
 		short wd = (c + opt.weekstart) % 7;
 		text_color(wd == 6 || (opt.weekstart == 0 && wd == 5 && 0) ? 1 : 1);
-		text_at(grid.x + c * cell_w + 4, r_view.y + 2, wn, (long)strlen(wn), cell_w / cw - 1,
+		text_at(colx[c] + 4, r_view.y + 2, wn, (long)strlen(wn), COLW(c) / cw - 1,
 			TX_LTR | (wd == 6 ? TX_BOLD : 0));
 	}
 	line_col(r_view.x, grid.y - 1, r_view.x + r_view.w - 1, grid.y - 1, 1);
@@ -714,9 +742,9 @@ static void draw_month(GRECT *clip)
 			long day = first_day + r * 7 + c;
 			int yy, m, d;
 			GRECT cell;
-			cell.x = grid.x + c * cell_w;
+			cell.x = colx[c];
 			cell.y = grid.y + r * cell_h;
-			cell.w = c == 6 ? grid.x + grid.w - cell.x : cell_w;
+			cell.w = COLW(c);
 			cell.h = r == rows - 1 ? grid.y + grid.h - cell.y : cell_h;
 			{
 				GRECT cc = cell;
@@ -777,7 +805,7 @@ static void draw_month(GRECT *clip)
 		line_col(grid.x, y, grid.x + grid.w - 1, y, grey_color());
 	}
 	for (c = 1; c < 7; c++) {
-		short x = grid.x + c * cell_w - 1;
+		short x = colx[c] - 1;
 		line_col(x, grid.y, x, grid.y + grid.h - 1, grey_color());
 	}
 	draw_items(clip, 1);
@@ -902,7 +930,7 @@ static void draw_details(GRECT *clip)
 	}
 }
 
-static short now_x = -1, now_y;	/* where the "now" line was drawn, -1: not */
+static short now_x = -1, now_y, now_w;	/* where the "now" line was drawn, -1: not */
 
 static void draw_days(GRECT *clip)
 {
@@ -917,11 +945,11 @@ static void draw_days(GRECT *clip)
 		long day = first_day + c;
 		DT d;
 		char s[40];
-		short x = grid.x + c * cell_w, n;
+		short x = colx[c], n, w = COLW(c);
 		ct_split(day * MIN_PER_DAY, &d);
 		if (cur_view == V_DAY)
 			snprintf(s, sizeof(s), "%s %d %s", wday_names[d.wday], d.day, month_short[d.mon - 1]);
-		else if (cell_w >= 8 * cw)
+		else if (w >= 8 * cw)
 			snprintf(s, sizeof(s), "%s %d", wday_short[d.wday], d.day);
 		else
 			snprintf(s, sizeof(s), "%d", d.day);
@@ -937,7 +965,7 @@ static void draw_days(GRECT *clip)
 			fill(&b, day == t ? red_color() : 1);
 			text_at(x + 2 + cw / 2, r_view.y + 2, s, n, n + 1, TX_INVERSE | TX_LTR);
 		} else {
-			text_at(x + 2 + cw / 2, r_view.y + 2, s, n, cell_w / cw - 1, TX_LTR);
+			text_at(x + 2 + cw / 2, r_view.y + 2, s, n, w / cw - 1, TX_LTR);
 		}
 		if (opt.hebdates) {
 			HDATE hd;
@@ -945,11 +973,11 @@ static void draw_days(GRECT *clip)
 			hebrew_from_days(day, &hd);
 			hebrew_format(&hd, cur_view == V_DAY, hs, sizeof(hs));
 			n = (short)strlen(hs);
-			if (n * cw > cell_w - cw) {
+			if (n * cw > w - cw) {
 				hebrew_numeral(hd.day, hs, sizeof(hs));
 				n = (short)strlen(hs);
 			}
-			text_at(x + 2 + cw / 2, r_view.y + 3 + ch, hs, n, cell_w / cw - 1, TX_GREY);
+			text_at(x + 2 + cw / 2, r_view.y + 3 + ch, hs, n, w / cw - 1, TX_GREY);
 		}
 		if (c)
 			line_col(x, r_view.y, x, r_view.y + r_view.h - 1, grey_color());
@@ -982,22 +1010,23 @@ static void draw_days(GRECT *clip)
 				line_col(grid.x, y + hour_h / 2, grid.x + grid.w - 1, y + hour_h / 2, 8);
 		}
 		for (c = 1; c < cols; c++)
-			line_col(grid.x + c * cell_w, grid.y, grid.x + c * cell_w, grid.y + grid.h - 1, grey_color());
+			line_col(colx[c], grid.y, colx[c], grid.y + grid.h - 1, grey_color());
 	}
 	draw_items(clip, 0);
 	/* now: a red line across today */
 	now_x = -1;
 	if (t >= first_day && t < first_day + ndays) {
 		long m = now - t * MIN_PER_DAY;
-		short y = grid.y + (short)(m * hour_h / 60 - scroll_y), x = grid.x + (short)(t - first_day) * cell_w;
+		short y = grid.y + (short)(m * hour_h / 60 - scroll_y), x = colx[t - first_day], w = COLW(t - first_day);
 		now_x = x;
 		now_y = y;
+		now_w = w;
 		if (y >= grid.y - 2 && y < grid.y + grid.h + 2) {
 			GRECT dot, cc = grid;
 			if (rect_and(&cc, clip)) {
 				clip_on(&cc);
-				line_col(x, y, x + cell_w - 1, y, red_color());
-				line_col(x, y + 1, x + cell_w - 1, y + 1, red_color());
+				line_col(x, y, x + w - 1, y, red_color());
+				line_col(x, y + 1, x + w - 1, y + 1, red_color());
 				dot.x = x;
 				dot.y = y - 2;
 				dot.w = 5;
@@ -1192,18 +1221,19 @@ void views_now_moved(void)
 	}
 	m = now_view() - t * MIN_PER_DAY;
 	y = grid.y + (short)(m * hour_h / 60 - scroll_y);
-	x = grid.x + (short)(t - first_day) * cell_w;
+	x = colx[t - first_day];
 	if (x == now_x && y == now_y)
 		return;
-	a.w = cell_w;
 	a.h = 6;
 	if (now_x >= 0) {
 		a.x = now_x;
 		a.y = now_y - 2;
+		a.w = now_w;
 		win_redraw(&a);
 	}
 	a.x = x;
 	a.y = y - 2;
+	a.w = COLW(t - first_day);
 	win_redraw(&a);
 }
 
@@ -1372,7 +1402,7 @@ static long day_at(short mx, short my, short *minute)
 	if (minute)
 		*minute = -1;
 	if (cur_view == V_MONTH) {
-		short c = (mx - grid.x) / cell_w, r = (my - grid.y) / cell_h;
+		short c = col_at(mx), r = (my - grid.y) / cell_h;
 		if (my < grid.y || c < 0 || c > 6 || r < 0 || r >= rows)
 			return -1;
 		return first_day + r * 7 + c;
@@ -1384,7 +1414,7 @@ static long day_at(short mx, short my, short *minute)
 	}
 	/* day, week */
 	{
-		short c = (mx - grid.x) / cell_w;
+		short c = col_at(mx);
 		if (mx < grid.x || c < 0 || c >= cols)
 			return -1;
 		if (minute && my >= grid.y)
@@ -1451,8 +1481,8 @@ static int drag_event(int it, short mx, short my)
 			long dm = (long)(y - my) * 60 / hour_h;
 			dm = (dm + (dm >= 0 ? 7 : -7)) / 15 * 15;
 			to = o.start + (to_day - grab_day) * MIN_PER_DAY + dm;
-			ghost.x = grid.x + (short)(to_day - first_day) * cell_w + 1;
-			ghost.w = cell_w - 2;
+			ghost.x = colx[to_day - first_day] + 1;
+			ghost.w = COLW(to_day - first_day) - 2;
 			ghost.y = item->r.y + (short)(dm * hour_h / 60);
 		} else if (timed) {
 			short mins = start_min + (short)((long)(y - my) * 60 / hour_h);
@@ -1462,8 +1492,8 @@ static int drag_event(int it, short mx, short my)
 			if (mins > MIN_PER_DAY - 15)
 				mins = MIN_PER_DAY - 15;
 			to = (CTIME)to_day * MIN_PER_DAY + mins;
-			ghost.x = grid.x + (short)(to_day - first_day) * cell_w + 1;
-			ghost.w = cell_w - 2;
+			ghost.x = colx[to_day - first_day] + 1;
+			ghost.w = COLW(to_day - first_day) - 2;
 			ghost.y = grid.y + (short)((long)mins * hour_h / 60 - scroll_y);
 		} else {
 			/* whole days: the outline jumps from cell to cell */
@@ -1472,10 +1502,18 @@ static int drag_event(int it, short mx, short my)
 			if (cur_view == V_MONTH) {
 				short gc = (short)((grab_day - first_day) % 7), gr = (short)((grab_day - first_day) / 7);
 				short tc = (short)((to_day - first_day) % 7), tr = (short)((to_day - first_day) / 7);
-				ghost.x += (tc - gc) * cell_w;
+				ghost.x += colx[tc] - colx[gc];
 				ghost.y += (tr - gr) * cell_h;
 			} else {
-				ghost.x += (short)dd * cell_w;
+				/* the bar's first column moved by dd, within the view */
+				short a = col_at(item->r.x), b = a + (short)dd;
+				if (a >= 0) {
+					if (b < 0)
+						b = 0;
+					if (b >= cols)
+						b = cols - 1;
+					ghost.x += colx[b] - colx[a];
+				}
 			}
 		}
 		if (!shown || memcmp(&ghost, &last, sizeof(ghost))) {
