@@ -2093,6 +2093,8 @@ int main(void)
 		if (hovering && wait > 100)
 			wait = 100;
 		wait = bg_timer(work_pending(), wait);
+		if (views_gliding() && win_h > 0 && wait > 20)
+			wait = 20;	/* the hours gliding, a step a turn */
 		/* a click comes at once; where a double click means something,
 		   click_count() waits for the second one before anything is done */
 		/* a refresh waiting: shortly, once the redraws are done */
@@ -2276,6 +2278,8 @@ int main(void)
 				settings_flush();
 			}
 		}
+		if (views_gliding() && win_h > 0 && !win_iconified)
+			views_glide();
 		bg_tick();
 		if (which & MU_TIMER) {
 			prg_runs();		/* ECAL.PRG ended: what it changed is read again */

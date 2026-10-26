@@ -51,6 +51,7 @@ static short rows, cols;	/* month: weeks x 7; week: 1 x 7; day: 1 x 1 */
 static GRECT grid;		/* month cells / day-week time grid */
 static short head_h, allday_h, gutter, hour_h, cell_w, cell_h;
 static GRECT detail;		/* day view: the selected event's details */
+static long glide_left;		/* a key's hour still to glide, pixels, up when negative (views_glide) */
 
 /* today, worked out once per drawing (see views_draw) */
 static long today_cache = -1;
@@ -1237,6 +1238,7 @@ static void changed_range(void)
 {
 	char t[200];
 	laid_out = 0;
+	glide_left = 0;
 	/* the title and buttons, the view, the small month: not the
 	   calendars' list (the whole window took 0.4 s more on an ST) */
 	win_redraw(&r_tool);
@@ -1819,6 +1821,55 @@ static void glide(int dir, int hold)
 	}
 }
 
+/* A key's hour glides a step at a time from the event loop
+   (views_glide): each step its own short stretch, the keys and the other
+   programs answered between them; the whole hour in one held an ST for
+   half a second (the guidelines, Speed) */
+static unsigned long glide_last;
+
+int views_gliding(void)
+{
+	return glide_left != 0;
+}
+
+void views_glide(void)
+{
+	unsigned long now = pf_ms();
+	long step, left = glide_left < 0 ? -glide_left : glide_left;
+	if (!left)
+		return;
+	if (cur_view != V_DAY && cur_view != V_WEEK) {
+		glide_left = 0;
+		return;
+	}
+	layout();
+	step = (long)(now - glide_last) * hour_h * 5 / 1000;	/* five hours a second */
+	glide_last = now;
+	if (step < 1)
+		step = 1;
+	if (step > hour_h)
+		step = hour_h;
+	if (step > left)
+		step = left;
+	if (!scroll_by(glide_left < 0 ? -step : step)) {
+		glide_left = 0;		/* the top or the bottom */
+		return;
+	}
+	glide_left += glide_left < 0 ? step : -step;
+}
+
+static void glide_key(int dir)
+{
+	if (!glide_left || (glide_left < 0) != (dir < 0)) {
+		glide_left = 0;
+		glide_last = pf_ms() - 40;
+	}
+	/* a key held (repeated) goes on gliding, no more than two hours ahead */
+	if ((glide_left < 0 ? -glide_left : glide_left) < 2L * hour_h)
+		glide_left += dir * (long)hour_h;
+	views_glide();
+}
+
 /* the AES sends WM_ARROWED again while an arrow is held: those that
    came while we scrolled are left alone */
 static unsigned long arrow_done;
@@ -1900,7 +1951,8 @@ int views_key(short kstate, short key)
 	case 0x48:		/* up */
 	case 0x50:		/* down */
 		if (cur_view == V_DAY || cur_view == V_WEEK) {
-			glide(scan == 0x48 ? -1 : 1, 0);
+			layout();
+			glide_key(scan == 0x48 ? -1 : 1);
 		} else {
 			views_select_none();
 			cur_day += scan == 0x48 ? -7 : 7;
