@@ -186,11 +186,18 @@ def main():
     ap.add_argument("--bin", default=os.path.join(ROOT, "build", "prof20", "bin"))
     ap.add_argument("--json", help="the rows, for the table")
     ap.add_argument("--display", default=":99")
+    ap.add_argument("--again", action="store_true",
+                    help="WORKDIR as an earlier run left it: the files ECal wrote then (its snapshots) kept")
     a = ap.parse_args()
     hd = os.path.join(a.work, "hd")
-    shutil.rmtree(a.work, ignore_errors=True)
-    os.makedirs(hd)
-    seed(hd, a.work, a.acc)
+    if a.again:
+        for f in ("hatari.log",):
+            if os.path.exists(os.path.join(a.work, f)):
+                os.rename(os.path.join(a.work, f), os.path.join(a.work, f + ".1"))
+    else:
+        shutil.rmtree(a.work, ignore_errors=True)
+        os.makedirs(hd)
+        seed(hd, a.work, a.acc)
     if a.acc:
         shutil.copy(os.path.join(a.bin, "ECAL.ACC"), os.path.join(hd, "ECAL.ACC"))
         auto = None

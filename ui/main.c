@@ -2279,8 +2279,8 @@ int main(void)
 				settings_flush();
 			}
 		}
-		if (views_gliding() && win_h > 0 && !win_iconified)
-			views_glide();
+		if (views_gliding() && win_h > 0 && !win_iconified && !(which & (MU_KEYBD | MU_BUTTON | MU_MESAG)))
+			views_glide();	/* (a turn that answered a key glided a step already) */
 		bg_tick();
 		if (which & MU_TIMER) {
 			prg_runs();		/* ECAL.PRG ended: what it changed is read again */
