@@ -229,6 +229,11 @@ void font_reselect(void);	/* the text font again, after drawing in another */
 #define HM_MAP     0		/* where opt.hebfont says (system and bitmap fonts) */
 #define HM_UNICODE 1		/* a vector font's own, found by Unicode (NVDI) */
 #define HM_SYSTEM  2		/* a vector font without them: the system font's */
+extern short font_cells;	/* how a GDOS font's runs are drawn (font.c, from EMail): */
+#define FC_RUNS 0		/* in one call (the system font; a GDOS font a cell wide to the pixel) */
+#define FC_CELLS 1		/* a character to a cell (a proportional font) */
+#define FC_JUSTIFY 2		/* in one call, made to fill their cells (a monospaced font of a
+				   fractional width) */
 extern short heb_mode;
 extern unsigned short heb_idx[27];
 void font_sys_push(void);	/* the system font, for a dialog or popup */

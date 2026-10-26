@@ -103,6 +103,33 @@ static void probe_hebrew(short id)
    window's bitmap takes the answer as it is) */
 static int set_font_on(short id, short pt, int probe);
 
+short font_cells;		/* FC_*: see ui.h */
+
+/* how the GDOS font now set draws a run (FC_*), as EMail's (6216ef8):
+   a run drawn a character to a cell is a VDI call a character (FreeMono
+   10 pt under NVDI: 19.5 ms a 39-letter line that way, 3.6 ms as one
+   run; the guidelines, Speed) */
+static short cells_mode(void)
+{
+	static const char probe[] = "MiWl.0_|@#mwIj1;:,'AZaz09([{x})]";
+	short n = (short)(sizeof(probe) - 1), plain, bold, k, wi, wm;
+	plain = vqt_extent_n(vdi_h, probe, n);
+	vst_effects(vdi_h, 1);
+	bold = vqt_extent_n(vdi_h, probe, n);
+	vst_effects(vdi_h, 0);
+	draw_forget();		/* (the effects set behind draw.c's back) */
+	if (plain == n * cw && bold == n * cw)
+		return FC_RUNS;
+	/* monospaced, a fraction of a pixel off a cell a character */
+	wi = vqt_width(vdi_h, 'i');
+	wm = vqt_width(vdi_h, 'M');
+	for (k = 0; k < n && vqt_width(vdi_h, (unsigned char)probe[k]) == wm; k++)
+		;
+	if (k == n && wi == wm && plain > (n - 1) * cw && plain <= n * cw)
+		return FC_JUSTIFY;
+	return FC_CELLS;
+}
+
 static int set_font(short id, short pt)
 {
 	return set_font_on(id, pt, 1);
@@ -115,14 +142,19 @@ static int set_font_on(short id, short pt, int probe)
 		vst_font(vdi_h, 1);
 		vst_height(vdi_h, pt == 8 ? 6 : pt == 16 ? 13 : (gl_hchar >= 16 ? 13 : 6), &w, &h);
 	} else {
+		short adv;
 		if (vst_font(vdi_h, id) != id)
 			return 0;
 		vst_point(vdi_h, pt, &w, &h);
+		adv = vqt_width(vdi_h, 'M');
+		if (adv > w)
+			w = adv;	/* the cell holds a whole character */
 	}
 	if (w < 4 || h < 6)
 		return 0;
 	cw = w;
 	ch = h;
+	font_cells = id == 1 ? FC_RUNS : cells_mode();
 	vst_alignment(vdi_h, 0, 5);
 	cur_id = id;
 	cur_pt = pt;

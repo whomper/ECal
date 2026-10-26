@@ -518,6 +518,24 @@ static int is_heb(unsigned char c)
 	return c >= 0xC2 && c <= 0xDC;
 }
 
+/* a run of characters, in their cells (font_cells): in one call, made
+   to fill them, or one character to a cell, spaces left out (EMail's) */
+static void cells_at(short x, short y, const char *s, short n)
+{
+	short k;
+	if (font_cells == FC_RUNS || n == 1) {
+		v_gtext_n(vdi_h, x, y, s, n);
+		return;
+	}
+	if (font_cells == FC_JUSTIFY) {
+		v_justified_n(vdi_h, x, y, s, n, n * cw, 0, 1);
+		return;
+	}
+	for (k = 0; k < n; k++)
+		if (s[k] != ' ')
+			v_gtext_n(vdi_h, x + k * cw, y, s + k, 1);
+}
+
 /* a vector font: the Hebrew letters by the font's own indices (NVDI's
    map mode 0), or in the system font, one cell each; the rest as usual */
 static void runs_at(short x, short y, const char *s, short n)
@@ -528,7 +546,7 @@ static void runs_at(short x, short y, const char *s, short n)
 		while (j < n && is_heb((unsigned char)s[j]) == heb && j - i < 120)
 			j++;
 		if (!heb) {
-			v_gtext_n(vdi_h, x + i * cw, y, s + i, j - i);
+			cells_at(x + i * cw, y, s + i, j - i);
 		} else if (heb_mode == HM_UNICODE) {
 			unsigned short w[120];
 			short k;
@@ -658,7 +676,7 @@ void text_at(short x, short y, const char *s, long n, short cols, short flags)
 #endif
 	for (i = 0; i < n; i += 120) {
 		short k = n - i > 120 ? 120 : (short)(n - i);
-		v_gtext_n(vdi_h, x + i * cw, y, out + i, k);
+		cells_at(x + i * cw, y, out + i, k);
 	}
 }
 
