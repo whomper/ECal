@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "ui.h"
+#include "../src/plat.h"
 
 typedef struct {
 	short y;
@@ -62,18 +63,39 @@ static void draw_mini(void)
 	mini_first = first - (wday_of(first) - opt.weekstart + 7) % 7;
 	snprintf(s, sizeof(s), "%s %d", month_names[m - 1], y);
 	text_at(mini.x, mini.y, s, (long)strlen(s), 21, TX_BOLD | TX_LTR | TX_CENTER);
-	for (k = 0; k < 7; k++)
-		text_at(mini.x + k * 3 * cw, mini.y + ch + 2, wday_short[(k + opt.weekstart) % 7], 2, 2, TX_LTR | TX_GREY);
 	{
-		/* runs of same-looking days in one piece of text (see views.c) */
+		/* the weekdays in one text (each a call of milliseconds on an ST) */
+		char wd[22];
+		for (k = 0; k < 7; k++) {
+			const char *n = wday_short[(k + opt.weekstart) % 7];
+			wd[k * 3] = n[0];
+			wd[k * 3 + 1] = n[1];
+			wd[k * 3 + 2] = ' ';
+		}
+		text_at(mini.x, mini.y + ch + 2, wd, 20, 20, TX_LTR | TX_GREY);
+	}
+	{
+		/* runs of same-looking days in one piece of text (see views.c);
+		   the dates counted on from the first, not worked out each */
 		char run[24];
-		short rl = 0, rx = 0, ry = 0, rflags = -1;
-		for (k = 0; k <= 42; k++) {
+		short rl = 0, rx = 0, ry = 0, rflags = -1, col = 0, row = 0;
+		int yy, mm, dd, dim;
+		civil_from_days(mini_first, &yy, &mm, &dd);
+		dim = days_in_month(yy, mm);
+		for (k = 0; k <= 42; k++, col = col == 6 ? 0 : col + 1, row += col == 0) {
 			long day = mini_first + k;
-			int yy, mm, dd;
-			short x = mini.x + (k % 7) * 3 * cw, yp = mini.y + (k / 7 + 2) * ch + 4, flags = 0;
+			short x = mini.x + col * 3 * cw, yp = mini.y + (row + 2) * ch + 4, flags = 0;
+			if (k) {
+				if (++dd > dim) {
+					dd = 1;
+					if (++mm > 12) {
+						mm = 1;
+						yy++;
+					}
+					dim = days_in_month(yy, mm);
+				}
+			}
 			if (k < 42) {
-				civil_from_days(day, &yy, &mm, &dd);
 				if (day == t || day == cur_day) {
 					GRECT b;
 					b.x = x - 1;
@@ -86,7 +108,7 @@ static void draw_mini(void)
 					flags = mm != m ? TX_PALE : 0;
 				}
 			}
-			if (rl && (k == 42 || flags != rflags || k % 7 == 0 || (rflags & TX_INVERSE))) {
+			if (rl && (k == 42 || flags != rflags || col == 0 || (rflags & TX_INVERSE))) {
 				text_at(rx, ry, run, rl, rl, TX_LTR | rflags);
 				rl = 0;
 			}
@@ -99,8 +121,11 @@ static void draw_mini(void)
 			} else {
 				run[rl++] = ' ';
 			}
-			run[rl++] = (char)(dd >= 10 ? '0' + dd / 10 : ' ');
-			run[rl++] = (char)('0' + dd % 10);
+			{
+				short tens = (short)div16(dd, 10);
+				run[rl++] = (char)(tens ? '0' + tens : ' ');
+				run[rl++] = (char)('0' + dd - tens * 10);
+			}
 		}
 	}
 }
@@ -136,6 +161,8 @@ void side_draw(GRECT *clip)
 	}
 	for (i = 0; i < nrows; i++) {
 		SROW *s = &srow[i];
+		if (s->y + ch <= r.y || s->y >= r.y + r.h)
+			continue;	/* (outside what is drawn: the small month alone, say) */
 		if (s->cal < 0) {
 			ACCOUNT *a = &accts[s->acct];
 			text_at(r_side.x + cw / 2, s->y, a->name, (long)strlen(a->name), cols - 1, TX_BOLD | TX_RIGHT | TX_GREY);
@@ -160,8 +187,13 @@ void side_draw(GRECT *clip)
 				TX_RIGHT | (c->visible ? 0 : TX_PALE));
 		}
 	}
-	if (mini.h)
-		draw_mini();
+	if (mini.h) {
+		GRECT m = mini;
+		m.x -= 2;
+		m.w += 4;
+		if (rect_and(&m, &r))
+			draw_mini();
+	}
 }
 
 static void cal_menu(short mx, short my, int c)

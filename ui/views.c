@@ -29,6 +29,9 @@ static short scroll_hh, want_hour = 8;
 
 static OCCLIST occ;
 static int occ_valid;
+static int occ_partial;		/* a collect begun in slices (views_prepare), not finished */
+static int busy_known;
+static void yg_forget(void);
 static int laid_out;
 
 /* what was laid out: event boxes and "+3 more" lines */
@@ -103,7 +106,10 @@ void views_scroll_to(short hour)
 void views_invalidate(void)
 {
 	occ_valid = 0;
+	occ_partial = 0;	/* a collect under way begins again */
+	busy_known = 0;
 	laid_out = 0;
+	yg_forget();
 }
 
 void views_select_none(void)
@@ -148,18 +154,37 @@ static void range(long *from, long *n)
 
 static void oday_fill(void);
 
-static void collect(void)
+/* the range's occurrences: 1 when they are there, 0 when a collect is
+   (re)begun or goes on, for ms (0: to the end) */
+static int collect_for(unsigned long ms)
 {
 	long from, n;
+	CTIME a, b;
 	range(&from, &n);
-	if (occ_valid && occ.from == from * MIN_PER_DAY && occ.to == (from + n) * MIN_PER_DAY)
-		return;
-	occ_collect(&occ, from * MIN_PER_DAY, (from + n) * MIN_PER_DAY);
+	a = from * MIN_PER_DAY;
+	b = (from + n) * MIN_PER_DAY;
+	if (occ_valid && occ.from == a && occ.to == b)
+		return 1;
+	if (!occ_partial || occ.from != a || occ.to != b) {
+		occ_valid = 0;
+		occ_collect_begin(&occ, a, b);
+		occ_partial = 1;
+	}
+	if (occ_collect_step(&occ, ms ? ms : 0xffffffffUL))
+		return 0;
+	occ_partial = 0;
 	oday_fill();
+	busy_known = 0;
 	occ_valid = 1;
 	laid_out = 0;
 	/* keep the selection if its occurrence is still there */
 	occ_find_again();
+	return 1;
+}
+
+static void collect(void)
+{
+	collect_for(0);
 }
 
 int occ_find_again(void)
@@ -238,6 +263,10 @@ static long occ_first_day(const OCC *o)
 	const ODAY *d = oday_of(o);
 	return d ? d->first : ct_days(o->start);
 }
+
+/* the same for occ.o[i], read in line where the table has it */
+#define OCC_FIRST(i, o) (oday_n == occ.n ? oday[i].first : occ_first_day(o))
+#define OCC_LAST(i, o) (oday_n == occ.n ? oday[i].last : occ_last_day(o))
 
 static long occ_last_day(const OCC *o)
 {
@@ -373,15 +402,18 @@ static void layout_month(void)
 			maxl = 1;
 		used = assign_lanes(d0, 7, lane, maxl);
 		memset(count, 0, sizeof(count));
-		/* long events: bars across the row */
+		/* long events: bars across the row (their days read in line: a
+		   row at a time, over every occurrence) */
 		for (i = 0; i < occ.n; i++) {
-			OCC *o = &occ.o[i];
-			long a, b;
+			OCC *o;
+			long a, b, f;
 			GRECT box;
 			if (lane[i] < 0)
 				continue;
-			a = occ_first_day(o) - d0;
-			b = occ_last_day(o) - d0;
+			o = &occ.o[i];
+			f = OCC_FIRST(i, o);
+			a = f - d0;
+			b = OCC_LAST(i, o) - d0;
 			if (a < 0)
 				a = 0;
 			if (b > 6)
@@ -390,7 +422,7 @@ static void layout_month(void)
 			box.y = grid.y + r * cell_h + ch + 3 + lane[i] * line_h;
 			box.w = colx[b + 1] - colx[a] - 2;
 			box.h = line_h - 1;
-			add_item(&box, IT_EVENT, (short)i, d0 + a, occ_first_day(o) < d0 + a);
+			add_item(&box, IT_EVENT, (short)i, d0 + a, f < d0 + a);
 		}
 		(void)used;
 		/* lanes taken by bars on each day: the timed events go below */
@@ -398,8 +430,8 @@ static void layout_month(void)
 			long a, b;
 			if (lane[i] < 0)
 				continue;
-			a = occ_first_day(&occ.o[i]) - d0;
-			b = occ_last_day(&occ.o[i]) - d0;
+			a = OCC_FIRST(i, &occ.o[i]) - d0;
+			b = OCC_LAST(i, &occ.o[i]) - d0;
 			if (a < 0)
 				a = 0;
 			for (; a <= b && a < 7; a++)
@@ -567,6 +599,7 @@ static void layout(void)
 	collect();
 	if (laid_out)
 		return;
+	yg_forget();
 	nitems = 0;
 	range(&first_day, &ndays);
 	allday_h = head_h = 0;
@@ -575,6 +608,28 @@ static void layout(void)
 	else if (cur_view == V_WEEK || cur_view == V_DAY)
 		layout_days();
 	laid_out = 1;
+}
+
+/* the view made ready to draw a slice at a time (win.c's view job): the
+   occurrences collected for ms at most, then laid out. 1 while there is
+   more */
+const char *views_phase = "";	/* what views_prepare did last (the profiled build says) */
+
+int views_prepare(unsigned long ms)
+{
+	long from, n;
+	range(&from, &n);
+	if (!occ_valid || occ.from != from * MIN_PER_DAY || occ.to != (from + n) * MIN_PER_DAY) {
+		views_phase = "collect";
+		collect_for(ms);
+		return 1;	/* (laid out in a slice of its own) */
+	}
+	if (!laid_out) {
+		views_phase = "layout";
+		layout();
+		return 1;	/* (drawing begins in the next slice) */
+	}
+	return 0;
 }
 
 /* ---------------- drawing ---------------- */
@@ -723,9 +778,12 @@ static void event_box(const ITEM *it, GRECT *clip, int bar)
 static void draw_items(GRECT *clip, int bars)
 {
 	int i;
+	short cx0 = clip->x, cy0 = clip->y, cx1 = clip->x + clip->w, cy1 = clip->y + clip->h;
 	for (i = 0; i < nitems; i++) {
-		GRECT r = items[i].r;
-		if (!rect_and(&r, clip))
+		const GRECT *ir = &items[i].r;
+		/* (outside the clip: told in line, a call each for every item of
+		   every piece drawn was a sixth of a view's time on an ST) */
+		if (ir->y >= cy1 || ir->y + ir->h <= cy0 || ir->x >= cx1 || ir->x + ir->w <= cx0)
 			continue;
 		if (items[i].kind == IT_MORE) {
 			char t[20];
@@ -830,13 +888,22 @@ static void draw_month(GRECT *clip)
 	/* the grid: whole lines rather than four sides per cell (each VDI
 	   call costs an 8 MHz ST milliseconds) */
 	clip_on(clip);
-	for (r = 1; r <= rows; r++) {
-		short y = (r == rows ? grid.y + grid.h : grid.y + r * cell_h) - 1;
-		line_col(grid.x, y, grid.x + grid.w - 1, y, grey_color());
-	}
-	for (c = 1; c < 7; c++) {
-		short x = colx[c] - 1;
-		line_col(x, grid.y, x, grid.y + grid.h - 1, grey_color());
+	{
+		/* only the lines and their pieces that cross what is drawn (a
+		   cell, when the view is drawn a piece at a time) */
+		GRECT g = grid;
+		if (rect_and(&g, clip)) {
+			for (r = 1; r <= rows; r++) {
+				short y = (r == rows ? grid.y + grid.h : grid.y + r * cell_h) - 1;
+				if (y >= g.y && y < g.y + g.h)
+					line_col(g.x, y, g.x + g.w - 1, y, grey_color());
+			}
+			for (c = 1; c < 7; c++) {
+				short x = colx[c] - 1;
+				if (x >= g.x && x < g.x + g.w)
+					line_col(x, g.y, x, g.y + g.h - 1, grey_color());
+			}
+		}
 	}
 	draw_items(clip, 1);
 }
@@ -1030,6 +1097,8 @@ static void draw_days(GRECT *clip)
 	g.x = r_view.x;
 	g.w = gutter + grid.w;
 	if (rect_and(&g, clip)) {
+		short lx0 = g.x > grid.x ? g.x : grid.x;
+		short lx1 = g.x + g.w < grid.x + grid.w ? g.x + g.w - 1 : grid.x + grid.w - 1;
 		clip_on(&g);
 		/* drawn the same wherever the hours are scrolled to, so
 		   what a scroll copies matches what it draws new */
@@ -1043,12 +1112,15 @@ static void draw_days(GRECT *clip)
 				fmt_time(h, 0, opt.h24, s, sizeof(s));
 				text_at(r_view.x + 2, y - ch / 2, s, (long)strlen(s), gutter / cw - 1, TX_LTR | TX_GREY);
 			}
-			line_col(grid.x, y, grid.x + grid.w - 1, y, grey_color());
-			if (hour_h >= 2 * ch && ncolors >= 16)
-				line_col(grid.x, y + hour_h / 2, grid.x + grid.w - 1, y + hour_h / 2, 8);
+			if (lx0 <= lx1) {	/* (the part of the line in what is drawn) */
+				line_col(lx0, y, lx1, y, grey_color());
+				if (hour_h >= 2 * ch && ncolors >= 16)
+					line_col(lx0, y + hour_h / 2, lx1, y + hour_h / 2, 8);
+			}
 		}
 		for (c = 1; c < cols; c++)
-			line_col(colx[c], grid.y, colx[c], grid.y + grid.h - 1, grey_color());
+			if (colx[c] >= g.x && colx[c] < g.x + g.w)
+				line_col(colx[c], g.y, colx[c], g.y + g.h - 1, grey_color());
 	}
 	draw_items(clip, 0);
 	/* now: a red line across today */
@@ -1117,9 +1189,26 @@ static int year_fits(short pc)
 }
 
 /* pick columns (and font) for the year; leaves the font chosen in force */
+static struct {
+	short ok, mw, mh, pc, level;
+} yg;				/* year_geom's answer, kept until the next layout */
+
+static void yg_forget(void)
+{
+	yg.ok = 0;
+}
+
 static void year_geom(short *mw, short *mh, short *pc)
 {
 	int level;
+	if (yg.ok) {
+		/* (worked out once a layout: each piece drawn asks) */
+		year_font(yg.level);
+		*mw = yg.mw;
+		*mh = yg.mh;
+		*pc = yg.pc;
+		return;
+	}
 	for (level = 0; level < 3; level++) {
 		year_font(level);
 		for (*pc = 4; *pc >= 2; (*pc)--)
@@ -1132,25 +1221,35 @@ static void year_geom(short *mw, short *mh, short *pc)
 		*pc = 2;
 	*mw = r_view.w / *pc;
 	*mh = r_view.h / ((12 + *pc - 1) / *pc);
+	yg.ok = 1;
+	yg.mw = *mw;
+	yg.mh = *mh;
+	yg.pc = *pc;
+	yg.level = yfont;
 }
 
 #define YBUSY 0x4000		/* (draw_year's own: a day with events) */
 
+static unsigned char busy_[372];	/* the year's days with events, for the occurrences
+					   collected (busy_known: once, not each piece drawn) */
+
 static void draw_year(GRECT *clip)
 {
-	static unsigned char busy_[372];
 	short mw, mh, pc, m;
 	int y0, m0, d0, i;
 	long jan1, t = today();
 	short bytes_was = text_bytes;
 	civil_from_days(cur_day, &y0, &m0, &d0);
 	jan1 = days_from_civil(y0, 1, 1);
-	memset(busy_, 0, sizeof(busy_));
-	for (i = 0; i < occ.n; i++) {
-		long a = occ_first_day(&occ.o[i]) - jan1, b = occ_last_day(&occ.o[i]) - jan1;
-		for (; a <= b && a < 372; a++)
-			if (a >= 0)
-				busy_[a] = 1;
+	if (!busy_known) {
+		memset(busy_, 0, sizeof(busy_));
+		for (i = 0; i < occ.n; i++) {
+			long a = occ_first_day(&occ.o[i]) - jan1, b = occ_last_day(&occ.o[i]) - jan1;
+			for (; a <= b && a < 372; a++)
+				if (a >= 0)
+					busy_[a] = 1;
+		}
+		busy_known = 1;
 	}
 	year_geom(&mw, &mh, &pc);
 	/* a day is three columns: where three aren't a byte (the 6x6 font),
@@ -1161,12 +1260,29 @@ static void draw_year(GRECT *clip)
 	clip_on(clip);
 	for (m = 0; m < 12; m++) {
 		short ox = (r_view.x + (m % pc) * mw + (mw - 21 * cw) / 2) & ~7, oy = r_view.y + (m / pc) * mh + ch / 2;
-		long first = days_from_civil(y0, m + 1, 1), d;
-		short off = (short)((wday_of(first) - opt.weekstart + 7) % 7), k, dim = (short)days_in_month(y0, m + 1);
-		text_at(ox, oy, month_names[m], (long)strlen(month_names[m]), 20,
-			TX_BOLD | TX_LTR | (m + 1 == m0 ? TX_UNDER : 0));
-		for (k = 0; k < 7; k++)
-			text_at(ox + k * 3 * cw, oy + ch + 2, wday_short[(k + opt.weekstart) % 7], 2, 3, TX_LTR | TX_GREY);
+		long first, d;
+		short off, k, dim;
+		{
+			/* a month outside what is drawn (a band, a box): skipped,
+			   its texts cost an ST milliseconds clipped or not */
+			GRECT mr;
+			mr.x = r_view.x + (m % pc) * mw;
+			mr.y = r_view.y + (m / pc) * mh;
+			mr.w = mw;
+			mr.h = mh;
+			if (!rect_and(&mr, clip))
+				continue;
+		}
+		first = days_from_civil(y0, m + 1, 1);
+		off = (short)((wday_of(first) - opt.weekstart + 7) % 7);
+		dim = (short)days_in_month(y0, m + 1);
+		if (clip->y < oy + 2 * ch + 4) {	/* (the month's head, unless only its days are drawn) */
+			text_at(ox, oy, month_names[m], (long)strlen(month_names[m]), 20,
+				TX_BOLD | TX_LTR | (m + 1 == m0 ? TX_UNDER : 0));
+			for (k = 0; k < 7; k++)
+				text_at(ox + k * 3 * cw, oy + ch + 2, wday_short[(k + opt.weekstart) % 7], 2, 3,
+					TX_LTR | TX_GREY);
+		}
 		/* a week row at a time, consecutive days of the same look in one
 		   piece of text: on an 8 MHz ST each text call costs milliseconds.
 		   */
@@ -1203,9 +1319,11 @@ static void draw_year(GRECT *clip)
 					}
 				}
 				if (rl && (k == dim || flags != rflags || col == 0 || (rflags & TX_INVERSE))) {
-					if ((rflags & YBUSY) && ncolors >= 16)
-						text_color(4);
-					text_at(rx, ry, run, rl, rl, TX_LTR | (rflags & ~YBUSY));
+					if (ry < clip->y + clip->h && ry + ch > clip->y) {	/* (its row drawn) */
+						if ((rflags & YBUSY) && ncolors >= 16)
+							text_color(4);
+						text_at(rx, ry, run, rl, rl, TX_LTR | (rflags & ~YBUSY));
+					}
 					rl = 0;
 				}
 				if (k == dim)
@@ -1254,8 +1372,9 @@ void views_draw(GRECT *clip)
 	}
 	today_cache = -1;
 #ifdef AES_PROFILE
-	if (pf_ms() - t0 >= 20) {
-		/* where a view's time goes, for the speed rig */
+	if (pf_ms() - t0 >= 20 && !win_view_busy()) {
+		/* where a view's time goes, for the speed rig (not each piece
+		   of one drawn in slices: VIEWSLICE says those) */
 		char b[160];
 		snprintf(b, sizeof(b), "VIEWMS view %d %dx%d%s: collect %lu layout %lu draw %lu (%d occurrences; "
 			 "%ld texts, %ld off a byte, %ld bold or light)\n",
@@ -1307,6 +1426,79 @@ void views_now_moved(void)
 	win_redraw(&a);
 }
 
+/* the view in pieces along its own lines, for drawing a piece at a time
+   (win.c): the month's header and cells, the week's and day's columns
+   (their heads, then their hours), the year's months; each piece's
+   texts drawn once. Top to bottom, left to right; n at most max */
+#define YTILE_ROWS 48
+int views_tiles(GRECT *t, int max)
+{
+	short xs[12], ys[YTILE_ROWS + 2];
+	int nx = 0, ny = 0, i, j, n = 0;
+	short c, r;
+	layout();
+	xs[nx++] = r_view.x;
+	ys[ny++] = r_view.y;
+	if (cur_view == V_MONTH) {
+		for (c = 1; c < cols && c < 7; c++)
+			xs[nx++] = colx[c];
+		ys[ny++] = grid.y;
+		for (r = 1; r < rows && ny < 9; r++)
+			ys[ny++] = grid.y + r * cell_h;
+	} else if (cur_view == V_WEEK || cur_view == V_DAY) {
+		xs[nx++] = grid.x;
+		for (c = 1; c < cols && nx < 10; c++)
+			xs[nx++] = colx[c];
+		if (detail.w)
+			xs[nx++] = detail.x;
+		/* the hours in quarters: a column of a busy day is too much for
+		   one slice on an ST */
+		for (r = 0; r < 4; r++)
+			ys[ny++] = grid.y + r * (grid.h / 4);
+	} else {
+		/* a month a row of weeks at a time (the year's small text is off
+		   a byte, a month too much for one slice on an ST) */
+		short mw, mh, pc, ych;
+		year_geom(&mw, &mh, &pc);
+		ych = ch;		/* (the year's font's) */
+		year_font(0);
+		for (c = 1; c < pc && nx < 10; c++)
+			xs[nx++] = r_view.x + c * mw;
+		for (r = 0; r < (12 + pc - 1) / pc && ny < YTILE_ROWS; r++) {
+			short oy = r_view.y + r * mh, k;
+			if (r)
+				ys[ny++] = oy;
+			for (k = 0; k < 6 && ny < YTILE_ROWS; k++)
+				ys[ny++] = oy + ych / 2 + (k + 2) * ych + 4;
+		}
+	}
+	xs[nx++] = r_view.x + r_view.w;
+	ys[ny++] = r_view.y + r_view.h;
+	/* (each line below the one before: a year that doesn't fit overlaps) */
+	for (j = 1, i = 1; j < ny; j++)
+		if (ys[j] > ys[i - 1] && (ys[j] <= r_view.y + r_view.h))
+			ys[i++] = ys[j];
+	ny = i;
+	if (ys[ny - 1] < r_view.y + r_view.h)
+		ys[ny++] = r_view.y + r_view.h;
+	for (j = 0; j + 1 < ny; j++)
+		for (i = 0; i + 1 < nx && n < max; i++) {
+			short y0 = ys[j], y1 = ys[j + 1], x0 = xs[i], x1 = xs[i + 1];
+			if (y1 > r_view.y + r_view.h)
+				y1 = r_view.y + r_view.h;
+			if (x1 > r_view.x + r_view.w)
+				x1 = r_view.x + r_view.w;
+			if (x1 <= x0 || y1 <= y0)
+				continue;
+			t[n].x = x0;
+			t[n].y = y0;
+			t[n].w = x1 - x0;
+			t[n].h = y1 - y0;
+			n++;
+		}
+	return n;
+}
+
 /* ---------------- titles and moving around ---------------- */
 
 void views_title(char *out, int size)
@@ -1339,16 +1531,20 @@ void views_title(char *out, int size)
 	}
 }
 
+static int view_changed;	/* (changed_range: the view buttons too) */
+
 static void changed_range(void)
 {
 	char t[200];
 	laid_out = 0;
 	glide_left = 0;
-	/* the title and buttons, the view, the small month: not the
-	   calendars' list (the whole window took 0.4 s more on an ST) */
-	win_redraw(&r_tool);
-	win_redraw(&r_view);
-	side_redraw_mini();
+	/* at once the title (and the view buttons when the view changed);
+	   the view in slices, the old page shown meanwhile, then the small
+	   month (win.c); not the calendars' list (the whole window took
+	   0.4 s more on an ST) */
+	win_view_later();	/* (first: the title's redraw then leaves the sliders to it) */
+	win_redraw_title(view_changed);
+	view_changed = 0;
 	views_title(t, sizeof(t));
 	(void)t;
 }
@@ -1359,6 +1555,7 @@ void views_goto(long day, short view)
 	if (view != cur_view) {
 		cur_view = view;
 		opt.view = view;
+		view_changed = 1;
 	}
 	laid_out = 0;
 	changed_range();

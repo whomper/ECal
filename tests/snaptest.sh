@@ -23,6 +23,9 @@ for big in "" --big; do
   done
   echo "${big:-bigcal}: $out (windows of 0, 10, 100 and 300 days, then 400)"
   "$CLI" "$W/d" list 20260101 20280101 > "$W/ref"
+  # a view's collect in slices: the same occurrences in the same order
+  "$CLI" "$W/d" sliced 20260101 20280101 2>/dev/null | cmp -s - "$W/ref" ||
+    { echo "${big:-bigcal}: the collect in steps differs"; exit 1; }
   for off in 60 3000 7000; do
     f=$(ls "$W/d/CACHE/"*.SNP | head -1)
     printf 'Z' | dd of="$f" bs=1 seek=$off conv=notrunc 2>/dev/null

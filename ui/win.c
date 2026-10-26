@@ -77,6 +77,17 @@ void win_status(const char *s)
 		wind_set_str(win_h, WF_INFO, info);
 }
 
+/* the view drawn in slices (below, win_view_later) */
+static struct {
+	int on, inside, ready;
+	GRECT tile[200];		/* the view's pieces (views_tiles) */
+	short nt, ti;			/* how many, the next to draw */
+	unsigned long t0;		/* begun when */
+	short take, rows;		/* pieces of a row, or whole rows, to draw together next */
+	unsigned long row_ms, piece_ms;	/* the dearest row and piece drawn yet */
+	int mini;			/* the small month still to draw, after it */
+} vj;
+
 void win_layout(void)
 {
 	short th = ch + 8, sw, x, i, bw;
@@ -124,6 +135,8 @@ void win_layout(void)
 	}
 	r_title.w = but[B_DAY].x - cw - r_title.x;
 	views_invalidate();
+	if (vj.on)
+		vj.ready = 0;		/* a view being drawn: from the top, in its new place */
 }
 
 static long sl_size = -1, sl_pos = -1;	/* as last set */
@@ -131,8 +144,8 @@ static long sl_size = -1, sl_pos = -1;	/* as last set */
 void win_sliders(void)
 {
 	long size, pos;
-	if (win_h <= 0)
-		return;
+	if (win_h <= 0 || vj.on)
+		return;		/* (a view being drawn in slices: when it is done) */
 	views_slider(&size, &pos);
 	/* only when they change: the AES draws them each time */
 	if (size < 30)
@@ -209,8 +222,11 @@ static void draw_toolbar(GRECT *clip)
 	if (!rect_and(&r, clip))
 		return;
 	fill(&r, 0);
-	for (i = 0; i < NBUT; i++)
-		draw_button(i);
+	for (i = 0; i < NBUT; i++) {
+		GRECT b = but[i];
+		if (rect_and(&b, clip))	/* (the title alone: no buttons, each a text and frame) */
+			draw_button(i);
+	}
 	views_title(t, sizeof(t));
 	if ((short)strlen(t) > r_title.w / cw && cur_view != V_YEAR) {
 		/* shorter forms when the toolbar is narrow: the first that fits,
@@ -447,6 +463,240 @@ void win_buffer_fonts(void)
 		vst_load_fonts(bm_h, 0);
 }
 
+static int off_screen(void)
+{
+	return obuf && (bm_h || xbios_base(3) == xbios_base(2));
+}
+
+/* full drawn into the buffer (off_screen()) */
+static void off_draw(GRECT *full)
+{
+	if (bm_h) {
+		short keep = vdi_h;
+		vdi_h = bm_h;
+		draw_forget();
+		font_reselect();	/* the window's font, on the bitmap too */
+		draw_all(full);
+		vdi_h = keep;
+		draw_forget();
+	} else {
+		/* (the mouse hidden meanwhile: TOS draws it where the logical
+		   screen is, the buffer while it is that) */
+		void *screen = xbios_base(3);
+		if (vj.inside)
+			graf_mouse(M_OFF, 0);
+		xbios_setscreen(obuf);
+		draw_all(full);
+		xbios_setscreen(screen);
+		if (vj.inside)
+			graf_mouse(M_ON, 0);
+	}
+}
+
+/* the buffer's full copied to each visible piece of the window */
+static void off_copy(GRECT *full)
+{
+	GRECT box;
+	MFDB scr;
+	memset(&scr, 0, sizeof(scr));
+	wind_get(win_h, WF_FIRSTXYWH, &box.x, &box.y, &box.w, &box.h);
+	while (box.w && box.h) {
+		GRECT d = box;
+		if (rect_and(&d, full)) {
+			short pxy[8];
+			pxy[0] = pxy[4] = d.x;
+			pxy[1] = pxy[5] = d.y;
+			pxy[2] = pxy[6] = d.x + d.w - 1;
+			pxy[3] = pxy[7] = d.y + d.h - 1;
+			/* the VDI clips raster copies to the last clip,
+			   TOS's as NVDI's: the piece's own */
+			clip_on(&d);
+			vro_cpyfm(vdi_h, 3, pxy, &obuf_mfdb, &scr);	/* S_ONLY */
+		}
+		wind_get(win_h, WF_NEXTXYWH, &box.x, &box.y, &box.w, &box.h);
+	}
+	clip_off();
+}
+
+/* ---- the view drawn in slices ----
+ * A new page (or a calendar read) is drawn off the screen a band at a
+ * time between event calls, the old picture staying until the new one
+ * is whole and copied at once (the guidelines' Speed: a longer job runs
+ * in slices, a key answered within 100 ms). A page key meanwhile begins
+ * it again for the newest page; anything else that draws in the view
+ * (a selection, a scroll, a redraw) has it finished first. Where there
+ * is no buffer to draw in, the view is drawn at once, as before. */
+
+/* a page moved: its title, and with buttons the view buttons, drawn
+   at once (the rest of the toolbar is as it was) */
+void win_redraw_title(int buttons)
+{
+	GRECT a = r_title;
+	if (buttons)		/* (one redraw for both: each is an AES round and a copy) */
+		a.w = but[B_YEAR].x + but[B_YEAR].w - a.x;
+	a.y = r_tool.y;
+	a.h = r_tool.h;
+	win_redraw(&a);
+}
+
+int win_view_busy(void)
+{
+	return vj.on || vj.mini;
+}
+
+void win_view_later(void)
+{
+	if (win_h <= 0 || win_iconified || !off_screen()) {
+		vj.on = 0;
+		win_redraw(&r_view);
+		if (win_h > 0)
+			side_redraw_mini();
+		return;
+	}
+	if (!vj.on)
+		vj.t0 = pf_ms();
+	vj.on = 1;
+	vj.ready = 0;
+}
+
+/* a slice of ms or so: 1 while there is more */
+#ifdef AES_PROFILE
+static void slice_said(const char *what, unsigned long t0)
+{
+	if (pf_ms() - t0 >= 90) {
+		char b[80];
+		snprintf(b, sizeof(b), "VIEWSLICE %lu ms %s\n", pf_ms() - t0, what);
+		nf_debug(b);
+	}
+}
+#else
+#define slice_said(w, t)
+#endif
+
+int win_view_step(unsigned long ms)
+{
+	unsigned long t0 = pf_ms();
+	if (!vj.on) {
+		if (vj.mini) {
+			vj.mini = 0;
+			side_redraw_mini();	/* (the range it marks moved) */
+			slice_said("the small month", t0);
+		}
+		return 0;
+	}
+	if (win_h <= 0 || win_iconified || !off_screen()) {
+		vj.on = 0;
+		return 0;
+	}
+	while (!vj.ready) {
+		unsigned long used = pf_ms() - t0;
+		if (used >= ms)
+			return 1;
+		if (!views_prepare(ms - used)) {
+			vj.ready = 1;
+			vj.nt = (short)views_tiles(vj.tile, 200);
+			vj.ti = 0;
+			vj.take = 1;
+			vj.rows = 1;
+			vj.row_ms = vj.piece_ms = 0;
+			slice_said("ready, the pieces", t0);
+			return 1;	/* (the pieces from the next slice) */
+		}
+		slice_said(views_phase, t0);
+	}
+	vj.inside = 1;		/* (off the screen: no wind_update until the copy) */
+	/* as much as the last draw's time says fits in half the slice:
+	   whole rows of pieces together where they fit (each draw has its
+	   cost whatever its size), a row's pieces a few at a time where one
+	   row is too much; one piece at least */
+	while (vj.ti < vj.nt) {
+		unsigned long p0 = pf_ms(), took, half = ms / 2;
+		GRECT r = vj.tile[vj.ti];
+		short k = 1, rows = 0, inrow = 1, j;
+		for (j = vj.ti + 1; j < vj.nt && vj.tile[j].y == r.y; j++)
+			inrow++;	/* (the pieces from here to the row's end) */
+		/* whole rows only when the dearest piece yet, as many times as a
+		   row has pieces, fits (a job begins with pieces one by one) */
+		vj.rows = (short)(vj.piece_ms ? half / (vj.piece_ms * inrow) : 0);
+		if (r.x == r_view.x && vj.rows > 0) {
+			/* whole rows: from here down while the guess allows */
+			r.w = r_view.w;
+			k = inrow;
+			rows = 1;
+			while (rows < vj.rows && vj.ti + k < vj.nt) {
+				short y = vj.tile[vj.ti + k].y, n = 0;
+				for (j = vj.ti + k; j < vj.nt && vj.tile[j].y == y; j++)
+					n++;
+				r.h = vj.tile[vj.ti + k].y + vj.tile[vj.ti + k].h - r.y;
+				k += n;
+				rows++;
+			}
+		} else {
+			while (k < vj.take && k < inrow) {
+				r.w += vj.tile[vj.ti + k].w;
+				k++;
+			}
+		}
+		vj.ti += k;
+		off_draw(&r);
+		took = pf_ms() - p0;
+		if (took < 5)
+			took = 5;
+		/* by the dearest row and piece yet (rows differ: a header is
+		   cheap, a busy week dear) */
+		if (rows) {
+			unsigned long per = took / rows;	/* a row's time */
+			if (per > vj.row_ms)
+				vj.row_ms = per;
+			if (took / k > vj.piece_ms)
+				vj.piece_ms = took / k;
+		} else if (took / k > vj.piece_ms) {
+			vj.piece_ms = took / k;
+		}
+		if (vj.piece_ms < 1)
+			vj.piece_ms = 1;
+		vj.take = (short)(half / vj.piece_ms > 1 ? half / vj.piece_ms : 1);
+		if (pf_ms() - t0 + took > ms)
+			break;		/* (one more like it would not end inside the slice) */
+	}
+#ifdef AES_PROFILE
+	{
+		char w[40];
+		snprintf(w, sizeof(w), "pieces to %d of %d", vj.ti, vj.nt);
+		slice_said(w, t0);
+	}
+#endif
+	if (vj.ti >= vj.nt) {
+		GRECT full = work;
+		wind_update(BEG_UPDATE);
+		graf_mouse(M_OFF, 0);
+		if (rect_and(&full, &r_view))
+			off_copy(&full);
+		graf_mouse(M_ON, 0);
+		wind_update(END_UPDATE);
+		vj.on = 0;
+		vj.mini = 1;		/* the small month, in the next slice */
+#ifdef AES_PROFILE
+		{
+			char b[48];
+			snprintf(b, sizeof(b), "VIEWDONE %lu ms\n", pf_ms() - vj.t0);
+			nf_debug(b);
+		}
+#endif
+	}
+	vj.inside = 0;
+	if (!vj.on)
+		win_sliders();
+	return vj.on;
+}
+
+/* what is left of it, now: before anything else draws in the view */
+void win_view_finish(void)
+{
+	while (win_view_step(0xffffffffUL))
+		;
+}
+
 void win_redraw(GRECT *area)
 {
 	GRECT box, full;
@@ -456,6 +706,11 @@ void win_redraw(GRECT *area)
 		icon_window(area);	/* over the small window, not the old work area */
 		return;
 	}
+	if (vj.on && !vj.inside) {
+		GRECT v = r_view;
+		if (!area || rect_and(&v, area))
+			win_view_finish();	/* (the view whole first) */
+	}
 	wind_update(BEG_UPDATE);
 	graf_mouse(M_OFF, 0);
 	full = work;
@@ -464,47 +719,16 @@ void win_redraw(GRECT *area)
 		wind_update(END_UPDATE);
 		return;
 	}
-	if (obuf && (bm_h || xbios_base(3) == xbios_base(2))) {
+	if (off_screen()) {
 		/* all of it off the screen, then each visible piece copied */
-		MFDB scr;
 #ifdef AES_PROFILE
 		unsigned long t0 = pf_ms(), t1;
 #endif
-		memset(&scr, 0, sizeof(scr));
-		if (bm_h) {
-			short keep = vdi_h;
-			vdi_h = bm_h;
-			draw_forget();
-			font_reselect();	/* the window's font, on the bitmap too */
-			draw_all(&full);
-			vdi_h = keep;
-			draw_forget();
-		} else {
-			void *screen = xbios_base(3);
-			xbios_setscreen(obuf);
-			draw_all(&full);
-			xbios_setscreen(screen);
-		}
+		off_draw(&full);
 #ifdef AES_PROFILE
 		t1 = pf_ms();
 #endif
-		wind_get(win_h, WF_FIRSTXYWH, &box.x, &box.y, &box.w, &box.h);
-		while (box.w && box.h) {
-			GRECT d = box;
-			if (rect_and(&d, &full)) {
-				short pxy[8];
-				pxy[0] = pxy[4] = d.x;
-				pxy[1] = pxy[5] = d.y;
-				pxy[2] = pxy[6] = d.x + d.w - 1;
-				pxy[3] = pxy[7] = d.y + d.h - 1;
-				/* the VDI clips raster copies to the last clip,
-				   TOS's as NVDI's: the piece's own */
-				clip_on(&d);
-				vro_cpyfm(vdi_h, 3, pxy, &obuf_mfdb, &scr);	/* S_ONLY */
-			}
-			wind_get(win_h, WF_NEXTXYWH, &box.x, &box.y, &box.w, &box.h);
-		}
-		clip_off();
+		off_copy(&full);
 #ifdef AES_PROFILE
 		if (pf_ms() - t0 >= 20) {
 			char b[100];
@@ -639,6 +863,7 @@ void win_scroll(const GRECT *a, short dy)
 	short ady = dy < 0 ? -dy : dy, whole = 0;
 	if (win_h <= 0 || win_iconified)
 		return;
+	win_view_finish();	/* (what is on the screen is moved: the view whole) */
 	wind_update(BEG_UPDATE);
 	if (ady < a->h) {
 		wind_get(win_h, WF_FIRSTXYWH, &box.x, &box.y, &box.w, &box.h);

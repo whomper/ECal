@@ -417,6 +417,21 @@ int main(int argc, char **argv)
 		}
 		return 0;
 	}
+	if (!strcmp(cmd, "sliced") && argc == 5) {
+		/* as list, collected in the smallest steps a view drawn in
+		   slices takes (each 16 events, each merge of the sort) */
+		OCCLIST l;
+		int i, steps = 0;
+		memset(&l, 0, sizeof(l));
+		occ_collect_begin(&l, parse_view(argv[3]), parse_view(argv[4]));
+		while (occ_collect_step(&l, 0))
+			steps++;
+		for (i = 0; i < l.n; i++)
+			print_occ(&l.o[i]);
+		fprintf(stderr, "%d steps\n", steps);
+		occ_free(&l);
+		return 0;
+	}
 	if (!strcmp(cmd, "list") && argc == 5) {
 		OCCLIST l;
 		int i;

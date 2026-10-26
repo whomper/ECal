@@ -737,9 +737,18 @@ static int has_menu;
 
 static void check(int cmd, int on)
 {
-	short o = mbar_object(&mb, cmd);
+	/* only what changed: each tick is an AES call (10 of them, 23 ms of
+	   a key on an ST) */
+	static signed char was[64];
+	short o;
+	on = on ? 1 : 0;
+	if (cmd >= 0 && cmd < 64 && was[cmd] == on + 1)
+		return;
+	o = mbar_object(&mb, cmd);
 	if (o > 0)
-		menu_icheck(mb.tree, o, on ? 1 : 0);
+		menu_icheck(mb.tree, o, on);
+	if (cmd >= 0 && cmd < 64)
+		was[cmd] = (signed char)(on + 1);
 }
 
 /* the Event menu's items for the event chosen, greyed without one; the
@@ -1381,6 +1390,9 @@ static void tell_lost(void)
    the background since the window opened). 0: the settings aren't */
 int data_wait(void)
 {
+	/* what waits for the calendars waits for a view being drawn too:
+	   its events are those of the page drawn */
+	win_view_finish();
 	if (data_ready || !settings_ready)
 		return data_ready;
 	busy(1);
@@ -1595,6 +1607,8 @@ static void tip_show(void)
 /* The accessory, its window closed: see work_step() */
 static unsigned long step_max[8];	/* the longest step seen of each kind of work */
 static unsigned long slice_ms = BG_SLICE_030;	/* bgwork's slice (BG_SLICE_000 on a 68000) */
+#define VIEW_SLICE_MS 70UL	/* a slice of a view being drawn: with the turn around it, a key
+				   answered within 100 ms (the guidelines, Speed) */
 
 /* The accessory stands aside while ECAL.PRG runs (twin.h; the AERA
    guidelines, 2.3): it doesn't sync, show reminders or open its window,
@@ -2106,8 +2120,8 @@ int main(void)
 		unsigned long wait = sync_pending ? 150 : 1000;
 		if (win_h > 0)
 			flags |= MU_KEYBD | MU_BUTTON;
-		if (win_h > 0 && !win_iconified)
-			flags |= MU_M1;
+		if (win_h > 0 && !win_iconified && !win_view_busy())
+			flags |= MU_M1;	/* (not while a view is drawn: no tips then, and it came back each turn) */
 		/* the mouse moving away from where it was last seen */
 		evnt_set_m1(1, hover_x, hover_y, 1, 1);
 		hovering = win_h > 0 && !win_iconified && !tip_tried && hover_x >= 0;
@@ -2115,7 +2129,9 @@ int main(void)
 			wait = 100;
 		wait = bg_timer(work_pending(), wait);
 		if (views_gliding() && win_h > 0 && wait > 20)
-			wait = 20;	/* the hours gliding, a step a turn */
+			wait = 20;
+		if (win_view_busy())
+			wait = 0;	/* the next slice of a view at once, keys first */	/* the hours gliding, a step a turn */
 		/* a click comes at once; where a double click means something,
 		   click_count() waits for the second one before anything is done */
 		/* a refresh waiting: shortly, once the redraws are done */
@@ -2165,7 +2181,7 @@ int main(void)
 			hover_at = pf_ms();
 			tip_tried = (which & (MU_KEYBD | MU_BUTTON)) != 0;
 			tip_hide();
-		} else if (hovering && pf_ms() - hover_at >= 700UL) {
+		} else if (hovering && pf_ms() - hover_at >= 700UL && !win_view_busy()) {
 			tip_show();
 		}
 		if ((which & MU_MESAG) && notify_message(msg))
@@ -2294,7 +2310,7 @@ int main(void)
 				settings_flush();
 			}
 		}
-		if (views_gliding() && win_h > 0 && !win_iconified && !(which & (MU_KEYBD | MU_BUTTON | MU_MESAG)))
+		if (views_gliding() && win_h > 0 && !win_iconified && !win_view_busy() && !(which & (MU_KEYBD | MU_BUTTON | MU_MESAG)))
 			views_glide();	/* (a turn that answered a key glided a step already) */
 		bg_tick();
 		if (which & MU_TIMER) {
@@ -2308,13 +2324,19 @@ int main(void)
 				idx_gen = store_gen;
 			}
 		}
-		if (view_due) {
-			/* a calendar read: the view drawn again, in a turn of its
-			   own (not after a slice of work) */
+		if (win_view_busy()) {
+			/* a view being drawn, a slice a turn (not after a key, click
+			   or message: what answered it has had this turn) */
+			if (!(which & (MU_MESAG | MU_KEYBD | MU_BUTTON))) {
+				aes_profile_tag("view: a slice");
+				win_view_step(VIEW_SLICE_MS);
+			}
+		} else if (view_due) {
+			/* a calendar read: the view drawn again, in slices */
 			view_due = 0;
 			aes_profile_tag("work: a calendar read, the view drawn");
 			if (win_h > 0)
-				win_redraw(&r_view);
+				win_view_later();
 		} else if (!(which & (MU_MESAG | MU_KEYBD | MU_BUTTON)) && work_pending() && bg_may_work()) {
 			/* (not after a key, click or message: what answered it, a
 			   redraw say, has had this turn) */
@@ -2383,7 +2405,7 @@ int main(void)
 						if (win_iconified)
 							win_title();	/* its date */
 						after_change();
-					} else {
+					} else if (!win_view_busy()) {
 						views_now_moved();	/* the red "now" line, if it moved */
 					}
 #ifdef AES_PROFILE

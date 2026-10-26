@@ -222,6 +222,8 @@ typedef struct {
 } OCCLIST;
 
 void occ_collect(OCCLIST *l, CTIME from, CTIME to);	/* sorted: all-day first, then by start */
+void occ_collect_begin(OCCLIST *l, CTIME from, CTIME to);
+int occ_collect_step(OCCLIST *l, unsigned long ms);	/* 1 while there is more */
 void occ_free(OCCLIST *l);
 /* everything matching text (title, place, notes) between from and to */
 void occ_search(OCCLIST *l, const char *text, CTIME from, CTIME to);

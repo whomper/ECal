@@ -121,12 +121,19 @@ class Meter:
         if start:
             worst = max(worst, start[0])
         views = re.findall(r"(?:VIEWMS|REDRAWMS) ([^\n]*)", new)
+        # a view drawn in slices: the stretches are its slices; when the
+        # whole picture was there
+        done = [int(x) for x in re.findall(r"VIEWDONE (\d+) ms", new)]
+        if done:
+            kind = "slice"        # judged as a longer job: each stretch within 100 ms (the hub, 26 Oct)
         row = dict(action=name, kind=kind, limit=LIMIT[kind], ms=worst, start=start[0] if start else None,
-                   gaps=own, background=[g for g in gaps if g not in own], where=views)
+                   gaps=own, background=[g for g in gaps if g not in own], where=views,
+                   picture=done[-1] if done else None)
         self.rows.append(row)
-        print("  %5d ms %s %-34s %s%s" % (worst, "OVER" if worst > LIMIT[kind] else "    ", name,
+        print("  %5d ms %s %-34s %s%s%s" % (worst, "OVER" if worst > LIMIT[kind] else "    ", name,
               ", ".join("%d %s" % g for g in sorted(own, reverse=True)[:4]),
-              ("  (AESSTART %d)" % start[0]) if start else ""), flush=True)
+              ("  (AESSTART %d)" % start[0]) if start else "",
+              ("  (the picture whole after %d)" % done[-1]) if done else ""), flush=True)
         for v in views:
             print("             " + v, flush=True)
         return row

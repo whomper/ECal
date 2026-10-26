@@ -98,6 +98,11 @@ int  win_mouse(short mx, short my, short button, short clicks, short kstate);
 int  win_key(short kstate, short key);
 void win_layout(void);		/* after a size or font change */
 void win_title(void);
+void win_redraw_title(int buttons);	/* the toolbar's title (and view buttons) only */
+void win_view_later(void);		/* the view drawn again in slices (a new page) */
+int win_view_step(unsigned long ms);	/* a slice of it: 1 while more */
+void win_view_finish(void);
+int win_view_busy(void);
 void win_sliders(void);
 
 /* layout: filled in by win_layout */
@@ -114,6 +119,9 @@ void views_invalidate(void);	/* events changed: collect again */
 void views_draw(GRECT *clip);
 void views_now_moved(void);		/* the minute's tick: the "now" line */
 int  views_gliding(void);		/* a key's hour still gliding: */
+int views_tiles(GRECT *t, int max);	/* the view in pieces, to draw a piece at a time */
+int views_prepare(unsigned long ms);
+extern const char *views_phase;	/* collected and laid out a slice at a time: 1 while more */
 void views_glide(void);			/* its next step, from the event loop */
 int  views_click(short mx, short my, short clicks, short kstate, short button);
 int  views_key(short kstate, short key);

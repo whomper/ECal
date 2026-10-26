@@ -3305,9 +3305,14 @@ static EVENT *future_exception(EVENT *m, CTIME orig)
 
 static const TZONE *occ_vz;	/* the view zone, looked up once a collect (not by name each time) */
 
+static CTIME occ_min = CT_NONE;	/* a series expanded a month at a time: those that
+				   start before its month were the month before's */
+
 static void occ_add(EVENT *e, CTIME s, CTIME en, void *ud)
 {
 	OCCLIST *l = ud;
+	if (occ_min != CT_NONE && s < occ_min)
+		return;
 	CTIME orig = e->recurid != CT_NONE ? e->recurid : ev_from_wall(e, s, occ_vz);
 	if (l->limit && l->n >= l->limit)
 		return;
@@ -3502,68 +3507,105 @@ static int occ_long(const OCC *o)
 	return o->ev->allday || o->end - o->start >= MIN_PER_DAY;
 }
 
-/* o[0..n) sorted, t as room for n: the result in o */
-static void occ_msort(OCC *o, OCC *t, int n)
+/* the sort, resumable (a view collected in slices sorts in them too):
+   the long ones put first in one pass, then each part merged bottom up,
+   a merge at a time */
+static struct {
+	OCC *o, *t, *a, *b;
+	int n, nl, lo, hi, w, i, seg;	/* seg 2: done */
+} os;
+
+static void os_part(int lo, int hi)
 {
-	OCC *a = o, *b = t, *s;
-	int w;
-	for (w = 1; w < n; w *= 2) {
-		int i;
-		for (i = 0; i < n; i += 2 * w) {
-			int m = i + w < n ? i + w : n, h = i + 2 * w < n ? i + 2 * w : n;
-			int p = i, q = m, k = i;
-			while (p < m || q < h) {
-				const OCC *f;
-				if (q >= h)
-					f = &a[p++];
-				else if (p >= m)
-					f = &a[q++];
-				else {
-					const OCC *x = &a[q], *y = &a[p];
-					int before = x->start != y->start ? x->start < y->start :
-						     x->end != y->end ? x->end > y->end : x->ev->cal < y->ev->cal;
-					f = before ? &a[q++] : &a[p++];
-				}
-				OCC_MOVE(b[k], *f);
-				k++;
-			}
-		}
-		s = a;
-		a = b;
-		b = s;
-	}
-	if (a != o)
-		memcpy(o, a, (long)n * sizeof(OCC));
+	os.lo = lo;
+	os.hi = hi;
+	os.w = 1;
+	os.i = lo;
+	os.a = os.o;
+	os.b = os.t;
 }
 
-static void occ_sort(OCC *o, int n)
+static void os_begin(OCC *o, int n)
 {
-	OCC *t = malloc((long)n * sizeof(OCC));
-	int i, nl = 0, k;
-	if (!t) {
-		qsort(o, n, sizeof(OCC), occ_cmp);
+	int i, k, l;
+	free(os.t);
+	os.o = o;
+	os.n = n;
+	os.seg = 2;
+	if (n < 2 || !(os.t = malloc((long)n * sizeof(OCC)))) {
+		os.t = 0;
+		if (n > 1)
+			qsort(o, n, sizeof(OCC), occ_cmp);
 		return;
 	}
-	for (i = 0; i < n; i++)
+	for (i = os.nl = 0; i < n; i++)
 		if (occ_long(&o[i]))
-			nl++;
-	if (nl && nl < n) {
-		/* the long ones first, each part in its order */
-		int l = 0;
-		for (i = 0, k = nl; i < n; i++) {
+			os.nl++;
+	if (os.nl && os.nl < n) {
+		for (i = l = 0, k = os.nl; i < n; i++) {
 			if (occ_long(&o[i])) {
-				OCC_MOVE(t[l], o[i]);
+				OCC_MOVE(os.t[l], o[i]);
 				l++;
 			} else {
-				OCC_MOVE(t[k], o[i]);
+				OCC_MOVE(os.t[k], o[i]);
 				k++;
 			}
 		}
-		memcpy(o, t, (long)n * sizeof(OCC));
+		memcpy(o, os.t, (long)n * sizeof(OCC));
 	}
-	occ_msort(o, t, nl);
-	occ_msort(o + nl, t, n - nl);
-	free(t);
+	os.seg = 0;
+	os_part(0, os.nl);
+}
+
+/* merges for ms or so: 1 while there is more */
+static int os_step(unsigned long ms)
+{
+	unsigned long t0 = pf_ms();
+	while (os.seg < 2) {
+		OCC *a = os.a, *b = os.b, *sw;
+		int m, h, p, q, k;
+		if (os.w >= os.hi - os.lo) {
+			/* this part sorted: back in o if it ended in t */
+			if (os.a != os.o && os.hi > os.lo)
+				memcpy(os.o + os.lo, os.t + os.lo, (long)(os.hi - os.lo) * sizeof(OCC));
+			if (++os.seg == 1)
+				os_part(os.nl, os.n);
+			continue;
+		}
+		m = os.i + os.w < os.hi ? os.i + os.w : os.hi;
+		h = os.i + 2 * os.w < os.hi ? os.i + 2 * os.w : os.hi;
+		p = os.i;
+		q = m;
+		k = os.i;
+		while (p < m || q < h) {
+			const OCC *f;
+			if (q >= h)
+				f = &a[p++];
+			else if (p >= m)
+				f = &a[q++];
+			else {
+				const OCC *x = &a[q], *y = &a[p];
+				int before = x->start != y->start ? x->start < y->start :
+					     x->end != y->end ? x->end > y->end : x->ev->cal < y->ev->cal;
+				f = before ? &a[q++] : &a[p++];
+			}
+			OCC_MOVE(b[k], *f);
+			k++;
+		}
+		os.i += 2 * os.w;
+		if (os.i >= os.hi) {
+			sw = os.a;
+			os.a = os.b;
+			os.b = sw;
+			os.w *= 2;
+			os.i = os.lo;
+		}
+		if (pf_ms() - t0 >= ms)
+			return 1;
+	}
+	free(os.t);
+	os.t = 0;
+	return 0;
 }
 
 void occ_free(OCCLIST *l)
@@ -3572,27 +3614,88 @@ void occ_free(OCCLIST *l)
 	memset(l, 0, sizeof(*l));
 }
 
-void occ_collect(OCCLIST *l, CTIME from, CTIME to)
+/* a collect in steps (a view drawn in slices, the guidelines' Speed):
+   where it has got to */
+#define OC_PART (31L * MIN_PER_DAY)	/* a series' expansion, a month at most a step */
+static struct {
+	int ci, ej;
+	int part, nparts;	/* a series, a month at a time: the next month, how many */
+	int sorting;		/* the events done: the sort, in a step of its own */
+} oc;
+
+void occ_collect_begin(OCCLIST *l, CTIME from, CTIME to)
 {
-	const TZONE *vz = occ_vz = view_zone();
-	int i, j;
+	occ_vz = view_zone();
 	l->n = 0;
 	l->from = from;
 	l->to = to;
-	for (i = 0; i < ncals; i++) {
-		CALENDAR *c = &cals[i];
-		if (!c->visible)
+	oc.ci = oc.ej = 0;
+	oc.part = 0;
+	oc.nparts = (int)((to - from + OC_PART - 1) / OC_PART);
+	if (oc.nparts < 1)
+		oc.nparts = 1;
+	oc.sorting = 0;
+	free(os.t);		/* (a sort under way given up) */
+	os.t = 0;
+	os.seg = 2;
+}
+
+/* the events of the visible calendars, expanded for ms or so; the list
+   sorted at the end. 1 while there is more */
+int occ_collect_step(OCCLIST *l, unsigned long ms)
+{
+	unsigned long t0 = pf_ms();
+	int k = 0;
+	while (oc.ci < ncals) {
+		CALENDAR *c = &cals[oc.ci];
+		EVENT *e;
+		if (!c->visible || oc.ej >= c->nev) {
+			oc.ci++;
+			oc.ej = 0;
 			continue;
-		for (j = 0; j < c->nev; j++) {
-			EVENT *e = c->ev[j];
-			/* cancelled (a whole series too), "Canceled:", declined */
-			if (e->status == ST_CANCELLED || e->gone)
-				continue;
-			ics_expand(e, from, to, vz, occ_add, occ_skip, l);
+		}
+		e = c->ev[oc.ej];
+		/* cancelled (a whole series too), "Canceled:", declined */
+		if (e->status == ST_CANCELLED || e->gone) {
+			oc.ej++;
+		} else if (!(e->rr || e->nrdate) || oc.nparts == 1) {
+			ics_expand(e, l->from, l->to, occ_vz, occ_add, occ_skip, l);
+			oc.ej++;
+		} else {
+			/* a series over a long range, a month a step: a daily one
+			   over a year was 0.7 s of a step on an ST */
+			CTIME a = l->from + oc.part * OC_PART, b = a + OC_PART;
+			if (b > l->to)
+				b = l->to;
+			occ_min = oc.part ? a : CT_NONE;
+			ics_expand(e, a, b, occ_vz, occ_add, occ_skip, l);
+			occ_min = CT_NONE;
+			if (++oc.part >= oc.nparts) {
+				oc.part = 0;
+				oc.ej++;
+			}
+			k += 3;		/* (a month of a series: the clock asked after it) */
+		}
+		if (++k >= 4) {		/* (the clock asked every 4 or so: it is a trap to the OS) */
+			k = 0;
+			if (pf_ms() - t0 >= ms)
+				return 1;
 		}
 	}
-	if (l->n > 1)
-		occ_sort(l->o, l->n);
+	if (!oc.sorting) {
+		oc.sorting = 1;
+		os_begin(l->o, l->n);
+		if (ms != 0xffffffffUL)
+			return 1;	/* (the merges from the next step) */
+	}
+	return os_step(ms);
+}
+
+void occ_collect(OCCLIST *l, CTIME from, CTIME to)
+{
+	occ_collect_begin(l, from, to);
+	while (occ_collect_step(l, 0xffffffffUL))
+		;
 }
 
 static int contains(const char *h, const char *n)
