@@ -135,7 +135,12 @@ class Meter:
 def run_prg(r, m, st):
     k = r.key
     m.act("the program started (window drawn)", "start", lambda: None, settle=8, limit=300, until="AESSTART")
-    time.sleep(20 if st else 10)       # what was left of the reading at the start
+    # the calendars, read in the background since the window opened: the
+    # longest stretch of that work (a key waits at most that long)
+    pos = len(m.text())
+    time.sleep(70 if st else 25)
+    work = [int(x) for x in re.findall(r"AESGAP (\d+) ms work", m.text()[pos:])]
+    print("  %5d ms longest background stretch while the calendars were read" % max(work or [0]), flush=True)
     m.act("month view drawn whole", "window", lambda: k(SCAN["m"]))
     m.act("week view drawn whole", "window", lambda: k(SCAN["w"]))
     m.act("next week (Shift+right)", "page", lambda: k(K["RIGHT"], shift=True))
