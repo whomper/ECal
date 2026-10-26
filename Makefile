@@ -248,8 +248,20 @@ REPLAYSRC   := common/tests/fuzz/fuzz_net.c common/tests/fuzz/replay.c
 $(OBJDIR)/replay_%: tests/fuzz/fuzz_%.c $(HOSTSRC) $(HDRS) $(HOSTLIB) $(REPLAYSRC) | $(OBJDIR)
 	$(HOSTCC) $(REPLAYFLAGS) -o $@ $< $(HOSTSRC) $(REPLAYSRC) $(HOSTLIB)
 
-test: $(OBJDIR)/unit $(addprefix $(OBJDIR)/replay_,$(FUZZERS)) $(OBJDIR)/cal-cli
+# a series' occurrences the same with and without the jump to the range
+RRJUMP_SRC := tests/rrjump.c src/rrule.c src/ics.c common/src/ctime.c common/src/tz.c common/src/util.c \
+              common/src/charset.c tests/host/plat_posix.c tests/host/version_host.c
+$(OBJDIR)/rrjump: $(RRJUMP_SRC) $(HDRS) | $(OBJDIR)
+	$(HOSTCC) $(HOSTCFLAGS) -o $@ $(RRJUMP_SRC)
+
+# the same as 68000 code under qemu-m68k: the digest must match the build machine's
+rrjump-m68k: $(RRJUMP_SRC) | $(OBJDIR)
+	m68k-linux-gnu-gcc -m68000 -O2 -static -w -Isrc -Icommon/src -o $(OBJDIR)/rrjump-m68k $(RRJUMP_SRC)
+	qemu-m68k $(OBJDIR)/rrjump-m68k
+
+test: $(OBJDIR)/unit $(addprefix $(OBJDIR)/replay_,$(FUZZERS)) $(OBJDIR)/cal-cli $(OBJDIR)/rrjump
 	$(OBJDIR)/unit
+	$(OBJDIR)/rrjump
 	CLI=$(OBJDIR)/cal-cli tests/alarms.sh
 	@for f in $(FUZZERS); do \
 	  $(OBJDIR)/replay_$$f tests/fuzz/seeds/$$f $$(ls -d tests/fuzz/found/$$f 2>/dev/null) || exit 1; \
@@ -268,4 +280,4 @@ itest: $(OBJDIR)/cal-cli
 clean:
 	rm -rf $(OBJDIR) $(BIN) dist
 
-.PHONY: icons fakeguide all help dist test itest fuzz clean profile FORCE
+.PHONY: icons fakeguide all help dist test itest fuzz clean profile rrjump-m68k FORCE

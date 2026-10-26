@@ -22,6 +22,7 @@
 #include <ctype.h>
 #include "ics.h"
 #include "util.h"
+#include "plat.h"
 
 static const char *const wd2[7] = { "SU", "MO", "TU", "WE", "TH", "FR", "SA" };
 
@@ -30,7 +31,7 @@ static const char *const wd2[7] = { "SU", "MO", "TU", "WE", "TH", "FR", "SA" };
 void rr_byday(short v, int *ord, int *wd)
 {
 	*wd = v & 7;
-	*ord = (v - *wd) / 8;
+	*ord = (v - *wd) >> 3;	/* a multiple of 8: shifted, not divided (once a day walked) */
 }
 
 static int wday_code(const char *s)
@@ -683,7 +684,7 @@ typedef struct {
 /* one occurrence at day + seconds; 1 when the walk is over */
 static int occur(WALK *w, long day, long sec)
 {
-	CTIME c = day * MIN_PER_DAY + sec / 60;
+	CTIME c = day * MIN_PER_DAY + (sec >= 0 && sec < 86400L ? (long)div16(sec, 60) : sec / 60);
 	const RRULE *r = w->r;
 	if (c < w->w0)
 		return 0;
@@ -929,12 +930,16 @@ static void rr_walk(const RRULE *r, CTIME w0, CTIME hint, CTIME stop, WALK_FN fn
 				base = ws0 + p * 7 * r->interval;
 				for (i = 0; i < 7; i++) {
 					long d = base + i;
-					int yy, mm, ddd;
-					if (r->nbyday ? !f_wday(r, wday_of(d), 0, 0, 0, 0, 0) : wday_of(d) != wd0)
+					int yy, mm, ddd, wd = r->wkst + i;	/* the week starts on WKST */
+					if (wd >= 7)
+						wd -= 7;
+					if (r->nbyday ? !f_wday(r, wd, 0, 0, 0, 0, 0) : wd != wd0)
 						continue;
-					civil_from_days(d, &yy, &mm, &ddd);
-					if (!f_month(r, mm))
-						continue;
+					if (r->bymonth) {
+						civil_from_days(d, &yy, &mm, &ddd);
+						if (!f_month(r, mm))
+							continue;
+					}
 					days[nd++] = d;
 				}
 				break;

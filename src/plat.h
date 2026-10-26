@@ -77,4 +77,17 @@ void net_close_wait(int h, int seconds);
 /* the UI can show progress and keep the screen alive while we wait */
 extern void (*pf_idle)(void);
 
+/* n / d when the quotient fits in 16 bits: one divu.w on the 68000, not
+   a call to the C library's 32-bit division (hundreds of cycles, and the
+   collects' busiest arithmetic; the guidelines, Speed) */
+static inline unsigned short div16(unsigned long n, unsigned short d)
+{
+#if defined(__mc68000__) || defined(__m68k__)
+	__asm__("divu.w %1,%0" : "+d"(n) : "dm"(d));
+	return (unsigned short)n;
+#else
+	return (unsigned short)(n / d);
+#endif
+}
+
 #endif

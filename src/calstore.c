@@ -2651,6 +2651,9 @@ static int occ_cmp(const void *a, const void *b)
    library's qsort is a heap sort that swaps a byte at a time (with
    memcmp in the comparisons, 18% of a year view on an ST). Stable: the
    same occurrences always come out in the same order */
+/* field by field: a structure assigned is a memcpy call on the 68000 */
+#define OCC_MOVE(d, s) ((d).ev = (s).ev, (d).start = (s).start, (d).end = (s).end, (d).orig = (s).orig)
+
 static void occ_sort(OCC *o, int n)
 {
 	OCC *t = malloc((long)n * sizeof(OCC)), *a = o, *b = t, *s;
@@ -2664,12 +2667,11 @@ static void occ_sort(OCC *o, int n)
 		for (i = 0; i < n; i += 2 * w) {
 			int m = i + w < n ? i + w : n, h = i + 2 * w < n ? i + 2 * w : n;
 			int p = i, q = m, k = i;
-			while (p < m && q < h)
-				b[k++] = occ_cmp(&a[q], &a[p]) < 0 ? a[q++] : a[p++];
-			while (p < m)
-				b[k++] = a[p++];
-			while (q < h)
-				b[k++] = a[q++];
+			while (p < m || q < h) {
+				const OCC *f = q >= h || (p < m && occ_cmp(&a[q], &a[p]) >= 0) ? &a[p++] : &a[q++];
+				OCC_MOVE(b[k], *f);
+				k++;
+			}
 		}
 		s = a;
 		a = b;
