@@ -575,7 +575,7 @@ static void layout(void)
    they take from that line's text */
 static short event_marks(EVENT *e, const GRECT *r, short y, short color, GRECT *clip, short keep)
 {
-	short w = mark_w(), x, n = 0, my, cols = (r->w - 6) / cw;
+	short w = mark_w(), x, n = 0, my, cols = (r->x + r->w - 2 - text_x(r->x + 4)) / cw;	/* event_box's */
 	int bell = e->alarm != -1 && opt.alarms && cals[e->cal].alarms;
 	GRECT c = *clip;
 	if (!rect_and(&c, r))
