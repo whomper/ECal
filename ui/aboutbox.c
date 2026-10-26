@@ -52,7 +52,10 @@ static void clip_screen(void)
 
 static void box(short x, short y, short w, short h)
 {
-	rect_fill(x + 3, y + 3, x + w + 2, y + h + 2, 1);	/* shadow */
+	/* the shadow: its two strips, not a box-sized fill painted over (on
+	   a stock Falcon 15 ms of the About box's 155) */
+	rect_fill(x + w, y + 3, x + w + 2, y + h + 2, 1);
+	rect_fill(x + 3, y + h, x + w - 1, y + h + 2, 1);
 	rect_fill(x, y, x + w - 1, y + h - 1, 0);
 	line(x, y, x + w - 1, y);
 	line(x + w - 1, y, x + w - 1, y + h - 1);
@@ -67,12 +70,19 @@ static void box(short x, short y, short w, short h)
 /* the 32x32 icon scaled by sx, sy (2x on square pixels; 2x1 in ST
  * medium, whose pixels are twice as tall as wide), blitted from ST RAM */
 static unsigned short icon_big[64 * 4];
+static const unsigned short *icon_was;	/* the icon and scale icon_big holds */
+static short icon_sx, icon_sy;
 
 static void draw_icon(const unsigned short *bits, short x, short y, short sx, short sy)
 {
 	MFDB src, dst;
 	short pxy[8], colors[2], r, c, k, wpl = 2 * sx;
 	short w = ICON_W * sx, h = ICON_H * sy;
+	if (icon_was == bits && icon_sx == sx && icon_sy == sy)
+		goto made;		/* scaled once (an ST took 30 ms each time) */
+	icon_was = bits;
+	icon_sx = sx;
+	icon_sy = sy;
 	memset(icon_big, 0, sizeof(icon_big));
 	for (r = 0; r < ICON_H; r++)
 		for (c = 0; c < ICON_W; c++) {
@@ -84,6 +94,7 @@ static void draw_icon(const unsigned short *bits, short x, short y, short sx, sh
 					icon_big[(r * sy + yy) * wpl + bx / 16] |= 0x8000 >> (bx & 15);
 			}
 		}
+made:
 	memset(&src, 0, sizeof(src));
 	memset(&dst, 0, sizeof(dst));
 	src.fd_addr = st_ram(sizeof(icon_big));
@@ -107,43 +118,81 @@ static void draw_icon(const unsigned short *bits, short x, short y, short sx, sh
 	vrt_cpyfm(vdi_h, 2, pxy, &src, &dst, colors);	/* transparent */
 }
 
-/* the 16-colour icon, as runs of VDI fills; pens 8..15 are lent the
+/* an icon of pens (32x32, a byte a pixel) scaled by sx, sy: one 1-plane
+ * mask a pen it has, each blitted once, transparent, in that pen (map[]
+ * or pens[] turning its pens into the screen's). As runs of VDI fills it
+ * took a stock Falcon some 300 fills; now one vrt_cpyfm a colour (the
+ * guidelines' Speed, Erez, 26 Oct 2026). */
+static void icon_pens(const unsigned char *px, const unsigned char *map, const short *pens,
+		      short x, short y, short sx, short sy)
+{
+	unsigned char slot[256];
+	short pen_of[64], n = 0, r, c, k, yy, i, wpl = 2 * sx, words = wpl * ICON_H * sy;
+	short w = ICON_W * sx, h = ICON_H * sy, pxy[8], colors[2];
+	unsigned short *masks;
+	MFDB src, dst;
+	memset(slot, 0xff, sizeof(slot));
+	for (i = 0; i < ICON_W * ICON_H; i++)
+		if (px[i] && slot[px[i]] == 0xff && n < 64) {
+			slot[px[i]] = (unsigned char)n;
+			pen_of[n++] = px[i];
+		}
+	if (!n || !(masks = calloc((size_t)n * words, 2)))
+		return;
+	for (r = 0; r < ICON_H; r++)
+		for (c = 0; c < ICON_W; c++) {
+			unsigned char s = px[r * ICON_W + c];
+			unsigned short *m;
+			if (!s || slot[s] == 0xff)
+				continue;
+			m = masks + slot[s] * words;
+			for (k = 0; k < sx; k++) {
+				short bx = c * sx + k;
+				for (yy = 0; yy < sy; yy++)
+					m[(r * sy + yy) * wpl + (bx >> 4)] |= 0x8000 >> (bx & 15);
+			}
+		}
+	memset(&src, 0, sizeof(src));
+	memset(&dst, 0, sizeof(dst));
+	src.fd_addr = st_ram((long)words * 2);
+	src.fd_w = w;
+	src.fd_h = h;
+	src.fd_wdwidth = wpl;
+	src.fd_nplanes = 1;
+	pxy[0] = 0;
+	pxy[1] = 0;
+	pxy[2] = w - 1;
+	pxy[3] = h - 1;
+	pxy[4] = x;
+	pxy[5] = y;
+	pxy[6] = x + w - 1;
+	pxy[7] = y + h - 1;
+	for (i = 0; src.fd_addr && i < n; i++) {
+		memcpy(src.fd_addr, masks + i * words, (size_t)words * 2);
+		colors[0] = map ? map[pen_of[i]] : pens ? pens[pen_of[i]] : pen_of[i];
+		colors[1] = 0;
+		vrt_cpyfm(vdi_h, 2, pxy, &src, &dst, colors);	/* transparent */
+	}
+	free(masks);
+}
+
+/* the 16-colour icon (two pixels a byte); pens 8..15 are lent the
  * icon's colours while the box is open */
 void about_icon16(const unsigned char *px, short x, short y, short sx, short sy, const short *pens)
 {
-	short r, c;
-	for (r = 0; r < ICON_H; r++) {
-		for (c = 0; c < ICON_W; ) {
-			unsigned char b = px[r * 16 + c / 2];
-			short pen = (c & 1) ? (b & 15) : (b >> 4), e = c + 1;
-			while (e < ICON_W) {
-				unsigned char b2 = px[r * 16 + e / 2];
-				if (((e & 1) ? (b2 & 15) : (b2 >> 4)) != pen)
-					break;
-				e++;
-			}
-			if (pen)
-				rect_fill(x + c * sx, y + r * sy, x + e * sx - 1, y + r * sy + sy - 1,
-					  pens ? pens[pen] : pen);
-			c = e;
-		}
-	}
+	unsigned char p[ICON_W * ICON_H];
+	short i;
+	for (i = 0; i < ICON_W * ICON_H; i++)
+		p[i] = (i & 1) ? (px[i >> 1] & 15) : (px[i >> 1] >> 4);
+	icon_pens(p, 0, pens, x, y, sx, sy);
 }
 
 #ifndef NO_ICON256
-/* the 256-colour icon, a byte a pixel, as runs of VDI fills; map[] turns
-   its pens into the screen's */
+/* the 256-colour icon, a byte a pixel; map[] turns its pens into the
+   screen's */
 static void icon256_draw(const unsigned char *px, const unsigned char *map, short x, short y, short sx, short sy)
 {
-	short r, c, e;
-	for (r = 0; r < ICON_H; r++)
-		for (c = 0; c < ICON_W; c = e) {
-			unsigned char pen = px[r * ICON_W + c];
-			for (e = c + 1; e < ICON_W && px[r * ICON_W + e] == pen; e++)
-				;
-			if (pen)
-				rect_fill(x + c * sx, y + r * sy, x + e * sx - 1, y + r * sy + sy - 1, map[pen]);
-		}
+	icon_pens(px, map, 0, x, y, sx, sy);
 }
 
 /* for each colour of the icon, the pen that has it now: its own when the
@@ -152,25 +201,32 @@ static void icon256_draw(const unsigned char *px, const unsigned char *map, shor
    changes colour while the box is open. */
 static void icon256_pens(const short (*rgb)[4], unsigned char *map)
 {
-	short i, p, have[3];
+	short i, p, have[3], (*pal)[3] = 0;
 	for (i = 0; rgb[i][0]; i++) {
 		long best = -1;
 		short pen = rgb[i][0];
 		vq_color(vdi_h, pen, have);
-		if (abs(have[0] - rgb[i][1]) + abs(have[1] - rgb[i][2]) + abs(have[2] - rgb[i][3]) > 24)
-			for (p = 0; p < 256; p++) {
+		if (abs(have[0] - rgb[i][1]) + abs(have[1] - rgb[i][2]) + abs(have[2] - rgb[i][3]) > 24) {
+			/* the palette asked once, not 256 times a colour (the
+			   guidelines' Speed) */
+			if (!pal && (pal = malloc(256 * sizeof(*pal))) != 0)
+				for (p = 0; p < 256; p++)
+					vq_color(vdi_h, p, pal[p]);
+			for (p = 0; pal && p < 256; p++) {
 				long d;
-				vq_color(vdi_h, p, have);
-				d = (long)(have[0] - rgb[i][1]) * (have[0] - rgb[i][1]) +
-				    (long)(have[1] - rgb[i][2]) * (have[1] - rgb[i][2]) +
-				    (long)(have[2] - rgb[i][3]) * (have[2] - rgb[i][3]);
+				short *h = pal[p];
+				d = (long)(h[0] - rgb[i][1]) * (h[0] - rgb[i][1]) +
+				    (long)(h[1] - rgb[i][2]) * (h[1] - rgb[i][2]) +
+				    (long)(h[2] - rgb[i][3]) * (h[2] - rgb[i][3]);
 				if (best < 0 || d < best) {
 					best = d;
 					pen = p;
 				}
 			}
+		}
 		map[rgb[i][0]] = (unsigned char)pen;
 	}
+	free(pal);
 }
 #endif
 
@@ -184,10 +240,41 @@ const char *about_ram(void)
 	return code && heap ? "TT RAM" : code || heap ? "TT RAM in part" : "";
 }
 
+/* x on a byte (the nearest): TOS 4.04's v_gtext took a stock Falcon 9.1
+   ms for 39 letters a pixel off a byte, 3.4 ms on one (tests/speed/vdt.py) */
+static short on_byte(short x)
+{
+	return (x + 4) & ~7;
+}
+
+/* bold as TOS draws it, but plain text and its box ORed onto itself a
+   pixel to the right (common/ui/text.c's text_fx: the same pixels, on an
+   ST a third of vst_effects' time); NVDI's own bold elsewhere */
+static void text_b(short x, short y, const char *s, short n, short flags)
+{
+	if ((flags & TX_BOLD) && !get_cookie(0x4E564449L)) {	/* 'NVDI' */
+		MFDB scr;
+		short p[8];
+		text_at(x, y, s, n, n, (flags & ~TX_BOLD) | TX_LTR);
+		memset(&scr, 0, sizeof(scr));
+		p[0] = x;
+		p[1] = y;
+		p[2] = x + n * cw - 1;
+		p[3] = y + ch - 1;
+		p[4] = x + 1;
+		p[5] = y;
+		p[6] = x + n * cw;
+		p[7] = y + ch - 1;
+		vro_cpyfm(vdi_h, 7, p, &scr, &scr);	/* S_OR_D */
+		return;
+	}
+	text_at(x, y, s, n, n, flags | TX_LTR);
+}
+
 static void center(short y, const char *s, short flags)
 {
 	short n = (short)strlen(s);
-	text_at(dx + (dw - n * cw) / 2, y, s, n, n, flags | TX_LTR);
+	text_b(on_byte(dx + (dw - n * cw) / 2), y, s, n, flags);
 }
 
 static void button(short x, short y, short w, short h, const char *label)
@@ -203,7 +290,7 @@ static void button(short x, short y, short w, short h, const char *label)
 	line(x + w, y - 1, x + w, y + h);
 	line(x + w, y + h, x - 1, y + h);
 	line(x - 1, y + h, x - 1, y - 1);
-	text_at(x + (w - n * cw) / 2, y + (h - ch) / 2, label, n, n, TX_BOLD | TX_LTR);
+	text_b(on_byte(x + (w - n * cw) / 2), y + (h - ch) / 2, label, n, TX_BOLD);
 }
 
 static void wait_up(void)
@@ -274,7 +361,7 @@ static void about_draw(int framed)
 	center(y, a->name, TX_BOLD);
 	{
 		/* underlined, like EMail's and Claude ST's names */
-		short n = (short)strlen(a->name), x = dx + (dw - n * cw) / 2;
+		short n = (short)strlen(a->name), x = on_byte(dx + (dw - n * cw) / 2);
 		line(x, y + ch - 1, x + n * cw - 1, y + ch - 1);
 	}
 	y += lh;
@@ -303,7 +390,7 @@ static void about_draw(int framed)
 	for (i = 0; i < nfine; i++, y += fstep) {
 		const char *s = i ? a->fine[i - 1] : GPL_LINE;
 		short n = (short)strlen(s);
-		v_gtext_n(vdi_h, dx + (dw - n * fcw) / 2, y, s, n);
+		v_gtext_n(vdi_h, on_byte(dx + (dw - n * fcw) / 2), y, s, n);
 	}
 	(void)ab_fcw;
 }
@@ -326,10 +413,186 @@ static void box_piece(short x, short y, short w, short h)
 	graf_mouse(M_ON, 0);
 }
 
+/* ---- the box drawn in memory and shown at once ----
+ * It is many fills, lines and texts; drawn on the screen, a stock machine
+ * showed them appearing one by one (Erez, 26 Oct 2026). TOS's VDI draws at
+ * the logical screen's base, so while the box is drawn that base is put in
+ * a buffer holding the box's rows (the screen under it first), and the
+ * buffer is copied to the screen in one raster copy. Only under TOS's own
+ * single-tasking AES (the box is a window under MiNT and MagiC), the
+ * logical and shown screens the same, and once a test pixel has landed in
+ * the buffer; otherwise, or without the memory, it is drawn on the screen
+ * as before. */
+static long xb_setscreen(void *log)
+{
+	register long r __asm__("d0");
+	__asm__ volatile("move.w #-1,-(%%sp)\n\tmove.l #-1,-(%%sp)\n\tmove.l %1,-(%%sp)\n\t"
+			 "move.w #5,-(%%sp)\n\ttrap #14\n\tlea 12(%%sp),%%sp"
+			 : "=r"(r) : "r"(log) : "d1", "d2", "a0", "a1", "a2", "memory", "cc");
+	return r;
+}
+
+static int off_ok;		/* 1 the logical screen moves the VDI's drawing, -1 it doesn't */
+
+/* the screen's bytes a line, as the VDI has them (Line-A's v_lin_wr) */
+static long screen_bpl(void)
+{
+	register const short *la __asm__("a0");
+	__asm__ volatile(".dc.w 0xa000" : "=r"(la) : : "d0", "d1", "d2", "a1", "a2", "memory", "cc");
+	return la[1];		/* v_lin_wr */
+}
+
+static void rows_copy(unsigned char *d, long ds, const unsigned char *s, long ss, short rows, long n)
+{
+	for (; rows > 0; rows--, d += ds, s += ss)
+		memcpy(d, s, n);
+}
+
+/* the box's rows: the screen under it kept (to put back) and the box
+   drawn in a buffer, then copied to the screen; plain memory copies, the
+   screen being TOS's own (on an ST they are some six times the speed of
+   the VDI's raster copies, and no workstation is opened for them) */
+static struct {
+	unsigned char *screen, *under;
+	long bpl, off, n;
+	short rows;
+} ob;
+
+extern short _is_acc;		/* crt0.S: started as a desk accessory */
+
+static void buf_free(void *p)
+{
+	if (_is_acc)
+		free(p);
+	else
+		Mfree(p);
+}
+
+static int draw_off(void (*draw)(int framed))
+{
+	short x0 = dx & ~15, x1 = (dx + dw + 3 + 15) & ~15;
+	unsigned char *buf, *base, *scr = (unsigned char *)trap14_w(3);	/* Logbase */
+	long size;
+	GRECT c;
+	if (off_ok < 0 || planes < 1 || scr != (unsigned char *)trap14_w(2) || dy + dh + 3 > scr_h ||
+	    x1 > scr_w)
+		return 0;
+	ob.bpl = screen_bpl();
+	if (ob.bpl < (long)((scr_w + 15) / 16) * 2 * planes)
+		return 0;
+	ob.rows = dh + 3;
+	ob.off = (long)(x0 >> 4) * planes * 2;
+	ob.n = (long)((x1 - x0) >> 4) * planes * 2;
+	ob.screen = scr + (long)dy * ob.bpl + ob.off;
+	size = ob.bpl * ob.rows;
+	if (_is_acc) {
+		/* an accessory takes no GEMDOS memory once it runs (the
+		   guidelines, 2.2): its heap's, in ST RAM (the blitter's), or
+		   the box drawn on the screen */
+		buf = malloc(size);
+		if (buf && (unsigned long)buf + size > 0x01000000UL) {
+			free(buf);
+			buf = 0;
+		}
+	} else {
+		buf = Mxalloc(size, 0);		/* ST RAM, where the blitter reaches */
+		if ((long)buf == -32 || !buf)	/* no Mxalloc: Malloc's is ST RAM */
+			buf = Malloc(size);
+		if ((long)buf <= 0)
+			buf = 0;
+	}
+	if (!buf)
+		return 0;
+	ob.under = malloc(ob.n * ob.rows);
+	if (!ob.under) {
+		buf_free(buf);
+		return 0;
+	}
+	rows_copy(ob.under, ob.n, ob.screen, ob.bpl, ob.rows, ob.n);
+	base = buf - (long)dy * ob.bpl;	/* the screen's row dy at the buffer's start */
+	if (!off_ok) {
+		/* does the VDI draw where the logical screen is, at our idea of
+		   a line's length? the box's top left pixel (the frame's, drawn
+		   over anyway) and its bottom left, in one pen and then the
+		   other, tell */
+		short n = planes * 2 > 32 ? 32 : planes * 2, pen, k;
+		off_ok = 1;
+		for (k = 0; k < 2 && off_ok > 0; k++) {
+			short y = k ? dy + dh - 1 : dy;
+			unsigned char was[32], *at = buf + (long)(y - dy) * ob.bpl + (long)(dx >> 4) * planes * 2;
+			GRECT px;
+			px.x = dx;
+			px.y = y;
+			px.w = 1;
+			px.h = 1;
+			off_ok = -1;
+			for (pen = 1; pen >= 0 && off_ok < 0; pen--) {
+				memcpy(was, at, n);
+				xb_setscreen(base);
+				clip_on(&px);
+				fill(&px, pen);
+				clip_off();
+				xb_setscreen(scr);
+				if (memcmp(was, at, n))
+					off_ok = 1;
+			}
+		}
+		if (off_ok < 0) {
+			rows_copy(ob.screen, ob.bpl, ob.under, ob.n, ob.rows, ob.n);	/* a test pixel on the screen */
+			free(ob.under);
+			buf_free(buf);
+			return 0;
+		}
+	}
+	{
+		/* where the box leaves the screen showing: the shadow's rows
+		   in whole, and the words at its edges, a word at a time (a
+		   memcpy a row took an ST 60 ms) */
+		short r, i, g = planes, lw = (dx & 15) ? g : 0, rw = (short)(ob.n >> 1) - 2 * g;
+		unsigned short *d = (unsigned short *)(buf + ob.off);
+		const unsigned short *u = (const unsigned short *)ob.under;
+		long ds = ob.bpl >> 1, us = ob.n >> 1;
+		for (r = 0; r < ob.rows; r++, d += ds, u += us) {
+			if (r < 3 || r >= ob.rows - 3) {
+				memcpy(d, u, ob.n);
+				continue;
+			}
+			for (i = 0; i < lw; i++)
+				d[i] = u[i];
+			if (rw > 0)
+				for (i = rw; i < rw + 2 * g; i++)
+					d[i] = u[i];
+		}
+	}
+	c.x = dx;
+	c.y = dy;
+	c.w = dw + 3;
+	c.h = ob.rows;
+	xb_setscreen(base);
+	clip_on(&c);				/* nothing past the buffer's rows */
+	draw(1);
+	clip_off();
+	xb_setscreen(scr);
+	rows_copy(ob.screen, ob.bpl, buf + ob.off, ob.bpl, ob.rows, ob.n);
+	buf_free(buf);
+	return 1;
+}
+
+/* the screen under the box put back */
+static void off_back(void)
+{
+	graf_mouse(M_OFF, 0);
+	rows_copy(ob.screen, ob.bpl, ob.under, ob.n, ob.rows, ob.n);
+	graf_mouse(M_ON, 0);
+	free(ob.under);
+	ob.under = 0;
+}
+
 /* the box shown, run and put away: over the screen on TOS, in a window of
    the AES's on MiNT and MagiC (the guidelines, 3.5) */
 static void box_run(void (*draw)(int framed), const char *name)
 {
+	void *under;
 	box_draw = draw;
 	if (dlg_windowed()) {
 		short x, y, w = dw, h = dh;
@@ -344,15 +607,29 @@ static void box_run(void (*draw)(int framed), const char *name)
 	}
 	wind_update(BEG_UPDATE);
 	wind_update(3);
+	graf_mouse(M_OFF, 0);
+	if (draw_off(draw)) {
+		graf_mouse(M_ON, 0);
+		wait_close();
+		off_back();
+		wind_update(2);
+		wind_update(END_UPDATE);
+		return;
+	}
+	graf_mouse(M_ON, 0);
+	under = dlg_under(dx, dy, dw + 3, dh + 3);	/* put back, not redrawn */
 	form_dial(FMD_START, dx, dy, dw + 3, dh + 3);
 	graf_mouse(M_OFF, 0);
 	clip_screen();
 	draw(1);
 	graf_mouse(M_ON, 0);
 	wait_close();
+	if (under)
+		dlg_under_back(under);
 	wind_update(2);
 	wind_update(END_UPDATE);
-	form_dial(FMD_FINISH, dx, dy, dw + 3, dh + 3);
+	if (!under)
+		form_dial(FMD_FINISH, dx, dy, dw + 3, dh + 3);
 }
 
 void about_show(const ABOUT *a)
@@ -409,7 +686,7 @@ void about_show(const ABOUT *a)
 	}
 	if (dh > desk_h - 6)
 		dh = desk_h - 6;
-	dx = desk_x + (desk_w - dw) / 2;
+	dx = (desk_x + (desk_w - dw) / 2 + 8) & ~15;	/* on a word: its text on bytes */
 	dy = desk_y + (desk_h - dh) / 2;
 
 	ab = a;

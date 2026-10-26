@@ -12,6 +12,25 @@
 #include <string.h>
 #include "gemui.h"
 #include "popup.h"
+#include "dialog.h"
+
+/* the clip set through text.c where the app has it (text_clip keeps the
+   clip text_n reads: set behind its back, text_n would put the old one
+   back; ClaudeST, 26 Oct 2026), else straight */
+extern void text_clip(short h, const short *r) __attribute__((weak));
+extern void text_noclip(short h) __attribute__((weak));
+
+static void pclip(int on, short *r)
+{
+	if (text_clip && text_noclip) {
+		if (on)
+			text_clip(vdi_h, r);
+		else
+			text_noclip(vdi_h);
+	} else {
+		vs_clip(vdi_h, on, r);
+	}
+}
 
 #define MAXROWS 64
 
@@ -106,6 +125,7 @@ static short mouse(short *mx, short *my)
 }
 
 GRECT popup_area;
+short popup_put_back;
 
 short popup(short x, short y, const char *const *lab, short n)
 {
@@ -118,6 +138,7 @@ short popup_alt(short x, short y, short alt_y, const char *const *lab, short n)
 	short mx, my, ox, oy, m[8], clipr[4];
 	GRECT shadow, body;
 	AEVENT e;
+	void *under;
 
 	font_sys_push();
 	if (n > MAXROWS)
@@ -133,6 +154,7 @@ short popup_alt(short x, short y, short alt_y, const char *const *lab, short n)
 		x = desk_x + desk_w - pw - 2;
 	if (x < desk_x)
 		x = desk_x;
+	x &= ~7;			/* its text on a byte (the guidelines' Speed) */
 	if (y + bh + 2 > desk_y + desk_h) {
 		if (alt_y >= 0)			/* above the item it is for */
 			y = alt_y - bh - 2;
@@ -150,13 +172,14 @@ short popup_alt(short x, short y, short alt_y, const char *const *lab, short n)
 
 	wind_update(BEG_UPDATE);
 	wind_update(3);			/* BEG_MCTRL: we own the mouse */
+	under = dlg_under(x, y, pw + 3, bh + 3);	/* put back, not redrawn */
 	form_dial(FMD_START, x, y, pw + 3, bh + 3);
 	graf_mouse(M_OFF, 0);
 	clipr[0] = 0;
 	clipr[1] = 0;
 	clipr[2] = scr_w - 1;
 	clipr[3] = scr_h - 1;
-	vs_clip(vdi_h, 1, clipr);
+	pclip(1, clipr);
 	shadow.x = x + 2;
 	shadow.y = y + 2;
 	shadow.w = pw + 1;
@@ -225,12 +248,16 @@ short popup_alt(short x, short y, short alt_y, const char *const *lab, short n)
 			break;
 		}
 	}
-	vs_clip(vdi_h, 0, clipr);
+	pclip(0, clipr);
+	popup_put_back = under != 0;
+	if (under)
+		dlg_under_back(under);
 	wind_update(2);			/* END_MCTRL */
 	wind_update(END_UPDATE);
 	while (mouse(&mx, &my))
 		evnt_timer_(10);
-	form_dial(FMD_FINISH, x, y, pw + 3, bh + 3);
+	if (!under)
+		form_dial(FMD_FINISH, x, y, pw + 3, bh + 3);
 	font_sys_pop();
 	return res;
 }
