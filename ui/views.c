@@ -164,12 +164,6 @@ typedef struct {
 static ODAY *oday;
 static int oday_n;		/* occurrences it holds, 0: work them out each time */
 
-/* ct_days() by one divu.w when the minutes allow (1970 to 2149) */
-static long day_of(CTIME t)
-{
-	return t >= 0 && t < (CTIME)MIN_PER_DAY * 65535L ? (long)div16((unsigned long)t, MIN_PER_DAY) : ct_days(t);
-}
-
 static void oday_fill(void)
 {
 	static int cap;
@@ -184,8 +178,8 @@ static void oday_fill(void)
 	}
 	for (i = 0; i < occ.n; i++) {
 		const OCC *o = &occ.o[i];
-		oday[i].first = day_of(o->start);
-		oday[i].last = o->end > o->start ? day_of(o->end - 1) : oday[i].first;
+		oday[i].first = ct_days(o->start);	/* (one divu.w: common's ctime.c) */
+		oday[i].last = o->end > o->start ? ct_days(o->end - 1) : oday[i].first;
 		oday[i].lng = (char)(o->ev->allday || o->end - o->start >= MIN_PER_DAY ||
 				     oday[i].first != oday[i].last);
 	}
