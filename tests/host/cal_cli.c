@@ -136,6 +136,65 @@ static void idle_check(void)
 	file_check("across an event call (pf_idle)");
 }
 
+/* every field of every event and record, as text (snaptest) */
+static void dump_rule(FILE *f, const RRULE *r)
+{
+	int i;
+	fprintf(f, " rule %d %d %d %ld %ld %d %d %d %lu %lu %lu %lu %lu %u %u", r->freq, r->wkst, r->interval, r->count,
+		r->until, r->until_kind, r->rscale, r->skip, r->byhour, r->byminute[0], r->byminute[1], r->bysecond[0],
+		r->bysecond[1], r->bymonth, r->bymonth_leap);
+	for (i = 0; i < r->nbyday; i++)
+		fprintf(f, " d%d", r->byday[i]);
+	for (i = 0; i < r->nbymd; i++)
+		fprintf(f, " m%d", r->bymd[i]);
+	for (i = 0; i < r->nbyyd; i++)
+		fprintf(f, " y%d", r->byyd[i]);
+	for (i = 0; i < r->nbywn; i++)
+		fprintf(f, " w%d", r->bywn[i]);
+	for (i = 0; i < r->nbysetpos; i++)
+		fprintf(f, " p%d", r->bysetpos[i]);
+}
+
+static char *dump_all(void)
+{
+	char *out = 0;
+	size_t n = 0;
+	FILE *f = open_memstream(&out, &n);
+	int ci, i, k;
+	for (ci = 0; ci < ncals; ci++) {
+		CALENDAR *c = &cals[ci];
+		fprintf(f, "calendar %d %s: %d events %d records lost %d\n", c->id, c->name, c->nev, c->nres, c->lost);
+		for (i = 0; i < c->nres; i++)
+			fprintf(f, " res %d %s %s %ld %ld %d %ld\n", i, c->res[i].href ? c->res[i].href : "-",
+				c->res[i].etag ? c->res[i].etag : "-", c->res[i].off, c->res[i].len, c->res[i].dead,
+				c->res[i].beyond);
+		for (i = 0; i < c->nev; i++) {
+			EVENT *e = c->ev[i];
+			fprintf(f, " ev %d res %d [%s] [%s] [%s] [%s] [%s] [%s] [%s] tz %s %ld %ld %ld", i, e->res,
+				e->uid ? e->uid : "-", e->summary ? e->summary : "-", e->location ? e->location : "-",
+				e->notes ? e->notes : "-", e->url ? e->url : "-", e->attendees ? e->attendees : "-",
+				e->organizer ? e->organizer : "-", e->tz ? e->tz->name : "-", e->start, e->end, e->recurid);
+			if (e->tz)
+				fprintf(f, " (%d %d %d/%d/%d/%d/%d %d/%d/%d/%d/%d)", e->tz->std, e->tz->dst, e->tz->on.mon,
+					e->tz->on.wday, e->tz->on.day, e->tz->on.utc, e->tz->on.min, e->tz->off.mon,
+					e->tz->off.wday, e->tz->off.day, e->tz->off.utc, e->tz->off.min);
+			if (e->rr)
+				dump_rule(f, e->rr);
+			for (k = 0; k < e->nexdate; k++)
+				fprintf(f, " x%ld", e->exdate[k]);
+			for (k = 0; k < e->nrdate; k++)
+				fprintf(f, " r%ld/%ld", e->rdate[k], e->rdate_end ? e->rdate_end[k] : -1L);
+			for (k = 0; k < e->nexrule; k++)
+				dump_rule(f, &e->exrule[k]);
+			fprintf(f, " %d %d %d %d %d %d %d %d %d %d %d %d\n", e->range_future, e->alarm, e->allday,
+				e->floating, e->status, e->hasexc, e->gone, e->seq, e->att_edited, e->notes_later,
+				e->cal, e->res);
+		}
+	}
+	fclose(f);
+	return out;
+}
+
 int main(int argc, char **argv)
 {
 	const char *dir, *cmd;
@@ -170,6 +229,84 @@ int main(int argc, char **argv)
 		}
 	}
 
+	if (!strcmp(cmd, "snaptest")) {
+		/* the snapshot gives what the text gave: each calendar read from
+		   its text, its snapshot written, then read again from that */
+		/* snaptest DAYS: the snapshots written with a window of DAYS ahead,
+		   read with the settings' own: what the window now reaches read
+		   again from the text */
+		char *a, *b;
+		int i, ndat = 0, reads, same, days = argc > 3 ? atoi(argv[3]) : 0, keep = opt.future_days;
+		if (days)
+			opt.future_days = days;
+		for (i = 0; i < ncals; i++) {
+			cal_snap_forget(&cals[i]);
+			cal_load(&cals[i]);
+			ndat += accts[cals[i].acct].kind != AK_SUBSCR;
+		}
+		cal_snap_flush();
+		opt.future_days = keep;
+		if (days) {
+			cal_snap_off = 1;	/* what the text gives with the whole window */
+			for (i = 0; i < ncals; i++)
+				cal_load(&cals[i]);
+			cal_snap_off = 0;
+		}
+		a = dump_all();
+		reads = cal_snap_reads;
+		for (i = 0; i < ncals; i++)
+			cal_load(&cals[i]);
+		b = dump_all();
+		reads = cal_snap_reads - reads;
+		same = !strcmp(a, b);
+		if (!same) {
+			char p[300];
+			FILE *f;
+			snprintf(p, sizeof(p), "%s/snap_text.txt", dir);
+			if ((f = fopen(p, "w")))
+				fputs(a, f), fclose(f);
+			snprintf(p, sizeof(p), "%s/snap_snap.txt", dir);
+			if ((f = fopen(p, "w")))
+				fputs(b, f), fclose(f);
+		}
+		{
+			/* a cache file changed since its snapshot (an event added
+			   by another program): its text read, the same as without */
+			char *c1, *c2;
+			int stale;
+			for (i = 0; i < ncals; i++)
+				if (accts[cals[i].acct].kind != AK_SUBSCR) {
+					char p[300];
+					FILE *f;
+					snprintf(p, sizeof(p), "%s/CACHE/CAL%05d.DAT", dir, cals[i].id);
+					if ((f = fopen(p, "ab")))
+						fputs("X nothing-here\n", f), fclose(f);	/* a deletion of nothing */
+				}
+			cal_snap_off = 1;
+			for (i = 0; i < ncals; i++)
+				cal_load(&cals[i]);
+			c1 = dump_all();
+			cal_snap_off = 0;
+			stale = cal_snap_reads;
+			for (i = 0; i < ncals; i++)
+				cal_load(&cals[i]);
+			c2 = dump_all();
+			stale = cal_snap_reads - stale;
+			if (strcmp(c1, c2) || stale) {
+				printf("snaptest: with the cache files changed, %d snapshots read, %s\n", stale,
+				       strcmp(c1, c2) ? "DIFFERENT" : "the same");
+				same = 0;
+			}
+			free(c1);
+			free(c2);
+			cal_snap_flush();	/* (left as a start would leave them) */
+		}
+		printf("snaptest: %d calendars, %d read from their snapshots, %ld bytes of events: %s\n", ndat, reads,
+		       (long)strlen(a), same && reads == ndat ? "the same" : "DIFFERENT");
+		free(a);
+		free(b);
+		return same && reads == ndat ? 0 : 1;
+	}
 	if (!strcmp(cmd, "caldav") && argc == 7) {
 		ACCOUNT *a = acct_add(AK_CALDAV);
 		str_copy(a->name, argv[3], sizeof(a->name));

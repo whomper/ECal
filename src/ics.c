@@ -580,6 +580,8 @@ static void finish_event(ICSP *p)
 	/* outside the window, and not repeating: not needed */
 	if (!e->rr && p->from != CT_NONE && e->recurid == CT_NONE &&
 	    (e->end < p->from - 2 * MIN_PER_DAY || e->start > p->to + 2 * MIN_PER_DAY)) {
+		if (e->start > p->to && (ics_beyond == CT_NONE || e->start < ics_beyond))
+			ics_beyond = e->start;
 		ev_free(e);
 		return;
 	}
@@ -665,6 +667,7 @@ static void finish_tz(ICSP *p)
 
 char ics_me[100];
 int ics_people;
+CTIME ics_beyond = CT_NONE;	/* see ics.h */
 int ics_notes = 1;
 
 static void logical_line(ICSP *p, char *s)

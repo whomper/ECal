@@ -706,6 +706,7 @@ void cal_delete(int i)
 	char p[200];
 	int k;
 	CALENDAR *c = &cals[i];
+	cal_snap_forget(c);
 	cache_path(c, "DAT", p, sizeof(p));
 	pf_remove(p);
 	cache_path(c, "ICS", p, sizeof(p));
@@ -1130,6 +1131,11 @@ static struct {
 	CTIME from, to;
 	ICSP *p;		/* a subscription: its parser */
 	unsigned long t0;
+	/* read from the snapshot (snap_begin): its part now (1 records, 2
+	   events, 3 the records to read again, 4 its end), how far, how many */
+	int snap, part, reread, rnext;
+	long i, n;
+	char *again;		/* per record: read again from its text (snapshot) */
 } ld;
 static char *ld_line;		/* a subscription's line (as long as ics.c takes) */
 static int ld_linecap;
@@ -1167,6 +1173,13 @@ static void load_open(const char *path, int linecap)
 	str_copy(ld.f.path, path, sizeof(ld.f.path));
 }
 
+int cal_snap_reads;		/* calendars read from their snapshots, for the tests */
+int cal_snap_off;		/* the tests: read from the text whatever is there */
+static void snap_queue(CALENDAR *c);
+static int snap_begin(CALENDAR *c, const char *dat);
+static int load_snap_step(void);
+static void dat_begin(CALENDAR *c, const char *path);
+
 static void load_done(void)
 {
 	CALENDAR *c = ld.c;
@@ -1188,9 +1201,18 @@ static void load_done(void)
 	mark_exceptions(c);
 	if (c->lost > 0 && accts[c->acct].kind == AK_SUBSCR)
 		c->lost = -1;		/* its parser stopped there: the rest unread */
-	snprintf(m, sizeof(m), "read %s: %d events in %lu.%02lu s%s", c->name, c->nev, t / 1000, t % 1000 / 10,
+	snprintf(m, sizeof(m), "read %s: %d events in %lu.%02lu s%s%s", c->name, c->nev, t / 1000, t % 1000 / 10,
+		 ld.snap ? (ld.reread ? " (snapshot, some again)" : " (snapshot)") : "",
 		 c->lost ? " (not all: no memory left)" : "");
 	conn_log("ECal", "--", m, (long)strlen(m));
+	/* what was read, kept for the next time (unless it was all there) */
+	if (accts[c->acct].kind != AK_SUBSCR && !c->lost && (!ld.snap || ld.reread))
+		snap_queue(c);
+	if (ld.snap)
+		cal_snap_reads++;
+	ld.snap = ld.reread = 0;
+	free(ld.again);
+	ld.again = 0;
 }
 
 void cal_load_begin(CALENDAR *c)
@@ -1218,6 +1240,14 @@ void cal_load_begin(CALENDAR *c)
 		return;
 	}
 	cache_path(c, "DAT", path, sizeof(path));
+	if (!cal_snap_off && snap_begin(c, path))
+		return;
+	dat_begin(c, path);
+}
+
+/* the cache file's text from its start (no snapshot, or a bad one) */
+static void dat_begin(CALENDAR *c, const char *path)
+{
 	load_open(path, 700);
 	if (ld.f.path[0] && (!fr_line(&ld.f, ld_line, 700) || strncmp(ld_line, "CALCACHE 1", 10)))
 		ld.f.path[0] = 0;	/* not one of ours: nothing read */
@@ -1327,6 +1357,7 @@ static int load_dat_step(void)
 		r->off = ld.f.off;
 		r->len = len;
 		r->dead = 0;
+		r->beyond = CT_NONE;
 		ld.l.res = c->nres++;
 		if (hx && hx_c == c && r->href)
 			hx_put(c, ld.l.res);
@@ -1343,8 +1374,10 @@ static int load_dat_step(void)
 				return 0;
 			raw[len] = 0;
 			ics_notes = 0;		/* read when shown: ev_notes() */
+			ics_beyond = CT_NONE;
 			ics_parse(raw, len, add_event, &ld.l, ld.from, ld.to);
 			ics_notes = 1;
+			c->res[ld.l.res].beyond = ics_beyond;
 		} else if (!fr_bytes(&ld.f, 0, len)) {
 			return 0;
 		}
@@ -1358,7 +1391,8 @@ int cal_load_step(void)
 	int more;
 	if (!ld.c)
 		return 0;
-	more = ld.f.path[0] && (ld.p ? load_ics_step() : accts[ld.c->acct].kind != AK_SUBSCR && load_dat_step());
+	more = ld.snap ? load_snap_step() :
+	       ld.f.path[0] && (ld.p ? load_ics_step() : accts[ld.c->acct].kind != AK_SUBSCR && load_dat_step());
 	if (!more)
 		load_done();
 	return more;
@@ -1382,6 +1416,751 @@ static void reload(CALENDAR *c)
 		cal_load_begin(c);
 	else
 		cal_load(c);
+}
+
+/* ---------------- the snapshot: a calendar as read, kept ----------------
+ * Reading a calendar is parsing the iCalendar text of every event in its
+ * cache file: 22 s for 580 events on an ST, 6 s on a stock Falcon (the
+ * guidelines, Speed). Once a calendar has been read from the text, what
+ * came of it is kept beside the cache file, CALnnnnn.SNP: its records
+ * (href, etag, place in the file, the earliest event of each left out
+ * after the window) and its events, field by field, in the 68000's byte
+ * order whatever wrote it. The next reading takes them from there when
+ * the snapshot is of the same cache file (its size and date), in this
+ * format, with the window starting no earlier, the calendar's reminders
+ * and the account's address as they were; only a record with an event
+ * left out after the window, which the window now reaches, is read again
+ * from its text. Anything else, or a snapshot that doesn't read whole:
+ * the text, as before. Written in steps after the calendar was read
+ * (snap_step), to CALnnnnn.SN$, renamed when complete. */
+#define SNAP_MAGIC "ECALSNP"
+#define SNAP_FORMAT 1
+#define SNAP_HEAD 27		/* magic 7, format 1, size 4, stamp 4, from 4, to 4, reminders 1, address 2 */
+#define SNAP_ZONES 24
+
+static void snap_path(const CALENDAR *c, const char *ext, char *out, int size)
+{
+	cache_path(c, ext, out, size);
+}
+
+static unsigned short snap_me(void)
+{
+	unsigned short h = 0;
+	const char *p;
+	for (p = ics_me; *p; p++)
+		h = (unsigned short)((h << 3) + (h >> 13) + (unsigned char)*p);
+	return h;
+}
+
+/* the snapshot's sum: Fletcher's two 16-bit sums of every byte before
+   the sum itself, which ends it (a file damaged anywhere isn't trusted) */
+static void snap_add(unsigned long *sum, const unsigned char *p, long n)
+{
+	unsigned short a = (unsigned short)(*sum & 0xffff), b = (unsigned short)(*sum >> 16);
+	while (n-- > 0) {
+		a += *p++;
+		b += a;
+	}
+	*sum = ((unsigned long)b << 16) | a;
+}
+
+/* ---- reading it (ld.f is the snapshot's reader) ---- */
+static int snap_bad;		/* it didn't read as it should */
+static unsigned long snap_sum;
+
+static int sr_get(void *p, long n)
+{
+	if (snap_bad || !fr_bytes(&ld.f, p, n)) {
+		snap_bad = 1;
+		return 0;
+	}
+	snap_add(&snap_sum, p, n);
+	return 1;
+}
+
+static long sr_n(int bytes)
+{
+	unsigned char b[4];
+	long v = 0;
+	int i;
+	if (!sr_get(b, bytes))
+		return 0;
+	for (i = 0; i < bytes; i++)
+		v = (v << 8) | b[i];
+	if (bytes == 2 && (v & 0x8000L))
+		v -= 0x10000L;
+	else if (bytes == 4 && (v & 0x80000000UL))
+		v = (long)(v | ~0xffffffffUL);	/* (a 64-bit long on the build machine) */
+	return v;
+}
+
+static char *sr_str(void)
+{
+	long n = sr_n(2) & 0xffffL;
+	char *t;
+	if (n == 0xffffL || snap_bad)
+		return 0;
+	if (!(t = malloc(n + 1))) {
+		snap_bad = 1;
+		return 0;
+	}
+	if (!sr_get(t, n)) {
+		free(t);
+		return 0;
+	}
+	t[n] = 0;
+	return t;
+}
+
+static void sr_rule(RRULE *r)
+{
+	int i;
+	memset(r, 0, sizeof(*r));
+	r->freq = (unsigned char)sr_n(1);
+	r->wkst = (unsigned char)sr_n(1);
+	r->interval = (short)sr_n(2);
+	r->count = sr_n(4);
+	r->until = sr_n(4);
+	r->until_kind = (unsigned char)sr_n(1);
+	r->rscale = (unsigned char)sr_n(1);
+	r->skip = (unsigned char)sr_n(1);
+	r->nbyday = (unsigned char)sr_n(1);
+	r->nbymd = (unsigned char)sr_n(1);
+	r->nbysetpos = (unsigned char)sr_n(1);
+	r->nbyyd = (unsigned char)sr_n(1);
+	r->nbywn = (unsigned char)sr_n(1);
+	if (r->nbyday > RR_MAXBY || r->nbymd > RR_MAXBY || r->nbysetpos > RR_MAXBY || r->nbyyd > RR_MAXBY ||
+	    r->nbywn > RR_MAXBY) {
+		snap_bad = 1;
+		return;
+	}
+	for (i = 0; i < r->nbyday; i++)
+		r->byday[i] = (short)sr_n(2);
+	for (i = 0; i < r->nbymd; i++)
+		r->bymd[i] = (signed char)sr_n(1);
+	for (i = 0; i < r->nbyyd; i++)
+		r->byyd[i] = (short)sr_n(2);
+	for (i = 0; i < r->nbywn; i++)
+		r->bywn[i] = (signed char)sr_n(1);
+	for (i = 0; i < r->nbysetpos; i++)
+		r->bysetpos[i] = (short)sr_n(2);
+	r->bymonth = (unsigned short)sr_n(2);
+	r->bymonth_leap = (unsigned short)sr_n(2);
+	r->byhour = (unsigned long)sr_n(4);
+	r->byminute[0] = (unsigned long)sr_n(4);
+	r->byminute[1] = (unsigned long)sr_n(4);
+	r->bysecond[0] = (unsigned long)sr_n(4);
+	r->bysecond[1] = (unsigned long)sr_n(4);
+}
+
+static const TZONE *snap_zone[SNAP_ZONES];
+static int snap_nzones;
+
+/* a record whose events are read again from its text: the window now
+   reaches an event of it that was left out */
+static int snap_again(const RESOURCE *r)
+{
+	return !r->dead && r->beyond != CT_NONE && r->beyond <= ld.to + 2 * MIN_PER_DAY;
+}
+
+static int snap_begin(CALENDAR *c, const char *dat)
+{
+	char path[200], hd[SNAP_HEAD];
+	long size, i;
+	unsigned long stamp = pf_info(dat, &size);
+	snap_path(c, "SNP", path, sizeof(path));
+	if (!stamp || pf_read_at(path, 0, hd, SNAP_HEAD) != SNAP_HEAD || memcmp(hd, SNAP_MAGIC, 7) ||
+	    hd[7] != SNAP_FORMAT)
+		return 0;
+	load_open(path, 8);
+	if (!ld.f.path[0])
+		return 0;
+	snap_bad = 0;
+	snap_sum = 0;
+	ld.snap = 1;
+	ld.reread = 0;
+	sr_get(hd, 8);
+	{
+		long ssize = sr_n(4);
+		unsigned long sstamp = (unsigned long)sr_n(4) & 0xffffffffUL;
+		CTIME from = sr_n(4), to = sr_n(4);
+		int rem = (int)sr_n(1);
+		unsigned short me = (unsigned short)sr_n(2);
+		(void)to;
+		/* the same cache file, a window starting no earlier (events
+		   before it weren't kept), the reminders and the address the
+		   events were read with */
+		if (snap_bad || ssize != size || sstamp != stamp || ld.from < from || rem != c->alarms || me != snap_me()) {
+			free(ld.f.buf);
+			free(ld_line);
+			ld_line = 0;
+			memset(&ld.f, 0, sizeof(ld.f));	/* (the text's reading starts afresh) */
+			ld.snap = 0;
+			return 0;
+		}
+	}
+	snap_nzones = (int)sr_n(2);
+	if (snap_nzones > SNAP_ZONES)
+		snap_bad = 1;
+	for (i = 0; i < snap_nzones && !snap_bad; i++) {
+		TZONE z;
+		const TZONE *f;
+		memset(&z, 0, sizeof(z));
+		sr_get(z.name, sizeof(z.name));
+		z.name[sizeof(z.name) - 1] = 0;
+		z.std = (short)sr_n(2);
+		z.dst = (short)sr_n(2);
+		z.on.mon = (unsigned char)sr_n(1);
+		z.on.wday = (unsigned char)sr_n(1);
+		z.on.day = (signed char)sr_n(1);
+		z.on.utc = (unsigned char)sr_n(1);
+		z.on.min = (short)sr_n(2);
+		z.off.mon = (unsigned char)sr_n(1);
+		z.off.wday = (unsigned char)sr_n(1);
+		z.off.day = (signed char)sr_n(1);
+		z.off.utc = (unsigned char)sr_n(1);
+		z.off.min = (short)sr_n(2);
+		/* the zone by its name, if it is the same; else learned as it was */
+		f = tz_find(z.name);
+		snap_zone[i] = f && f->std == z.std && f->dst == z.dst && !memcmp(&f->on, &z.on, sizeof(z.on)) &&
+			       !memcmp(&f->off, &z.off, sizeof(z.off)) ? f : tz_learn(&z);
+	}
+	ld.part = 1;
+	ld.i = 0;
+	ld.n = sr_n(4);
+	if (!snap_bad && ld.n > 0) {
+		RESOURCE *n = realloc(c->res, ld.n * sizeof(RESOURCE));
+		if (n) {
+			c->res = n;
+			c->maxres = (int)ld.n;
+		} else {
+			snap_bad = 1;
+		}
+	}
+	return 1;
+}
+
+/* something didn't read: the snapshot goes, the text is read instead */
+static void snap_fail(void)
+{
+	CALENDAR *c = ld.c;
+	char dat[200], path[200];
+	free(ld.f.buf);
+	ld.f.buf = 0;
+	free(ld_line);
+	ld_line = 0;
+	memset(&ld.f, 0, sizeof(ld.f));
+	snap_path(c, "SNP", path, sizeof(path));
+	pf_remove(path);
+	cal_free_events(c);
+	c->lost = 0;
+	notes_gen++;
+	ld.snap = ld.reread = 0;
+	free(ld.again);
+	ld.again = 0;
+	cache_path(c, "DAT", dat, sizeof(dat));
+	dat_begin(c, dat);
+}
+
+/* record r read again from its text, its events in their place */
+static void snap_reread(int r)
+{
+	CALENDAR *c = ld.c;
+	RESOURCE *rs = &c->res[r];
+	char dat[200], *raw = rs->len < 65536L ? malloc(rs->len + 1) : 0;
+	cache_path(c, "DAT", dat, sizeof(dat));
+	if (raw && pf_read_at(dat, rs->off, raw, rs->len) == rs->len) {
+		raw[rs->len] = 0;
+		ld.l.res = r;
+		ics_notes = 0;
+		ics_beyond = CT_NONE;
+		ics_parse(raw, rs->len, add_event, &ld.l, ld.from, ld.to);
+		ics_notes = 1;
+		c->res[r].beyond = ics_beyond;
+		ld.reread = 1;
+	} else {
+		c->lost = -1;		/* no memory, or the file changed: not kept as complete */
+	}
+	free(raw);
+}
+
+/* the records to read again before record r (all of them: r = nres),
+   from ld.rnext on, so the events stay in the text's order */
+static void snap_reread_to(int r)
+{
+	for (; ld.rnext < r; ld.rnext++)
+		if (ld.again && ld.again[ld.rnext])
+			snap_reread(ld.rnext);
+}
+
+static int load_snap_step(void)
+{
+	CALENDAR *c = ld.c;
+	int k;
+	if (snap_bad) {
+		snap_fail();
+		return 1;
+	}
+	if (ld.part == 1) {
+		/* the records, 64 a step */
+		for (k = 0; k < 64 && ld.i < ld.n && !snap_bad; k++, ld.i++) {
+			RESOURCE *r = &c->res[c->nres];
+			r->href = sr_str();
+			r->etag = sr_str();
+			r->off = sr_n(4);
+			r->len = sr_n(4);
+			r->dead = (short)sr_n(1);
+			r->beyond = sr_n(4);
+			c->nres++;
+		}
+		if (ld.i >= ld.n && !snap_bad) {
+			int r, any = 0;
+			/* which records the window now reaches past what was kept */
+			for (r = 0; r < c->nres; r++)
+				any |= snap_again(&c->res[r]);
+			if (any && (ld.again = calloc(c->nres, 1)) != 0)
+				for (r = 0; r < c->nres; r++)
+					ld.again[r] = (char)snap_again(&c->res[r]);
+			else if (any)
+				snap_bad = 1;	/* (no memory: the text, which copes) */
+			ld.rnext = 0;
+			ld.part = 2;
+			ld.i = 0;
+			ld.n = sr_n(4);
+			if (ld.n > c->maxev) {
+				EVENT **n = realloc(c->ev, ld.n * sizeof(EVENT *));
+				if (n) {
+					c->ev = n;
+					c->maxev = (int)ld.n;
+				}
+			}
+		}
+		return 1;
+	}
+	if (ld.part == 2) {
+		/* the events, 24 a step */
+		for (k = 0; k < 24 && ld.i < ld.n && !snap_bad; k++, ld.i++) {
+			EVENT *e = ev_new();
+			int z, i, keep;
+			LOADCTX l;
+			if (!e) {
+				c->lost = -1;
+				return 0;
+			}
+			l.c = c;
+			l.res = (int)sr_n(2);
+			e->uid = sr_str();
+			e->summary = sr_str();
+			e->location = sr_str();
+			e->notes = sr_str();
+			e->url = sr_str();
+			e->attendees = sr_str();
+			e->organizer = sr_str();
+			z = (int)sr_n(2);
+			e->tz = z >= 0 && z < snap_nzones ? snap_zone[z] : 0;
+			e->start = sr_n(4);
+			e->end = sr_n(4);
+			e->recurid = sr_n(4);
+			if (sr_n(1)) {
+				if (!(e->rr = malloc(sizeof(RRULE))))
+					snap_bad = 1;
+				else
+					sr_rule(e->rr);
+			}
+			e->nexdate = (short)sr_n(2);
+			if (e->nexdate > 0 && !snap_bad && !(e->exdate = malloc(e->nexdate * sizeof(CTIME))))
+				snap_bad = 1;
+			for (i = 0; i < e->nexdate && !snap_bad; i++)
+				e->exdate[i] = sr_n(4);
+			e->nrdate = (short)sr_n(2);
+			if (e->nrdate > 0 && !snap_bad && !(e->rdate = malloc(e->nrdate * sizeof(CTIME))))
+				snap_bad = 1;
+			for (i = 0; i < e->nrdate && !snap_bad; i++)
+				e->rdate[i] = sr_n(4);
+			if (sr_n(1) && e->nrdate > 0 && !snap_bad) {
+				if (!(e->rdate_end = malloc(e->nrdate * sizeof(CTIME))))
+					snap_bad = 1;
+				for (i = 0; i < e->nrdate && !snap_bad; i++)
+					e->rdate_end[i] = sr_n(4);
+			}
+			e->nexrule = (short)sr_n(2);
+			if (e->nexrule > 0 && !snap_bad && !(e->exrule = malloc(e->nexrule * sizeof(RRULE))))
+				snap_bad = 1;
+			for (i = 0; i < e->nexrule && !snap_bad; i++)
+				sr_rule(&e->exrule[i]);
+			e->range_future = (unsigned char)sr_n(1);
+			e->allday = (unsigned char)sr_n(1);
+			e->floating = (unsigned char)sr_n(1);
+			e->status = (unsigned char)sr_n(1);
+			e->gone = (unsigned char)sr_n(1);
+			e->notes_later = (unsigned char)sr_n(1);
+			e->alarm = (short)sr_n(2);
+			e->seq = (short)sr_n(2);
+			if (snap_bad || l.res < -1 || l.res >= c->nres) {
+				ev_free(e);
+				snap_bad = 1;
+				break;
+			}
+			/* records read again from their text first, in their place
+			   (the events stay in the text's order); not kept: an event
+			   of one, an event that happens once and now lies before the
+			   window (as ics.c) */
+			if (l.res >= 0)
+				snap_reread_to(l.res + 1);
+			keep = !(l.res >= 0 && ld.again && ld.again[l.res]) &&
+			       (e->rr || e->recurid != CT_NONE || e->end >= ld.from - 2 * MIN_PER_DAY);
+			if (!keep || !add_event(e, &l))
+				ev_free(e);
+		}
+		if (ld.i >= ld.n && !snap_bad) {
+			char end[4];
+			unsigned long sum;
+			if (!sr_get(end, 4) || memcmp(end, "END!", 4))
+				snap_bad = 1;
+			sum = snap_sum;
+			if (!snap_bad && (unsigned long)(sr_n(4) & 0xffffffffUL) != sum)
+				snap_bad = 1;	/* damaged somewhere */
+			ld.part = 3;
+			ld.i = 0;
+		}
+		return 1;
+	}
+	if (ld.part == 3) {
+		/* the records after the last event's to read again: one a step */
+		while (ld.rnext < c->nres && !(ld.again && ld.again[ld.rnext]))
+			ld.rnext++;
+		if (ld.rnext < c->nres) {
+			snap_reread(ld.rnext++);
+			return 1;
+		}
+		return 0;
+	}
+	return 0;
+}
+
+/* ---- writing it, in steps (the program's and the accessory's work) ---- */
+static short snap_wanted[16];	/* calendars (id) to be written */
+static int nsnap_wanted;
+static struct {
+	short id;		/* the calendar being written, -1: none */
+	int part;		/* 0 the head and zones, 1 records, 2 events, 3 done */
+	long i;
+	int nres, nev;
+	unsigned notes;		/* notes_gen when begun: a change since, given up */
+	const TZONE *zone[SNAP_ZONES];
+	int nz;
+	unsigned long sum;	/* of what was written so far */
+	char path[200];
+} sw = { -1, 0, 0, 0, 0, 0, { 0 }, 0, 0, "" };
+
+static void snap_queue(CALENDAR *c)
+{
+	int i;
+	for (i = 0; i < nsnap_wanted; i++)
+		if (snap_wanted[i] == c->id)
+			return;
+	if (nsnap_wanted < (int)(sizeof(snap_wanted) / sizeof(snap_wanted[0])))
+		snap_wanted[nsnap_wanted++] = c->id;
+}
+
+int cal_snap_pending(void)
+{
+	return sw.id >= 0 || nsnap_wanted > 0;
+}
+
+typedef struct {
+	unsigned char *b;
+	long n, cap;
+	int bad;
+} SNB;
+
+static void sn_put(SNB *o, const void *p, long n)
+{
+	if (o->bad)
+		return;
+	if (o->n + n > o->cap) {
+		long cap = o->cap ? o->cap * 2 : 4096;
+		unsigned char *nb;
+		while (cap < o->n + n)
+			cap *= 2;
+		if (!(nb = realloc(o->b, cap))) {
+			o->bad = 1;
+			return;
+		}
+		o->b = nb;
+		o->cap = cap;
+	}
+	memcpy(o->b + o->n, p, n);
+	o->n += n;
+}
+
+static void sn_n(SNB *o, long v, int bytes)
+{
+	unsigned char b[4];
+	int i;
+	for (i = bytes - 1; i >= 0; i--) {
+		b[i] = (unsigned char)(v & 0xff);
+		v >>= 8;
+	}
+	sn_put(o, b, bytes);
+}
+
+static void sn_str(SNB *o, const char *t)
+{
+	long n = t ? (long)strlen(t) : 0;
+	if (!t || n >= 0xffffL) {
+		sn_n(o, 0xffffL, 2);
+		return;
+	}
+	sn_n(o, n, 2);
+	sn_put(o, t, n);
+}
+
+static void sn_rule(SNB *o, const RRULE *r)
+{
+	int i;
+	sn_n(o, r->freq, 1);
+	sn_n(o, r->wkst, 1);
+	sn_n(o, r->interval, 2);
+	sn_n(o, r->count, 4);
+	sn_n(o, r->until, 4);
+	sn_n(o, r->until_kind, 1);
+	sn_n(o, r->rscale, 1);
+	sn_n(o, r->skip, 1);
+	sn_n(o, r->nbyday, 1);
+	sn_n(o, r->nbymd, 1);
+	sn_n(o, r->nbysetpos, 1);
+	sn_n(o, r->nbyyd, 1);
+	sn_n(o, r->nbywn, 1);
+	for (i = 0; i < r->nbyday; i++)
+		sn_n(o, r->byday[i], 2);
+	for (i = 0; i < r->nbymd; i++)
+		sn_n(o, r->bymd[i], 1);
+	for (i = 0; i < r->nbyyd; i++)
+		sn_n(o, r->byyd[i], 2);
+	for (i = 0; i < r->nbywn; i++)
+		sn_n(o, r->bywn[i], 1);
+	for (i = 0; i < r->nbysetpos; i++)
+		sn_n(o, r->bysetpos[i], 2);
+	sn_n(o, r->bymonth, 2);
+	sn_n(o, r->bymonth_leap, 2);
+	sn_n(o, (long)r->byhour, 4);
+	sn_n(o, (long)r->byminute[0], 4);
+	sn_n(o, (long)r->byminute[1], 4);
+	sn_n(o, (long)r->bysecond[0], 4);
+	sn_n(o, (long)r->bysecond[1], 4);
+}
+
+static int sw_zone(const TZONE *z)
+{
+	int i;
+	if (!z)
+		return -1;
+	for (i = 0; i < sw.nz; i++)
+		if (sw.zone[i] == z)
+			return i;
+	return -2;		/* not listed: too many zones */
+}
+
+static void sn_event(SNB *o, const EVENT *e)
+{
+	int i;
+	sn_n(o, e->res, 2);
+	sn_str(o, e->uid);
+	sn_str(o, e->summary);
+	sn_str(o, e->location);
+	sn_str(o, e->notes);
+	sn_str(o, e->url);
+	sn_str(o, e->attendees);
+	sn_str(o, e->organizer);
+	sn_n(o, sw_zone(e->tz), 2);
+	sn_n(o, e->start, 4);
+	sn_n(o, e->end, 4);
+	sn_n(o, e->recurid, 4);
+	sn_n(o, e->rr != 0, 1);
+	if (e->rr)
+		sn_rule(o, e->rr);
+	sn_n(o, e->nexdate, 2);
+	for (i = 0; i < e->nexdate; i++)
+		sn_n(o, e->exdate[i], 4);
+	sn_n(o, e->nrdate, 2);
+	for (i = 0; i < e->nrdate; i++)
+		sn_n(o, e->rdate[i], 4);
+	sn_n(o, e->rdate_end != 0, 1);
+	if (e->rdate_end)
+		for (i = 0; i < e->nrdate; i++)
+			sn_n(o, e->rdate_end[i], 4);
+	sn_n(o, e->nexrule, 2);
+	for (i = 0; i < e->nexrule; i++)
+		sn_rule(o, &e->exrule[i]);
+	sn_n(o, e->range_future, 1);
+	sn_n(o, e->allday, 1);
+	sn_n(o, e->floating, 1);
+	sn_n(o, e->status, 1);
+	sn_n(o, e->gone, 1);
+	sn_n(o, e->notes_later, 1);
+	sn_n(o, e->alarm, 2);
+	sn_n(o, e->seq, 2);
+}
+
+static void sw_drop(void)
+{
+	if (sw.id >= 0 && sw.path[0])
+		pf_remove(sw.path);
+	sw.id = -1;
+	sw.path[0] = 0;
+}
+
+/* one step of writing a snapshot: 0 when there is nothing more to do */
+int cal_snap_step(void)
+{
+	CALENDAR *c;
+	SNB o;
+	int h, k;
+	if (sw.id < 0) {
+		/* the next calendar asked for: begun if it is read and still there */
+		if (!nsnap_wanted)
+			return 0;
+		sw.id = snap_wanted[0];
+		memmove(snap_wanted, snap_wanted + 1, --nsnap_wanted * sizeof(snap_wanted[0]));
+		c = cal_by_id(sw.id);
+		if (!c || (ld.c == c) || c->lost) {
+			sw.id = -1;
+			return 1;
+		}
+		sw.part = 0;
+		sw.i = 0;
+		sw.sum = 0;
+		sw.nres = c->nres;
+		sw.nev = c->nev;
+		sw.notes = notes_gen;
+		snap_path(c, "SN$", sw.path, sizeof(sw.path));
+	}
+	c = cal_by_id(sw.id);
+	if (!c || ld.c == c || c->nres != sw.nres || c->nev != sw.nev || notes_gen != sw.notes) {
+		sw_drop();		/* changed meanwhile: given up (asked for again by what changed it) */
+		return 1;
+	}
+	memset(&o, 0, sizeof(o));
+	if (sw.part == 0) {
+		char dat[200];
+		long size;
+		unsigned long stamp;
+		int i;
+		CTIME from, to;
+		cache_path(c, "DAT", dat, sizeof(dat));
+		stamp = pf_info(dat, &size);
+		window(&from, &to);
+		set_me(c);
+		sw.nz = 0;
+		for (i = 0; i < c->nev; i++) {
+			const TZONE *z = c->ev[i]->tz;
+			if (z && sw_zone(z) == -2 && sw.nz < SNAP_ZONES)
+				sw.zone[sw.nz++] = z;
+		}
+		sn_put(&o, SNAP_MAGIC, 7);
+		sn_n(&o, SNAP_FORMAT, 1);
+		sn_n(&o, size, 4);
+		sn_n(&o, (long)stamp, 4);
+		sn_n(&o, from, 4);
+		sn_n(&o, to, 4);
+		sn_n(&o, c->alarms, 1);
+		sn_n(&o, snap_me(), 2);
+		sn_n(&o, sw.nz, 2);
+		for (i = 0; i < sw.nz; i++) {
+			const TZONE *z = sw.zone[i];
+			sn_put(&o, z->name, sizeof(z->name));
+			sn_n(&o, z->std, 2);
+			sn_n(&o, z->dst, 2);
+			sn_n(&o, z->on.mon, 1);
+			sn_n(&o, z->on.wday, 1);
+			sn_n(&o, z->on.day, 1);
+			sn_n(&o, z->on.utc, 1);
+			sn_n(&o, z->on.min, 2);
+			sn_n(&o, z->off.mon, 1);
+			sn_n(&o, z->off.wday, 1);
+			sn_n(&o, z->off.day, 1);
+			sn_n(&o, z->off.utc, 1);
+			sn_n(&o, z->off.min, 2);
+		}
+		sn_n(&o, c->nres, 4);
+		h = pf_open(sw.path, PF_WRITE);
+		sw.part = 1;
+	} else {
+		h = pf_open(sw.path, PF_APPEND);
+	}
+	if (sw.part == 1 && !o.bad) {
+		for (k = 0; k < 96 && sw.i < c->nres; k++, sw.i++) {
+			const RESOURCE *r = &c->res[sw.i];
+			sn_str(&o, r->href);
+			sn_str(&o, r->etag);
+			sn_n(&o, r->off, 4);
+			sn_n(&o, r->len, 4);
+			sn_n(&o, r->dead, 1);
+			sn_n(&o, r->beyond, 4);
+		}
+		if (sw.i >= c->nres) {
+			sn_n(&o, c->nev, 4);
+			sw.part = 2;
+			sw.i = 0;
+		}
+	} else if (sw.part == 2 && !o.bad) {
+		for (k = 0; k < 32 && sw.i < c->nev; k++, sw.i++) {
+			if (sw_zone(c->ev[sw.i]->tz) == -2) {
+				o.bad = 1;	/* more zones than it holds: not written */
+				break;
+			}
+			sn_event(&o, c->ev[sw.i]);
+		}
+		if (sw.i >= c->nev) {
+			sn_put(&o, "END!", 4);
+			if (!o.bad) {
+				unsigned long sum = sw.sum;
+				snap_add(&sum, o.b, o.n);
+				sn_n(&o, (long)sum, 4);
+				o.n -= 4;	/* (not summed itself: added after) */
+				snap_add(&sw.sum, o.b, o.n);
+				o.n += 4;
+			}
+			sw.part = 3;
+		}
+	}
+	if (sw.part != 3 && !o.bad)
+		snap_add(&sw.sum, o.b, o.n);
+	if (h < 0 || o.bad || pf_write(h, o.b, o.n) != o.n) {
+		if (h >= 0)
+			pf_close(h);
+		free(o.b);
+		sw_drop();
+		return 1;
+	}
+	pf_close(h);
+	free(o.b);
+	if (sw.part == 3) {
+		char snp[200];
+		snap_path(c, "SNP", snp, sizeof(snp));
+		pf_remove(snp);
+		if (pf_rename(sw.path, snp) != 0)
+			pf_remove(sw.path);
+		sw.id = -1;
+		sw.path[0] = 0;
+	}
+	return 1;
+}
+
+/* everything asked for written now (cal-cli, the tests) */
+void cal_snap_flush(void)
+{
+	while (cal_snap_step())
+		;
+}
+
+/* a calendar's snapshot thrown away (the calendar deleted, a test) */
+void cal_snap_forget(CALENDAR *c)
+{
+	char p[200];
+	snap_path(c, "SNP", p, sizeof(p));
+	pf_remove(p);
 }
 
 void cal_load_all(void)
@@ -1569,6 +2348,7 @@ static int add_res_old(CALENDAR *c, long off, const char *href, const char *etag
 	r->off = off;
 	r->len = len;
 	r->dead = 0;
+	r->beyond = CT_NONE;
 	if (hx && hx_c == c && !hx_room(c, c->nres + 1))
 		hx_done();		/* no memory: the slow way */
 	c->nres++;
@@ -1620,8 +2400,10 @@ static void parse_res(CALENDAR *c, int res, const char *raw, long len)
 	set_me(c);
 	notes_gen++;
 	ics_notes = 0;
+	ics_beyond = CT_NONE;
 	ics_parse(raw, len, add_event, &l, from, to);
 	ics_notes = 1;
+	c->res[res].beyond = ics_beyond;
 }
 
 static int append_res(CALENDAR *c, int h, long *size, const char *href, const char *etag,

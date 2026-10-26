@@ -24,6 +24,8 @@ typedef struct {
 	char *href, *etag;	/* where the server keeps it */
 	long off, len;		/* its iCalendar text in the cache file */
 	short dead;		/* replaced or deleted by a record further on in the file */
+	CTIME beyond;		/* the earliest event of it left out for lying after the
+				   window (ics_beyond), CT_NONE: none (the snapshot's) */
 } RESOURCE;
 
 typedef struct {
@@ -133,6 +135,14 @@ void cal_load(CALENDAR *c);
 void cal_load_begin(CALENDAR *c);
 int  cal_load_step(void);
 int  cal_loading(void);		/* a calendar is being read in steps */
+/* the snapshots of calendars read from their text (CALnnnnn.SNP, read
+   instead of the text next time): written a step at a time */
+int  cal_snap_pending(void);
+int  cal_snap_step(void);		/* 0: nothing more */
+void cal_snap_flush(void);
+void cal_snap_forget(CALENDAR *c);	/* its snapshot removed */
+extern int cal_snap_reads;		/* calendars read from their snapshots so far */
+extern int cal_snap_off;		/* (tests) snapshots not read */
 void cal_load_stop(void);
 /* 1: a refresh that brings changes only begins reading the calendar
    again (cal_load_begin), for the caller to go on in steps */

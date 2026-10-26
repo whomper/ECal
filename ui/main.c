@@ -1661,12 +1661,13 @@ static int work_pending(void)
 	/* (while ECAL.PRG runs, bg_may_work() says no: the work is its) */
 	if (!settings_ready)
 		return workdir[0] != 0;	/* the folder is asked for at the first opening */
-	return !data_ready || alarms_pending() || save_alarms_pending() || inf_stage || bg_sync_due();
+	return !data_ready || alarms_pending() || save_alarms_pending() || inf_stage || cal_snap_pending() ||
+	       bg_sync_due();
 }
 
 /* what the next step does: 1 settings, 2 calendars, 3 reminders, 4 ALARMS.IDX, 5 refresh,
    6 refresh waiting for the server (timed apart: a step of it is the network's time),
-   7 writing ECAL.INF */
+   7 writing ECAL.INF, 0 writing a calendar's snapshot */
 static int work_kind(void)
 {
 	if (!settings_ready)
@@ -1679,6 +1680,8 @@ static int work_kind(void)
 		return 4;
 	if (inf_stage)
 		return 7;
+	if (cal_snap_pending())
+		return 0;
 	if (sync_busy() ? sync_net_step() : bg_next >= 0 && bg_next < ncals)
 		return 6;
 	return 5;
@@ -1762,6 +1765,12 @@ static void work_step(void)
 			inf_stage = 0;
 			save_alarms();	/* its stamp has ECAL.INF's */
 		}
+		return;
+	}
+	if (cal_snap_pending()) {
+		/* what was read, kept for the next start (calstore.c's snapshot) */
+		aes_profile_tag("work: snapshot");
+		cal_snap_step();
 		return;
 	}
 	aes_profile_tag("work: refresh");

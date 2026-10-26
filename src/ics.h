@@ -108,6 +108,11 @@ int   ics_parse(const char *text, long n, ICS_CB cb, void *ud, CTIME from, CTIME
 int   ics_parse_file(const char *path, ICS_CB cb, void *ud, CTIME from, CTIME to);
 /* now, UTC, for DTSTAMP and LAST-MODIFIED (set by the program) */
 extern CTIME ics_now_utc;
+/* the earliest start of an event that happens once, left out for lying
+   after the window: lowered by every such event; the caller sets it to
+   CT_NONE first (calstore.c's snapshot reads such a record again when the
+   window has moved past it) */
+extern CTIME ics_beyond;
 /* the calendar's own name (X-WR-CALNAME) seen by the last parse, Atari text */
 extern char ics_calname[64];
 
