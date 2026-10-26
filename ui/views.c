@@ -1863,7 +1863,14 @@ static int scroll_by(long dy)
 	if (!dy)
 		return 0;
 	scroll_y = ny;
-	laid_out = 0;		/* the boxes move */
+	if (laid_out) {
+		/* the timed boxes move with the hours (laid out again they
+		   would come to the same: 20 ms of a line's 50 on an ST) */
+		int i;
+		for (i = 0; i < nitems; i++)
+			if (items[i].timed)
+				items[i].r.y -= (short)dy;
+	}
 	a = grid;
 	a.x = r_view.x;		/* the hours on the left too */
 	a.w = gutter + grid.w;
@@ -1938,11 +1945,12 @@ void views_glide(void)
 		step = hour_h;
 	if (step > left)
 		step = left;
-	if (!scroll_by(glide_left < 0 ? -step : step)) {
+	if (!scroll_by(glide_left < 0 ? -step : step))
 		glide_left = 0;		/* the top or the bottom */
-		return;
-	}
-	glide_left += glide_left < 0 ? step : -step;
+	else
+		glide_left += glide_left < 0 ? step : -step;
+	if (!glide_left)
+		win_sliders();		/* (not at each step: win_redraw) */
 }
 
 static void glide_key(int dir)

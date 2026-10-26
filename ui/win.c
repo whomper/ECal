@@ -536,7 +536,8 @@ void win_redraw(GRECT *area)
 	}
 	graf_mouse(M_ON, 0);
 	wind_update(END_UPDATE);
-	win_sliders();
+	if (!views_gliding())
+		win_sliders();	/* (gliding: when it stops, views_glide; 45 ms a step on an ST) */
 }
 
 short win_popup(short x, short y, const char *const *labels, short n)
