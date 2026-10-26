@@ -757,8 +757,9 @@ static void draw_month(GRECT *clip)
 	int y0, m0, d0;
 	civil_from_days(cur_day, &y0, &m0, &d0);
 	clip_on(clip);
-	/* weekday names */
-	for (c = 0; c < 7; c++) {
+	/* weekday names (not for a box redrawn below them: each text costs
+	   an ST milliseconds, clipped or not) */
+	for (c = 0; c < 7 && clip->y < grid.y; c++) {
 		const char *wn = COLW(c) >= 10 * cw ? wday_names[(c + opt.weekstart) % 7] : wday_short[(c + opt.weekstart) % 7];
 		short wd = (c + opt.weekstart) % 7;
 		text_color(wd == 6 || (opt.weekstart == 0 && wd == 5 && 0) ? 1 : 1);
@@ -794,7 +795,7 @@ static void draw_month(GRECT *clip)
 				frame(&in, 1);
 			}
 			/* the date: today in red; days of other months light */
-			{
+			if (clip->y <= cell.y + ch + 1) {
 				char n[4];
 				GRECT nb;
 				snprintf(n, sizeof(n), "%d", d);
@@ -813,7 +814,7 @@ static void draw_month(GRECT *clip)
 					text_at(nb.x + cw / 2 + ((short)strlen(n) + 1) * cw, nb.y, month_short[m - 1], 3, 3,
 						TX_LTR | TX_BOLD);
 			}
-			if (opt.hebdates && cell.w >= 7 * cw) {
+			if (opt.hebdates && cell.w >= 7 * cw && clip->y <= cell.y + ch + 1) {
 				HDATE h;
 				char hs[40];
 				short n;
@@ -968,13 +969,22 @@ static void draw_days(GRECT *clip)
 	CTIME now = now_view();
 	GRECT g;
 	short cy0 = clip->y, cy1 = clip->y + clip->h;	/* what is drawn, from row to row */
+	short cx0 = clip->x, cx1 = clip->x + clip->w;	/* and column to column */
 	clip_on(clip);
-	/* the day headers; a scroll draws only a strip of the hours */
+	/* the day headers; a scroll draws only a strip of the hours, a box
+	   redrawn only its columns (each text costs an ST milliseconds,
+	   clipped or not) */
 	for (c = 0; c < cols && cy0 < grid.y; c++) {
 		long day = first_day + c;
 		DT d;
 		char s[40];
 		short x = colx[c], n, w = COLW(c);
+		if (x + w <= cx0 || x >= cx1)
+			continue;
+		if (c)
+			line_col(x, r_view.y, x, r_view.y + r_view.h - 1, grey_color());
+		if (cy0 >= r_view.y + head_h - 1)
+			continue;	/* the all-day row only */
 		ct_split(day * MIN_PER_DAY, &d);
 		if (cur_view == V_DAY)
 			snprintf(s, sizeof(s), "%s %d %s", wday_names[d.wday], d.day, month_short[d.mon - 1]);
@@ -1008,12 +1018,11 @@ static void draw_days(GRECT *clip)
 			}
 			text_at(x + 2 + cw / 2, r_view.y + 3 + ch, hs, n, w / cw - 1, TX_GREY);
 		}
-		if (c)
-			line_col(x, r_view.y, x, r_view.y + r_view.h - 1, grey_color());
 	}
 	if (cy0 < grid.y) {
 		line_col(r_view.x, r_view.y + head_h - 1, grid.x + grid.w - 1, r_view.y + head_h - 1, 1);
-		text_at(r_view.x, r_view.y + head_h + 2, "all-day", 7, gutter / cw, TX_GREY | TX_LTR);
+		if (cx0 < grid.x)
+			text_at(r_view.x, r_view.y + head_h + 2, "all-day", 7, gutter / cw, TX_GREY | TX_LTR);
 		line_col(r_view.x, grid.y - 1, grid.x + grid.w - 1, grid.y - 1, 1);
 	}
 	/* hours */
@@ -1030,7 +1039,7 @@ static void draw_days(GRECT *clip)
 			char s[12];
 			if (y > grid.y + grid.h + ch || y - ch > cy1)
 				break;
-			if (h > 0 && h < 24) {
+			if (h > 0 && h < 24 && cx0 < grid.x) {
 				fmt_time(h, 0, opt.h24, s, sizeof(s));
 				text_at(r_view.x + 2, y - ch / 2, s, (long)strlen(s), gutter / cw - 1, TX_LTR | TX_GREY);
 			}
