@@ -1134,12 +1134,15 @@ static void year_geom(short *mw, short *mh, short *pc)
 	*mh = r_view.h / ((12 + *pc - 1) / *pc);
 }
 
+#define YBUSY 0x4000		/* (draw_year's own: a day with events) */
+
 static void draw_year(GRECT *clip)
 {
 	static unsigned char busy_[372];
 	short mw, mh, pc, m;
 	int y0, m0, d0, i;
 	long jan1, t = today();
+	short bytes_was = text_bytes;
 	civil_from_days(cur_day, &y0, &m0, &d0);
 	jan1 = days_from_civil(y0, 1, 1);
 	memset(busy_, 0, sizeof(busy_));
@@ -1150,6 +1153,11 @@ static void draw_year(GRECT *clip)
 				busy_[a] = 1;
 	}
 	year_geom(&mw, &mh, &pc);
+	/* a day is three columns: where three aren't a byte (the 6x6 font),
+	   its text goes where it falls, not on a byte (rounded, a run of
+	   days would lose its last figure) */
+	if ((3 * cw) & 7)
+		text_bytes = 0;
 	clip_on(clip);
 	for (m = 0; m < 12; m++) {
 		short ox = (r_view.x + (m % pc) * mw + (mw - 21 * cw) / 2) & ~7, oy = r_view.y + (m / pc) * mh + ch / 2;
@@ -1160,7 +1168,8 @@ static void draw_year(GRECT *clip)
 		for (k = 0; k < 7; k++)
 			text_at(ox + k * 3 * cw, oy + ch + 2, wday_short[(k + opt.weekstart) % 7], 2, 3, TX_LTR | TX_GREY);
 		/* a week row at a time, consecutive days of the same look in one
-		   piece of text: on an 8 MHz ST each text call costs milliseconds */
+		   piece of text: on an 8 MHz ST each text call costs milliseconds.
+		   */
 		{
 			char run[24];
 			short rl = 0, rx = 0, ry = 0, rflags = -1, col = off - 1, row = 0;
@@ -1183,12 +1192,20 @@ static void draw_year(GRECT *clip)
 						fill(&b, d == t ? red_color() : 1);
 						flags = TX_INVERSE | (d == t ? TX_BOLD : 0);
 					} else {
-						/* the small fonts are too small for light and underlined text */
-						flags = busy_[d - jan1] ? (yfont ? TX_BOLD : TX_BOLD | TX_UNDER) : (yfont ? TX_GREY : TX_PALE);
+						/* a day with events: blue where there are colours, and
+						   underlined in the system font; not bold (the
+						   guidelines, Speed: 9 times plain text's time on an ST),
+						   except in a small font without colours, where nothing
+						   else can be read (an underline runs into the next row).
+						   The other days light, but not in the small fonts */
+						flags = !busy_[d - jan1] ? (yfont ? TX_GREY : TX_PALE) :
+							!yfont ? TX_UNDER | YBUSY : ncolors >= 16 ? YBUSY : TX_BOLD;
 					}
 				}
 				if (rl && (k == dim || flags != rflags || col == 0 || (rflags & TX_INVERSE))) {
-					text_at(rx, ry, run, rl, rl, TX_LTR | rflags);
+					if ((rflags & YBUSY) && ncolors >= 16)
+						text_color(4);
+					text_at(rx, ry, run, rl, rl, TX_LTR | (rflags & ~YBUSY));
 					rl = 0;
 				}
 				if (k == dim)
@@ -1206,7 +1223,9 @@ static void draw_year(GRECT *clip)
 			}
 		}
 	}
+	text_bytes = bytes_was;
 }
+
 
 void views_draw(GRECT *clip)
 {

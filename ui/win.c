@@ -256,7 +256,6 @@ static void draw_toolbar(GRECT *clip)
 static unsigned long ms_tool, ms_side;	/* the last draw_all's, for REDRAWMS */
 #endif
 
-extern short text_bytes;
 
 static void draw_all(GRECT *clip)
 {
