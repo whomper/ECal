@@ -1881,6 +1881,9 @@ int main(void)
 	AEVENT ev;
 
 	is_acc = _is_acc;
+#ifdef AES_PROFILE
+	unsigned long started = pf_ms();	/* the program started: to its first event call */
+#endif
 #ifdef STACK_PROBE
 	stk_paint();
 #endif
@@ -2039,10 +2042,41 @@ int main(void)
 #endif
 		people_poll();		/* questions to EContact */
 		/* a key typed while busy comes first, as if typed now */
+#ifdef AES_PROFILE
+		static char tag[24];	/* what the last stretch answered */
+		static unsigned long answered;
+		if (started) {
+			char b[48];
+			snprintf(b, sizeof(b), "AESSTART %lu ms\n", pf_ms() - started);
+			nf_debug(b);
+			started = 0;
+		} else if (answered && strcmp(tag, "tick") && strcmp(tag, "mouse")) {
+			/* a key, click or message done with, back here: the speed
+			   rig's sign that the action is over */
+			char b[48];
+			snprintf(b, sizeof(b), "AESDONE %lu ms %s\n", pf_ms() - answered, tag);
+			nf_debug(b);
+		}
+#endif
 		if (win_h > 0 && busy_key(&ev))
 			which = MU_KEYBD;
 		else
 			which = evnt_multi_(flags, is_acc ? 0x102 : 0x101, 3, 0, wait, msg, &ev);
+#ifdef AES_PROFILE
+		{
+			/* what this stretch answers, for the AESGAP lines */
+			answered = pf_ms();
+			if (which & MU_MESAG)
+				snprintf(tag, sizeof(tag), "message %d", msg[0]);
+			else if (which & MU_KEYBD)
+				snprintf(tag, sizeof(tag), "key %02x", KEY_SCAN(ev.kreturn));
+			else if (which & MU_BUTTON)
+				str_copy(tag, "click", sizeof(tag));
+			else
+				str_copy(tag, which & MU_M1 ? "mouse" : "tick", sizeof(tag));
+			aes_profile_tag(tag);
+		}
+#endif
 		if (win_iconified)	/* an icon takes no keys or clicks (taken, not left for later) */
 			which &= ~(MU_KEYBD | MU_BUTTON);
 		if (which & (MU_M1 | MU_KEYBD | MU_BUTTON | MU_MESAG)) {
@@ -2174,7 +2208,6 @@ int main(void)
 				settings_flush();
 			}
 		}
-		aes_profile_tag("events");
 		bg_tick();
 		if (which & MU_TIMER) {
 			prg_runs();		/* ECAL.PRG ended: what it changed is read again */

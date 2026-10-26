@@ -15,6 +15,9 @@
 #include "util.h"
 #include "clip.h"
 #include "../src/plat.h"
+#ifdef AES_PROFILE
+#include <tos.h>
+#endif
 
 long cur_day;
 short cur_view = V_MONTH;
@@ -114,6 +117,8 @@ static void range(long *from, long *n)
 	}
 }
 
+static void oday_fill(void);
+
 static void collect(void)
 {
 	long from, n;
@@ -121,6 +126,7 @@ static void collect(void)
 	if (occ_valid && occ.from == from * MIN_PER_DAY && occ.to == (from + n) * MIN_PER_DAY)
 		return;
 	occ_collect(&occ, from * MIN_PER_DAY, (from + n) * MIN_PER_DAY);
+	oday_fill();
 	occ_valid = 1;
 	laid_out = 0;
 	/* keep the selection if its occurrence is still there */
@@ -139,10 +145,55 @@ int occ_find_again(void)
 	return 0;
 }
 
-static int is_long(const OCC *o)
+static int long_of(const OCC *o)
 {
 	return o->ev->allday || o->end - o->start >= MIN_PER_DAY ||
 	       ct_days(o->start) != ct_days(o->end - 1);
+}
+
+/* each occurrence's first and last day, and whether it is long, worked
+   out once a collect: the layouts ask for them for every row, day and
+   column, and ct_days() is a division, in software on the 68000 (the
+   month view's layout took 1.3 s on a 16 MHz Falcon; the guidelines,
+   Speed) */
+typedef struct {
+	long first, last;
+	char lng;
+} ODAY;
+static ODAY *oday;
+static int oday_n;		/* occurrences it holds, 0: work them out each time */
+
+static void oday_fill(void)
+{
+	static int cap;
+	int i;
+	oday_n = 0;
+	if (occ.n > cap) {
+		ODAY *n = realloc(oday, (occ.n + 32) * sizeof(ODAY));
+		if (!n)
+			return;
+		oday = n;
+		cap = occ.n + 32;
+	}
+	for (i = 0; i < occ.n; i++) {
+		const OCC *o = &occ.o[i];
+		oday[i].first = ct_days(o->start);
+		oday[i].last = o->end > o->start ? ct_days(o->end - 1) : oday[i].first;
+		oday[i].lng = (char)(o->ev->allday || o->end - o->start >= MIN_PER_DAY ||
+				     oday[i].first != oday[i].last);
+	}
+	oday_n = occ.n;
+}
+
+static const ODAY *oday_of(const OCC *o)
+{
+	return o >= occ.o && o < occ.o + oday_n ? &oday[o - occ.o] : 0;
+}
+
+static int is_long(const OCC *o)
+{
+	const ODAY *d = oday_of(o);
+	return d ? d->lng : long_of(o);
 }
 
 /* a bar in the all-day row: in the month view every long event, in the
@@ -155,12 +206,14 @@ static int in_lane(const OCC *o)
 
 static long occ_first_day(const OCC *o)
 {
-	return ct_days(o->start);
+	const ODAY *d = oday_of(o);
+	return d ? d->first : ct_days(o->start);
 }
 
 static long occ_last_day(const OCC *o)
 {
-	return ct_days(o->end > o->start ? o->end - 1 : o->start);
+	const ODAY *d = oday_of(o);
+	return d ? d->last : ct_days(o->end > o->start ? o->end - 1 : o->start);
 }
 
 static int add_item(GRECT *r, short kind, short oi, long day, short cont)
@@ -292,11 +345,11 @@ static void layout_month(void)
 			long day = d0 + c;
 			short n = 0, total = 0, room = maxl - count[c];
 			for (i = 0; i < occ.n; i++)
-				if (!is_long(&occ.o[i]) && ct_days(occ.o[i].start) == day)
+				if (!is_long(&occ.o[i]) && occ_first_day(&occ.o[i]) == day)
 					total++;
 			for (i = 0; i < occ.n && room > 0; i++) {
 				GRECT box;
-				if (is_long(&occ.o[i]) || ct_days(occ.o[i].start) != day)
+				if (is_long(&occ.o[i]) || occ_first_day(&occ.o[i]) != day)
 					continue;
 				box.x = grid.x + c * cell_w + 1;
 				box.y = grid.y + r * cell_h + ch + 3 + (count[c] + n) * line_h;
@@ -323,7 +376,7 @@ static void layout_column(long day, GRECT *col)
 		OCC *o = &occ.o[i];
 		if (o->ev->allday)
 			continue;
-		if (ct_days(o->start) != day && !(o->start < d0 && o->end > d0))
+		if (occ_first_day(o) != day && !(o->start < d0 && o->end > d0))
 			continue;
 		idx[n++] = i;
 	}
@@ -1056,8 +1109,17 @@ void views_draw(GRECT *clip)
 	GRECT r = r_view;
 	if (!rect_and(&r, clip))
 		return;
+#ifdef AES_PROFILE
+	unsigned long t0 = pf_ms(), t1, t2;
+	int fresh = !occ_valid || !laid_out;
+	collect();
+	t1 = pf_ms();
+#endif
 	today_cache = ct_days(now_view());
 	layout();
+#ifdef AES_PROFILE
+	t2 = pf_ms();
+#endif
 	clip_on(&r);
 	fill(&r, 0);
 	switch (cur_view) {
@@ -1066,6 +1128,15 @@ void views_draw(GRECT *clip)
 	default: draw_days(&r); break;
 	}
 	today_cache = -1;
+#ifdef AES_PROFILE
+	if (pf_ms() - t0 >= 20) {
+		/* where a view's time goes, for the speed rig */
+		char b[100];
+		snprintf(b, sizeof(b), "VIEWMS view %d %dx%d%s: collect %lu layout %lu draw %lu (%d occurrences)\n",
+			 cur_view, r.w, r.h, fresh ? "" : " again", t1 - t0, t2 - t1, pf_ms() - t2, occ.n);
+		nf_debug(b);
+	}
+#endif
 }
 
 /* ---------------- titles and moving around ---------------- */

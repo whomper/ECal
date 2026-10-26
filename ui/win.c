@@ -252,17 +252,31 @@ static void draw_toolbar(GRECT *clip)
 	hline(work.x, work.x + work.w - 1, work.y + r_tool.h - 1);
 }
 
+#ifdef AES_PROFILE
+static unsigned long ms_tool, ms_side;	/* the last draw_all's, for REDRAWMS */
+#endif
+
 static void draw_all(GRECT *clip)
 {
 	GRECT r;
+#ifdef AES_PROFILE
+	unsigned long t0 = pf_ms();
+#endif
 	clip_on(clip);
 	draw_toolbar(clip);
+#ifdef AES_PROFILE
+	ms_tool = pf_ms() - t0;
+	t0 = pf_ms();
+#endif
 	r = r_side;
 	if (r.w && rect_and(&r, clip)) {
 		side_draw(clip);
 		clip_on(clip);
 		vline(r_side.x + r_side.w - 1, r_side.y, r_side.y + r_side.h - 1);
 	}
+#ifdef AES_PROFILE
+	ms_side = pf_ms() - t0;
+#endif
 	r = r_view;
 	if (rect_and(&r, clip))
 		views_draw(&r);
@@ -450,6 +464,9 @@ void win_redraw(GRECT *area)
 	if (obuf && (bm_h || xbios_base(3) == xbios_base(2))) {
 		/* all of it off the screen, then each visible piece copied */
 		MFDB scr;
+#ifdef AES_PROFILE
+		unsigned long t0 = pf_ms(), t1;
+#endif
 		memset(&scr, 0, sizeof(scr));
 		if (bm_h) {
 			short keep = vdi_h;
@@ -465,6 +482,9 @@ void win_redraw(GRECT *area)
 			draw_all(&full);
 			xbios_setscreen(screen);
 		}
+#ifdef AES_PROFILE
+		t1 = pf_ms();
+#endif
 		wind_get(win_h, WF_FIRSTXYWH, &box.x, &box.y, &box.w, &box.h);
 		while (box.w && box.h) {
 			GRECT d = box;
@@ -482,7 +502,18 @@ void win_redraw(GRECT *area)
 			wind_get(win_h, WF_NEXTXYWH, &box.x, &box.y, &box.w, &box.h);
 		}
 		clip_off();
+#ifdef AES_PROFILE
+		if (pf_ms() - t0 >= 20) {
+			char b[100];
+			snprintf(b, sizeof(b), "REDRAWMS %dx%d off the screen: toolbar %lu side %lu all %lu copy %lu\n",
+				 full.w, full.h, ms_tool, ms_side, t1 - t0, pf_ms() - t1);
+			nf_debug(b);
+		}
+#endif
 	} else {
+#ifdef AES_PROFILE
+		unsigned long t0 = pf_ms();
+#endif
 		wind_get(win_h, WF_FIRSTXYWH, &box.x, &box.y, &box.w, &box.h);
 		while (box.w && box.h) {
 			GRECT d = box;
@@ -490,6 +521,14 @@ void win_redraw(GRECT *area)
 				draw_all(&d);
 			wind_get(win_h, WF_NEXTXYWH, &box.x, &box.y, &box.w, &box.h);
 		}
+#ifdef AES_PROFILE
+		if (pf_ms() - t0 >= 20) {
+			char b[100];
+			snprintf(b, sizeof(b), "REDRAWMS %dx%d on the screen: toolbar %lu side %lu all %lu\n",
+				 full.w, full.h, ms_tool, ms_side, pf_ms() - t0);
+			nf_debug(b);
+		}
+#endif
 	}
 	graf_mouse(M_ON, 0);
 	wind_update(END_UPDATE);
