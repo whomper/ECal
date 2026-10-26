@@ -474,8 +474,8 @@ void win_redraw(GRECT *area)
 				pxy[1] = pxy[5] = d.y;
 				pxy[2] = pxy[6] = d.x + d.w - 1;
 				pxy[3] = pxy[7] = d.y + d.h - 1;
-				/* NVDI clips raster copies too (TOS's VDI doesn't):
-				   the piece's own, not one left by a dialog */
+				/* the VDI clips raster copies to the last clip,
+				   TOS's as NVDI's: the piece's own */
 				clip_on(&d);
 				vro_cpyfm(vdi_h, 3, pxy, &obuf_mfdb, &scr);	/* S_ONLY */
 			}
@@ -621,7 +621,11 @@ void win_scroll(const GRECT *a, short dy)
 		pxy[5] = a->y + (dy > 0 ? 0 : ady);
 		pxy[7] = pxy[5] + a->h - ady - 1;
 		graf_mouse(M_OFF, 0);
+		/* the VDI clips raster copies to the last clip, TOS's as NVDI's:
+		   the area moved, not one left by the last thing drawn */
+		clip_on(&strip);
 		vro_cpyfm(vdi_h, 3, pxy, &scr, &scr);	/* S_ONLY */
+		clip_off();
 		graf_mouse(M_ON, 0);
 		strip.h = ady;
 		if (dy > 0)
