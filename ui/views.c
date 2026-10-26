@@ -766,7 +766,7 @@ static void draw_month(GRECT *clip)
 				else
 					hebrew_numeral(h.day, hs, sizeof(hs));
 				n = (short)strlen(hs);
-				text_at((cell.x + cell.w - (n + 1) * cw) & ~7, cell.y + 1, hs, n, n, TX_GREY);
+				text_at(cell.x + cell.w - (n + 1) * cw, cell.y + 1, hs, n, n + 1, TX_GREY);	/* (to a byte rightwards, inside its margin) */
 			}
 		}
 	/* the grid: whole lines rather than four sides per cell (each VDI
