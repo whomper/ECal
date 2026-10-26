@@ -1191,6 +1191,17 @@ void ics_expand(EVENT *e, CTIME from, CTIME to, const TZONE *view,
 	CTIME w0;
 	int i;
 	EXSET exs;
+	if (e->status == ST_CANCELLED && !e->rr)
+		return;
+	if (!e->rr && !e->nrdate) {
+		/* one time only, well outside the range: no time-zone maths,
+		   nothing set up. A view asks this of every event (its start
+		   is UTC, or the wall clock for an all-day or floating one;
+		   two zones' clocks are at most 26 hours apart, as in emit()) */
+		CTIME last = e->end > e->start ? e->end : e->start;
+		if (e->start - 27 * 60L >= to || last + 27 * 60L < from)
+			return;
+	}
 	memset(&x, 0, sizeof(x));
 	x.e = e;
 	x.ez = (e->allday || e->floating) ? 0 : e->tz;
@@ -1201,17 +1212,6 @@ void ics_expand(EVENT *e, CTIME from, CTIME to, const TZONE *view,
 	x.add = add;
 	x.skip = skip;
 	x.ud = ud;
-	if (e->status == ST_CANCELLED && !e->rr)
-		return;
-	if (!e->rr && !e->nrdate) {
-		/* one time only, well outside the range: no time-zone maths.
-		   A view asks this of every event (its start is UTC, or the
-		   wall clock for an all-day or floating one; two zones' clocks
-		   are at most 26 hours apart, as in emit()) */
-		CTIME last = e->end > e->start ? e->end : e->start;
-		if (e->start - 27 * 60L >= to || last + 27 * 60L < from)
-			return;
-	}
 	w0 = x.ez ? tz_to_local(x.ez, e->start) : e->start;
 	if (!e->rr && !e->nrdate) {
 		emit(&x, w0, x.dur);

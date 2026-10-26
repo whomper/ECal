@@ -2312,6 +2312,7 @@ int main(void)
 			/* a calendar read: the view drawn again, in a turn of its
 			   own (not after a slice of work) */
 			view_due = 0;
+			aes_profile_tag("work: a calendar read, the view drawn");
 			if (win_h > 0)
 				win_redraw(&r_view);
 		} else if (!(which & (MU_MESAG | MU_KEYBD | MU_BUTTON)) && work_pending() && bg_may_work()) {

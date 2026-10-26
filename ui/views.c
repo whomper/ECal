@@ -267,16 +267,24 @@ static short assign_lanes(long d0, long n, short *lane, short maxl)
 	short top = 0;
 	int i;
 	long d;
+	const ODAY *od = oday_n == occ.n ? oday : 0;	/* (read in line: called a row at a time) */
 	memset(used, 0, sizeof(used));
-	for (i = 0; i < occ.n; i++) {
+	for (i = 0; i < occ.n; i++, od = od ? od + 1 : 0) {
 		OCC *o = &occ.o[i];
 		long a, b;
 		short l;
 		lane[i] = -1;
-		if (!in_lane(o))
-			continue;
-		a = occ_first_day(o) - d0;
-		b = occ_last_day(o) - d0;
+		if (od) {
+			if (cur_view == V_MONTH ? !od->lng : !o->ev->allday)
+				continue;
+			a = od->first - d0;
+			b = od->last - d0;
+		} else {
+			if (!in_lane(o))
+				continue;
+			a = occ_first_day(o) - d0;
+			b = occ_last_day(o) - d0;
+		}
 		if (b < 0 || a >= n)
 			continue;
 		if (a < 0)
@@ -571,6 +579,27 @@ static void layout(void)
 
 /* ---------------- drawing ---------------- */
 
+/* the Hebrew date of each day drawn: the next day's from the last one's
+   within a month (the full conversion is a dozen divisions in software
+   on a 68000: 80 ms of a month view on an ST) */
+static void heb_of(long day, HDATE *h)
+{
+	static long hday = -0x7fffffffL;
+	static HDATE hh;
+	static short hdim;
+	if (day == hday + 1 && hh.day < hdim) {
+		hh.day++;
+	} else if (day != hday) {
+		hebrew_from_days(day, &hh);
+		hdim = (short)hebrew_month_days(hh.year, hh.mon);
+	}
+	hday = day;
+	h->year = hh.year;	/* (field by field: a structure assigned is a memcpy call) */
+	h->mon = hh.mon;
+	h->day = hh.day;
+}
+
+
 /* the loop and the bell at the right end of the line at y; the columns
    they take from that line's text */
 static short event_marks(EVENT *e, const GRECT *r, short y, short color, GRECT *clip, short keep)
@@ -788,7 +817,7 @@ static void draw_month(GRECT *clip)
 				HDATE h;
 				char hs[40];
 				short n;
-				hebrew_from_days(day, &h);
+				heb_of(day, &h);
 				if ((h.day == 1 || (r == 0 && c == 0)) && cell.w >= 13 * cw)
 					hebrew_format(&h, 0, hs, sizeof(hs));
 				else
@@ -970,7 +999,7 @@ static void draw_days(GRECT *clip)
 		if (opt.hebdates) {
 			HDATE hd;
 			char hs[40];
-			hebrew_from_days(day, &hd);
+			heb_of(day, &hd);
 			hebrew_format(&hd, cur_view == V_DAY, hs, sizeof(hs));
 			n = (short)strlen(hs);
 			if (n * cw > w - cw) {
