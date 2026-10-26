@@ -151,6 +151,10 @@ def main():
         os.makedirs(folder)
     ui_tour.seed(folder)
     inf = os.path.join(folder, "ECAL.INF")
+    # no reminders: the seed's lunch at 12:30 today put its alert over the
+    # toolbar's menu when the rig ran just before it
+    with open(inf, "a") as f:
+        f.write("alarms=0\r\n")
     if a.font_id or a.log:
         drop = (("FONT_ID=",) if a.font_id else ()) + (("LOG=",) if a.log else ())
         with open(inf, newline="") as f:
