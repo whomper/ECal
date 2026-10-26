@@ -562,6 +562,10 @@ void text_color(short color)
 	next_text_color = color;
 }
 
+#ifdef AES_PROFILE
+long prof_texts, prof_texts_off, prof_texts_bold;	/* for VIEWMS: what text cost */
+#endif
+
 void text_at(short x, short y, const char *s, long n, short cols, short flags)
 {
 	char vis[BIDI_MAX];
@@ -615,6 +619,13 @@ void text_at(short x, short y, const char *s, long n, short cols, short flags)
 	}
 	set_wrmode(2);
 	set_text((flags & TX_INVERSE) ? 0 : color, effects);
+#ifdef AES_PROFILE
+	prof_texts++;
+	if (x & 7)
+		prof_texts_off++;
+	if (effects)
+		prof_texts_bold++;
+#endif
 	for (i = 0; i < n; i += 120) {
 		short k = n - i > 120 ? 120 : (short)(n - i);
 		v_gtext_n(vdi_h, x + i * cw, y, out + i, k);

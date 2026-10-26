@@ -1140,8 +1140,10 @@ void views_draw(GRECT *clip)
 	if (!rect_and(&r, clip))
 		return;
 #ifdef AES_PROFILE
+	extern long prof_texts, prof_texts_off, prof_texts_bold;
 	unsigned long t0 = pf_ms(), t1, t2;
 	int fresh = !occ_valid || !laid_out;
+	long tx0 = prof_texts, to0 = prof_texts_off, tb0 = prof_texts_bold;
 	collect();
 	t1 = pf_ms();
 #endif
@@ -1161,9 +1163,11 @@ void views_draw(GRECT *clip)
 #ifdef AES_PROFILE
 	if (pf_ms() - t0 >= 20) {
 		/* where a view's time goes, for the speed rig */
-		char b[100];
-		snprintf(b, sizeof(b), "VIEWMS view %d %dx%d%s: collect %lu layout %lu draw %lu (%d occurrences)\n",
-			 cur_view, r.w, r.h, fresh ? "" : " again", t1 - t0, t2 - t1, pf_ms() - t2, occ.n);
+		char b[160];
+		snprintf(b, sizeof(b), "VIEWMS view %d %dx%d%s: collect %lu layout %lu draw %lu (%d occurrences; "
+			 "%ld texts, %ld off a byte, %ld bold or light)\n",
+			 cur_view, r.w, r.h, fresh ? "" : " again", t1 - t0, t2 - t1, pf_ms() - t2, occ.n,
+			 prof_texts - tx0, prof_texts_off - to0, prof_texts_bold - tb0);
 		nf_debug(b);
 	}
 #endif
