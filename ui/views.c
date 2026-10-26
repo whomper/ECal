@@ -1237,7 +1237,11 @@ static void changed_range(void)
 {
 	char t[200];
 	laid_out = 0;
-	win_redraw(0);
+	/* the title and buttons, the view, the small month: not the
+	   calendars' list (the whole window took 0.4 s more on an ST) */
+	win_redraw(&r_tool);
+	win_redraw(&r_view);
+	side_redraw_mini();
 	views_title(t, sizeof(t));
 	(void)t;
 }

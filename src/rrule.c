@@ -483,6 +483,11 @@ static int day_ok(const RRULE *r, long day)
 {
 	int y, m, d, ylen;
 	long jan1;
+	/* no limits, or weekdays only (a daily meeting on workdays): no
+	   calendar maths, which on a 68000 is a dozen divisions in software
+	   for every day a series is walked through */
+	if (!r->bymonth && !r->nbyyd && !r->nbymd)
+		return f_wday(r, r->nbyday ? wday_of(day) : 0, 0, 0, 0, 0, 0);
 	civil_from_days(day, &y, &m, &d);
 	if (!f_month(r, m))
 		return 0;

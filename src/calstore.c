@@ -2647,6 +2647,39 @@ static int occ_cmp(const void *a, const void *b)
 	return x->ev->cal - y->ev->cal;
 }
 
+/* sorted by occ_cmp, a merge sort moving whole occurrences: the C
+   library's qsort is a heap sort that swaps a byte at a time (with
+   memcmp in the comparisons, 18% of a year view on an ST). Stable: the
+   same occurrences always come out in the same order */
+static void occ_sort(OCC *o, int n)
+{
+	OCC *t = malloc((long)n * sizeof(OCC)), *a = o, *b = t, *s;
+	int w;
+	if (!t) {
+		qsort(o, n, sizeof(OCC), occ_cmp);
+		return;
+	}
+	for (w = 1; w < n; w *= 2) {
+		int i;
+		for (i = 0; i < n; i += 2 * w) {
+			int m = i + w < n ? i + w : n, h = i + 2 * w < n ? i + 2 * w : n;
+			int p = i, q = m, k = i;
+			while (p < m && q < h)
+				b[k++] = occ_cmp(&a[q], &a[p]) < 0 ? a[q++] : a[p++];
+			while (p < m)
+				b[k++] = a[p++];
+			while (q < h)
+				b[k++] = a[q++];
+		}
+		s = a;
+		a = b;
+		b = s;
+	}
+	if (a != o)
+		memcpy(o, a, (long)n * sizeof(OCC));
+	free(t);
+}
+
 void occ_free(OCCLIST *l)
 {
 	free(l->o);
@@ -2673,7 +2706,7 @@ void occ_collect(OCCLIST *l, CTIME from, CTIME to)
 		}
 	}
 	if (l->n > 1)
-		qsort(l->o, l->n, sizeof(OCC), occ_cmp);
+		occ_sort(l->o, l->n);
 }
 
 static int contains(const char *h, const char *n)

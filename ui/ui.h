@@ -125,6 +125,7 @@ int  occ_find_again(void);	/* after a reload, find the selected one again */
 
 /* ---- the sidebar (sidebar.c) ---- */
 void side_draw(GRECT *clip);
+void side_redraw_mini(void);		/* the small month alone */
 int  side_click(short mx, short my, short clicks, short button);
 int  side_instant(short mx, short my);	/* over a tick box: no double click to wait for */
 

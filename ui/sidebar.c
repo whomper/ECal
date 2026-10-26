@@ -105,6 +105,22 @@ static void draw_mini(void)
 	}
 }
 
+/* the small month alone, drawn again: the day or the month moved, the
+   calendars' list didn't */
+void side_redraw_mini(void)
+{
+	GRECT r;
+	if (r_side.w <= 0)
+		return;
+	side_layout();
+	if (!mini.h)
+		return;
+	r = mini;
+	r.x -= 2;		/* the day's box reaches a pixel to the left */
+	r.w += 4;
+	win_redraw(&r);
+}
+
 void side_draw(GRECT *clip)
 {
 	GRECT r = r_side;
