@@ -18,6 +18,12 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
 
   When a change touches one of these, do it the guideline's way, even if the old code here did it
   differently.
+- **Speed is set by the stock machines** (Erez, 26 Oct 2026; the guidelines' "Speed"): an 8 MHz ST
+  and a stock Falcon (`ST`, `ST-1`, `Falcon-4`), not the DFB1. Design and code for them: draw only
+  what changed, keep the 68000's slow operations out of inner loops, do work once. A change to
+  drawing, a loop over the data or the start gives its `AESGAP` stretches on `ST` and `Falcon-4`,
+  before and after, in its commit message. A GEM release passes the speed rig within the
+  guidelines' times.
 - **Shared code lives in [AERA-Atari](https://github.com/whomper/AERA-Atari).** Files under `common/` come from it. Change them
   there, not here, and pull them in with `tools/sync-common.sh`. A fix made only in this repo will drift
   again.
@@ -64,8 +70,13 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
   7.4), `ECAL.HYP` and `.REF` (hcp from `common/tools/build-hcp.sh`), `CACERT.PEM`, `ROOTS.DAT` and
   the icon. The icons are committed in
   `icons/` (`make icons`).
+- Speed: `tests/hatari/speed_test.py` (a profiled build: `make OBJDIR=build/prof20 BIN=build/prof20/bin
+  AESPROF=20 all`) times the guidelines' actions on `ST:mono`, `ST:med` and `Falcon-4:16` (with
+  `AERA_WITH_NVDI=1` too); `--acc` the accessory, `--again` a second start on the first's files (the
+  snapshots). Its VIEWMS/REDRAWMS lines say where a view's time goes.
 - Before pushing: `make test` (the core, the fuzz inputs again, the
-  gateway), `make itest` (cal-cli against Radicale: `pip install
+  gateway, the snapshots, a series' occurrences with and without the jump; `make rrjump-m68k` runs
+  that one as 68000 code under qemu-m68k), `make itest` (cal-cli against Radicale: `pip install
   radicale`; also `GATEWAY=1` and `FALCON=1` when the connection code
   changes), and `make` with no warnings. When the GEM side changes, the
   Hatari rigs in `tests/hatari/`, on the family's machines (`--machine`, from
