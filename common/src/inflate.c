@@ -13,6 +13,7 @@
  * runs on a 68000 too.
  */
 #include <string.h>
+#include <stdlib.h>
 #include "inflate.h"
 
 #define FAST 10				/* bits looked up at once */
@@ -275,11 +276,11 @@ static int codes(ST *s, const HUFF *lc, const HUFF *dc)
 }
 
 static HUFF lit, dst;
+static HUFF flit, fdst;			/* the fixed codes (type 1 blocks) */
 
-static int fixed(ST *s)
+static void fixed_tables(void)
 {
 	static int ready;
-	static HUFF flit, fdst;
 	if (!ready) {
 		unsigned char l[320];
 		int i;
@@ -297,6 +298,11 @@ static int fixed(ST *s)
 		build(&fdst, l, 30);
 		ready = 1;
 	}
+}
+
+static int fixed(ST *s)
+{
+	fixed_tables();
 	return codes(s, &flit, &fdst);
 }
 
@@ -425,4 +431,447 @@ int inflate_zlib(const unsigned char *in, long n, SBUF *out, long max)
 	if (n > 6 && (in[0] & 0x0f) == 8 && ((in[0] << 8) | in[1]) % 31 == 0)
 		return inflate_raw(in + 2, n - 6, out, max);
 	return inflate_raw(in, n, out, max);
+}
+
+/* ---------------- streaming ----------------
+ * DEFLATE from a source a piece at a time into the caller's buffer a piece
+ * at a time, through a 32 KB window: a file of any size unpacks in about
+ * 40 KB, and the caller takes a turn for GEM between pieces (the
+ * guidelines' Speed; EUpdate, 26 Oct 2026: a 210 KB file in one call held
+ * a stock Falcon for 3 s, and the whole archive in memory didn't fit
+ * beside the accessories). A symbol at a time, so it is slower than
+ * inflate_raw's loop; tests/inflate checks the two give the same bytes. */
+
+#define WIN 32768
+enum { Z_HEAD, Z_STORED, Z_CODES, Z_END, Z_BAD };
+
+struct inflate {
+	int (*get)(void *u, unsigned char *buf, long n);
+	void *u;
+	unsigned char in[4096];
+	int ip, il;			/* the input buffer: next byte, bytes in it */
+	unsigned long bits;
+	int nbits;
+	int state, last;
+	long stored;			/* a stored block's bytes left */
+	int copy, dist;			/* a match's bytes left, and how far back */
+	unsigned long total;		/* bytes put out so far */
+	unsigned wpos;			/* the window's next place */
+	HUFF lit, dst;
+	const HUFF *lc, *dc;
+	unsigned char win[WIN];
+};
+
+static int z_byte(INFLATE *z)
+{
+	if (z->ip >= z->il) {
+		long n = z->get(z->u, z->in, sizeof(z->in));
+		if (n <= 0)
+			return -1;
+		z->il = (int)n;
+		z->ip = 0;
+	}
+	return z->in[z->ip++];
+}
+
+/* a whole byte: from the bits read ahead first (a stored block after a
+   compressed one: dropping them lost data, as inflate_raw once did) */
+static int z_abyte(INFLATE *z)
+{
+	if (z->nbits >= 8) {
+		int c = (int)(z->bits & 255);
+		z->bits >>= 8;
+		z->nbits -= 8;
+		return c;
+	}
+	return z_byte(z);
+}
+
+static int z_need(INFLATE *z, int n)
+{
+	while (z->nbits < n) {
+		int c = z_byte(z);
+		if (c < 0)
+			return 0;
+		z->bits |= (unsigned long)c << z->nbits;
+		z->nbits += 8;
+	}
+	return 1;
+}
+
+static long z_take(INFLATE *z, int n)
+{
+	long v;
+	if (!n)
+		return 0;
+	if (!z_need(z, n))
+		return -1;
+	v = (long)(z->bits & ((1UL << n) - 1));
+	z->bits >>= n;
+	z->nbits -= n;
+	return v;
+}
+
+static int z_decode(INFLATE *z, const HUFF *h)
+{
+	int code = 0, first = 0, index = 0, l, count;
+	/* the table when the bits are there (topped up as far as the input
+	   goes: near its end a short code still decodes bit by bit) */
+	while (z->nbits < FAST) {
+		int c = z_byte(z);
+		if (c < 0)
+			break;
+		z->bits |= (unsigned long)c << z->nbits;
+		z->nbits += 8;
+	}
+	if (z->nbits >= FAST) {
+		unsigned e = h->fast[z->bits & ((1 << FAST) - 1)];
+		if (e) {
+			z->bits >>= e >> 9;
+			z->nbits -= e >> 9;
+			return e & 511;
+		}
+	}
+	for (l = 1; l < 16; l++) {
+		long b = z_take(z, 1);
+		if (b < 0)
+			return -1;
+		code |= (int)b;
+		count = h->count[l];
+		if (code - count < first)
+			return h->sym[index + (code - first)];
+		index += count;
+		first += count;
+		first <<= 1;
+		code <<= 1;
+	}
+	return -1;
+}
+
+static int z_dynamic(INFLATE *z)
+{
+	static const unsigned char order[19] = { 16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15 };
+	unsigned char len[320];
+	long nlen, ndist, ncode;
+	int i;
+	nlen = z_take(z, 5);
+	ndist = z_take(z, 5);
+	ncode = z_take(z, 4);
+	if (nlen < 0 || ndist < 0 || ncode < 0)
+		return -1;
+	nlen += 257;
+	ndist += 1;
+	ncode += 4;
+	if (nlen > 286 || ndist > 30)
+		return -1;
+	memset(len, 0, sizeof(len));
+	for (i = 0; i < ncode; i++) {
+		long v = z_take(z, 3);
+		if (v < 0)
+			return -1;
+		len[order[i]] = (unsigned char)v;
+	}
+	if (build(&z->lit, len, 19))
+		return -1;
+	for (i = 0; i < nlen + ndist;) {
+		int sym = z_decode(z, &z->lit), val = 0;
+		long rep;
+		if (sym < 0)
+			return -1;
+		if (sym < 16) {
+			len[i++] = (unsigned char)sym;
+			continue;
+		}
+		if (sym == 16) {
+			if (!i)
+				return -1;
+			val = len[i - 1];
+			rep = z_take(z, 2);
+			rep = rep < 0 ? -1 : rep + 3;
+		} else if (sym == 17) {
+			rep = z_take(z, 3);
+			rep = rep < 0 ? -1 : rep + 3;
+		} else {
+			rep = z_take(z, 7);
+			rep = rep < 0 ? -1 : rep + 11;
+		}
+		if (rep < 0 || i + rep > nlen + ndist)
+			return -1;
+		while (rep--)
+			len[i++] = (unsigned char)val;
+	}
+	if (!len[256] || build(&z->lit, len, (int)nlen) || build(&z->dst, len + nlen, (int)ndist))
+		return -1;
+	z->lc = &z->lit;
+	z->dc = &z->dst;
+	return 0;
+}
+
+/* a block's header read: its type set up */
+static int z_head(INFLATE *z)
+{
+	long last = z_take(z, 1), type = z_take(z, 2);
+	if (last < 0 || type < 0)
+		return -1;
+	z->last = (int)last;
+	if (type == 0) {
+		int b[4], i;
+		z->bits >>= z->nbits & 7;	/* to the byte: those bits are padding */
+		z->nbits -= z->nbits & 7;
+		for (i = 0; i < 4; i++)
+			if ((b[i] = z_abyte(z)) < 0)
+				return -1;
+		if (((b[0] | b[1] << 8) ^ 0xffff) != (b[2] | b[3] << 8))
+			return -1;
+		z->stored = b[0] | b[1] << 8;
+		z->state = Z_STORED;
+		return 0;
+	}
+	if (type == 1) {
+		fixed_tables();
+		z->lc = &flit;
+		z->dc = &fdst;
+	} else if (type != 2 || z_dynamic(z)) {
+		return -1;
+	}
+	z->state = Z_CODES;
+	return 0;
+}
+
+static void z_put(INFLATE *z, unsigned char c)
+{
+	z->win[z->wpos] = c;
+	z->wpos = (z->wpos + 1) & (WIN - 1);
+	z->total++;
+}
+
+INFLATE *inflate_open(int (*get)(void *u, unsigned char *buf, long n), void *u)
+{
+	INFLATE *z = malloc(sizeof(INFLATE));
+	if (!z)
+		return 0;
+	memset(z, 0, sizeof(*z) - sizeof(z->win));
+	z->get = get;
+	z->u = u;
+	z->state = Z_HEAD;
+	return z;
+}
+
+/* a code longer than the table's, from the bits there (15 or more):
+   its symbol, and its length in *used; -1 when there is none */
+static int long_code(const HUFF *h, unsigned long bits, unsigned *used)
+{
+	int code = 0, first = 0, index = 0, l, count;
+	for (l = 1; l < 16; l++) {
+		code |= (int) (bits >> (l - 1)) & 1;
+		count = h->count[l];
+		if (code - count < first) {
+			*used = (unsigned) l;
+			return h->sym[index + (code - first)];
+		}
+		index += count;
+		first = (first + count) << 1;
+		code <<= 1;
+	}
+	return -1;
+}
+
+long inflate_read(INFLATE *z, unsigned char *out, long n)
+{
+	long done = 0;
+	while (done < n) {
+		if (z->copy) {				/* a match, maybe overlapping itself */
+			unsigned wpos = z->wpos, from = (wpos - z->dist) & (WIN - 1);
+			long k = n - done < z->copy ? n - done : z->copy, i;
+			unsigned char *win = z->win, *o = out + done;
+			for (i = 0; i < k; i++) {
+				unsigned char c = win[from];
+				from = (from + 1) & (WIN - 1);
+				win[wpos] = c;
+				wpos = (wpos + 1) & (WIN - 1);
+				o[i] = c;
+			}
+			z->wpos = wpos;
+			z->total += (unsigned long) k;
+			z->copy -= (int) k;
+			done += k;
+			continue;
+		}
+		if (z->state == Z_HEAD) {
+			if (z_head(z)) {
+				z->state = Z_BAD;
+				return done ? done : -1;
+			}
+		} else if (z->state == Z_STORED) {
+			while (z->stored && done < n) {
+				int c = z_abyte(z);
+				if (c < 0) {
+					z->state = Z_BAD;
+					return done ? done : -1;
+				}
+				z_put(z, (unsigned char)c);
+				out[done++] = (unsigned char)c;
+				z->stored--;
+			}
+			if (!z->stored)
+				z->state = z->last ? Z_END : Z_HEAD;
+		} else if (z->state == Z_CODES) {
+			int sym, d;
+			long e;
+			int pend = 0;		/* a length taken, its distance not yet */
+			/* literals and matches straight from the tables while the
+			   input buffer has the bits (all but the odd long code): no
+			   calls, and the bits and the window kept in locals */
+			{
+				const unsigned short *fast = z->lc->fast, *dfast = z->dc->fast;
+				unsigned long bits = z->bits;
+				int nbits = z->nbits, bad = 0;
+				unsigned wpos = z->wpos;
+				unsigned char *win = z->win;
+				const unsigned char *in = z->in + z->ip, *iend = z->in + z->il;
+				long k = done;
+				while (k < n) {
+					unsigned v, l, x;
+					int len, dist;
+					while (nbits <= 24 && in < iend) {
+						bits |= (unsigned long) *in++ << nbits;
+						nbits += 8;
+					}
+					if (nbits < FAST)
+						break;
+					v = fast[bits & ((1 << FAST) - 1)];
+					if (v != 0) {
+						l = v >> 9;
+						v &= 511;
+					} else {
+						int c;
+						if (nbits < 15 || (c = long_code(z->lc, bits, &l)) < 0)
+							break;
+						v = (unsigned) c;
+					}
+					if (v < 256) {
+						bits >>= l;
+						nbits -= l;
+						win[wpos] = (unsigned char) v;
+						wpos = (wpos + 1) & (WIN - 1);
+						out[k++] = (unsigned char) v;
+						continue;
+					}
+					if (v == 256 || v >= 286)
+						break;		/* the block's end, or damaged: below */
+					v -= 257;
+					x = lext[v];
+					if (nbits < (int) (l + x))
+						break;
+					bits >>= l;
+					len = lbase[v] + (int) (bits & ((1UL << x) - 1));
+					bits >>= x;
+					nbits -= (int) (l + x);
+					while (nbits <= 24 && in < iend) {
+						bits |= (unsigned long) *in++ << nbits;
+						nbits += 8;
+					}
+					v = nbits >= FAST ? dfast[bits & ((1 << FAST) - 1)] : 0;
+					if (v != 0) {
+						l = v >> 9;
+						v &= 511;
+					} else {
+						int c = nbits >= 15 ? long_code(z->dc, bits, &l) : -1;
+						v = c < 0 ? 30 : (unsigned) c;
+					}
+					if (v >= 30 || nbits < (int) (l + dext[v])) {
+						pend = len;
+						break;
+					}
+					x = dext[v];
+					bits >>= l;
+					dist = dbase[v] + (int) (bits & ((1UL << x) - 1));
+					bits >>= x;
+					nbits -= (int) (l + x);
+					if ((unsigned long) dist > z->total + (unsigned long) (k - done) || dist > WIN) {
+						bad = 1;
+						break;
+					}
+					{
+						unsigned from = (wpos - (unsigned) dist) & (WIN - 1);
+						long m = n - k < len ? n - k : len, i;
+						if (from + m <= WIN && wpos + m <= WIN) {
+							/* neither end wraps (most): byte by byte, as
+							   the copy may overlap itself */
+							const unsigned char *q = win + from;
+							unsigned char *p = win + wpos, *o = out + k;
+							for (i = 0; i < m; i++)
+								o[i] = p[i] = q[i];
+							wpos = (wpos + (unsigned) m) & (WIN - 1);
+						} else {
+							for (i = 0; i < m; i++) {
+								unsigned char c = win[from];
+								from = (from + 1) & (WIN - 1);
+								win[wpos] = c;
+								wpos = (wpos + 1) & (WIN - 1);
+								out[k + i] = c;
+							}
+						}
+						k += m;
+						if (m < len) {
+							z->copy = len - (int) m;	/* the rest next time */
+							z->dist = dist;
+							break;
+						}
+					}
+				}
+				z->ip = (int) (in - z->in);
+				z->bits = bits;
+				z->nbits = nbits;
+				z->wpos = wpos;
+				z->total += (unsigned long) (k - done);
+				done = k;
+				if (bad)
+					goto bad;
+				if (z->copy || done >= n)
+					continue;
+				if (pend) {
+					z->copy = pend;
+					goto dist;
+				}
+			}
+			sym = z_decode(z, z->lc);
+			if (sym < 0)
+				goto bad;
+			if (sym < 256) {
+				z_put(z, (unsigned char)sym);
+				out[done++] = (unsigned char)sym;
+				continue;
+			}
+			if (sym == 256) {
+				z->state = z->last ? Z_END : Z_HEAD;
+				continue;
+			}
+			sym -= 257;
+			if (sym >= 29 || (e = z_take(z, lext[sym])) < 0)
+				goto bad;
+			z->copy = lbase[sym] + (int)e;
+		dist:
+			d = z_decode(z, z->dc);
+			if (d < 0 || d >= 30 || (e = z_take(z, dext[d])) < 0)
+				goto bad;
+			z->dist = dbase[d] + (int)e;
+			if ((unsigned long)z->dist > z->total || z->dist > WIN)
+				goto bad;
+		} else if (z->state == Z_END) {
+			break;
+		} else {
+			return -1;
+		}
+	}
+	return done;
+bad:
+	z->state = Z_BAD;
+	z->copy = 0;
+	return done ? done : -1;
+}
+
+void inflate_close(INFLATE *z)
+{
+	free(z);
 }
