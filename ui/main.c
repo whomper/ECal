@@ -1266,6 +1266,9 @@ static void load_settings(void)
 static int bg_loaded;		/* calendars read so far (the accessory, after boot) */
 
 static int lost_told;
+#ifdef AES_PROFILE
+static unsigned long load_t0;	/* when the first calendar began to be read */
+#endif
 static int view_due;		/* a calendar was read with the window open: the view drawn again */
 static void tell_lost(void);
 
@@ -1290,10 +1293,22 @@ static int load_step(void)
 			snprintf(m, sizeof(m), "Reading %.60s...", cals[bg_loaded].name);
 			status(m);
 		}
+#ifdef AES_PROFILE
+		if (!bg_loaded)
+			load_t0 = pf_ms();
+#endif
 		cal_load_begin(&cals[bg_loaded++]);
 		return 1;
 	}
 	if (!data_ready) {
+#ifdef AES_PROFILE
+		{
+			/* the speed rig's: how long the calendars took to read */
+			char b[48];
+			snprintf(b, sizeof(b), "AESREADY %lu ms\n", pf_ms() - load_t0);
+			nf_debug(b);
+		}
+#endif
 		views_invalidate();
 		data_ready = 1;
 		lost_told = 0;
@@ -2293,7 +2308,15 @@ int main(void)
 				idx_gen = store_gen;
 			}
 		}
-		if (work_pending() && bg_may_work()) {
+		if (view_due) {
+			/* a calendar read: the view drawn again, in a turn of its
+			   own (not after a slice of work) */
+			view_due = 0;
+			if (win_h > 0)
+				win_redraw(&r_view);
+		} else if (!(which & (MU_MESAG | MU_KEYBD | MU_BUTTON)) && work_pending() && bg_may_work()) {
+			/* (not after a key, click or message: what answered it, a
+			   redraw say, has had this turn) */
 			/* steps while the slice has room for one more half as long
 			   again as the longest of its kind so far (one can be
 			   longer than any before it), and a tick of the 200 Hz
@@ -2323,11 +2346,6 @@ int main(void)
 				k = work_kind();
 			} while (work_pending() && bg_more() && step_max[k] &&
 				 pf_ms() - s0 + step_max[k] * 3 / 2 + 5 <= slice_ms);
-		}
-		if (view_due) {
-			view_due = 0;
-			if (win_h > 0)
-				win_redraw(&r_view);
 		}
 		if ((which & MU_TIMER) && sync_pending && win_h > 0 && data_ready) {
 			sync_pending = 0;

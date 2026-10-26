@@ -37,7 +37,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 CLI = os.path.join(ROOT, "build", "cal-cli")
 
 # the guidelines' times, ms
-LIMIT = dict(key=50, line=50, page=150, dialog=150, window=300, acc=500, start=2000)
+LIMIT = dict(key=50, line=50, page=150, dialog=150, window=300, acc=500, start=2000, slice=100)   # slice: a step of a longer job (a key answered within 100 ms)
 
 
 def seed(hd, work, acc):
@@ -134,13 +134,25 @@ class Meter:
 
 def run_prg(r, m, st):
     k = r.key
-    m.act("the program started (window drawn)", "start", lambda: None, settle=8, limit=300, until="AESSTART")
-    # the calendars, read in the background since the window opened: the
-    # longest stretch of that work (a key waits at most that long)
     pos = len(m.text())
-    time.sleep(70 if st else 25)
-    work = [int(x) for x in re.findall(r"AESGAP (\d+) ms work", m.text()[pos:])]
-    print("  %5d ms longest background stretch while the calendars were read" % max(work or [0]), flush=True)
+    m.act("the program started (window drawn)", "start", lambda: None, settle=8, limit=300, until="AESSTART")
+    # the calendars, read in the background since the window opened: how
+    # long that took, and the longest stretch of it (a key waits at most
+    # that long)
+    end = time.time() + 600
+    while "AESREADY" not in m.text()[pos:] and time.time() < end:
+        time.sleep(2)
+    time.sleep(10)                     # (the reminders and the snapshots after)
+    new = m.text()[pos:]
+    ready = re.search(r"AESREADY (\d+) ms", new)
+    work = sorted(((int(g), t.strip()) for g, t in re.findall(r"AESGAP (\d+) ms (work[^\n]*)", new)), reverse=True)
+    m.rows.append(dict(action="the calendars read (background)", kind="slice", limit=LIMIT["slice"],
+                       ms=work[0][0] if work else 0, ready=int(ready.group(1)) if ready else None,
+                       gaps=work[:12], background=[], where=[]))
+    print("  %5s ms     the calendars read in the background" % (ready.group(1) if ready else "?"), flush=True)
+    print("  %5d ms %s longest background stretch meanwhile  %s" %
+          (work[0][0] if work else 0, "OVER" if work and work[0][0] > LIMIT["slice"] else "    ",
+           ", ".join("%d %s" % g for g in work[:4])), flush=True)
     m.act("month view drawn whole", "window", lambda: k(SCAN["m"]))
     m.act("week view drawn whole", "window", lambda: k(SCAN["w"]))
     m.act("next week (Shift+right)", "page", lambda: k(K["RIGHT"], shift=True))

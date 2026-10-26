@@ -1437,6 +1437,7 @@ static void reload(CALENDAR *c)
 #define SNAP_FORMAT 1
 #define SNAP_HEAD 27		/* magic 7, format 1, size 4, stamp 4, from 4, to 4, reminders 1, address 2 */
 #define SNAP_ZONES 24
+#define SNAP_MS 40UL		/* a step's time, reading or writing (pf_ms: 5 ms steps on TOS) */
 
 static void snap_path(const CALENDAR *c, const char *ext, char *out, int size)
 {
@@ -1696,14 +1697,15 @@ static void snap_reread_to(int r)
 static int load_snap_step(void)
 {
 	CALENDAR *c = ld.c;
+	unsigned long t0 = pf_ms();
 	int k;
 	if (snap_bad) {
 		snap_fail();
 		return 1;
 	}
 	if (ld.part == 1) {
-		/* the records, 64 a step */
-		for (k = 0; k < 64 && ld.i < ld.n && !snap_bad; k++, ld.i++) {
+		/* the records, 64 a step at most, or what SNAP_MS allows */
+		for (k = 0; k < 64 && ld.i < ld.n && !snap_bad && (!k || pf_ms() - t0 < SNAP_MS); k++, ld.i++) {
 			RESOURCE *r = &c->res[c->nres];
 			r->href = sr_str();
 			r->etag = sr_str();
@@ -1738,8 +1740,8 @@ static int load_snap_step(void)
 		return 1;
 	}
 	if (ld.part == 2) {
-		/* the events, 24 a step */
-		for (k = 0; k < 24 && ld.i < ld.n && !snap_bad; k++, ld.i++) {
+		/* the events, 24 a step at most, or what SNAP_MS allows */
+		for (k = 0; k < 24 && ld.i < ld.n && !snap_bad && (!k || pf_ms() - t0 < SNAP_MS); k++, ld.i++) {
 			EVENT *e = ev_new();
 			int z, i, keep;
 			LOADCTX l;
@@ -2016,6 +2018,7 @@ int cal_snap_step(void)
 {
 	CALENDAR *c;
 	SNB o;
+	unsigned long t0 = pf_ms();
 	int h, k;
 	if (sw.id < 0) {
 		/* the next calendar asked for: begun if it is read and still there */
@@ -2090,7 +2093,7 @@ int cal_snap_step(void)
 		h = pf_open(sw.path, PF_APPEND);
 	}
 	if (sw.part == 1 && !o.bad) {
-		for (k = 0; k < 96 && sw.i < c->nres; k++, sw.i++) {
+		for (k = 0; k < 96 && sw.i < c->nres && (!k || pf_ms() - t0 < SNAP_MS); k++, sw.i++) {
 			const RESOURCE *r = &c->res[sw.i];
 			sn_str(&o, r->href);
 			sn_str(&o, r->etag);
@@ -2105,7 +2108,7 @@ int cal_snap_step(void)
 			sw.i = 0;
 		}
 	} else if (sw.part == 2 && !o.bad) {
-		for (k = 0; k < 32 && sw.i < c->nev; k++, sw.i++) {
+		for (k = 0; k < 32 && sw.i < c->nev && (!k || pf_ms() - t0 < SNAP_MS); k++, sw.i++) {
 			if (sw_zone(c->ev[sw.i]->tz) == -2) {
 				o.bad = 1;	/* more zones than it holds: not written */
 				break;
