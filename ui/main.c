@@ -1942,9 +1942,6 @@ int main(void)
 	AEVENT ev;
 
 	is_acc = _is_acc;
-#ifdef AES_PROFILE
-	unsigned long started = pf_ms();	/* the program started: to its first event call */
-#endif
 #ifdef STACK_PROBE
 	stk_paint();
 #endif
@@ -2108,12 +2105,7 @@ int main(void)
 #ifdef AES_PROFILE
 		static char tag[24];	/* what the last stretch answered */
 		static unsigned long answered;
-		if (started) {
-			char b[48];
-			snprintf(b, sizeof(b), "AESSTART %lu ms\n", pf_ms() - started);
-			nf_debug(b);
-			started = 0;
-		} else if (answered && strcmp(tag, "tick") && strcmp(tag, "mouse")) {
+		if (answered && strcmp(tag, "tick") && strcmp(tag, "mouse")) {
 			/* a key, click or message done with, back here: the speed
 			   rig's sign that the action is over */
 			char b[48];
@@ -2127,7 +2119,7 @@ int main(void)
 			which = evnt_multi_(flags, is_acc ? 0x102 : 0x101, 3, 0, wait, msg, &ev);
 #ifdef AES_PROFILE
 		{
-			/* what this stretch answers, for the AESGAP lines */
+			/* what this stretch answers, for the AESGAP and AESDONE lines */
 			answered = pf_ms();
 			if (which & MU_MESAG)
 				snprintf(tag, sizeof(tag), "message %d", msg[0]);
@@ -2137,7 +2129,7 @@ int main(void)
 				str_copy(tag, "click", sizeof(tag));
 			else
 				str_copy(tag, which & MU_M1 ? "mouse" : "tick", sizeof(tag));
-			aes_profile_tag(tag);
+			aes_profile_tag(tag);	/* (common's AESGAP lines print the last tag set) */
 		}
 #endif
 		if (win_iconified)	/* an icon takes no keys or clicks (taken, not left for later) */
@@ -2368,6 +2360,16 @@ int main(void)
 	win_close();			/* its steps on the info line, if still open */
 	settings_flush();
 	http_close_all();
+	{
+		/* where this session waited longest (common/atari/gem.c): Erez's
+		   own machine says it in the log (the guidelines, Speed) */
+		const char *w = aes_slowest();
+		char m[200];
+		if (w[0]) {
+			snprintf(m, sizeof(m), "longest waits: %s", w);
+			conn_log("ECal", "--", m, (long)strlen(m));
+		}
+	}
 	conn_log_flush();
 	crash_remove();
 	av_exit();
