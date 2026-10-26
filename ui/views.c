@@ -1125,10 +1125,15 @@ static void draw_year(GRECT *clip)
 		   piece of text: on an 8 MHz ST each text call costs milliseconds */
 		{
 			char run[24];
-			short rl = 0, rx = 0, ry = 0, rflags = -1;
+			short rl = 0, rx = 0, ry = 0, rflags = -1, col = off - 1, row = 0;
 			for (k = 0; k <= dim; k++) {
-				short col = (off + k) % 7, row = (off + k) / 7, flags = 0;
-				short x = ox + col * 3 * cw, y = oy + (row + 2) * ch + 4;
+				short flags = 0, x, y, tens;
+				if (++col == 7) {	/* (counted: a division a day is slow on a 68000) */
+					col = 0;
+					row++;
+				}
+				x = ox + col * 3 * cw;
+				y = oy + (row + 2) * ch + 4;
 				d = first + k;
 				if (k < dim) {
 					if (d == t || d == cur_day) {
@@ -1157,8 +1162,9 @@ static void draw_year(GRECT *clip)
 				} else {
 					run[rl++] = ' ';
 				}
-				run[rl++] = (char)((k + 1) >= 10 ? '0' + (k + 1) / 10 : ' ');
-				run[rl++] = (char)('0' + (k + 1) % 10);
+				tens = (short)div16(k + 1, 10);
+				run[rl++] = (char)(tens ? '0' + tens : ' ');
+				run[rl++] = (char)('0' + (k + 1) - tens * 10);
 			}
 		}
 	}

@@ -3251,10 +3251,12 @@ static EVENT *future_exception(EVENT *m, CTIME orig)
 	return best;
 }
 
+static const TZONE *occ_vz;	/* the view zone, looked up once a collect (not by name each time) */
+
 static void occ_add(EVENT *e, CTIME s, CTIME en, void *ud)
 {
 	OCCLIST *l = ud;
-	CTIME orig = e->recurid != CT_NONE ? e->recurid : ev_from_wall(e, s, view_zone());
+	CTIME orig = e->recurid != CT_NONE ? e->recurid : ev_from_wall(e, s, occ_vz);
 	if (l->limit && l->n >= l->limit)
 		return;
 	if (l->n >= l->max) {
@@ -3432,28 +3434,44 @@ static int occ_cmp(const void *a, const void *b)
 	return x->ev->cal - y->ev->cal;
 }
 
-/* sorted by occ_cmp, a merge sort moving whole occurrences: the C
-   library's qsort is a heap sort that swaps a byte at a time (with
+/* sorted as occ_cmp sorts, a merge sort moving whole occurrences: the
+   C library's qsort is a heap sort that swaps a byte at a time (with
    memcmp in the comparisons, 18% of a year view on an ST). Stable: the
-   same occurrences always come out in the same order */
+   same occurrences always come out in the same order. The long ones
+   (all day, a day or more) are put first in one pass, then each part is
+   sorted by start, longer first, then calendar, compared in line (a
+   call and two pointers followed a comparison were most of a year
+   view's sorting on an ST) */
 /* field by field: a structure assigned is a memcpy call on the 68000 */
 #define OCC_MOVE(d, s) ((d).ev = (s).ev, (d).start = (s).start, (d).end = (s).end, (d).orig = (s).orig)
 
-static void occ_sort(OCC *o, int n)
+static int occ_long(const OCC *o)
 {
-	OCC *t = malloc((long)n * sizeof(OCC)), *a = o, *b = t, *s;
+	return o->ev->allday || o->end - o->start >= MIN_PER_DAY;
+}
+
+/* o[0..n) sorted, t as room for n: the result in o */
+static void occ_msort(OCC *o, OCC *t, int n)
+{
+	OCC *a = o, *b = t, *s;
 	int w;
-	if (!t) {
-		qsort(o, n, sizeof(OCC), occ_cmp);
-		return;
-	}
 	for (w = 1; w < n; w *= 2) {
 		int i;
 		for (i = 0; i < n; i += 2 * w) {
 			int m = i + w < n ? i + w : n, h = i + 2 * w < n ? i + 2 * w : n;
 			int p = i, q = m, k = i;
 			while (p < m || q < h) {
-				const OCC *f = q >= h || (p < m && occ_cmp(&a[q], &a[p]) >= 0) ? &a[p++] : &a[q++];
+				const OCC *f;
+				if (q >= h)
+					f = &a[p++];
+				else if (p >= m)
+					f = &a[q++];
+				else {
+					const OCC *x = &a[q], *y = &a[p];
+					int before = x->start != y->start ? x->start < y->start :
+						     x->end != y->end ? x->end > y->end : x->ev->cal < y->ev->cal;
+					f = before ? &a[q++] : &a[p++];
+				}
 				OCC_MOVE(b[k], *f);
 				k++;
 			}
@@ -3464,6 +3482,35 @@ static void occ_sort(OCC *o, int n)
 	}
 	if (a != o)
 		memcpy(o, a, (long)n * sizeof(OCC));
+}
+
+static void occ_sort(OCC *o, int n)
+{
+	OCC *t = malloc((long)n * sizeof(OCC));
+	int i, nl = 0, k;
+	if (!t) {
+		qsort(o, n, sizeof(OCC), occ_cmp);
+		return;
+	}
+	for (i = 0; i < n; i++)
+		if (occ_long(&o[i]))
+			nl++;
+	if (nl && nl < n) {
+		/* the long ones first, each part in its order */
+		int l = 0;
+		for (i = 0, k = nl; i < n; i++) {
+			if (occ_long(&o[i])) {
+				OCC_MOVE(t[l], o[i]);
+				l++;
+			} else {
+				OCC_MOVE(t[k], o[i]);
+				k++;
+			}
+		}
+		memcpy(o, t, (long)n * sizeof(OCC));
+	}
+	occ_msort(o, t, nl);
+	occ_msort(o + nl, t, n - nl);
 	free(t);
 }
 
@@ -3475,7 +3522,7 @@ void occ_free(OCCLIST *l)
 
 void occ_collect(OCCLIST *l, CTIME from, CTIME to)
 {
-	const TZONE *vz = view_zone();
+	const TZONE *vz = occ_vz = view_zone();
 	int i, j;
 	l->n = 0;
 	l->from = from;
@@ -3507,7 +3554,7 @@ static int contains(const char *h, const char *n)
    exhaust memory */
 void occ_search(OCCLIST *l, const char *text, CTIME from, CTIME to)
 {
-	const TZONE *vz = view_zone();
+	const TZONE *vz = occ_vz = view_zone();
 	int i, j;
 	l->n = 0;
 	l->from = from;

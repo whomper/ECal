@@ -471,12 +471,29 @@ static int f_wday(const RRULE *r, int wd, int ctx, int d, int dim, int yd, int y
 			continue;
 		if (!ord || !ctx)
 			return 1;
-		if (ctx == 1 && (ord > 0 ? (d - 1) / 7 + 1 == ord : -((dim - d) / 7 + 1) == ord))
+		/* (the days counted are 0 to 365: divu.w, not the C library) */
+		if (ctx == 1 && (ord > 0 ? div16(d - 1, 7) + 1 == ord : -(div16(dim - d, 7) + 1) == ord))
 			return 1;
-		if (ctx == 2 && (ord > 0 ? (yd - 1) / 7 + 1 == ord : -((ylen - yd) / 7 + 1) == ord))
+		if (ctx == 2 && (ord > 0 ? div16(yd - 1, 7) + 1 == ord : -(div16(ylen - yd, 7) + 1) == ord))
 			return 1;
 	}
 	return 0;
+}
+
+/* days_from_civil for the days of a year, the year's start kept: a
+   series walks one year at a time, and on a 68000 each full conversion
+   is a handful of 32-bit divisions in software */
+static long ymd(int y, int m, int d)
+{
+	static const short before[12] = { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 };
+	static int cy = -32768, cleap;
+	static long cjan1;
+	if (y != cy) {
+		cjan1 = days_from_civil(y, 1, 1);
+		cleap = is_leap(y);
+		cy = y;
+	}
+	return cjan1 + before[m - 1] + (m > 2 && cleap) + d - 1;
 }
 
 /* all the day-level parts, for frequencies of a day and shorter */
@@ -492,7 +509,7 @@ static int day_ok(const RRULE *r, long day)
 	civil_from_days(day, &y, &m, &d);
 	if (!f_month(r, m))
 		return 0;
-	jan1 = days_from_civil(y, 1, 1);
+	jan1 = ymd(y, 1, 1);
 	ylen = is_leap(y) ? 366 : 365;
 	return f_yday(r, (int)(day - jan1) + 1, ylen) && f_mday(r, d, days_in_month(y, m)) &&
 	       f_wday(r, wday_of(day), 0, d, 0, 0, 0);
@@ -500,7 +517,7 @@ static int day_ok(const RRULE *r, long day)
 
 static long week1(int y, int wkst)
 {
-	long jan1 = days_from_civil(y, 1, 1);
+	long jan1 = ymd(y, 1, 1);
 	int off = (wday_of(jan1) - wkst + 7) % 7;
 	long start = jan1 - off;
 	if (7 - off < 4)		/* week 1 has at least four days of the year */
@@ -537,7 +554,7 @@ static int sort_unique(long *v, int n)
 static int yearly_days(const RRULE *r, int y, int m0, int d0, int wd0, long *days)
 {
 	int n = 0, m, ctx, ylen = is_leap(y) ? 366 : 365, i;
-	long jan1 = days_from_civil(y, 1, 1), d, k;
+	long jan1 = ymd(y, 1, 1), d, k;
 	int dayparts = r->nbywn || r->nbyyd || r->nbymd || r->nbyday;
 	long cand[DMAX];
 	int nc = 0;
@@ -546,7 +563,7 @@ static int yearly_days(const RRULE *r, int y, int m0, int d0, int wd0, long *day
 		for (m = 1; m <= 12; m++)
 			if (r->bymonth ? f_month(r, m) : m == m0)
 				if (d0 <= days_in_month(y, m))
-					n = add_day(days, n, days_from_civil(y, m, d0));
+					n = add_day(days, n, ymd(y, m, d0));
 		return n;
 	}
 	/* the universe of days, before the limits */
@@ -574,13 +591,13 @@ static int yearly_days(const RRULE *r, int y, int m0, int d0, int wd0, long *day
 			for (i = 0; i < r->nbymd; i++) {
 				int md = r->bymd[i] > 0 ? r->bymd[i] : dim + r->bymd[i] + 1;
 				if (md >= 1 && md <= dim)
-					nc = add_day(cand, nc, days_from_civil(y, m, md));
+					nc = add_day(cand, nc, ymd(y, m, md));
 			}
 		}
 	} else {
 		for (m = 1; m <= 12; m++)
 			if (f_month(r, m))
-				for (d = days_from_civil(y, m, 1), k = days_in_month(y, m); k > 0; d++, k--)
+				for (d = ymd(y, m, 1), k = days_in_month(y, m); k > 0; d++, k--)
 					nc = add_day(cand, nc, d);
 	}
 	nc = sort_unique(cand, nc);
@@ -607,13 +624,13 @@ static int yearly_days(const RRULE *r, int y, int m0, int d0, int wd0, long *day
 static int monthly_days(const RRULE *r, int y, int m, int d0, long *days)
 {
 	int n = 0, dim = days_in_month(y, m), d, wd;
-	long first = days_from_civil(y, m, 1), jan1 = days_from_civil(y, 1, 1);
+	long first = ymd(y, m, 1), jan1 = ymd(y, 1, 1);
 	int ylen = is_leap(y) ? 366 : 365;
 	if (!f_month(r, m))
 		return 0;
 	if (!r->nbymd && !r->nbyday && !r->nbyyd) {
 		if (d0 <= dim)
-			days[n++] = days_from_civil(y, m, d0);
+			days[n++] = ymd(y, m, d0);
 		return n;
 	}
 	for (d = 1, wd = wday_of(first); d <= dim; d++, wd = wd == 6 ? 0 : wd + 1) {
@@ -946,7 +963,7 @@ static void rr_walk(const RRULE *r, CTIME w0, CTIME hint, CTIME stop, WALK_FN fn
 			case F_MONTHLY: {
 				long mi = (long)y0 * 12 + (m0 - 1) + p * r->interval;
 				int y = (int)(mi / 12), m = (int)(mi % 12) + 1;
-				base = days_from_civil(y, m, 1);
+				base = ymd(y, m, 1);
 				if (stop != CT_NONE && base * MIN_PER_DAY > stop + 2 * MIN_PER_DAY && base > d0)
 					return;	/* past what's wanted: not worked out first */
 				nd = monthly_days(r, y, m, dd0, days);
@@ -954,7 +971,7 @@ static void rr_walk(const RRULE *r, CTIME w0, CTIME hint, CTIME stop, WALK_FN fn
 			}
 			default: {
 				int y = y0 + (int)(p * r->interval);
-				base = days_from_civil(y, 1, 1);
+				base = ymd(y, 1, 1);
 				nd = yearly_days(r, y, m0, dd0, wd0, days);
 				break;
 			}
