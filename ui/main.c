@@ -1362,7 +1362,12 @@ static void open_window(void)
 		win_redraw(0);		/* the window, before the disk is read */
 		load_calendars();
 	}
-	after_change();			/* today's events, from what is kept here */
+	/* today's events, from what is kept here: drawn by the redraw the
+	   AES sends for a window just opened, not here as well (a view drawn
+	   twice took 1.7 s more on an ST; the guidelines, Speed) */
+	alarms_changed();
+	views_select_none();
+	views_invalidate();
 	updated_status();
 	tell_lost();
 	if (!naccts && !welcomed) {
@@ -2280,8 +2285,8 @@ int main(void)
 						if (win_iconified)
 							win_title();	/* its date */
 						after_change();
-					} else if (cur_view == V_DAY || cur_view == V_WEEK) {
-						win_redraw(&r_view);	/* the red "now" line moves */
+					} else {
+						views_now_moved();	/* the red "now" line, if it moved */
 					}
 					auto_refresh();
 				}

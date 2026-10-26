@@ -110,6 +110,7 @@ int  views_tip(short mx, short my, char *title, int tn, char *when, int wn);	/* 
 void views_copy(void);				/* ^C: the event chosen, to the clipboard */
 void views_invalidate(void);	/* events changed: collect again */
 void views_draw(GRECT *clip);
+void views_now_moved(void);		/* the minute's tick: the "now" line */
 int  views_click(short mx, short my, short clicks, short kstate, short button);
 int  views_key(short kstate, short key);
 void views_title(char *out, int size);	/* "October 2026" */

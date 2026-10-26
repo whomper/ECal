@@ -274,17 +274,22 @@ static short assign_lanes(long d0, long n, short *lane, short maxl)
 
 /* ---------------- layout ---------------- */
 
+/* a lane per occurrence; after it, room for as many more (the month's
+   lists of each day's events) */
+static int lane_cap;
+
 static short *lane_buf(void)
 {
 	static short *buf;
-	static int cap;
-	if (!buf || occ.n > cap) {	/* a week with no events too */
+	if (!buf || occ.n > lane_cap) {	/* a week with no events too */
 		free(buf);
-		cap = occ.n + 32;
-		buf = malloc(cap * sizeof(short));
+		lane_cap = occ.n + 32;
+		buf = malloc(2 * lane_cap * sizeof(short));
 	}
 	return buf;
 }
+
+static short day_head[42], day_tail[42], day_n[42];	/* the month's days' timed events */
 
 static void layout_month(void)
 {
@@ -301,6 +306,27 @@ static void layout_month(void)
 	cell_h = grid.h / rows;
 	if (!lane)
 		return;
+	{
+		/* each day's timed events in a list, in the list's order (by
+		   start), made in one pass: not looked for in every cell, which
+		   took most of a second on an ST (the guidelines, Speed) */
+		short *next = lane + lane_cap;
+		int i;
+		for (c = 0; c < 42; c++)
+			day_head[c] = day_n[c] = 0, day_tail[c] = -1;
+		for (i = 0; i < occ.n; i++) {
+			long d = occ_first_day(&occ.o[i]) - first_day;
+			if (is_long(&occ.o[i]) || d < 0 || d >= 42 || d >= ndays)
+				continue;
+			next[i] = -1;
+			if (day_tail[d] < 0)
+				day_head[d] = (short)i;
+			else
+				next[day_tail[d]] = (short)i;
+			day_tail[d] = (short)i;
+			day_n[d]++;
+		}
+	}
 	for (r = 0; r < rows; r++) {
 		long d0 = first_day + r * 7;
 		short maxl = (cell_h - ch - 3) / line_h, used = 0;
@@ -329,28 +355,26 @@ static void layout_month(void)
 			box.h = line_h - 1;
 			add_item(&box, IT_EVENT, (short)i, d0 + a, occ_first_day(o) < d0 + a);
 		}
-		for (c = 0; c < 7; c++)
-			count[c] = used;
+		(void)used;
 		/* lanes taken by bars on each day: the timed events go below */
-		for (c = 0; c < 7; c++) {
-			short top = 0;
-			for (i = 0; i < occ.n; i++)
-				if (lane[i] >= 0 && occ_first_day(&occ.o[i]) <= d0 + c &&
-				    occ_last_day(&occ.o[i]) >= d0 + c && lane[i] + 1 > top)
-					top = lane[i] + 1;
-			count[c] = top;
+		for (i = 0; i < occ.n; i++) {
+			long a, b;
+			if (lane[i] < 0)
+				continue;
+			a = occ_first_day(&occ.o[i]) - d0;
+			b = occ_last_day(&occ.o[i]) - d0;
+			if (a < 0)
+				a = 0;
+			for (; a <= b && a < 7; a++)
+				if (lane[i] + 1 > count[a])
+					count[a] = lane[i] + 1;
 		}
 		/* timed events of each day, one line each */
 		for (c = 0; c < 7; c++) {
 			long day = d0 + c;
-			short n = 0, total = 0, room = maxl - count[c];
-			for (i = 0; i < occ.n; i++)
-				if (!is_long(&occ.o[i]) && occ_first_day(&occ.o[i]) == day)
-					total++;
-			for (i = 0; i < occ.n && room > 0; i++) {
+			short di = (short)(r * 7 + c), n = 0, total = di < 42 ? day_n[di] : 0, room = maxl - count[c];
+			for (i = total ? day_head[di] : -1; i >= 0 && room > 0; i = lane[lane_cap + i]) {
 				GRECT box;
-				if (is_long(&occ.o[i]) || occ_first_day(&occ.o[i]) != day)
-					continue;
 				box.x = grid.x + c * cell_w + 1;
 				box.y = grid.y + r * cell_h + ch + 3 + (count[c] + n) * line_h;
 				box.w = cell_w - 2;
@@ -876,6 +900,8 @@ static void draw_details(GRECT *clip)
 	}
 }
 
+static short now_x = -1, now_y;	/* where the "now" line was drawn, -1: not */
+
 static void draw_days(GRECT *clip)
 {
 	short c, h;
@@ -958,9 +984,12 @@ static void draw_days(GRECT *clip)
 	}
 	draw_items(clip, 0);
 	/* now: a red line across today */
+	now_x = -1;
 	if (t >= first_day && t < first_day + ndays) {
 		long m = now - t * MIN_PER_DAY;
 		short y = grid.y + (short)(m * hour_h / 60 - scroll_y), x = grid.x + (short)(t - first_day) * cell_w;
+		now_x = x;
+		now_y = y;
 		if (y >= grid.y - 2 && y < grid.y + grid.h + 2) {
 			GRECT dot, cc = grid;
 			if (rect_and(&cc, clip)) {
@@ -1137,6 +1166,39 @@ void views_draw(GRECT *clip)
 		nf_debug(b);
 	}
 #endif
+}
+
+/* the minute's tick: the "now" line where it has moved to, and only it
+   (the whole view drawn again every half minute held an ST for 0.9 s) */
+void views_now_moved(void)
+{
+	long t, m;
+	short y, x;
+	GRECT a;
+	if (cur_view != V_DAY && cur_view != V_WEEK)
+		return;
+	layout();
+	t = ct_days(now_view());
+	if (t < first_day || t >= first_day + ndays) {
+		if (now_x >= 0)
+			win_redraw(&r_view);	/* it left the view */
+		return;
+	}
+	m = now_view() - t * MIN_PER_DAY;
+	y = grid.y + (short)(m * hour_h / 60 - scroll_y);
+	x = grid.x + (short)(t - first_day) * cell_w;
+	if (x == now_x && y == now_y)
+		return;
+	a.w = cell_w;
+	a.h = 6;
+	if (now_x >= 0) {
+		a.x = now_x;
+		a.y = now_y - 2;
+		win_redraw(&a);
+	}
+	a.x = x;
+	a.y = y - 2;
+	win_redraw(&a);
 }
 
 /* ---------------- titles and moving around ---------------- */
@@ -1681,8 +1743,14 @@ static void select_next(int dir)
 		}
 	}
 	if (best >= 0) {
+		/* only what changed, as a click does: the two events' boxes and
+		   the day's details (the whole view took 0.8 s on an ST) */
+		OCC was = sel_occ;
 		select_item(best);
-		win_redraw(&r_view);
+		redraw_occ(&was);
+		redraw_occ(&sel_occ);
+		if (cur_view == V_DAY && detail.w)
+			win_redraw(&detail);
 	}
 }
 
