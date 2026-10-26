@@ -547,16 +547,11 @@ short win_popup(short x, short y, const char *const *labels, short n)
 	return k;
 }
 
-/* where the window goes so its work area starts on a 16-pixel boundary:
-   VDI draws byte-aligned text and fills faster */
-static short snap_x(short x)
+/* where the window goes so its work area starts on a multiple of 8
+   across (the guidelines' Speed: text on a byte), common's wind_x8 */
+static short snap_x(short x, short y, short w, short h)
 {
-	short wx, wy, ww, wh;
-	wind_calc(WC_WORK, KIND, x, 100, 400, 200, &wx, &wy, &ww, &wh);
-	x -= (wx & 15);
-	if (x < desk_x)
-		x += 16;
-	return x;
+	return wind_x8(kind(), x, y, w, h);
 }
 
 void win_open(void)
@@ -588,7 +583,7 @@ void win_open(void)
 	}
 	{
 		/* snapped right, it must still end on the screen */
-		short sx = snap_x(x);
+		short sx = snap_x(x, y, w, h);
 		if (sx + w > desk_x + desk_w)
 			w = desk_x + desk_w - sx;
 		x = sx;
@@ -729,6 +724,13 @@ void win_message(short *msg)
 		wind_get(win_h, WF_FULLXYWH, &fx, &fy, &fw, &fh);
 		if (x == fx && y == fy && w == fw && h == fh)
 			wind_get(win_h, WF_PREVXYWH, &fx, &fy, &fw, &fh);
+		{
+			/* on 8 across, as when moved, and still on the screen */
+			short sx = snap_x(fx, fy, fw, fh);
+			if (sx + fw > desk_x + desk_w)
+				fw = desk_x + desk_w - sx;
+			fx = sx;
+		}
 		wind_set(win_h, WF_CURRXYWH, fx, fy, fw, fh);
 		win_layout();
 		win_redraw(0);
@@ -738,7 +740,7 @@ void win_message(short *msg)
 	case WM_SIZED:
 	case WM_MOVED: {
 		short w = msg[6] < 40 * cw ? 40 * cw : msg[6], h = msg[7] < 14 * ch ? 14 * ch : msg[7];
-		short sx = snap_x(msg[4]);
+		short sx = snap_x(msg[4], msg[5], w, h);
 		if (win_iconified) {	/* the icon goes where it is put, as it is */
 			wind_set(win_h, WF_CURRXYWH, msg[4], msg[5], msg[6], msg[7]);
 			break;
