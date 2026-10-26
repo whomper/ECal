@@ -101,12 +101,12 @@ class Meter:
             calm = calm + 1 if now == last and (not until or until in self.text()) else 0
             last = now
 
-    def act(self, name, kind, fn, settle=1.0, limit=60, until=None, done=1):
+    def act(self, name, kind, fn, settle=1.0, limit=60, until=None, done=1, since=None):
         """do fn, wait for done "AESDONE" lines (ECal back in its main loop
         from a key, click or message: 0 for one that opens a dialog, whose
         loop answers it) and then for the screen and the console to
         settle, and keep the stretches that came meanwhile"""
-        pos = len(self.text())
+        pos = len(self.text()) if since is None else since
         fn()
         end = time.time() + 150
         while done and self.text()[pos:].count("AESDONE") < done and time.time() < end:
@@ -134,8 +134,10 @@ class Meter:
 
 def run_prg(r, m, st):
     k = r.key
-    pos = len(m.text())
-    m.act("the program started (window drawn)", "start", lambda: None, settle=8, limit=300, until="AESSTART")
+    # from the log's start: on a fast machine ECal can be up before we look
+    pos = 0
+    m.act("the program started (window drawn)", "start", lambda: None, settle=8, limit=300, until="AESSTART",
+          since=0)
     # the calendars, read in the background since the window opened: how
     # long that took, and the longest stretch of it (a key waits at most
     # that long)

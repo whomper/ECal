@@ -1268,16 +1268,23 @@ void views_now_moved(void)
 	x = colx[t - first_day];
 	if (x == now_x && y == now_y)
 		return;
-	a.h = 6;
-	if (now_x >= 0) {
-		a.x = now_x;
-		a.y = now_y - 2;
-		a.w = now_w;
-		win_redraw(&a);
-	}
 	a.x = x;
 	a.y = y - 2;
 	a.w = COLW(t - first_day);
+	a.h = 6;
+	if (now_x == x && now_y < y && y - now_y < 4 * ch) {
+		/* a minute or few on, in the same column: one redraw for the
+		   old line and the new (each costs an ST some 70 ms) */
+		a.h += y - now_y;
+		a.y = now_y - 2;
+	} else if (now_x >= 0) {
+		GRECT o;
+		o.x = now_x;
+		o.y = now_y - 2;
+		o.w = now_w;
+		o.h = 6;
+		win_redraw(&o);
+	}
 	win_redraw(&a);
 }
 

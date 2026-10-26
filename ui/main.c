@@ -2356,6 +2356,9 @@ int main(void)
 			unsigned long now = pf_ms();
 			if (now - last_minute >= 30000UL) {
 				long t, day = ct_days(now_clock());
+#ifdef AES_PROFILE
+				unsigned long p0 = pf_ms(), p1, p2;
+#endif
 				last_minute = now;
 				aes_profile_tag("reminder check");
 				if (prg_was)		/* ECAL.PRG shows them */
@@ -2367,6 +2370,9 @@ int main(void)
 						alarms_changed();	/* a new day: the queue reaches a day further */
 					alarm_day = day;
 				}
+#ifdef AES_PROFILE
+				p1 = pf_ms();
+#endif
 				if (data_ready && win_h > 0) {
 					t = ct_days(now_view());
 					if (t != shown_today) {
@@ -2380,8 +2386,21 @@ int main(void)
 					} else {
 						views_now_moved();	/* the red "now" line, if it moved */
 					}
+#ifdef AES_PROFILE
+					p2 = pf_ms();
+#endif
 					auto_refresh();
 				}
+#ifdef AES_PROFILE
+				else
+					p2 = pf_ms();
+				if (pf_ms() - p0 >= 20) {
+					char b[80];
+					snprintf(b, sizeof(b), "REMINDMS reminders %lu, the view %lu, refresh %lu\n",
+						 p1 - p0, p2 - p1, pf_ms() - p2);
+					nf_debug(b);
+				}
+#endif
 			}
 		}
 	}
