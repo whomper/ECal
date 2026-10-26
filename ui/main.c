@@ -777,8 +777,35 @@ static void menu_update(void)
 	event_items();
 }
 
+int data_wait(void);
+
+/* keys that only move around the calendar: they don't wait for the
+   calendars to be read (data_wait) */
+static int nav_key(short kstate, short key)
+{
+	short scan = KEY_SCAN(key);
+	unsigned char a = KEY_ASCII(key);
+	if (key_ctrl(kstate, key))
+		return scan == 0x14 || scan == 0x22;	/* ^T today, ^G go to */
+	if (kstate & K_ALT)
+		return 0;
+	switch (scan) {
+	case 0x48: case 0x50: case 0x4b: case 0x4d:	/* the arrows */
+	case 0x47: case 0x01:				/* Clr/Home, Esc */
+		return 1;
+	}
+	return a && strchr("tTdDwWmMyY", a) != 0;
+}
+
 static void command(int c)
 {
+	switch (c) {
+	case C_ABOUT: case C_DAY: case C_WEEK: case C_MONTH: case C_YEAR: case C_TODAY: case C_GOTO:
+	case C_SIDE: case C_HEB: case C_KBD: case C_HELP: case C_KEYS: case C_QUIT:
+		break;
+	default:
+		data_wait();	/* the rest needs the calendars read */
+	}
 	switch (c) {
 	case C_ABOUT: dlg_about(); break;
 	case C_NEW: cmd_new_event(); break;
@@ -1239,15 +1266,30 @@ static void load_settings(void)
 static int bg_loaded;		/* calendars read so far (the accessory, after boot) */
 
 static int lost_told;
+static int view_due;		/* a calendar was read with the window open: the view drawn again */
+static void tell_lost(void);
 
-/* one step of reading the calendars: 0 when all are read */
+/* one step of reading the calendars: 0 when all are read. With the
+   window open (it opens before they are read: the guidelines, Speed),
+   each calendar shows when it is read, and the status line says which
+   is being read */
 static int load_step(void)
 {
 	if (cal_loading()) {
 		cal_load_step();
+		if (win_h > 0) {
+			views_invalidate();	/* nothing kept from a calendar half read */
+			if (!cal_loading())
+				view_due = 1;
+		}
 		return 1;
 	}
 	if (bg_loaded < ncals) {
+		if (win_h > 0 && !data_ready) {
+			char m[80];
+			snprintf(m, sizeof(m), "Reading %.60s...", cals[bg_loaded].name);
+			status(m);
+		}
 		cal_load_begin(&cals[bg_loaded++]);
 		return 1;
 	}
@@ -1256,6 +1298,14 @@ static int load_step(void)
 		data_ready = 1;
 		lost_told = 0;
 		alarms_changed();
+		if (win_h > 0) {
+			views_select_none();	/* (one picked while they were read) */
+			view_due = 1;
+			updated_status();
+			tell_lost();
+			if (store_lost_passwords)
+				alert(1, "[1][ECAL.KEY is missing or new: type the passwords again (right-click an account).][ OK ]");
+		}
 	}
 	return 0;
 }
@@ -1311,16 +1361,18 @@ static void tell_lost(void)
 		alert(1, "[1][Memory is full: %d event%s could|not be read (in %s and maybe|others). %s][ OK ]", n, n == 1 ? "" : "s", which, mem_full_advice());
 }
 
-static void load_calendars(void)
+/* What changes the calendars, or needs all of them, waits for them to
+   be read: the rest at once, the user having asked (they are read in
+   the background since the window opened). 0: the settings aren't */
+int data_wait(void)
 {
+	if (data_ready || !settings_ready)
+		return data_ready;
 	busy(1);
-	status("Reading your calendars...");
 	while (load_step())
 		;
-	status("");
 	busy(0);
-	if (store_lost_passwords)
-		alert(1, "[1][ECAL.KEY is missing or new: type the passwords again (right-click an account).][ OK ]");
+	return 1;
 }
 
 /* First the window, then today from the copies on disk, and only then,
@@ -1358,18 +1410,21 @@ static void open_window(void)
 	win_open();
 	if (win_h <= 0 || !first)
 		return;
-	if (!data_ready) {
-		win_redraw(0);		/* the window, before the disk is read */
-		load_calendars();
-	}
 	/* today's events, from what is kept here: drawn by the redraw the
 	   AES sends for a window just opened, not here as well (a view drawn
-	   twice took 1.7 s more on an ST; the guidelines, Speed) */
+	   twice took 1.7 s more on an ST; the guidelines, Speed). Not read
+	   yet: read in the background (load_step), the window working
+	   meanwhile and each calendar shown as it comes (reading them first
+	   held an ST for 22 s) */
 	alarms_changed();
 	views_select_none();
 	views_invalidate();
-	updated_status();
-	tell_lost();
+	if (data_ready) {
+		updated_status();
+		tell_lost();
+	} else {
+		status("Reading your calendars...");
+	}
 	if (!naccts && !welcomed) {
 		/* once a session: opened again (the accessory, after its
 		   window was closed), Add account... is in the menu */
@@ -1410,6 +1465,7 @@ static void av_start(const char *s)
 	char path[200];
 	const char *p = s;
 	open_window();
+	data_wait();
 	if (win_h <= 0)
 		return;
 	if (!strncasecmp(s, "webcal", 6)) {
@@ -2134,6 +2190,7 @@ int main(void)
 				case DD_FILES: av_start(d.data); break;
 				case DD_TEXT:
 					open_window();
+					data_wait();
 					if (win_h > 0)
 						editor_new_titled(cur_day, d.data);
 					break;
@@ -2162,13 +2219,19 @@ int main(void)
 				set_hebrew_kbd(!hebrew_kbd);
 			else if (scan == 0x62)
 				help_open();
-			else if (!crash_test(scan))	/* test builds: F1-F5 crash */
+			else if (!crash_test(scan)) {	/* test builds: F1-F5 crash */
+				if (!nav_key(ev.kstate, ev.kreturn))
+					data_wait();
 				win_key(ev.kstate, ev.kreturn);
+			}
 		}
 		if ((which & MU_BUTTON) && win_h > 0) {
 			short h = wind_find(ev.mx, ev.my), t, dd;
 			wind_get(0, WF_TOP, &t, &dd, &dd, &dd);
 			if (h == win_h) {
+				/* the events and the calendars' list need them read */
+				if (rect_hit(&r_view, ev.mx, ev.my) || rect_hit(&r_side, ev.mx, ev.my))
+					data_wait();
 				if (h != t)
 					wind_set(h, WF_TOP, 0, 0, 0, 0);
 				else if (!(ev.mbutton & 2) && rect_hit(&r_view, ev.mx, ev.my)) {
@@ -2256,7 +2319,12 @@ int main(void)
 			} while (work_pending() && bg_more() && step_max[k] &&
 				 pf_ms() - s0 + step_max[k] * 3 / 2 + 5 <= slice_ms);
 		}
-		if ((which & MU_TIMER) && sync_pending && win_h > 0) {
+		if (view_due) {
+			view_due = 0;
+			if (win_h > 0)
+				win_redraw(&r_view);
+		}
+		if ((which & MU_TIMER) && sync_pending && win_h > 0 && data_ready) {
 			sync_pending = 0;
 			refresh(0, 0);
 		}
