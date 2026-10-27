@@ -878,28 +878,39 @@ static int ask_how(int first)
    the occurrence clicked, in the view's wall time */
 static int edit_event(EVENT *e, CTIME occ_start, CTIME orig, int is_new);
 
-/* the people and their labels (13 KB) from the heap while the editor is
-   open, not kept in the program: a 1 MB ST needs the room */
+/* the event's texts as the editor has them */
+static struct ed_text {
+	char title[200], loc[200], sdate[16], stime[12], edate[16], etime[12], notes[1200];
+	char invitees[2000], invitees0[2000];
+} *etx;
+
+/* the people and their labels (13 KB) and the texts (5.6 KB) from the
+   heap while the editor is open, not kept in the program: a 1 MB ST
+   needs the room */
 static int run_editor(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 {
 	int r;
 	people = malloc(MAXPEOPLE * (sizeof(INVITEE) + sizeof(*plabel)));
-	if (!people) {
+	etx = people ? malloc(sizeof(*etx)) : 0;
+	if (!etx) {
+		free(people);
+		people = 0;
 		no_memory();
 		return 0;
 	}
 	plabel = (void *)(people + MAXPEOPLE);
 	r = edit_event(e, occ_start, orig, is_new);
+	free(etx);
+	etx = 0;
 	free(people);
 	people = 0;
 	plabel = 0;
 	return r;
 }
 
+
 static int edit_event(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 {
-	static char title[200], loc[200], sdate[16], stime[12], edate[16], etime[12], notes[1200];
-	static char invitees[2000], invitees0[2000];
 	ED x;
 	DLG d;
 	EVENT *m = e->res >= 0 ? ev_master(e) : 0;
@@ -915,9 +926,9 @@ static int edit_event(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 	memset(&x, 0, sizeof(x));
 	memset(&d, 0, sizeof(d));
 	x.readonly = !is_new && !cal_writable(&cals[e->cal]);
-	str_copy(title, e->summary ? e->summary : "", sizeof(title));
-	str_copy(loc, e->location ? e->location : "", sizeof(loc));
-	str_copy(notes, ev_notes_text(e) ? ev_notes_text(e) : "", sizeof(notes));
+	str_copy(etx->title, e->summary ? e->summary : "", sizeof(etx->title));
+	str_copy(etx->loc, e->location ? e->location : "", sizeof(etx->loc));
+	str_copy(etx->notes, ev_notes_text(e) ? ev_notes_text(e) : "", sizeof(etx->notes));
 	/* times as the event's own zone shows them (time zone support), else the view's */
 	x.zone = e->floating ? 0 : e->tz;
 	shown_z = (opt.tzsupport && x.zone) ? x.zone : vz;
@@ -931,21 +942,21 @@ static int edit_event(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 		ws = tz_to_local(shown_z, act);
 		we = tz_to_local(shown_z, act + dur);
 	}
-	fmt_date(ct_days(ws), sdate, sizeof(sdate));
-	fmt_date(ct_days(we), edate, sizeof(edate));
-	fmt_hm((short)(ws - ct_day_start(ws)), stime, sizeof(stime));
-	fmt_hm((short)(we - ct_day_start(we)), etime, sizeof(etime));
+	fmt_date(ct_days(ws), etx->sdate, sizeof(etx->sdate));
+	fmt_date(ct_days(we), etx->edate, sizeof(etx->edate));
+	fmt_hm((short)(ws - ct_day_start(ws)), etx->stime, sizeof(etx->stime));
+	fmt_hm((short)(we - ct_day_start(we)), etx->etime, sizeof(etx->etime));
 
 	row = 1;
 	put(&x.f[L_TITLE], FT_LABEL, 0, 0, row, 0, "Title:");
 	put(&x.f[F_TITLE], FT_TEXT, 0, 11, row, 47, 0);
-	x.f[F_TITLE].buf = title;
-	x.f[F_TITLE].max = sizeof(title) - 1;
+	x.f[F_TITLE].buf = etx->title;
+	x.f[F_TITLE].max = sizeof(etx->title) - 1;
 	row++;
 	put(&x.f[L_LOC], FT_LABEL, 0, 0, row, 0, "Location:");
 	put(&x.f[F_LOC], FT_TEXT, 0, 11, row, 47, 0);
-	x.f[F_LOC].buf = loc;
-	x.f[F_LOC].max = sizeof(loc) - 1;
+	x.f[F_LOC].buf = etx->loc;
+	x.f[F_LOC].max = sizeof(etx->loc) - 1;
 	row++;
 	/* the people invited (Contacts: EContact); an invitation from
 	   someone else: who sent it first, and nothing to change */
@@ -958,7 +969,7 @@ static int edit_event(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 		people_org = npeople > 0;
 	}
 	ics_each_address(e->attendees, add_person, 0);
-	people_list(invitees0, sizeof(invitees0));
+	people_list(etx->invitees0, sizeof(etx->invitees0));
 	put(&x.f[L_INV], FT_LABEL, 0, 0, row, 0, "People:");
 	put(&x.f[F_INV], FT_PEOPLE, 0, 11, row, 37, 0);
 	x.f[F_INV].h = 2;
@@ -993,10 +1004,10 @@ static int edit_event(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 	row++;
 	put(&x.f[L_START], FT_LABEL, 0, 0, row, 0, "Starts:");
 	put(&x.f[F_SDATE], FT_TEXT, FF_LTR, 11, row, 10, 0);
-	x.f[F_SDATE].buf = sdate;
+	x.f[F_SDATE].buf = etx->sdate;
 	x.f[F_SDATE].max = 12;
 	put(&x.f[F_STIME], FT_TEXT, FF_LTR, 23, row, 7, 0);
-	x.f[F_STIME].buf = stime;
+	x.f[F_STIME].buf = etx->stime;
 	x.f[F_STIME].max = 9;
 	/* time zone: the event's, home, the view's, floating, other */
 	put(&x.f[L_TZ], FT_LABEL, opt.tzsupport ? 0 : FF_DISABLED, 32, row, 0, opt.tzsupport ? "Zone:" : "");
@@ -1007,10 +1018,10 @@ static int edit_event(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 	row++;
 	put(&x.f[L_END], FT_LABEL, 0, 0, row, 0, "Ends:");
 	put(&x.f[F_EDATE], FT_TEXT, FF_LTR, 11, row, 10, 0);
-	x.f[F_EDATE].buf = edate;
+	x.f[F_EDATE].buf = etx->edate;
 	x.f[F_EDATE].max = 12;
 	put(&x.f[F_ETIME], FT_TEXT, FF_LTR, 23, row, 7, 0);
-	x.f[F_ETIME].buf = etime;
+	x.f[F_ETIME].buf = etx->etime;
 	x.f[F_ETIME].max = 9;
 	row += 2;
 	/* repeat */
@@ -1075,8 +1086,8 @@ static int edit_event(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 	put(&x.f[L_NOTES], FT_LABEL, 0, 0, row, 0, "Notes:");
 	put(&x.f[F_NOTES], FT_MULTI, 0, 11, row, 47, 0);
 	x.f[F_NOTES].h = 3;
-	x.f[F_NOTES].buf = notes;
-	x.f[F_NOTES].max = sizeof(notes) - 1;
+	x.f[F_NOTES].buf = etx->notes;
+	x.f[F_NOTES].max = sizeof(etx->notes) - 1;
 	row += 3;
 	urlline[0] = 0;
 	if (e->url)
@@ -1146,25 +1157,25 @@ static int edit_event(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 		if (r != B_OK)
 			return 0;
 		/* check what was typed */
-		if (!parse_date(sdate, &sday) || !parse_date(edate, &eday)) {
+		if (!parse_date(etx->sdate, &sday) || !parse_date(etx->edate, &eday)) {
 			alert(1, "[1][Please type dates as|day.month.year: 12.10.2026][ OK ]");
 			continue;
 		}
-		if (!x.f[F_ALLDAY].val && (!parse_time(stime, &smin) || !parse_time(etime, &emin))) {
+		if (!x.f[F_ALLDAY].val && (!parse_time(etx->stime, &smin) || !parse_time(etx->etime, &emin))) {
 			alert(1, "[1][Please type times as|hours:minutes, e.g. 9:30][ OK ]");
 			continue;
 		}
 		n = ev_dup(e);
 		if (!n)
 			return 0;
-		ev_set(&n->summary, title[0] ? title : "New Event");
-		ev_set(&n->location, loc);
-		ev_set(&n->notes, notes);
+		ev_set(&n->summary, etx->title[0] ? etx->title : "New Event");
+		ev_set(&n->location, etx->loc);
+		ev_set(&n->notes, etx->notes);
 		n->notes_later = 0;
-		people_list(invitees, sizeof(invitees));
-		if (!people_org && strcmp(invitees, invitees0)) {
+		people_list(etx->invitees, sizeof(etx->invitees));
+		if (!people_org && strcmp(etx->invitees, etx->invitees0)) {
 			/* written anew; the server sends the invitations */
-			ev_set(&n->attendees, invitees);
+			ev_set(&n->attendees, etx->invitees);
 			n->att_edited = 1;
 		}
 		n->allday = (unsigned char)x.f[F_ALLDAY].val;

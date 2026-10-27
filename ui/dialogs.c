@@ -66,16 +66,18 @@ void no_memory(void)
 const char *zone_pick(const char *current, int floating)
 {
 	char (*lab)[48];
-	static const char *items[101];
+	const char **items;
 	int n = tz_count(), i, sel = 0, f = floating ? 1 : 0;
 	CTIME now = now_utc();
 	if (n > 100)
 		n = 100;
-	lab = malloc(n * sizeof(*lab));
+	/* the labels and the list of them in one block from the heap */
+	lab = malloc(n * sizeof(*lab) + (n + 1) * sizeof(*items));
 	if (!lab) {
 		no_memory();
 		return 0;
 	}
+	items = (const char **)(lab + n);
 	if (f)
 		items[0] = "Floating (any zone)";
 	for (i = 0; i < n; i++) {
@@ -791,7 +793,7 @@ void dlg_find(void)
 {
 	static char what[60];
 	char (*lab)[64];
-	static const char *items[200];
+	const char **items;
 	OCCLIST l;
 	CTIME now = now_view();
 	int i, k;
@@ -807,12 +809,14 @@ void dlg_find(void)
 		alert(1, "[1][Nothing found for \"%s\".][ OK ]", what);
 		return;
 	}
-	lab = malloc((l.n < 200 ? l.n : 200) * sizeof(*lab));
+	k = l.n < 200 ? l.n : 200;
+	lab = malloc(k * (sizeof(*lab) + sizeof(*items)));
 	if (!lab) {
 		occ_free(&l);
 		no_memory();
 		return;
 	}
+	items = (const char **)(lab + k);
 	for (i = 0; i < l.n && i < 200; i++) {
 		DT d;
 		char t[12] = "";
