@@ -67,12 +67,14 @@ These had drifted between the apps; each is now the most complete copy, with eve
 | Files | Taken from | What the others gain |
 |---|---|---|
 | `atari/sting.c/.h`, `atari/net_tos.c` | EFTP | `net_close_wait()` (close once everything sent has gone out); **and a random DNS query ID** (was the fixed "TR", which let anyone on the network answer for the name server) |
-| `atari/tos.c` | ECal | `boot_drive()`; 32-bit multiply and divide with `mulu.w`/`divu.w` instead of bit loops (checked against the 68020's own instructions on 2 million cases under QEMU) |
+| `atari/cpucheck.c` | EUpdate | `main()` of a program built for the 68020 or better, built `-m68000`: on an ST the program's `cpu_alert` and quit, else `app_main()` (the app defines `cpu_need`, `cpu_alert`, `app_main`) |
+| `tools/oddaccess.py` | hub | word and long accesses at an odd stack or frame offset in a 68000 ELF's functions (GCC's initialised char arrays): run by `make test` |
+| `atari/tos.c` | ECal | `boot_drive()`; 32-bit multiply and divide with `mulu.w`/`divu.w` instead of bit loops (checked against the 68020's own instructions on 2 million cases under QEMU); `__clzsi2`/`__ctzsi2` (EPDF), libgcc's being 68020 code |
 | `atari/include/tos.h` | EFTP + ECal | `Dfree`, `Fattrib`, `Fdatime`, `Drvmap`, `boot_drive` |
 | `atari/include/stdlib.h` | ECal | `heap_add()` (the accessories' fixed heap) |
 | `src/util.c/.h` | ECal | `sb_room()` |
 | `src/tz.c/.h` | ECal | a small cache of the last zones looked up; `tz_offset()` keeps the last four zone-years with their two changes (ECal 2.6's `tzm_offset`), so a series of events no longer works out summer time from the rules each time; `tz_offset_rules()` is the slow way, for tests |
-| `src/charset.c/.h`, `charset_tab.h` | EMail | ECal and EContact lose the Troll-proxy guesswork EMail dropped (it could take real text for already-converted Atari text) |
+| `src/charset.c/.h`, `charset_tab.h` | EMail | ECal and EContact lose the mail-proxy guesswork EMail dropped (it could take real text for already-converted Atari text) |
 
 ## Layer 2b: TLS and connections (14 Oct 2026)
 
