@@ -1193,11 +1193,76 @@ static int year_fits(short pc)
 /* pick columns (and font) for the year; leaves the font chosen in force */
 static struct {
 	short ok, mw, mh, pc, level;
+	short rows, shown;	/* rows of months, and how many the view shows */
 } yg;				/* year_geom's answer, kept until the next layout */
+
+/* Where the twelve months don't fit even in the smallest font (ST
+   medium: 200 lines), they keep their height and the view shows some
+   rows of them, scrolled by the slider and to the chosen day's month;
+   ytop: the first row shown. Drawn squeezed into the view before, a
+   month's weeks ran over the next one's head */
+static short ytop;
+static long ytop_day = -1;	/* the day ytop was last brought to */
 
 static void yg_forget(void)
 {
 	yg.ok = 0;
+}
+
+static void year_geom(short *mw, short *mh, short *pc);
+
+/* ytop within the rows, and on a new chosen day its month's row shown */
+static void year_rows_fit(void)
+{
+	if (yg.shown >= yg.rows) {
+		ytop = 0;
+		ytop_day = cur_day;
+		return;
+	}
+	if (ytop_day != cur_day) {
+		int y, m, d;
+		short row;
+		civil_from_days(cur_day, &y, &m, &d);
+		row = (short)((m - 1) / yg.pc);
+		if (row < ytop)
+			ytop = row;
+		else if (row >= ytop + yg.shown)
+			ytop = row - yg.shown + 1;
+		ytop_day = cur_day;
+	}
+	if (ytop > yg.rows - yg.shown)
+		ytop = yg.rows - yg.shown;
+	if (ytop < 0)
+		ytop = 0;
+}
+
+/* the year's rows scrolled to top (the slider, its arrows): 1 if they move */
+static int year_scroll_to(short top)
+{
+	short mw, mh, pc;
+	year_geom(&mw, &mh, &pc);
+	year_font(0);
+	if (yg.shown >= yg.rows)
+		return 0;
+	if (top > yg.rows - yg.shown)
+		top = yg.rows - yg.shown;
+	if (top < 0)
+		top = 0;
+	if (top == ytop)
+		return 0;
+	ytop = top;
+	win_redraw(&r_view);
+	return 1;
+}
+
+/* whether the year's rows of months scroll (they don't all fit) */
+static int year_scrolls(void)
+{
+	short mw, mh, pc;
+	layout();
+	year_geom(&mw, &mh, &pc);
+	year_font(0);
+	return yg.shown < yg.rows;
 }
 
 static void year_geom(short *mw, short *mh, short *pc)
@@ -1209,6 +1274,7 @@ static void year_geom(short *mw, short *mh, short *pc)
 		*mw = yg.mw;
 		*mh = yg.mh;
 		*pc = yg.pc;
+		year_rows_fit();
 		return;
 	}
 	for (level = 0; level < 3; level++) {
@@ -1219,15 +1285,30 @@ static void year_geom(short *mw, short *mh, short *pc)
 		if (*pc >= 2)
 			break;
 	}
-	if (*pc < 2)
-		*pc = 2;
+	if (*pc < 2) {
+		/* none fits: the smallest font, as many across as fit, each
+		   month its own height, the rows scrolled */
+		*pc = (short)(r_view.w / (22 * cw));
+		if (*pc < 2)
+			*pc = 2;
+		if (*pc > 4)
+			*pc = 4;
+		*mh = 8 * ch + ch / 2 + 2;
+	} else {
+		*mh = r_view.h / ((12 + *pc - 1) / *pc);
+	}
 	*mw = r_view.w / *pc;
-	*mh = r_view.h / ((12 + *pc - 1) / *pc);
+	yg.rows = (12 + *pc - 1) / *pc;
+	yg.shown = *mh > 0 ? r_view.h / *mh : yg.rows;
+	if (yg.shown < 1)
+		yg.shown = 1;
+	ytop_day = -1;		/* (a new layout: the day's month in view again) */
 	yg.ok = 1;
 	yg.mw = *mw;
 	yg.mh = *mh;
 	yg.pc = *pc;
 	yg.level = yfont;
+	year_rows_fit();
 }
 
 #define YBUSY 0x4000		/* (draw_year's own: a day with events) */
@@ -1261,7 +1342,7 @@ static void draw_year(GRECT *clip)
 		text_bytes = 0;
 	clip_on(clip);
 	for (m = 0; m < 12; m++) {
-		short ox = (r_view.x + (m % pc) * mw + (mw - 21 * cw) / 2) & ~7, oy = r_view.y + (m / pc) * mh + ch / 2;
+		short ox = (r_view.x + (m % pc) * mw + (mw - 21 * cw) / 2) & ~7, oy = r_view.y + (m / pc - ytop) * mh + ch / 2;
 		long first, d;
 		short off, k, dim;
 		{
@@ -1269,7 +1350,7 @@ static void draw_year(GRECT *clip)
 			   its texts cost an ST milliseconds clipped or not */
 			GRECT mr;
 			mr.x = r_view.x + (m % pc) * mw;
-			mr.y = r_view.y + (m / pc) * mh;
+			mr.y = r_view.y + (m / pc - ytop) * mh;
 			mr.w = mw;
 			mr.h = mh;
 			if (!rect_and(&mr, clip))
@@ -1467,7 +1548,7 @@ int views_tiles(GRECT *t, int max)
 		for (c = 1; c < pc && nx < 10; c++)
 			xs[nx++] = r_view.x + c * mw;
 		for (r = 0; r < (12 + pc - 1) / pc && ny < YTILE_ROWS; r++) {
-			short oy = r_view.y + r * mh, k;
+			short oy = r_view.y + (r - ytop) * mh, k;
 			if (r)
 				ys[ny++] = oy;
 			for (k = 0; k < 6 && ny < YTILE_ROWS; k++)
@@ -1646,13 +1727,13 @@ static long year_day_at(short mx, short my, short *minute)
 	int y0, m0, d0;
 	long first;
 	year_geom(&mw, &mh, &pc);
-	m = ((my - r_view.y) / mh) * pc + (mx - r_view.x) / mw;
+	m = ((my - r_view.y) / mh + ytop) * pc + (mx - r_view.x) / mw;
 	if (m < 0 || m > 11)
 		return -1;
 	civil_from_days(cur_day, &y0, &m0, &d0);
 	first = days_from_civil(y0, m + 1, 1);
 	col = (mx - ((r_view.x + (m % pc) * mw + (mw - 21 * cw) / 2) & ~7)) / (3 * cw);	/* (on a byte, as drawn) */
-	row = (my - (r_view.y + (m / pc) * mh + ch / 2) - 4) / ch - 2;
+	row = (my - (r_view.y + (m / pc - ytop) * mh + ch / 2) - 4) / ch - 2;
 	if (row < 0 || col < 0 || col > 6) {
 		if (minute)
 			*minute = -2;	/* the month's name: show that month */
@@ -2201,6 +2282,12 @@ static int arrow_was;
 void views_arrow(short what)
 {
 	int dir = what == 1 || what == 3 ? 1 : -1;
+	if (cur_view == V_YEAR && year_scrolls()) {
+		/* the rows of months: a row, or what the view shows */
+		year_scroll_to((short)(ytop + dir * (what >= 2 ? 1 : yg.shown)));
+		win_sliders();
+		return;
+	}
 	if (cur_view != V_DAY && cur_view != V_WEEK) {
 		if (what <= 3)
 			views_step(dir);
@@ -2230,6 +2317,10 @@ void views_slide(short pos)
 	layout();
 	if (cur_view == V_DAY || cur_view == V_WEEK)
 		scroll_by(scroll_max() * pos / 1000 - scroll_y);
+	else if (cur_view == V_YEAR && year_scrolls()) {
+		year_scroll_to((short)(((long)pos * (yg.rows - yg.shown) + 500) / 1000));
+		win_sliders();
+	}
 }
 
 /* the slider's size and place, 0..1000 */
@@ -2237,6 +2328,11 @@ void views_slider(long *size, long *pos)
 {
 	*size = 1000;
 	*pos = 0;
+	if (cur_view == V_YEAR && year_scrolls()) {
+		*size = (long)yg.shown * 1000 / yg.rows;
+		*pos = (long)ytop * 1000 / (yg.rows - yg.shown);
+		return;
+	}
 	if (cur_view != V_DAY && cur_view != V_WEEK)
 		return;
 	layout();
