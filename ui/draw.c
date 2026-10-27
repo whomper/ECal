@@ -653,10 +653,18 @@ void text_at(short x, short y, const char *s, long n, short cols, short flags)
 		else if (flags & TX_DIM)
 			effects |= 2;
 	}
+	/* bold: the plain text struck again a pixel to the right (TOS's own
+	   bold, pixel for pixel), never vst_effects' (common/ui/text.h's
+	   text_bold_strike: NVDI widens each letter and the line runs past
+	   its cells) */
 	if (heb_mode != HM_MAP && has_heb(out, n)) {
 		set_wrmode(2);
-		set_text((flags & TX_INVERSE) ? 0 : color, effects);
+		set_text((flags & TX_INVERSE) ? 0 : color, effects & ~1);
 		runs_at(x, y, out, (short)n);
+		if (effects & 1) {
+			set_text((flags & TX_INVERSE) ? 0 : color, effects & ~9);	/* (the line once) */
+			runs_at(x + 1, y, out, (short)n);
+		}
 		return;
 	}
 	if (opt.hebfont != HEB_ATARI && has_heb(out, n)) {
@@ -666,7 +674,7 @@ void text_at(short x, short y, const char *s, long n, short cols, short flags)
 		heb_font_map(vis, n, opt.hebfont);
 	}
 	set_wrmode(2);
-	set_text((flags & TX_INVERSE) ? 0 : color, effects);
+	set_text((flags & TX_INVERSE) ? 0 : color, effects & ~1);
 #ifdef AES_PROFILE
 	prof_texts++;
 	if (x & 7)
@@ -677,6 +685,13 @@ void text_at(short x, short y, const char *s, long n, short cols, short flags)
 	for (i = 0; i < n; i += 120) {
 		short k = n - i > 120 ? 120 : (short)(n - i);
 		cells_at(x + i * cw, y, out + i, k);
+	}
+	if (effects & 1) {
+		set_text((flags & TX_INVERSE) ? 0 : color, effects & ~9);	/* (the line once) */
+		for (i = 0; i < n; i += 120) {
+			short k = n - i > 120 ? 120 : (short)(n - i);
+			cells_at(x + i * cw + 1, y, out + i, k);
+		}
 	}
 }
 
