@@ -503,16 +503,25 @@ static void off_draw(GRECT *full)
    when it closes the same pixels go back, no window drawn again (an
    ST's Settings 1.1 s less). 0 where there is no buffer, or the view
    is half drawn in it */
-/* r widened to whole words across: the copy without shifts at its edges */
+/* r widened to whole words across (the copy without shifts at its
+   edges), and cut to the screen: a dialog as tall as the desktop, with
+   the 2 pixels its shadow takes, reached past the buffer's last line */
 static void under_rect(const GRECT *r, short *pxy)
 {
 	short x1 = (short)(r->x & ~15), x2 = (short)((r->x + r->w + 15) & ~15) - 1;
+	short y1 = r->y, y2 = r->y + r->h - 1;
+	if (x1 < 0)
+		x1 = 0;
 	if (x2 > scr_w - 1)
 		x2 = (short)(scr_w - 1);
+	if (y1 < 0)
+		y1 = 0;
+	if (y2 > scr_h - 1)
+		y2 = (short)(scr_h - 1);
 	pxy[0] = pxy[4] = x1;
-	pxy[1] = pxy[5] = r->y;
+	pxy[1] = pxy[5] = y1;
 	pxy[2] = pxy[6] = x2;
-	pxy[3] = pxy[7] = r->y + r->h - 1;
+	pxy[3] = pxy[7] = y2;
 }
 
 /* the screen is the buffer's own layout, at Logbase: TOS's VDI in a
@@ -603,8 +612,9 @@ void win_clear(GRECT *r)
 	size_t mid = 0;
 	unsigned char *line;
 	void *scr;
-	if (!plain_screen() || r->w <= 0) {
-		fill(r, 0);
+	if (!plain_screen() || r->w <= 0 || r->h <= 0 || r->x < 0 || r->y < 0 ||
+	    x2 > scr_w - 1 || r->y + r->h > scr_h) {
+		fill(r, 0);	/* (the VDI clips; this writes the memory) */
 		return;
 	}
 	scr = xbios_base(3);
