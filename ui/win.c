@@ -468,9 +468,14 @@ static int off_screen(void)
 	return obuf && (bm_h || xbios_base(3) == xbios_base(2));
 }
 
+/* the screen under a dialog, kept in the buffer while it is up (below,
+   win_save_under); anything drawn in the buffer meanwhile ends it */
+static int under_kept;
+
 /* full drawn into the buffer (off_screen()) */
 static void off_draw(GRECT *full)
 {
+	under_kept = 0;
 	if (bm_h) {
 		short keep = vdi_h;
 		vdi_h = bm_h;
@@ -490,6 +495,140 @@ static void off_draw(GRECT *full)
 		xbios_setscreen(screen);
 		if (vj.inside)
 			graf_mouse(M_ON, 0);
+	}
+}
+
+/* The screen under r kept in the buffer, where a dialog drawn over the
+   screen (TOS: it holds the screen, nothing else draws) is about to go:
+   when it closes the same pixels go back, no window drawn again (an
+   ST's Settings 1.1 s less). 0 where there is no buffer, or the view
+   is half drawn in it */
+/* r widened to whole words across: the copy without shifts at its edges */
+static void under_rect(const GRECT *r, short *pxy)
+{
+	short x1 = (short)(r->x & ~15), x2 = (short)((r->x + r->w + 15) & ~15) - 1;
+	if (x2 > scr_w - 1)
+		x2 = (short)(scr_w - 1);
+	pxy[0] = pxy[4] = x1;
+	pxy[1] = pxy[5] = r->y;
+	pxy[2] = pxy[6] = x2;
+	pxy[3] = pxy[7] = r->y + r->h - 1;
+}
+
+/* the screen is the buffer's own layout, at Logbase: TOS's VDI in a
+   bit-plane mode, the buffer swapped in as the logical screen to draw
+   (win_buffer_init). There a copy or a clear is a memcpy or a memset a
+   line, several times faster than TOS's raster copy on an ST (Settings'
+   box: 65 ms to keep the screen under it by vro_cpyfm) */
+static int plain_screen(void)
+{
+	return obuf && !bm_h && planes <= 8 && xbios_base(3) == xbios_base(2);
+}
+
+/* where the 16 pixels from x of line y start; a line on is LINE_BYTES
+   further (the pointers stepped a line at a time: a 68000 multiplies
+   longs in a library call) */
+#define LINE_BYTES ((long)obuf_mfdb.fd_wdwidth * 2 * planes)
+static unsigned char *at(void *base, short x, short y)
+{
+	return (unsigned char *)base + (long)y * LINE_BYTES + (long)(x >> 4) * 2 * planes;
+}
+
+/* the words across x1..x2 (whole words) of lines y1..y2, from one to the other */
+static void copy_lines(int to_buf, short x1, short y1, short x2, short y2)
+{
+	unsigned char *s = at(xbios_base(3), x1, y1), *b = at(obuf, x1, y1);
+	long n = (long)((x2 + 1 - x1) >> 4) * 2 * planes, step = LINE_BYTES;
+	short y;
+	for (y = y1; y <= y2; y++, s += step, b += step) {
+		if (to_buf)
+			memcpy(b, s, n);
+		else
+			memcpy(s, b, n);
+	}
+}
+
+static void under_copy(const GRECT *r, int to_buf)
+{
+	MFDB scr;
+	short pxy[8];
+	under_rect(r, pxy);
+	graf_mouse(M_OFF, 0);
+	if (plain_screen()) {
+		copy_lines(to_buf, pxy[0], pxy[1], pxy[2], pxy[3]);
+	} else {
+		memset(&scr, 0, sizeof(scr));
+		clip_off();
+		if (to_buf)
+			vro_cpyfm(vdi_h, 3, pxy, &scr, &obuf_mfdb);	/* S_ONLY */
+		else
+			vro_cpyfm(vdi_h, 3, pxy, &obuf_mfdb, &scr);
+	}
+	graf_mouse(M_ON, 0);
+}
+
+/* The screen under r kept in the buffer, where a dialog drawn over the
+   screen (TOS: it holds the screen, nothing else draws) is about to go:
+   when it closes the same pixels go back, no window drawn again (an
+   ST's Settings 1.1 s less). 0 where there is no buffer, or the view
+   is half drawn in it */
+int win_save_under(const GRECT *r)
+{
+	if (!obuf || vj.on)
+		return 0;
+	under_copy(r, 1);
+	under_kept = 1;
+	return 1;
+}
+
+/* the pixels kept under r back on the screen: 0 if they were not kept,
+   or something drew in the buffer since */
+int win_restore_under(const GRECT *r)
+{
+	if (!under_kept)
+		return 0;
+	under_kept = 0;
+	under_copy(r, 0);
+	return 1;
+}
+
+/* r (within the clip) in colour 0, the bits cleared: by memory where the
+   screen is plain (an ST's dialog box: 55 ms by vr_recfl), else a fill.
+   The mouse is off */
+void win_clear(GRECT *r)
+{
+	short x1 = r->x, x2 = r->x + r->w - 1, y, k;
+	unsigned short lm, rm;
+	long g1, g2, step;
+	size_t mid = 0;
+	unsigned char *line;
+	void *scr;
+	if (!plain_screen() || r->w <= 0) {
+		fill(r, 0);
+		return;
+	}
+	scr = xbios_base(3);
+	g1 = x1 >> 4;
+	g2 = x2 >> 4;
+	lm = (unsigned short)(0xFFFFu >> (x1 & 15));
+	rm = (unsigned short)(0xFFFFu << (15 - (x2 & 15)));
+	line = at(scr, x1, r->y);
+	step = LINE_BYTES;
+	mid = (size_t)((g2 - g1 - 1) * 2 * planes);
+	for (y = r->y; y < r->y + r->h; y++, line += step) {
+		unsigned short *p = (unsigned short *)line, *q;
+		if (g1 == g2) {
+			for (k = 0; k < planes; k++)
+				p[k] &= (unsigned short)~(lm & rm);
+			continue;
+		}
+		for (k = 0; k < planes; k++)
+			p[k] &= (unsigned short)~lm;
+		if (g2 - g1 > 1)
+			memset(p + planes, 0, mid);
+		q = p + (g2 - g1) * planes;
+		for (k = 0; k < planes; k++)
+			q[k] &= (unsigned short)~rm;
 	}
 }
 
@@ -864,6 +1003,7 @@ void win_scroll(const GRECT *a, short dy)
 	if (win_h <= 0 || win_iconified)
 		return;
 	win_view_finish();	/* (what is on the screen is moved: the view whole) */
+	under_kept = 0;		/* (moved on the screen, not in the buffer) */
 	wind_update(BEG_UPDATE);
 	if (ady < a->h) {
 		wind_get(win_h, WF_FIRSTXYWH, &box.x, &box.y, &box.w, &box.h);

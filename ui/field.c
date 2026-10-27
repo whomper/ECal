@@ -21,6 +21,7 @@
 #include "clip.h"
 #include "../src/plat.h"
 #include "av.h"
+#include <tos.h>
 #include "people_ask.h"
 #include "dialog.h"
 
@@ -109,6 +110,16 @@ static void aes_button(const FIELD *f, const GRECT *r, int pressed)
 
 /* the dialog being run, for what depends on its section */
 static DLG *cur_dlg;
+
+/* A dialog over the screen (TOS) is drawn a part at a time: its box and
+   title at once, its sections and fields in slices between event calls,
+   so a key is answered while they come (the guidelines' Speed: a dialog
+   opened within 150 ms; an ST took 400 ms to draw Settings whole).
+   todo: the next part still to draw, -1 the sections, cur_dlg->n none */
+static int frame_only;
+static short todo, clear_y;	/* clear_y: the inside cleared down to here */
+#define DRAW_SLICE_MS 60UL
+#define CLEAR_BAND 96		/* lines of the inside cleared at a time (an ST: about 25 ms) */
 
 static int shown_now(const FIELD *f)
 {
@@ -667,14 +678,16 @@ static void draw_field(DLG *d, short i)
 		}
 		while (*l == ' ')
 			l++;
+		/* (the text a cell in: on a byte where the box is, the
+		   guidelines' Speed, and their 8-pixel margin) */
 		if (f->type == FT_CHOOSE) {
 			/* the choice and "...": a dialog opens, not a menu (5.7) */
 			char t[64];
 			snprintf(t, sizeof(t), "%.*s...", f->w - 5 > 0 ? f->w - 5 : 0, l);
-			text_at(FX(f) + cw / 2, FY(f), t, (long)strlen(t), f->w - 1, TX_LTR | dis);
+			text_at(FX(f) + cw, FY(f), t, (long)strlen(t), f->w - 2, TX_LTR | dis);
 			break;
 		}
-		text_at(FX(f) + cw / 2, FY(f), l, (long)strlen(l), f->w - 2,
+		text_at(FX(f) + cw, FY(f), l, (long)strlen(l), f->w - 2,
 			(line_rtl(l, (long)strlen(l)) ? 0 : TX_LTR) | dis);
 		text_at(FX(f) + (f->w - 1) * cw, FY(f), "\x02", 1, 1, TX_LTR | dis);
 		break;
@@ -753,7 +766,7 @@ static void draw_sections(DLG *d)
 		const char *s = d->pages[k];
 		section_rect(d, k, &r);
 		fill(&r, k + 1 == d->page ? 1 : bg);
-		text_at(r.x + cw, r.y + 3, s, (long)strlen(s), d->side, TX_LTR | (k + 1 == d->page ? TX_INVERSE : 0));
+		text_at(box.x + pad, r.y + 3, s, (long)strlen(s), d->side, TX_LTR | (k + 1 == d->page ? TX_INVERSE : 0));
 	}
 	line_col(lx, box.y + ch + 6, lx, box.y + box.h - 4, 1);
 	if (d->page >= 1 && d->page <= d->npages) {
@@ -791,7 +804,17 @@ static void draw_all_in(DLG *d, const GRECT *clip)
 		return;
 	graf_mouse(M_OFF, 0);
 	on_box(1);
-	fill(&box, bg);
+	/* (only the frame at first: the inside is cleared a band at a time
+	   with the rest, draw_some) */
+	if (!frame_only) {
+		if (bg) {
+			fill(&box, bg);
+		} else {
+			GRECT c = box;
+			if (rect_and(&c, &clip_now))
+				win_clear(&c);
+		}
+	}
 	frame(&box, 1);
 	{
 		GRECT in = box;
@@ -810,18 +833,74 @@ static void draw_all_in(DLG *d, const GRECT *clip)
 		if (hebrew_kbd)
 			text_at(t.x + t.w - 4 * cw, t.y + 1, "\xD3\xC3", 2, 2, TX_BOLD);	/* "עב": Hebrew keyboard */
 	} else {
+		short cols = (short)((box.w - 2 * pad) / cw), n;
 		fill(&t, 1);
 		snprintf(title, sizeof(title), "%s", d->title ? d->title : "");
-		text_at(t.x, t.y + 1, title, (long)strlen(title), t.w / cw, TX_INVERSE | TX_BOLD | TX_CENTER |
-			(line_rtl(title, (long)strlen(title)) ? 0 : TX_LTR));
+		n = (short)strlen(title);
+		/* centred to the nearest cell: on a byte (TX_CENTER puts it half
+		   a cell off when the room left is odd) */
+		text_at(box.x + pad + (n < cols ? (cols - n) / 2 : 0) * cw, t.y + 1, title, n, cols,
+			TX_INVERSE | TX_BOLD | (line_rtl(title, n) ? TX_RIGHT : TX_LTR));
 		if (hebrew_kbd)
 			text_at(t.x + t.w - 4 * cw, t.y + 1, "\xD3\xC3", 2, 2, TX_INVERSE);	/* "עב": Hebrew keyboard */
 	}
-	if (d->npages)
+	if (frame_only) {
+		/* the rest in slices (draw_some): the inside below the title
+		   cleared, the sections, the fields */
+		clear_y = t.y + t.h;
+		todo = d->npages ? -1 : 0;
+	} else {
+		if (d->npages)
+			draw_sections(d);
+		for (i = 0; i < d->n; i++)
+			if (shown_now(&d->f[i]))
+				draw_field(d, i);
+		if (d == cur_dlg) {
+			todo = d->n;
+			clear_y = box.y + box.h;
+		}
+	}
+	on_box(0);
+	graf_mouse(M_ON, 0);
+}
+
+/* the dialog's next parts, for about ms */
+static void draw_some(DLG *d, unsigned long ms)
+{
+	unsigned long t0 = pf_ms();
+	short bottom = box.y + box.h - 3;
+	if (todo >= d->n || !clip_box(&box))
+		return;
+	graf_mouse(M_OFF, 0);
+	on_box(1);
+	while (clear_y < bottom && pf_ms() - t0 < ms) {
+		/* the inside, inside the double frame, a band at a time */
+		GRECT c;
+		c.x = box.x + 3;
+		c.y = clear_y;
+		c.w = box.w - 6;
+		c.h = bottom - clear_y < CLEAR_BAND ? bottom - clear_y : CLEAR_BAND;
+		if (bg)
+			fill(&c, bg);
+		else
+			win_clear(&c);
+		clear_y += c.h;
+	}
+	if (clear_y < bottom || (todo < 0 && pf_ms() != t0)) {
+		/* (the sections, dearer than a field, begin a slice of their own) */
+		on_box(0);
+		graf_mouse(M_ON, 0);
+		return;
+	}
+	if (todo < 0) {
 		draw_sections(d);
-	for (i = 0; i < d->n; i++)
-		if (shown_now(&d->f[i]))
-			draw_field(d, i);
+		todo = 0;
+	}
+	while (todo < d->n && pf_ms() - t0 < ms) {
+		if (shown_now(&d->f[todo]))
+			draw_field(d, todo);
+		todo++;
+	}
 	on_box(0);
 	graf_mouse(M_ON, 0);
 }
@@ -1165,6 +1244,9 @@ static void box_now(void)
    as ECal always drew it, the AES told of 2 pixels more, which TOS
    1.04's redraw of the window under it needs. 1: close it with
    dlg_close */
+static short boxes;		/* boxes over the screen open now */
+static int under;		/* the screen under the first kept (win_save_under) */
+
 static int open_box(GRECT *b, const char *name, void (*draw)(short x, short y, short w, short h))
 {
 	if (dlg_windowed()) {
@@ -1175,19 +1257,37 @@ static int open_box(GRECT *b, const char *name, void (*draw)(short x, short y, s
 	wind_update(BEG_UPDATE);
 	wind_update(3);		/* BEG_MCTRL: the dialog owns the mouse */
 	form_dial(FMD_START, b->x, b->y, b->w + 2, b->h + 2);
+	if (boxes++ == 0) {
+		GRECT u = *b;
+		u.w += 2;
+		u.h += 2;
+		under = win_save_under(&u);
+	}
 	draw(b->x, b->y, b->w, b->h);
 	return 0;
 }
 
-static void close_box(const GRECT *b, int via_dlg)
+/* 1 when the screen under it was put back as it was: no window, nor
+   anything else, to draw again */
+static int close_box(const GRECT *b, int via_dlg)
 {
+	int back = 0;
 	if (via_dlg) {
 		dlg_close();
-		return;
+		return 0;
 	}
-	form_dial(FMD_FINISH, b->x, b->y, b->w + 2, b->h + 2);
+	if (--boxes == 0 && under) {
+		GRECT u = *b;
+		u.w += 2;
+		u.h += 2;
+		back = win_restore_under(&u);
+		under = 0;
+	}
+	if (!back)
+		form_dial(FMD_FINISH, b->x, b->y, b->w + 2, b->h + 2);
 	wind_update(2);
 	wind_update(END_UPDATE);
+	return back;
 }
 
 short dlg_run(DLG *d)
@@ -1196,11 +1296,13 @@ short dlg_run(DLG *d)
 	unsigned long hover_at = 0;
 	AEVENT e;
 	GRECT outer = box;		/* the dialog under this one, if any */
-	short outer_rh = rh, outer_pad = pad;
+	short outer_rh = rh, outer_pad = pad, outer_todo = todo, outer_clear = clear_y;
 	DLG *outer_dlg = cur_dlg;
 	font_sys_push();
 	look_3d();
 	cur_dlg = d;
+	todo = d->n;		/* (frame_only draws its box: the rest after) */
+	clear_y = 32767;
 	if (d->npages && (d->page < 1 || d->page > d->npages))
 		d->page = 1;
 	pad = cw + 2;
@@ -1220,7 +1322,16 @@ short dlg_run(DLG *d)
 		box.h = desk_h;
 	box.x = desk_x + (desk_w - box.w) / 2;
 	box.y = desk_y + (desk_h - box.h) / 2;
-	pad += 0;
+	/* its text on a byte: TOS draws text off one several times slower
+	   (the guidelines, Speed; Settings on an ST 390 ms drawn, 17 of its
+	   20 texts off a byte) */
+	if (cw == 8) {
+		short x = (short)(((box.x + pad + 4) & ~7) - pad);
+		if (x + box.w > desk_x + desk_w)
+			x -= 8;
+		if (x >= desk_x)
+			box.x = x;
+	}
 	/* the title bar takes the first row */
 	for (i = 0; i < d->n; i++) {
 		d->f[i].cur = d->f[i].buf ? (short)strlen(d->f[i].buf) : 0;
@@ -1235,7 +1346,24 @@ short dlg_run(DLG *d)
 	depth++;
 	/* over the screen on TOS, drawn at once; a window of the AES's on
 	   MiNT and MagiC (the guidelines, 3.5) */
+#ifdef AES_PROFILE
+	{
+		extern long prof_texts, prof_texts_off;
+		long tx0 = prof_texts, to0 = prof_texts_off;
+		unsigned long t0 = pf_ms();
+		char b[100];
+		frame_only = !dlg_windowed();
+		via = open_box(&box, d->title, area_draw);
+		frame_only = 0;
+		snprintf(b, sizeof(b), "DLGMS %s at %d: drawn %lu ms (%ld texts, %ld off a byte, %d fields)\n",
+			 d->title ? d->title : "", box.x, pf_ms() - t0, prof_texts - tx0, prof_texts_off - to0, d->n);
+		nf_debug(b);
+	}
+#else
+	frame_only = !dlg_windowed();
 	via = open_box(&box, d->title, area_draw);
+	frame_only = 0;
+#endif
 	graf_mouse(ARROW, 0);
 	/* a people field: what the mouse rests on tells its address */
 	for (i = 0; i < d->n; i++)
@@ -1247,7 +1375,7 @@ short dlg_run(DLG *d)
 	while (result == -2) {
 		if (tips) {
 			evnt_set_m1(1, hx, hy, 1, 1);
-			dlg_evnt(MU_KEYBD | MU_BUTTON | MU_M1 | MU_MESAG | MU_TIMER, 0x102, 3, 0, 100, m, &e);
+			dlg_evnt(MU_KEYBD | MU_BUTTON | MU_M1 | MU_MESAG | MU_TIMER, 0x102, 3, 0, todo < d->n ? 0 : 100, m, &e);
 			box_now();
 			if (e.which & (MU_KEYBD | MU_BUTTON | MU_M1))
 				tip_take(d);
@@ -1261,7 +1389,7 @@ short dlg_run(DLG *d)
 				tip_for(d, hx, hy);
 			}
 		} else {
-			dlg_evnt(MU_KEYBD | MU_BUTTON | MU_MESAG | MU_TIMER, 0x102, 3, 0, 200, m, &e);
+			dlg_evnt(MU_KEYBD | MU_BUTTON | MU_MESAG | MU_TIMER, 0x102, 3, 0, todo < d->n ? 0 : 200, m, &e);
 			box_now();
 		}
 		if (e.which & MU_MESAG)
@@ -1394,6 +1522,8 @@ short dlg_run(DLG *d)
 				graf_mkstate(&mx, &my, &mb, &ks);
 			} while (mb & 3);
 		}
+		if (result == -2 && todo < d->n)
+			draw_some(d, DRAW_SLICE_MS);
 	}
 	tip_take(d);
 	clip_off();
@@ -1402,12 +1532,15 @@ short dlg_run(DLG *d)
 	box = outer;
 	rh = outer_rh;
 	pad = outer_pad;
+	todo = outer_todo;
+	clear_y = outer_clear;
 	cur_dlg = outer_dlg;
 	font_sys_pop();
 	if (--depth == 0) {
 		dlg_resend();
 		if (dlg_after)
-			dlg_after();
+			dlg_after();	/* (the frame: also where the screen was put back, its info
+					   line may have changed meanwhile) */
 	}
 	return result;
 }

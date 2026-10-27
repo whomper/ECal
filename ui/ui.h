@@ -40,6 +40,9 @@ void frame(GRECT *r, short color);
 void xor_frame(GRECT *r);	/* an outline in XOR (twice: gone) */
 void clip_on(GRECT *r);
 void clip_off(void);
+int win_save_under(const GRECT *r);	/* the screen under a dialog kept (win.c) */
+int win_restore_under(const GRECT *r);	/* and back: 0 if it was not kept */
+void win_clear(GRECT *r);	/* r in colour 0, fast where it can be (win.c) */
 void text_font_now(short id);	/* the font just set, to text.c (draw.c) */
 void text_at(short x, short y, const char *s, long n, short cols, short flags);
 short text_x(short x);			/* where text_at puts text that starts at x */
