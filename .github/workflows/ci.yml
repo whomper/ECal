@@ -28,6 +28,8 @@ jobs:
           sudo apt-get install -y gcc-m68k-linux-gnu
       - name: Build the programs
         run: make
+      - name: No odd stack access (68000)
+        run: make oddaccess
       - name: The build changed no tracked file
         run: |
           git status --porcelain

@@ -107,8 +107,10 @@ icons:
 fakeguide: $(OBJDIR)/ST-GUIDE.ACC
 $(OBJDIR)/ST-GUIDE.ACC: $(OBJDIR)/fakeguide.elf common/tools/elf2tos.py
 	python3 common/tools/elf2tos.py $< $@
-$(OBJDIR)/fakeguide.elf: $(OBJDIR)/crt0.o $(OBJDIR)/gem.o $(OBJDIR)/fakeguide.o common/atari/link.ld
-	$(CC) $(LDFLAGS) -o $@ $(OBJDIR)/crt0.o $(OBJDIR)/gem.o $(OBJDIR)/fakeguide.o -lgcc
+# (gem.c's AES calls time themselves: tos.c's clock, libc's snprintf, nf.S)
+FAKEGUIDE_OBJS := $(addprefix $(OBJDIR)/,crt0.o gem.o fakeguide.o tos.o libc.o nf.o)
+$(OBJDIR)/fakeguide.elf: $(FAKEGUIDE_OBJS) common/atari/link.ld
+	$(CC) $(LDFLAGS) -o $@ $(FAKEGUIDE_OBJS) -lgcc
 $(OBJDIR)/fakeguide.o: tests/hatari/fakeguide.c common/atari/gem.h | $(OBJDIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
@@ -269,6 +271,14 @@ test: $(OBJDIR)/unit $(addprefix $(OBJDIR)/replay_,$(FUZZERS)) $(OBJDIR)/cal-cli
 	done
 	python3 -m unittest discover -s gateway -p 'test_aeragate.py'
 	python3 -m unittest discover -s gateway -p 'test_ecalgate.py'
+	@if command -v $(CC) >/dev/null; then $(MAKE) --no-print-directory oddaccess; \
+	else echo "oddaccess: no $(CC) here, left to CI's Atari build"; fi
+
+# a word or long at an odd stack offset: an address error on a 68000
+# (common/tools/oddaccess.py), in every 68000 program built here
+ODDELFS := $(OBJDIR)/cal.elf $(OBJDIR)/fakeguide.elf
+oddaccess: $(ODDELFS)
+	python3 common/tools/oddaccess.py $(ODDELFS)
 
 # the programs built to time themselves, in build/prof/bin, for
 # tests/hatari/quiet_test.py (binary/ stays as it is)
@@ -281,4 +291,4 @@ itest: $(OBJDIR)/cal-cli
 clean:
 	rm -rf $(OBJDIR) $(BIN) dist
 
-.PHONY: icons fakeguide all help dist test itest fuzz clean profile rrjump-m68k FORCE
+.PHONY: icons fakeguide all help dist test itest fuzz clean profile rrjump-m68k oddaccess FORCE
