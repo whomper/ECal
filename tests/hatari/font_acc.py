@@ -199,9 +199,9 @@ def main():
         r.click(*at)
         time.sleep(1.5)
         r.shot("2-menu")
-        # Font... is the third entry from the end (the accessory's menu
-        # ends About, Help, Font; the program's has Quit after them)
-        for _ in range(4 if a.prg else 3):
+        # Font... is the fourth entry from the end: Help, About, then the
+        # program's Quit or the accessory's Close (^U) after them
+        for _ in range(4):
             r.key(K["UP"])
             time.sleep(0.3)
         r.key(K["RETURN"])

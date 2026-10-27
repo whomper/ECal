@@ -192,23 +192,23 @@ def main():
             r.click(276, 257)                  # Repeat
             r.wait(1)
             r.shot("11-repeat-menu")
-            r.click(276, 423)                  # Custom...
+            r.click(276, 401)                  # Custom...
             r.wait(2)
             r.shot("12-custom")
             # monthly, on the last Friday, by the fields
             r.click(250, 92)                   # every ... weeks: the unit
             r.wait(1)
-            r.click(250, 187)                  # months
+            r.click(250, 165)                  # months
             r.wait(1)
             r.click(98, 180)                   # "the"
             r.wait(0.5)
             r.click(215, 180)                  # first ...
             r.wait(1)
-            r.click(215, 293)                  # last
+            r.click(215, 271)                  # last
             r.wait(1)
             r.click(360, 180)                  # Sunday ...
             r.wait(1)
-            r.click(360, 293)                  # Friday
+            r.click(360, 271)                  # Friday
             r.wait(1)
             r.shot("13-custom-last-friday")
             r.key(K["RETURN"])                 # OK
@@ -226,7 +226,7 @@ def main():
             r.wait(2)
             r.click(276, 257)
             r.wait(1)
-            r.click(276, 423)
+            r.click(276, 401)
             r.wait(2)
             r.click(340, 355)                  # the Rule line
             empty(r)

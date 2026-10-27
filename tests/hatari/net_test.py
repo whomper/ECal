@@ -188,7 +188,7 @@ def main():
                 open(p, "wb").write(b.replace(b"From the Atari", b"From the Xtari"))
             r.click(88, 8)                  # File
             time.sleep(1)
-            r.click(130, 19 + 6 * 16 + 8)   # its seventh entry
+            r.click(130, 19 + 5 * 16 + 8)   # its sixth entry (New event is in Event now)
             time.sleep(2)
             r.shot("n3-download-again")
             r.key(K["RETURN"])              # Download

@@ -72,7 +72,7 @@ def run(work, machine, with_ovl):
 LOADED = re.compile(r"TLS\.OVL \d+\.\d+ loaded")
 
 # ECAL.PRG's menu bar on 640x480: Options, and its Direct connection line
-OPTIONS_X, DIRECT_Y = 244, 91
+OPTIONS_X, DIRECT_Y = 300, 91
 
 
 def main():
