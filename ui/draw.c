@@ -12,6 +12,7 @@
 #include "ui.h"
 #include "bidi.h"
 #include "conn.h"
+#include "text.h"
 
 static short next_text_color = 1;
 
@@ -65,15 +66,25 @@ void clip_on(GRECT *r)
 	pxy[1] = r->y;
 	pxy[2] = r->x + r->w - 1;
 	pxy[3] = r->y + r->h - 1;
-	vs_clip(vdi_h, 1, pxy);
+	text_clip(vdi_h, pxy);	/* (text.c draws inside it the fast way) */
+}
+
+/* text.c told of the font now set (id, at cw x ch), when it changed:
+   text_font asks the OS and the cookie jar each time */
+void text_font_now(short id)
+{
+	static short last_id = -1, last_cw, last_ch;
+	if (id == last_id && cw == last_cw && ch == last_ch)
+		return;
+	last_id = id;
+	last_cw = cw;
+	last_ch = ch;
+	text_font(vdi_h, id, cw, ch);
 }
 
 void clip_off(void)
 {
-	short pxy[4] = { 0, 0, 0, 0 };
-	pxy[2] = scr_w - 1;
-	pxy[3] = scr_h - 1;
-	vs_clip(vdi_h, 0, pxy);
+	text_noclip(vdi_h);
 }
 
 int rect_hit(const GRECT *r, short x, short y)
@@ -524,7 +535,7 @@ static void cells_at(short x, short y, const char *s, short n)
 {
 	short k;
 	if (font_cells == FC_RUNS || n == 1) {
-		v_gtext_n(vdi_h, x, y, s, n);
+		text_n(vdi_h, x, y, s, n);	/* (the fast way TOS allows: text.h) */
 		return;
 	}
 	if (font_cells == FC_JUSTIFY) {

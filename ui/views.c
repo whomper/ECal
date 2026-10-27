@@ -14,6 +14,7 @@
 #include "ui.h"
 #include "util.h"
 #include "clip.h"
+#include "text.h"
 #include "../src/plat.h"
 #ifdef AES_PROFILE
 #include <tos.h>
@@ -1176,6 +1177,7 @@ static void year_font(int level)
 		vst_height(vdi_h, heights[base + level], &c, &h);
 		cw = c;
 		ch = h;
+		text_font_now(1);
 	} else {
 		font_apply();		/* back to the chosen font */
 	}

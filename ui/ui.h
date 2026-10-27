@@ -40,6 +40,7 @@ void frame(GRECT *r, short color);
 void xor_frame(GRECT *r);	/* an outline in XOR (twice: gone) */
 void clip_on(GRECT *r);
 void clip_off(void);
+void text_font_now(short id);	/* the font just set, to text.c (draw.c) */
 void text_at(short x, short y, const char *s, long n, short cols, short flags);
 short text_x(short x);			/* where text_at puts text that starts at x */
 extern short text_bytes;		/* text on a byte while the window is drawn (draw.c, win.c) */

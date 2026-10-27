@@ -22,6 +22,7 @@
 #include "../src/plat.h"
 #include "conn.h"
 #include "fontsel.h"
+#include "text.h"
 
 static short gdos_fonts = -1;	/* loaded on vdi_h: vst_load_fonts' count */
 static short boot_fonts;	/* the accessory: its fonts settled at boot (font_boot) */
@@ -158,6 +159,7 @@ static int set_font_on(short id, short pt, int probe)
 	vst_alignment(vdi_h, 0, 5);
 	cur_id = id;
 	cur_pt = pt;
+	text_font_now(id);
 	if (probe)
 		probe_hebrew(id);
 	return 1;
@@ -178,6 +180,7 @@ void font_reselect(void)
 	}
 	cw = keep_cw;
 	ch = keep_ch;
+	text_font_now(cur_id);
 }
 
 /* The accessory loads GDOS fonts only now, before its first event call
@@ -230,6 +233,7 @@ static void use_sys(void)
 	set_font(1, gl_hchar >= 16 ? 16 : 8);
 	cw = gl_wchar;
 	ch = gl_hchar;
+	text_font_now(1);
 }
 
 /* dialogs, popups and the About box keep the system font, as EMail's
