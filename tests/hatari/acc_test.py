@@ -56,7 +56,7 @@ def main():
         r.click(60, r.ecal_row())     # its first accessory
         time.sleep(5)
         r.shot("3-calendar")
-        r.key(SCAN["w"], ctrl=True)    # close the window (^W)
+        r.key(SCAN["u"], ctrl=True)    # close the window (^U, the guidelines 3.2)
         time.sleep(2)
         r.shot("4-closed")
         r.click(18, 8)

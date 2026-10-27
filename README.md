@@ -204,8 +204,10 @@ The gateway's own README, with its options and how to keep it private:
   Font dialog; twelve calendar colours, the same in 16 and 256 colours. With NVDI the views draw
   several times faster than with TOS's own VDI.
 - **3D dialogs**: where the AES draws 3D (TOS 4, MagiC, N.AES, XaAES, EmuTOS in colour), ECal's
-  dialogs and alerts take its look in 16 colours or more: grey ground, raised buttons, white fields.
-  **3D dialogs** in Settings > General turns it off; TOS 1 to 3 keep the flat look.
+  dialogs and alerts take its look in 16 colours or more: grey ground, the AES's own raised
+  buttons, white fields; TOS 1 to 3 keep the flat look.
+- **Keys as in GEM**: Esc empties the text field it is in, Undo cancels a dialog; ^U closes the
+  window (`ECAL.PRG` quits). Reminders are BGEM.NG notifications where it runs (MiNT).
 - **MiNT and MagiC**: where the AES runs several programs at once (XaAES, N.AES, MyAES, MagiC),
   alerts are the AES's own and each dialog opens in a window of its own, named after it: move it
   by its title bar, close it with its closer or Esc, and the other programs go on running.

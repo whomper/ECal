@@ -160,7 +160,7 @@ def main():
         r.key(K["RETURN"])			# open it
         r.wait(8)
         r.shot("6-opened")
-        r.key(K["ESC"])
+        r.key(0x61)                   # Undo: the dialog cancelled (Esc empties a field, 3.5)
         r.wait(2)
     finally:
         r.stop()

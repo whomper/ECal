@@ -128,7 +128,11 @@ int  side_click(short mx, short my, short clicks, short button);
 int  side_instant(short mx, short my);	/* over a tick box: no double click to wait for */
 
 /* ---- dialogs drawn by us (field.c) ---- */
-enum { FT_LABEL, FT_TEXT, FT_PASS, FT_BUTTON, FT_CHECK, FT_POPUP, FT_MULTI, FT_HEAD, FT_COLOR, FT_PEOPLE };
+/* FT_CHOOSE: a button showing a choice from a long list, its label and
+   "...", no arrow; a click hands it to changed(), which opens the list
+   dialog (the guidelines, 5.7) */
+enum { FT_LABEL, FT_TEXT, FT_PASS, FT_BUTTON, FT_CHECK, FT_POPUP, FT_MULTI, FT_HEAD, FT_COLOR, FT_PEOPLE,
+       FT_CHOOSE };
 #define FF_DEFAULT  1	/* Return presses it */
 #define FF_CANCEL   2	/* Esc presses it */
 #define FF_DISABLED 4
@@ -226,7 +230,7 @@ void font_sys_push(void);	/* the system font, for a dialog or popup */
 void font_sys_pop(void);	/* back to the window's font */
 short font_sys_suspend(void);	/* the window's font under open dialogs */
 void font_sys_resume(short k);
-const char *zone_pick(const char *current);	/* a zone name, or NULL */
+const char *zone_pick(const char *current, int floating);	/* a zone name, or NULL */
 
 /* ---- main.c ---- */
 void status(const char *msg);
@@ -235,6 +239,9 @@ void busy(int on);
 void cmd_refresh(int force);
 void cmd_menu(short x, short y);	/* the toolbar's menu */
 void cmd_delete_selected(void);
+enum { EV_OPEN, EV_DUP, EV_DEL };
+int views_selected(void);
+void views_event(int what);
 void cmd_new_event(void);
 void cmd_import(int cal);
 void after_change(void);		/* events changed: redraw all */
@@ -248,6 +255,7 @@ void closing_down(int quitting);	/* the last steps, on the info line */
 unsigned char key_char(short kstate, short key);	/* honours the Hebrew layout */
 void falcon_dsp_init(void);		/* dsp_ovl.c */
 const char *falcon_dsp_state(void);
+int calendars_read(void);
 void falcon_dsp_ec_init(void);		/* dsp_ovl.c (TLS.OVL's DSP) */
 const char *falcon_dsp_ec_state(void);
 int  falcon_mode_set(int on);

@@ -39,8 +39,8 @@ F:\...\ECAL.APP\          ECal's folder, wherever you keep it (this one is an ex
 
 - **`ECAL.PRG`** is the same program, to start from the desktop or a
   shell; it ends when its window closes. It has a menu bar (**File**,
-  **Edit**, **View**, **Options**, **Help**) with the commands of the
-  accessory's ≡ menu. It uses the folder it was started from as ECal's
+  **Edit**, **View**, **Event**, **Options**, **Help**) with the commands of the
+  accessory's ≡ menu; **Event** has New event, Open, Duplicate and Delete. It uses the folder it was started from as ECal's
   folder and writes that into `FOLDER=`, so starting it once from your
   folder is all it takes for the accessory to find it too.
 - **Both installed:** they share the settings and the calendars, and
@@ -108,13 +108,13 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
   the first hour the day and week views show, the 24-hour clock, Hebrew
   dates next to the civil ones, which character set your font has
   Hebrew in, and whether ECal starts with the Hebrew keyboard.
-  **3D dialogs** (on at first): where the AES draws dialogs in 3D (TOS 4,
-  MagiC, N.AES, XaAES, EmuTOS in colour), ECal's dialogs and alerts take
-  that look with 16 colours or more: a grey ground, raised buttons, white
-  fields. Off, they stay flat and white. It is greyed where the AES has
-  no 3D (TOS 1 to 3). Under MiNT (XaAES, N.AES, MyAES) and MagiC each
-  dialog opens in a window of its own, which you can move by its title
-  bar and close with its closer or Esc, and the alerts are the AES's.
+  Where the AES draws dialogs in 3D (TOS 4, MagiC, N.AES, XaAES, EmuTOS
+  in colour), ECal's dialogs and alerts take that look with 16 colours or
+  more: a grey ground, the AES's own raised buttons, white fields; on
+  TOS 1 to 3 they are flat and white. Under MiNT (XaAES, N.AES, MyAES)
+  and MagiC each dialog opens in a window of its own, which you can move
+  by its title bar and close with its closer or Undo, and the alerts are
+  the AES's.
 - **Events**: how long a new event lasts and the alert it starts with;
   **Show alerts** turns all reminders on or off.
 - **Time zones**: see [Time zones](#time-zones).
@@ -359,8 +359,9 @@ date as the title. Reminders still come while it is iconified.
   `12/10/26`), times as `9:30`, `930` or `9:30pm`.
 - **all-day** for birthdays, holidays, trips.
 - **Calendar**: which calendar it goes in (only those you can change).
-- **Zone** (with time zone support on): the event's time zone; "Floating"
-  for events that happen at the same clock time anywhere.
+- **Zone** (with time zone support on): the event's time zone. The
+  button opens the list of zones; "Floating", at its top, is for events
+  that happen at the same clock time anywhere.
 - **Repeat**: every day, weekday (Sunday to Thursday when the week starts
   on Sunday, Monday to Friday otherwise), week, two weeks, month, year,
   **every year on the Hebrew date** (birthdays, yahrzeits: 12 Tishri every
@@ -486,7 +487,9 @@ copied out of a password field.
 
 When an event's alert comes due, ECal beeps and shows it over
 whatever program is running, even with its window closed. **Show** opens
-the day. Settings > Events > **Show alerts** turns them all off; each calendar has
+the day. Under MiNT with BGEM.NG running, the reminder is one of its
+notifications instead, at the edge of the screen: **Show** opens the day,
+**Later** puts it away. Settings > Events > **Show alerts** turns them all off; each calendar has
 its own switch too (subscriptions start with theirs off).
 
 The accessory doesn't have to be opened for its reminders, and it
@@ -511,7 +514,8 @@ window closed**) and their reminders come too, or open ECal.
 Settings > Time zones:
 
 - **Atari clock in**: the zone the Atari's clock is set to. ECal needs
-  it to know what time it is everywhere else.
+  it to know what time it is everywhere else. The button opens the list
+  of zones.
 - **Time zone support**: each event shows and edits its own zone, and
   **Show times in** lets you see the calendar as it looks from somewhere
   else, e.g. before a trip. Off, everything is shown in the clock's zone.
@@ -533,7 +537,8 @@ instance).
 | Return              | open the selected event (none: a new one) |
 | Delete              | delete the selected event               |
 | Esc                 | nothing selected; while busy: stop      |
-| Esc, Undo           | in a dialog or alert: Cancel            |
+| Esc                 | in a text field: empty it               |
+| Undo                | in a dialog or alert: Cancel            |
 | N, ^N               | new event                               |
 | ^F                  | find                                    |
 | ^G                  | go to a date                            |
@@ -542,15 +547,16 @@ instance).
 | ^R                  | refresh (Shift+^R: everything)          |
 | ^,                  | Settings                                |
 | Shift+^S            | show/hide the calendar list             |
-| ^W, ^Q              | close the window                        |
+| ^U, ^Q              | close the window (`ECAL.PRG`: quit)     |
 | F10                 | Hebrew keyboard                         |
 | Help                | this guide (see below)                  |
 
-In any dialog box or alert, Esc or Undo is Cancel: the dialog closes,
-what you typed is thrown away and nothing is saved, deleted or sent (in
-an alert without Cancel, it picks the button that does nothing, such as
-OK under a reminder). In a text field too: it doesn't clear the field,
-it closes the dialog.
+In any dialog box or alert, Undo is Cancel: the dialog closes, what you
+typed is thrown away and nothing is saved, deleted or sent (in an alert
+without Cancel, it picks the button that does nothing, such as OK under
+a reminder). So is Esc, except in a text field, as in every GEM program:
+there Esc empties the field the cursor is in, and the dialog stays open.
+A text of several lines (an event's notes) keeps its text on Esc.
 
 A text field holds more than it shows: the text scrolls with the
 cursor, so a long address, folder or title fits whole. Left and right
@@ -563,9 +569,11 @@ or Undo stops what ECal is waiting for from the server, at once rather
 than after the minute it would wait: the alert then says "stopped".
 Anything else you type meanwhile is kept for afterwards.
 
-Help (or Help > **ECal help**, or **Help...** in the ≡ menu) opens this guide in EHypView,
-ST-Guide or HypView, whichever is running (as an accessory, or as a
-program under MultiTOS or MagiC): copy `ECAL.HYP` and `ECAL.REF` into
+Help (or Help > **ECal help**, or **Help...** in the ≡ menu) opens this guide in
+the viewer you named with `STGUIDE=` in the AES's environment (MiNT's
+`XAAES.CNF`, MagiC's `MAGX.INF`), else EHypView, ST-Guide or HypView,
+whichever is running (as an accessory, or as a program under MiNT or
+MagiC, where ECal starts the viewer when none runs): copy `ECAL.HYP` and `ECAL.REF` into
 ECal's folder, or into the viewer's help folder. Without a viewer, Help says how
 to get one and offers the keys above instead.
 

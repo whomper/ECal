@@ -11,7 +11,8 @@
 #include "ui.h"
 #include "aboutbox.h"
 #include "iconify.h"
-#include "tlsovl.h"
+#include "aboutline.h"
+#include "../src/http.h"
 #include "icon.h"
 #include "icon16.h"
 #include "icon256.h"
@@ -35,20 +36,27 @@ void icon_window(GRECT *area)
 	icon_redraw(win_h, area, icon_bits, icon16_px, s);
 }
 
+/* The About box's status lines in the family's words (the guidelines,
+ * 1.3; Erez, 27 Oct 2026): the connection, what ECal holds, the memory */
 void dlg_about(void)
 {
-	static char conn[100];
-	char direct[48];
-	const char *ram = about_ram(), *ver = tls_ovl_version();
-	ABOUT a = { "ECal", cal_version, "A calendar for the Atari ST, TT and Falcon", { conn, 0, 0 }, { 0, 0, 0 },
+	static char net[100], mine[60], mem[80];
+	char kept[64];
+	long events = 0;
+	int i;
+	ABOUT a = { "ECal", cal_version, "A calendar for the Atari ST, TT and Falcon", { net, mine, mem }, { 0, 0, 0 },
 		    icon_bits, icon16_px, icon16_rgb, icon256_px, icon256_rgb };
-	/* "Direct connection/DSP (TLS.OVL 1.0)": TLS.OVL's version once it is
-	   loaded (the guidelines, 7.4) */
-	snprintf(direct, sizeof(direct), "Direct connection%s%s%s%s", strcmp(falcon_dsp_state(), "DSP") ? "" : "/DSP",
-		 ver[0] ? " (TLS.OVL " : "", ver, ver[0] ? ")" : "");
-	snprintf(conn, sizeof(conn), "%s  \xF9  %s  \xF9  %s%s%s",
-		 strcmp(net_stack(), "none") ? net_stack() : "no network",
-		 opt.falcon ? direct : opt.gate[0] ? "Gateway" : "No gateway",
-		 opt.offline ? "offline" : "ready", ram[0] ? "  \xF9  " : "", ram);
+	http_kept_host(kept, sizeof(kept));
+	about_net_line(net, sizeof(net), net_stack(),
+		       opt.falcon ? ABOUT_DIRECT : opt.gate[0] ? ABOUT_GATEWAY : ABOUT_NO_GATEWAY,
+		       opt.offline ? ABOUT_OFFLINE : kept[0] ? ABOUT_ONLINE : ABOUT_READY);
+	for (i = 0; i < ncals; i++)
+		events += cals[i].nev;
+	if (!calendars_read())
+		str_copy(mine, "The calendars not read yet", sizeof(mine));
+	else
+		snprintf(mine, sizeof(mine), "%ld event%s in %d calendar%s", events, events == 1 ? "" : "s", ncals,
+			 ncals == 1 ? "" : "s");
+	about_mem_line(mem, sizeof(mem));
 	about_show(&a);
 }

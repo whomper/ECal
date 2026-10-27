@@ -80,10 +80,10 @@ def falcon_shots(r):
         r.key(K["RETURN"]); time.sleep(4)
     r.click(170, 81); time.sleep(0.5)       # back to the title
     r.shot("new-event")
-    r.key(K["ESC"]); time.sleep(1.5)
+    r.key(0x61); time.sleep(1.5)
     r.key(SCAN[","], ctrl=True); time.sleep(2)     # Settings...
     r.shot("settings")
-    r.key(K["ESC"]); time.sleep(1)
+    r.key(0x61); time.sleep(1)
 
 
 def st_shots(r):

@@ -185,7 +185,7 @@ def main():
         r.key(K["RETURN"])              # open it
         r.wait(8)
         r.shot("5-budget")
-        r.key(K["ESC"])
+        r.key(0x61)                   # Undo: the dialog cancelled (Esc empties a field, 3.5)
         r.wait(2)
         r.ctrl(",")                     # Settings
         r.wait(2)
@@ -198,7 +198,7 @@ def main():
         r.key(K["RETURN"])              # its OK: the folder stays
         r.wait(3)
         r.shot("8-chosen")
-        r.key(K["ESC"])
+        r.key(0x61)                   # Undo: the dialog cancelled (Esc empties a field, 3.5)
         r.wait(2)
     finally:
         r.stop()

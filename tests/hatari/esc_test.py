@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright (C) 2026 AERA | Erez Yaary
-"""Esc cancels (the guidelines, 3.5), in Hatari on a Falcon with ECAL.PRG:
+"""Esc and Undo (the guidelines, 3.5, GEM's way since 27 Oct 2026), in
+Hatari on a Falcon with ECAL.PRG:
 
     tests/hatari/esc_test.py WORK [--machine Falcon|Falcon:256|TT]
 
-- a new event (^N), a title typed, then Esc: no event added; the same
-  with Undo;
-- Settings (^,), a box ticked, then Esc, and again with Undo: ECAL.INF
-  as it was;
+- a new event (^N), a title typed, then Esc: the title field emptied and
+  the dialog still open; then Undo: closed, no event added;
+- Settings (^,), a box ticked (no text field on the page), then Esc, and
+  again with Undo: ECAL.INF as it was;
 - Delete on an event, then Esc at "Delete ...?", and again with Undo:
   the alert closes as Cancel (common/ui/alert.c), and nothing is deleted;
-- Find (^F), a word typed, then Esc: nothing found or opened.
+- Find (^F), a word typed, then Esc: the field emptied, the dialog open;
+  then Undo: nothing found or opened.
 Nothing ECal keeps on disk (ECAL.INF, the calendars) may change.
 Screenshots in WORK/shots.
 """
@@ -34,6 +36,17 @@ def check(what, ok):
     print(("  ok   " if ok else "  FAIL ") + what)
     if not ok:
         fails.append(what)
+
+
+def changed(work, a, b):
+    """the share of the screen that differs between two screenshots"""
+    from PIL import Image
+    x = Image.open(os.path.join(work, "shots", a + ".png")).convert("L")
+    y = Image.open(os.path.join(work, "shots", b + ".png")).convert("L")
+    w, h = x.size
+    px, py = x.load(), y.load()
+    n = sum(1 for j in range(0, h, 2) for i in range(0, w, 2) if px[i, j] != py[i, j])
+    return n / float((w // 2) * (h // 2))
 
 
 def files(hd):
@@ -68,14 +81,23 @@ def main():
             now = files(hd)
             check(what, now == before)
 
-        for key, name in ((K["ESC"], "Esc"), (UNDO, "Undo")):
-            r.key(SCAN["n"], ctrl=True)		# a new event
-            r.wait(2)
-            r.type("Cancelled " + name)
-            r.shot("2-new-" + name)
-            r.key(key)
-            r.wait(3)
-            unchanged("a new event, %s: nothing added" % name)
+        r.key(SCAN["n"], ctrl=True)		# a new event
+        r.wait(2)
+        r.shot("2-new-empty")
+        r.type("Cancelled")
+        r.shot("2-new-typed")
+        r.key(K["ESC"])
+        r.wait(1.5)
+        r.shot("2-new-esc")
+        d = changed(work, "2-new-empty", "2-new-esc")
+        check("a new event, Esc in the title: emptied, the dialog open (%.2f%% from before typing)" % (100 * d),
+              d < 0.005 and changed(work, "2-new-typed", "2-new-esc") > 0)
+        r.key(UNDO)
+        r.wait(3)
+        r.shot("2-new-undo")
+        check("a new event, Undo: the dialog closed",
+              changed(work, "2-new-esc", "2-new-undo") > 0.1)
+        unchanged("a new event, Esc then Undo: nothing added")
         for key, name in ((K["ESC"], "Esc"), (UNDO, "Undo")):
             r.ctrl(",")				# Settings
             r.wait(2)
@@ -96,11 +118,17 @@ def main():
             unchanged("Delete, %s at the question: nothing deleted" % name)
         r.ctrl("f")
         r.wait(1.5)
+        r.shot("5-find")
         r.type("Standup")
         r.key(K["ESC"])
-        r.wait(2)
+        r.wait(1.5)
         r.shot("5-find-esc")
-        unchanged("Find, Esc: nothing changed")
+        check("Find, Esc: the field emptied, the dialog open",
+              changed(work, "5-find", "5-find-esc") < 0.005)
+        r.key(UNDO)
+        r.wait(2)
+        r.shot("5-find-undo")
+        unchanged("Find, Undo: nothing changed")
         r.shot("6-end")
     finally:
         r.stop()

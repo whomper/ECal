@@ -31,7 +31,7 @@ static short depth;		/* dialogs open (one can open another: Custom repeat) */
 void (*dlg_after)(void);	/* called when the last dialog closes (window frame) */
 
 /* the 3D look (the guidelines, 5.6): where the AES draws its dialogs in
-   3D and the setting (DIALOGS3D=) wants it, ECal's own look the same:
+   3D, ECal's own look the same:
    the box on the AES's 3D background, exit buttons and pop-ups raised,
    fields and tick boxes white. It takes the AES's greys, so 16 colours
    or more; everywhere else the box stays white */
@@ -41,7 +41,7 @@ static short bg;		/* the box's colour: 0, or BG3D */
 
 static void look_3d(void)
 {
-	bg = dlg_3d_ok() && dlg_3d_on && ncolors >= 16 ? BG3D : 0;
+	bg = dlg_3d_ok() && ncolors >= 16 ? BG3D : 0;
 }
 
 /* drawing on the box: the greys follow its colour (draw.c) */
@@ -66,13 +66,42 @@ static void raised(const GRECT *r, int pressed)
    MagiC: the guidelines, 3.5) only while it is in front or within the
    piece the AES asked for, else 0 and the AES is asked to have it drawn
    (common/ui/dialog.c) */
+static GRECT clip_now;		/* the clip clip_box set: the AES's buttons draw within it too */
+
 static int clip_box(const GRECT *in)
 {
 	GRECT c = *in;
 	if (!rect_and(&c, &box) || !dlg_cut(&c.x, &c.y, &c.w, &c.h))
 		return 0;
 	clip_on(&c);
+	clip_now = c;
 	return 1;
+}
+
+/* an exit button is the AES's own G_BUTTON (the guidelines, 5.6; a
+   tester, Erez 27 Oct 2026), drawn by objc_draw with dlg_3d's flags, so
+   that it looks as every other program's buttons do on that AES: flat
+   on TOS 1 to 3, raised on TOS 4, MagiC and XaAES */
+static void aes_button(const FIELD *f, const GRECT *r, int pressed)
+{
+	OBJECT t[2];
+	memset(t, 0, sizeof(t));
+	t[0].ob_next = -1;
+	t[0].ob_head = t[0].ob_tail = 1;
+	t[0].ob_type = G_IBOX;
+	t[0].ob_width = scr_w;
+	t[0].ob_height = scr_h;
+	t[1].ob_head = t[1].ob_tail = -1;
+	t[1].ob_type = G_BUTTON;
+	t[1].ob_flags = SELECTABLE | EXIT | LASTOB | ((f->flags & FF_DEFAULT) ? DEFAULT : 0);
+	t[1].ob_state = ((f->flags & FF_DISABLED) ? DISABLED : 0) | (pressed ? SELECTED : 0);
+	t[1].ob_spec = (long)f->label;
+	t[1].ob_x = r->x;
+	t[1].ob_y = r->y;
+	t[1].ob_width = r->w;
+	t[1].ob_height = r->h;
+	dlg_3d(t);
+	objc_draw(t, 1, 0, clip_now.x, clip_now.y, clip_now.w, clip_now.h);
 }
 
 #define FX(f) (box.x + pad + (f)->x * cw)
@@ -95,13 +124,19 @@ static int focusable(const FIELD *f)
 	return (f->type == FT_TEXT || f->type == FT_PASS || f->type == FT_MULTI) && !(f->flags & FF_DISABLED);
 }
 
+/* a field typed into: there Esc empties, not cancels (the guidelines, 3.5) */
+static int typed_field(const FIELD *f)
+{
+	return f && (f->type == FT_TEXT || f->type == FT_PASS || f->type == FT_MULTI);
+}
+
 static void field_rect(const FIELD *f, GRECT *r)
 {
 	r->x = FX(f) - 2;
 	r->y = FY(f) - 2;
 	r->w = f->w * cw + 4;
 	r->h = (f->type == FT_MULTI || f->type == FT_PEOPLE ? f->h : 1) * ch + 4;
-	if (f->type == FT_BUTTON || f->type == FT_POPUP) {
+	if (f->type == FT_BUTTON || f->type == FT_POPUP || f->type == FT_CHOOSE) {
 		r->y--;
 		r->h += 2;
 	}
@@ -597,20 +632,7 @@ static void draw_field(DLG *d, short i)
 		break;
 	case FT_BUTTON:
 		field_rect(f, &r);
-		fill(&r, bg);
-		frame(&r, dis ? grey_color() : 1);
-		if (bg)
-			raised(&r, 0);
-		if (f->flags & FF_DEFAULT) {
-			GRECT r2 = r;
-			r2.x--;
-			r2.y--;
-			r2.w += 2;
-			r2.h += 2;
-			frame(&r2, 1);
-		}
-		text_at(FX(f), FY(f), f->label, (long)strlen(f->label), f->w, TX_CENTER | TX_LTR | dis |
-			((f->flags & FF_DEFAULT) ? TX_BOLD : 0));
+		aes_button(f, &r, 0);
 		break;
 	case FT_CHECK: {
 		GRECT b;
@@ -629,8 +651,10 @@ static void draw_field(DLG *d, short i)
 		text_at(FX(f) + 2 * cw, FY(f), f->label, (long)strlen(f->label), f->w - 2, TX_LTR | dis);
 		break;
 	}
+	case FT_CHOOSE:
 	case FT_POPUP: {
-		const char *l = f->val >= 0 && f->val < f->nitems ? f->items[f->val] : "";
+		const char *l = f->type == FT_CHOOSE ? (f->label ? f->label : "") :
+				f->val >= 0 && f->val < f->nitems ? f->items[f->val] : "";
 		field_rect(f, &r);
 		fill(&r, bg);
 		frame(&r, dis ? grey_color() : 1);
@@ -643,6 +667,13 @@ static void draw_field(DLG *d, short i)
 		}
 		while (*l == ' ')
 			l++;
+		if (f->type == FT_CHOOSE) {
+			/* the choice and "...": a dialog opens, not a menu (5.7) */
+			char t[64];
+			snprintf(t, sizeof(t), "%.*s...", f->w - 5 > 0 ? f->w - 5 : 0, l);
+			text_at(FX(f) + cw / 2, FY(f), t, (long)strlen(t), f->w - 1, TX_LTR | dis);
+			break;
+		}
 		text_at(FX(f) + cw / 2, FY(f), l, (long)strlen(l), f->w - 2,
 			(line_rtl(l, (long)strlen(l)) ? 0 : TX_LTR) | dis);
 		text_at(FX(f) + (f->w - 1) * cw, FY(f), "\x02", 1, 1, TX_LTR | dis);
@@ -855,6 +886,13 @@ static void press_effect(DLG *d, short i)
 	if (!clip_box(&box))
 		return;
 	graf_mouse(M_OFF, 0);
+	if (d->f[i].type == FT_BUTTON) {	/* the AES's button, selected and back */
+		aes_button(&d->f[i], &r, 1);
+		evnt_timer_(90);
+		aes_button(&d->f[i], &r, 0);
+		graf_mouse(M_ON, 0);
+		return;
+	}
 	if (bg) {		/* pressed in, then out again */
 		raised(&r, 1);
 		evnt_timer_(90);
@@ -1167,6 +1205,13 @@ short dlg_run(DLG *d)
 		d->page = 1;
 	pad = cw + 2;
 	rh = ch + 6;
+	/* a dialog taller than the desktop (the event's on a monochrome ST,
+	   400 lines) has its rows closer, so that its buttons show */
+	if (d->h * rh + 2 * pad > desk_h && d->h > 0) {
+		rh = (desk_h - 2 * pad) / d->h;
+		if (rh < ch + 2)
+			rh = ch + 2;
+	}
 	box.w = d->w * cw + 2 * pad;
 	box.h = d->h * rh + 2 * pad;
 	if (box.w > desk_w)
@@ -1228,10 +1273,20 @@ short dlg_run(DLG *d)
 			if (scan == 0x44) {			/* F10: the Hebrew keyboard */
 				set_hebrew_kbd(!hebrew_kbd);
 				draw_all(d);
-			} else if (scan == 0x01 || scan == 0x61) {	/* Esc, Undo: as Cancel (guideline 3.5) */
+			} else if (dlg_cancel_key(e.kreturn, typed_field(f))) {
+				/* Undo, and Esc where no text field has the cursor: as
+				   Cancel (the guidelines, 3.5) */
 				result = find_flag(d, FF_CANCEL);
 				if (result < 0)
 					result = -1;
+			} else if (dlg_esc(e.kreturn)) {
+				/* Esc in a text field empties it, as GEM's do, and the
+				   dialog stays; a text of several lines keeps it (3.5) */
+				if (f->type != FT_MULTI && f->buf[0]) {
+					f->buf[0] = 0;
+					f->cur = f->first = 0;
+					dlg_redraw_field(d, d->focus);
+				}
 			} else if (scan == 0x0f || ((scan == 0x48 || scan == 0x50) && (!f || f->type != FT_MULTI))) {
 				short dir = (scan == 0x48 || (scan == 0x0f && (e.kstate & (K_LSHIFT | K_RSHIFT)))) ? -1 : 1;
 				if (d->focus >= 0)
@@ -1291,12 +1346,29 @@ short dlg_run(DLG *d)
 					if (d->changed)
 						d->changed(d, hit);
 					break;
+				case FT_CHOOSE:
+					press_effect(d, hit);
+					if (d->changed)
+						d->changed(d, hit);
+					break;
 				case FT_POPUP: {
 					GRECT r;
-					short k;
+					short k, j;
+					char tick[16][64];
+					const char *lab[16];
 					field_rect(f, &r);
-					/* the popup draws over the dialog: it saves nothing, so redraw after */
-					k = popup(r.x, r.y + r.h, f->items, f->nitems);
+					/* over the button, the choice it shows ticked (the
+					   guidelines, 5.7); the popup draws over the dialog:
+					   it saves nothing, so redraw after */
+					for (j = 0; j < f->nitems && j < 16; j++) {
+						lab[j] = f->items[j];
+						if (j == f->val && f->items[j][0] == ' ') {
+							str_copy(tick[j], f->items[j], sizeof(tick[j]));
+							tick[j][0] = '\x08';
+							lab[j] = tick[j];
+						}
+					}
+					k = popup(r.x, r.y, lab, j);
 					draw_all(d);
 					if (k >= 0 && k != f->val) {
 						f->val = k;
@@ -1445,7 +1517,7 @@ short dlg_pick(const char *title, const char *const *items, short n, short sel)
 		if (e.which & MU_KEYBD) {
 			short sc = KEY_SCAN(e.kreturn);
 			unsigned char a = KEY_ASCII(e.kreturn);
-			if (sc == 0x01 || sc == 0x61)	/* Esc, Undo */
+			if (dlg_esc(e.kreturn))	/* Esc, Undo: a list without a field (3.5) */
 				res = -1;
 			else if (sc == 0x1c || sc == 0x72)
 				res = sel;

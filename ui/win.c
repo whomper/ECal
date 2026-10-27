@@ -767,11 +767,13 @@ int win_key(short kstate, short key)
 		case 0x13: cmd_refresh(kstate & (K_LSHIFT | K_RSHIFT)); return 1;	/* ^R */
 		case 0x21: dlg_find(); return 1;			/* ^F */
 		case 0x22: dlg_goto(); return 1;			/* ^G */
-		case 0x11:					/* ^W */
+		case 0x16:					/* ^U: close (the guidelines, 3.2) */
 		case 0x10:					/* ^Q */
 			if (!is_acc)
 				quit_now = 1;
 			win_close();
+			return 1;
+		case 0x11:					/* ^W: the next window; ECal has one */
 			return 1;
 		case 0x14: views_today(); return 1;		/* ^T */
 		case 0x2e: views_copy(); return 1;		/* ^C: the event chosen */

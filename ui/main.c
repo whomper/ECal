@@ -38,6 +38,7 @@
 #include "accmem.h"
 #include "dialog.h"
 #include "../src/alarms.h"
+#include "notify.h"
 
 short vdi_h, cw, ch, scr_w, scr_h, desk_x, desk_y, desk_w, desk_h, planes;
 short gl_wchar, gl_hchar, ap_id, is_acc, ncolors, hebrew_kbd, quit_now;
@@ -45,6 +46,12 @@ extern short _is_acc;		/* crt0.S */
 
 static short menu_id = -1;
 static int data_ready;
+
+/* 1 once the calendars are read (the About box's count) */
+int calendars_read(void)
+{
+	return data_ready;
+}
 static int settings_ready;	/* ECAL.INF read: at the first opening, or in the background */
 static int fonts_ready;		/* the window's font set up (at the first opening only:
 				   GDOS fonts loaded at boot would be the program in front's) */
@@ -322,6 +329,21 @@ static void auto_refresh(void)
 
 static void open_window(void);
 
+/* a reminder's notification (BGEM.NG, the guidelines, 4.5): its day, by
+   the number given with it, for its Show button */
+static long note_day[8];
+static short note_next;
+
+static void reminder_clicked(short id, short button)
+{
+	if (button != 1 || id < 0 || id >= 8)
+		return;			/* Later */
+	if (win_h <= 0)
+		open_window();
+	if (win_h > 0)
+		views_goto(note_day[id], V_DAY);
+}
+
 static void show_alarm(const ALARM *a, void *ud)
 {
 	char t[16], line[100];
@@ -339,6 +361,19 @@ static void show_alarm(const ALARM *a, void *ud)
 		snprintf(line, sizeof(line), "tomorrow at %s", t);
 	else
 		snprintf(line, sizeof(line), "%s %d %s, %s", wday_short[d.wday], d.day, month_short[d.mon - 1], t);
+	{
+		/* where BGEM.NG shows notifications, a reminder is one; where
+		   notify_send gives 0, the bell and the alert, as always (the
+		   guidelines, 4.5) */
+		char text[200];
+		short id = note_next;
+		snprintf(text, sizeof(text), "%s%s%s", line, a->place[0] ? "|" : "", a->place);
+		note_day[id] = ct_days(a->start);
+		if (notify_send(a->title, text, "Show|Later", id)) {
+			note_next = (short)((note_next + 1) & 7);
+			return;
+		}
+	}
 	Bconout(2, 7);
 	/* OK last: Esc only dismisses it (guideline 3.5) */
 	b = alert(2, "[1][%s|%s%s%s][Show| OK ]", a->title, line, a->place[0] ? "|" : "", a->place);
@@ -623,14 +658,14 @@ static void open_contacts(void)
 /* the commands of the menu bar (the program) and the toolbar's menu */
 enum { C_NONE, C_ABOUT, C_NEW, C_ADD, C_REFRESH, C_REFRESH_ALL, C_AGAIN, C_QUIT, C_COPY, C_DAY, C_WEEK,
        C_MONTH, C_YEAR, C_TODAY, C_GOTO, C_FIND, C_SIDE, C_HEB, C_SET, C_FONT, C_OFFL, C_FALC,
-       C_LOG, C_KBD, C_HELP, C_KEYS, C_CONTACTS, C_IMPORT };
+       C_LOG, C_KBD, C_HELP, C_KEYS, C_CONTACTS, C_IMPORT, C_CLOSE, C_NEW_ALLDAY, C_OPEN, C_DUP,
+       C_DEL };
 
 static const MBAR_ITEM m_desk[] = {
 	{ "About ECal...", 0, C_ABOUT },
 	{ 0, 0, 0 }
 };
 static const MBAR_ITEM m_file[] = {
-	{ "New event", "^N", C_NEW },
 	{ "Add account or calendar...", 0, C_ADD },
 	{ "Import .ics...", 0, C_IMPORT },
 	{ "Contacts...", 0, C_CONTACTS },
@@ -639,6 +674,7 @@ static const MBAR_ITEM m_file[] = {
 	{ "Refresh everything", "\x01^R", C_REFRESH_ALL },
 	{ "Download everything again...", 0, C_AGAIN },
 	{ "-", 0, 0 },
+	{ "Close", "^U", C_CLOSE },
 	{ "Quit", "^Q", C_QUIT },
 	{ 0, 0, 0 }
 };
@@ -658,6 +694,17 @@ static const MBAR_ITEM m_view[] = {
 	{ "-", 0, 0 },
 	{ "Calendar list", "\x01^S", C_SIDE },
 	{ "Hebrew dates", 0, C_HEB },
+	{ 0, 0, 0 }
+};
+/* the commands on events, New among them, in their own menu (the
+   guidelines, 3.1; a tester, Erez 27 Oct 2026) */
+static const MBAR_ITEM m_event[] = {
+	{ "New event", "^N", C_NEW },
+	{ "New all-day event", 0, C_NEW_ALLDAY },
+	{ "-", 0, 0 },
+	{ "Open...", 0, C_OPEN },
+	{ "Duplicate", 0, C_DUP },
+	{ "Delete...", 0, C_DEL },
 	{ 0, 0, 0 }
 };
 static const MBAR_ITEM m_opts[] = {
@@ -680,6 +727,7 @@ static const MBAR_TITLE bar[] = {
 	{ " File ", m_file },
 	{ " Edit ", m_edit },
 	{ " View ", m_view },
+	{ " Event ", m_event },
 	{ " Options ", m_opts },
 	{ " Help ", m_help },
 	{ 0, 0 }
@@ -692,6 +740,23 @@ static void check(int cmd, int on)
 	short o = mbar_object(&mb, cmd);
 	if (o > 0)
 		menu_icheck(mb.tree, o, on ? 1 : 0);
+}
+
+/* the Event menu's items for the event chosen, greyed without one; the
+   AES is asked only when that changes */
+static void event_items(void)
+{
+	static int was = -1;
+	int s = views_selected(), i;
+	static const int cmd[] = { C_OPEN, C_DUP, C_DEL };
+	if (s == was)
+		return;
+	was = s;
+	for (i = 0; i < 3; i++) {
+		short o = mbar_object(&mb, cmd[i]);
+		if (o > 0)
+			menu_ienable(mb.tree, o, i == 0 ? s > 0 : s == 2);
+	}
 }
 
 /* the menu bar's ticks, as things are now */
@@ -709,6 +774,7 @@ static void menu_update(void)
 	check(C_FALC, opt.falcon);
 	check(C_LOG, opt.log);
 	check(C_KBD, hebrew_kbd);
+	event_items();
 }
 
 static void command(int c)
@@ -716,6 +782,10 @@ static void command(int c)
 	switch (c) {
 	case C_ABOUT: dlg_about(); break;
 	case C_NEW: cmd_new_event(); break;
+	case C_NEW_ALLDAY: editor_new(cur_day, -1, 1); break;
+	case C_OPEN: views_event(EV_OPEN); break;
+	case C_DUP: views_event(EV_DUP); break;
+	case C_DEL: views_event(EV_DEL); break;
 	case C_ADD: dlg_add_account(); break;
 	case C_REFRESH: cmd_refresh(0); break;
 	case C_REFRESH_ALL: cmd_refresh(SYNC_ALL); break;
@@ -769,8 +839,12 @@ static void command(int c)
 			open_ics(path);
 		break;
 	}
+	case C_CLOSE:
+		/* ^U: the program has one window, so it quits; the accessory
+		   closes its window (the guidelines, 3.2) */
 	case C_QUIT:
-		quit_now = 1;
+		if (c == C_QUIT || !is_acc)
+			quit_now = 1;
 		win_close();
 		break;
 	}
@@ -810,12 +884,12 @@ void cmd_menu(short x, short y)
 		{ "  Help...            Help", C_HELP },
 		{ "  About ECal...", C_ABOUT },
 		{ "-", 0 },
-		{ "  Quit                ^Q", C_QUIT },
+		{ "  Quit                ^Q", C_QUIT },	/* the accessory: Close ^U */
 	};
 	enum { N = sizeof(m) / sizeof(m[0]) };
 	char ticked[N][40];
 	const char *items[N];
-	short i, k, n = is_acc ? N - 2 : N;
+	short i, k, n = N;
 	for (i = 0; i < N; i++) {
 		int on = (m[i].cmd == C_SIDE && opt.sidebar) || (m[i].cmd == C_HEB && opt.hebdates) ||
 			 (m[i].cmd == C_KBD && hebrew_kbd) || (m[i].cmd == C_OFFL && opt.offline) ||
@@ -827,8 +901,12 @@ void cmd_menu(short x, short y)
 			items[i] = ticked[i];
 		}
 	}
+	if (is_acc)
+		items[N - 1] = "  Close               ^U";
 	k = win_popup(x, y, items, n);
-	if (k >= 0 && k < N)
+	if (k == N - 1 && is_acc)
+		command(C_CLOSE);
+	else if (k >= 0 && k < N)
 		command(m[k].cmd);
 }
 
@@ -1120,7 +1198,6 @@ static int settings_step(void)
 	if (store_plain_passwords && !store_lost_passwords)
 		store_save_settings();
 	hebrew_kbd = opt.hebrew;
-	dlg_3d_on = opt.dialogs3d != 0;
 	{
 		/* where TOS put us: TT/Fast RAM starts at 16 MB */
 		char m[100];
@@ -1821,6 +1898,11 @@ int main(void)
 	}
 	if (is_acc)
 		menu_id = menu_register(ap_id, "  ECal");
+	/* notifications through BGEM.NG (the guidelines, 4.5): an accessory's
+	   text in global memory, taken before its first event call */
+	notify_init("ECAL");
+	notify_ask();		/* until BGEM.NG answers, a reminder is our alert */
+	notify_clicked = reminder_clicked;
 	{
 		short phys = graf_handle(&gl_wchar, &gl_hchar, &d, &d);
 		cw = gl_wchar;
@@ -1859,12 +1941,6 @@ int main(void)
 	}
 	store_watch = is_acc;
 	find_workdir();
-	{
-		/* the 3D look (the guidelines, 5.6) before the first dialog or alert */
-		char v[8];
-		inf_value("dialogs3d=", v, sizeof(v));
-		dlg_3d_on = !v[0] || atoi(v) != 0;
-	}
 	crash_install(workdir, "ECal", cal_version);	/* the program only */
 	crash_cleanup = crash_quit;
 	alert_hebrew = alert_heb;
@@ -1979,6 +2055,8 @@ int main(void)
 		} else if (hovering && pf_ms() - hover_at >= 700UL) {
 			tip_show();
 		}
+		if ((which & MU_MESAG) && notify_message(msg))
+			which &= ~MU_MESAG;	/* BGEM.NG's: its answer, a button clicked */
 		if (which & MU_MESAG) {
 			const char *va;
 			switch (msg[0]) {

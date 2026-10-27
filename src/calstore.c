@@ -154,7 +154,6 @@ static void defaults(void)
 	opt.duration = 60;
 	opt.sync_open = 1;
 	opt.bgsync = 1;
-	opt.dialogs3d = 1;
 	str_copy(opt.start, "60", sizeof(opt.start));
 }
 
@@ -166,7 +165,7 @@ static void set_opt(const char *k, const char *v)
 	I(tzsupport) I(falcon) I(dsp) I(weekstart) I(h24) I(hebdates) I(view) I(daystart)
 	I(alarms) I(alarm_default) I(log) I(font_id) I(font_pt) I(hebfont) I(win_x) I(win_y)
 	I(win_w) I(win_h) I(sidebar) I(past_days) I(future_days) I(duration) I(refresh) I(sync_open) I(offline) I(hebrew) I(heapkb) I(memkb)
-	I(peoplefile) I(dialogs3d)
+	I(peoplefile)
 	if (!strcasecmp(k, "sync_closed")) {
 		opt.bgsync = (short)atoi(v);	/* (BGSYNC= before 2.7, off then: left behind) */
 		return;
@@ -420,8 +419,6 @@ void store_settings_text(SBUF *bp, int part)
 	sb_printf(&b, "; the gateway's port\r\nGATEPORT=%u\r\n\r\n", opt.gateport);
 	I("OFFLINE", offline, "work offline: no connections at all (the menu > Work offline)")
 	I("LOG", log, "write the conversation with the servers to ECAL.LOG (passwords left out)")
-	I("DIALOGS3D", dialogs3d, "dialogs in the 3D look where the AES has one (TOS 4, MagiC, N.AES, XaAES);\r\n"
-	  "; 0: flat (Settings > General > 3D dialogs)")
 	if (part == 0)
 		return;
 options2:

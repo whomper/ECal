@@ -1435,6 +1435,49 @@ void views_copy(void)
 	free(t);
 }
 
+/* the event chosen: 0 none, 1 one that can't be changed, 2 one that can
+   (the Event menu greys what doesn't apply) */
+int views_selected(void)
+{
+	return !sel_occ.ev ? 0 : cal_writable(&cals[sel_occ.ev->cal]) ? 2 : 1;
+}
+
+/* the Event menu's commands on the event chosen, and its context menu's */
+void views_event(int what)
+{
+	EVENT *c;
+	CTIME d;
+	if (!sel_occ.ev)
+		return;
+	if (what == EV_OPEN) {
+		open_selected();
+		return;
+	}
+	if (what == EV_DEL) {
+		cmd_delete_selected();
+		return;
+	}
+	if (views_selected() != 2 || !(c = ev_dup(sel_occ.ev)))
+		return;
+	/* Duplicate: a new event at the same time, on its own */
+	d = c->end - c->start;
+	free(c->uid);
+	c->uid = 0;
+	c->res = -1;
+	c->recurid = CT_NONE;
+	c->start = ev_from_wall(c, sel_occ.start, view_zone());
+	c->end = c->start + d;
+	free(c->rr);
+	c->rr = 0;
+	c->nexdate = 0;
+	busy(1);
+	if (!ev_save(c, c->cal, SAVE_ALL, CT_NONE))
+		alert(1, "[1][Can't copy the event:|%s][ OK ]", cal_err);
+	busy(0);
+	ev_free(c);
+	after_change();
+}
+
 static void context_menu(short mx, short my, int it, long day, short minute)
 {
 	static const char *const ev_items[] = { "  Open...", "  Copy        ^C", "  Duplicate", "-", "  Delete..." };
@@ -1446,31 +1489,13 @@ static void context_menu(short mx, short my, int it, long day, short minute)
 		win_redraw(&r_view);
 		k = win_popup(mx, my, ev_items, cal_writable(&cals[sel_occ.ev->cal]) ? 5 : 2);
 		if (k == 0)
-			open_selected();
+			views_event(EV_OPEN);
 		else if (k == 1)
 			views_copy();
-		else if (k == 2) {
-			EVENT *c = ev_dup(sel_occ.ev);
-			if (c) {
-				CTIME d = c->end - c->start;
-				free(c->uid);
-				c->uid = 0;
-				c->res = -1;
-				c->recurid = CT_NONE;
-				c->start = ev_from_wall(c, sel_occ.start, view_zone());
-				c->end = c->start + d;
-				free(c->rr);
-				c->rr = 0;
-				c->nexdate = 0;
-				busy(1);
-				if (!ev_save(c, c->cal, SAVE_ALL, CT_NONE))
-					alert(1, "[1][Can't copy the event:|%s][ OK ]", cal_err);
-				busy(0);
-				ev_free(c);
-				after_change();
-			}
-		} else if (k == 4)
-			cmd_delete_selected();
+		else if (k == 2)
+			views_event(EV_DUP);
+		else if (k == 4)
+			views_event(EV_DEL);
 		return;
 	}
 	if (day < 0)

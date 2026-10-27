@@ -57,7 +57,7 @@ CORE    := util charset conn tls bidi secret futil ctime tz ics rrule xml inflat
 # tls.h's calls on, dsp_ovl.c the DSP's (common/README.md, "TLS.OVL")
 ACORE   := $(filter-out tls,$(CORE)) ovl
 ATARI   := libc tos plat_tos net_tos sting gem tls_ovl
-UI      := main win draw popup dsp_ovl views sidebar editor dialogs field about font fontsel help av alert aboutbox iconify clip dd mbar twin busy bgwork accmem dialog av_people people_ask people_file
+UI      := main win draw popup dsp_ovl views sidebar editor dialogs field about font fontsel help av alert aboutbox iconify clip dd mbar twin busy bgwork accmem dialog av_people people_ask people_file notify aboutline
 STBSSL  := hash/md5 codec/dec32le codec/enc32le
 
 OBJDIR  := build

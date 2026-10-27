@@ -92,7 +92,7 @@ def main():
         r.click(60, r.ecal_row())
         time.sleep(8)
         r.shot("1-accessory")
-        r.key(SCAN["w"], ctrl=True)     # closed, as one does
+        r.key(SCAN["u"], ctrl=True)     # closed, as one does (^U)
         time.sleep(2)
         r.click(195, 40, double=True)   # DISK C, the ECAL folder, ECAL.PRG
         time.sleep(3)

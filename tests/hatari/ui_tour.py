@@ -105,7 +105,7 @@ def main():
         r.type(" 4pm")
         time.sleep(0.5)
         r.shot("5-new-event")
-        r.key(K["ESC"])
+        r.key(0x61)                   # Undo: the dialog cancelled (Esc empties a field, 3.5)
         time.sleep(1)
         r.shot("6-after")
     finally:

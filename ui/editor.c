@@ -509,9 +509,7 @@ typedef struct {
 	const char *calnames[MAXCAL];
 	char calbuf[MAXCAL][40];
 	short ncal;
-	const char *tzitems[5];
-	char tzlab[4][44];
-	const TZONE *tzz[4];
+	char tzlab[44];		/* the zone button's text */
 	const TZONE *zone;		/* chosen; NULL: floating */
 	short readonly;
 	RRULE rule;			/* the repeat rule being edited */
@@ -842,19 +840,13 @@ static void changed(DLG *d, short i)
 		dlg_redraw_field(d, F_REPEND);
 		dlg_redraw_field(d, F_REPVAL);
 	} else if (i == F_TZ) {
-		short k = x->f[F_TZ].val;
-		if (k == 4) {			/* Other... */
-			const char *name = zone_pick(x->zone ? x->zone->name : opt.home_tz);
-			if (name) {
-				x->zone = tz_find(name);
-				str_copy(x->tzlab[0], tz_city(x->zone), sizeof(x->tzlab[0]));
-				x->tzz[0] = x->zone;
-			}
-			x->f[F_TZ].val = 0;
-		} else {
-			x->zone = x->tzz[k];
+		/* the zone list, at once (the guidelines, 5.7): floating first */
+		const char *name = zone_pick(x->zone ? x->zone->name : 0, 1);
+		if (name) {
+			x->zone = *name ? tz_find(name) : 0;
+			str_copy(x->tzlab, x->zone ? tz_city(x->zone) : "Floating", sizeof(x->tzlab));
 		}
-		dlg_redraw_field(d, F_TZ);
+		dlg_after_selector(d);	/* the window under the list too */
 	}
 }
 
@@ -1008,21 +1000,8 @@ static int edit_event(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 	x.f[F_STIME].max = 9;
 	/* time zone: the event's, home, the view's, floating, other */
 	put(&x.f[L_TZ], FT_LABEL, opt.tzsupport ? 0 : FF_DISABLED, 32, row, 0, opt.tzsupport ? "Zone:" : "");
-	put(&x.f[F_TZ], FT_POPUP, opt.tzsupport ? 0 : FF_DISABLED, 38, row, 20, 0);
-	x.tzz[0] = x.zone ? x.zone : vz;
-	x.tzz[1] = home_zone();
-	x.tzz[2] = tz_utc();
-	x.tzz[3] = 0;
-	str_copy(x.tzlab[0], tz_city(x.tzz[0]), sizeof(x.tzlab[0]));
-	snprintf(x.tzlab[1], sizeof(x.tzlab[1]), "  %s (home)", tz_city(x.tzz[1]));
-	str_copy(x.tzlab[2], "  UTC", sizeof(x.tzlab[2]));
-	str_copy(x.tzlab[3], "  Floating (any zone)", sizeof(x.tzlab[3]));
-	for (i = 0; i < 4; i++)
-		x.tzitems[i] = x.tzlab[i];
-	x.tzitems[4] = "  Other...";
-	x.f[F_TZ].items = x.tzitems;
-	x.f[F_TZ].nitems = 5;
-	x.f[F_TZ].val = x.zone ? 0 : 3;
+	put(&x.f[F_TZ], FT_CHOOSE, opt.tzsupport ? 0 : FF_DISABLED, 38, row, 20, x.tzlab);
+	str_copy(x.tzlab, x.zone ? tz_city(x.zone) : "Floating", sizeof(x.tzlab));
 	if (!opt.tzsupport)
 		x.f[F_TZ].type = FT_LABEL, x.f[F_TZ].label = "";
 	row++;

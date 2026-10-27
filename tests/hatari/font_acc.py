@@ -236,7 +236,7 @@ def main():
             check("the screen stayed as drawn", changed(after, later) < 0.02,
                   "%.1f%% changed since step 5" % (100 * changed(after, later)))
             if not a.prg:
-                r.key(SCAN["w"], ctrl=True)     # close the window
+                r.key(SCAN["u"], ctrl=True)     # close the window (^U)
                 time.sleep(3)
                 closed = r.shot("7-closed")
                 open_acc()

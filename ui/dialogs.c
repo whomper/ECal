@@ -60,11 +60,14 @@ void no_memory(void)
 	alert(1, "[1][Memory is full: ECal can't do|that now. %s][ OK ]", mem_full_advice());
 }
 
-const char *zone_pick(const char *current)
+/* the time zones, a list dialog (a long list is not a pop-up: the
+   guidelines, 5.7): the name chosen, or 0. With floating, "Floating (any
+   zone)" comes first, given back as "" */
+const char *zone_pick(const char *current, int floating)
 {
 	char (*lab)[48];
-	static const char *items[100];
-	int n = tz_count(), i, sel = 0;
+	static const char *items[101];
+	int n = tz_count(), i, sel = 0, f = floating ? 1 : 0;
 	CTIME now = now_utc();
 	if (n > 100)
 		n = 100;
@@ -73,18 +76,20 @@ const char *zone_pick(const char *current)
 		no_memory();
 		return 0;
 	}
+	if (f)
+		items[0] = "Floating (any zone)";
 	for (i = 0; i < n; i++) {
 		const TZONE *z = tz_index(i);
 		char off[16];
 		tz_label(z, now, off, sizeof(off));
 		snprintf(lab[i], sizeof(lab[i]), "%-30s %s", z->name, off);
-		items[i] = lab[i];
+		items[f + i] = lab[i];
 		if (current && !strcmp(z->name, current))
-			sel = i;
+			sel = f + i;
 	}
-	i = dlg_pick("Time zone", items, (short)n, (short)sel);
+	i = dlg_pick("Time zone", items, (short)(n + f), (short)sel);
 	free(lab);
-	return i >= 0 ? tz_index(i)->name : 0;
+	return i < 0 ? 0 : i < f ? "" : tz_index(i - f)->name;
 }
 
 /* ---------------- accounts ---------------- */
@@ -471,6 +476,16 @@ static void settings_changed(DLG *d, short i)
 {
 	char path[200], name[20] = "", *e;
 	short button = 0;
+	if (d->f[i].type == FT_CHOOSE) {
+		/* a time zone: the list, at once (the guidelines, 5.7); the
+		   dialog's own copy, taken at OK */
+		char *zone = (char *)d->f[i].label;
+		const char *z = zone_pick(zone, 0);
+		if (z)
+			str_copy(zone, z, 44);
+		dlg_after_selector(d);	/* the window under the list too */
+		return;
+	}
 	if (d->f[i].type != FT_BUTTON)
 		return;
 	if (people_dir[0])
@@ -490,7 +505,7 @@ static void settings_changed(DLG *d, short i)
 
 static void settings(short first)
 {
-	enum { L1, F1, L2, F2, F3, F4, L13, F13, F14, F19,
+	enum { L1, F1, L2, F2, F3, F4, L13, F13, F14,
 	       L5, F5, L6, F6, F7,
 	       L8, F8, F9, L10, F10,
 	       L11, F11, F12, F17, L18, F18, H3, L15, F15, L16, F16,
@@ -500,8 +515,6 @@ static void settings(short first)
 	FIELD f[N];
 	DLG d;
 	static char hz[44], vz[44], gate[64], port[8], past[8], future[8];
-	static const char *hz_items[2], *vz_items[2];
-	static char hz_lab[50], vz_lab[50];
 	short r, i, row;
 	int can_falcon = get_cookie(0x5F435055L) >= 20;	/* _CPU: 68020 or better, for TLS.OVL */
 	str_copy(hz, opt.home_tz, sizeof(hz));
@@ -539,11 +552,7 @@ static void settings(short first)
 	row++;
 	put(&f[F14], FT_CHECK, 0, VX, row, 32, "Start with the Hebrew keyboard");
 	f[F14].val = opt.hebrew;
-	row++;
-	/* the AES's 3D look (the guidelines, 5.6), greyed where it has none */
-	put(&f[F19], FT_CHECK, dlg_3d_ok() ? 0 : FF_DISABLED, VX, row, 32, "3D dialogs");
-	f[F19].val = opt.dialogs3d;
-	for (i = L1; i <= F19; i++)
+	for (i = L1; i <= F14; i++)
 		in(&f[i], S_GENERAL);
 
 	/* Events */
@@ -573,23 +582,13 @@ static void settings(short first)
 	/* Time zones */
 	row = 3;
 	put(&f[L8], FT_LABEL, 0, CX, row, 0, "Atari clock in:");
-	put(&f[F8], FT_POPUP, 0, VX, row, 30, 0);
-	snprintf(hz_lab, sizeof(hz_lab), "  %s", hz);
-	hz_items[0] = hz_lab;
-	hz_items[1] = "  Other...";
-	f[F8].items = hz_items;
-	f[F8].nitems = 2;
+	put(&f[F8], FT_CHOOSE, 0, VX, row, 30, hz);
 	row++;
 	put(&f[F9], FT_CHECK, 0, VX, row, 30, "Time zone support");
 	f[F9].val = opt.tzsupport;
 	row++;
 	put(&f[L10], FT_LABEL, 0, CX, row, 0, "Show times in:");
-	put(&f[F10], FT_POPUP, 0, VX, row, 30, 0);
-	snprintf(vz_lab, sizeof(vz_lab), "  %s", vz);
-	vz_items[0] = vz_lab;
-	vz_items[1] = "  Other...";
-	f[F10].items = vz_items;
-	f[F10].nitems = 2;
+	put(&f[F10], FT_CHOOSE, 0, VX, row, 30, vz);
 	for (i = L8; i <= F10; i++)
 		in(&f[i], S_ZONES);
 
@@ -702,8 +701,6 @@ static void settings(short first)
 	opt.hebfont = f[F13].val;
 	opt.hebrew = f[F14].val;
 	set_hebrew_kbd(opt.hebrew);
-	opt.dialogs3d = f[F19].val;
-	dlg_3d_on = opt.dialogs3d;	/* the next dialog follows it */
 	opt.duration = len_min[f[F5].val];
 	opt.alarm_default = alert_min[f[F6].val];
 	opt.alarms = f[F7].val;
@@ -716,17 +713,10 @@ static void settings(short first)
 	/* 0 days back: from today; at most ten years either way */
 	opt.past_days = (short)(atoi(past) < 0 ? 0 : atoi(past) > 3650 ? 3650 : atoi(past));
 	opt.future_days = (short)(atoi(future) < 7 ? 400 : atoi(future) > 3650 ? 3650 : atoi(future));
-	if (f[F8].val == 1) {
-		const char *z = zone_pick(opt.home_tz);
-		if (z)
-			str_copy(opt.home_tz, z, sizeof(opt.home_tz));
-	}
-	if (f[F10].val == 1) {
-		const char *z = zone_pick(opt.view_tz);
-		if (z) {
-			str_copy(opt.view_tz, z, sizeof(opt.view_tz));
-			opt.tzsupport = 1;
-		}
+	str_copy(opt.home_tz, hz, sizeof(opt.home_tz));
+	if (strcmp(vz, opt.view_tz)) {
+		str_copy(opt.view_tz, vz, sizeof(opt.view_tz));
+		opt.tzsupport = 1;	/* a zone to show times in: support on */
 	}
 	if (!opt.tzsupport)
 		str_copy(opt.view_tz, opt.home_tz, sizeof(opt.view_tz));
@@ -885,13 +875,15 @@ void dlg_keys(void)
 		{ 11, 1, "Shift+^R", "everything again" },
 		{ 12, 0, "\x01^S", "the calendar list" },
 		{ 12, 1, "F10", "Hebrew keyboard" },
-		{ 13, 0, "^W  ^Q", "close the window" },
+		{ 13, 0, "^U  ^Q", "close the window" },
 		{ 13, 1, "Help", "the user guide" },
 		{ 14, 0, "Double-click", "open; on a day: new" },
 		{ 14, 1, "Right-click", "more choices" },
 		{ 15, 0, "^C", "copy the event" },
 		{ 15, 1, "^C ^X ^V", "in a dialog's field" },
 		{ 16, 0, "^,", "settings" },
+		{ 17, 0, "Esc", "a field: empty it" },
+		{ 17, 1, "Undo", "cancel a dialog" },
 	};
 	enum { N = sizeof(k) / sizeof(k[0]) };
 	FIELD f[2 * N + 1];
@@ -907,6 +899,6 @@ void dlg_keys(void)
 		put(&f[n++], FT_LABEL, FF_LTR, kx, k[i].row, 0, k[i].key);
 		put(&f[n++], FT_LABEL, FF_LTR, dx, k[i].row, 0, k[i].does);
 	}
-	put(&f[n++], FT_BUTTON, FF_DEFAULT | FF_CANCEL, 62, 16, 10, "OK");
-	run("Keys", f, n, 73, 17, -1);
+	put(&f[n++], FT_BUTTON, FF_DEFAULT | FF_CANCEL, 62, 19, 10, "OK");
+	run("Keys", f, n, 73, 20, -1);
 }
