@@ -107,6 +107,7 @@ class Trace:
             j.setdefault("log", []).append((time.time() - self.t0, call, name))
         if call == "Fread":
             f["bytes"] = f.get("bytes", 0) + nbytes
+            f["rmax"] = max(f.get("rmax", 0), nbytes)
         if call == "Fwrite":
             f["wbytes"] = f.get("wbytes", 0) + nbytes
             f["wmax"] = max(f.get("wmax", 0), nbytes)
@@ -162,10 +163,13 @@ class Trace:
 def budget(j, piece):
     """6.5's budget for a job: an open per file it touches (one per piece
     of what it reads), and when it writes it (itself, or through its safe
-    save's other half, ECAL.IN$ or CAL00003.NEW) one more per piece written,
-    a piece being the buffer the run got (its largest write, at least a
-    read's piece: a snapshot held in 16 KB goes out in two); a look per
-    file, plus the files' look (ECAL.INF, ECAL.KEY, the CACHE listing)"""
+    save's other half, ECAL.IN$ or CAL00003.NEW) one more per piece written;
+    a piece being the buffer the run got (the hub, 27 Oct 2026). Read, its
+    largest read, at most piece and at least the reader's smallest buffer,
+    2 KB (a feed read in 4 KB where 16 KB wasn't free on a 1 MB ST);
+    written, its largest write, at least piece (a snapshot held in 16 KB
+    goes out in two). A look per file, plus the files' look (ECAL.INF,
+    ECAL.KEY, the CACHE listing)"""
     opens = looks = 0
     halves = [n for n, f in j["files"].items()
               if n.endswith(("$", ".TMP", ".NEW")) and (f.get("Fcreate") or f.get("Fwrite"))]
@@ -178,7 +182,8 @@ def budget(j, piece):
     for name, f in j["files"].items():
         if name.endswith(("$", ".TMP", ".NEW")) or name == "*.*":
             continue            # a safe save's or a download's other half: with its file
-        reads = -(-f.get("bytes", 0) // piece) if f.get("Fread") else 0
+        rp = max(2048, min(piece, f.get("rmax", 0))) if f.get("rmax") else piece
+        reads = -(-f.get("bytes", 0) // rp) if f.get("Fread") else 0
         mine = [f] + [j["files"][h] for h in halves if half_of(name, h)]
         written = f.get("Fcreate") or f.get("Fwrite") or len(mine) > 1
         writes = max(-(-w.get("wbytes", 0) // max(w.get("wmax", 0), piece)) for w in mine)
@@ -199,7 +204,7 @@ def report(tr, label, piece, timeline=False):
             j["bytes"].get("Fread", 0), j["bytes"].get("Fwrite", 0), span))
         for name, f in sorted(j["files"].items()):
             print("      %-14s %s" % (name, ", ".join("%s %d" % kv for kv in sorted(f.items())
-                                                    if kv[0] not in ("bytes", "wbytes", "wmax"))))
+                                                    if kv[0] not in ("bytes", "wbytes", "wmax", "rmax"))))
         if timeline:
             for t, call, name in j.get("log", []):
                 print("        %7.1f s  %-8s %s" % (t, call, name))
