@@ -107,6 +107,9 @@ class Trace:
             j.setdefault("log", []).append((time.time() - self.t0, call, name))
         if call == "Fread":
             f["bytes"] = f.get("bytes", 0) + nbytes
+        if call == "Fwrite":
+            f["wbytes"] = f.get("wbytes", 0) + nbytes
+            f["wmax"] = max(f.get("wmax", 0), nbytes)
         now = time.time() - self.t0
         j["first"] = now if j["first"] is None else j["first"]
         j["last"] = now
@@ -158,9 +161,11 @@ class Trace:
 
 def budget(j, piece):
     """6.5's budget for a job: an open per file it touches (one per piece
-    of what it reads), one more when it writes it (itself, or through its
-    safe save's other half, ECAL.IN$ or CAL00003.NEW); a look per file,
-    plus the files' look (ECAL.INF, ECAL.KEY, the CACHE listing)"""
+    of what it reads), and when it writes it (itself, or through its safe
+    save's other half, ECAL.IN$ or CAL00003.NEW) one more per piece written,
+    a piece being the buffer the run got (its largest write, at least a
+    read's piece: a snapshot held in 16 KB goes out in two); a look per
+    file, plus the files' look (ECAL.INF, ECAL.KEY, the CACHE listing)"""
     opens = looks = 0
     halves = [n for n, f in j["files"].items()
               if n.endswith(("$", ".TMP", ".NEW")) and (f.get("Fcreate") or f.get("Fwrite"))]
@@ -174,8 +179,10 @@ def budget(j, piece):
         if name.endswith(("$", ".TMP", ".NEW")) or name == "*.*":
             continue            # a safe save's or a download's other half: with its file
         reads = -(-f.get("bytes", 0) // piece) if f.get("Fread") else 0
-        written = f.get("Fcreate") or f.get("Fwrite") or any(half_of(name, h) for h in halves)
-        opens += max(reads, 1 if f.get("Fopen") else 0) + (1 if written else 0)
+        mine = [f] + [j["files"][h] for h in halves if half_of(name, h)]
+        written = f.get("Fcreate") or f.get("Fwrite") or len(mine) > 1
+        writes = max(-(-w.get("wbytes", 0) // max(w.get("wmax", 0), piece)) for w in mine)
+        opens += max(reads, 1 if f.get("Fopen") else 0) + (max(writes, 1) if written else 0)
         looks += 1
     return opens, looks + 3
 
@@ -191,7 +198,8 @@ def report(tr, label, piece, timeline=False):
                                                           "Frename", "Fseek", "Fread", "Fwrite") if k in c) or "nothing",
             j["bytes"].get("Fread", 0), j["bytes"].get("Fwrite", 0), span))
         for name, f in sorted(j["files"].items()):
-            print("      %-14s %s" % (name, ", ".join("%s %d" % kv for kv in sorted(f.items()) if kv[0] != "bytes")))
+            print("      %-14s %s" % (name, ", ".join("%s %d" % kv for kv in sorted(f.items())
+                                                    if kv[0] not in ("bytes", "wbytes", "wmax"))))
         if timeline:
             for t, call, name in j.get("log", []):
                 print("        %7.1f s  %-8s %s" % (t, call, name))
