@@ -180,7 +180,7 @@ short form_alert(short def, const char *str);
 short rsrc_load(const char *name);
 short aes_version(void);
 short aes_count(void);		/* global[1]: 1 on TOS, -1 on a multitasking AES */
-short appl_getinfo(short type, short *o1, short *o2, short *o3, short *o4);	/* 0: not known */
+short appl_getinfo(short type, short *o1, short *o2, short *o3, short *o4);	/* 0: not known, or no appl_getinfo (AES < 4.0 without ?AGI or MagiC) */
 short fsel_exinput(char *path, char *name, short *button, const char *title);
 short form_do(OBJECT *tree, short start);
 short form_keybd(OBJECT *tree, short obj, short next, short ch, short *onext, short *och);
@@ -215,6 +215,11 @@ short scrp_write(const char *path);
    low byte 7 or more, MagiC) */
 short shel_write(short mode, short wisgr, short wiscr, const void *cmd, const void *tail);
 short shel_envrn(char **value, const char *name);
+short shel_read(char *cmd, char *tail);
+/* the program's own folder (X:\PATH\ with its backslash), from its shel_read command: not the
+   current folder, which TOS leaves at the desktop's when another program starts
+   it (guidelines 6.2). A program only */
+const char *app_dir(void);
 short wind_find(short x, short y);
 OBJECT *rsrc_tree(short index);
 short objc_draw(OBJECT *tree, short start, short depth, short x, short y, short w, short h);
