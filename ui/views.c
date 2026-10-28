@@ -2263,20 +2263,17 @@ static int button_held(void)
 /* an hour up (dir -1) or down, gliding; with hold, on for as long as
    the mouse button stays down. Five hours a second, each step as far as
    the time the one before took to draw, so a slow machine takes bigger
-   steps rather than longer. 1 when it went on, the button held */
-static int glide(int dir, int hold)
+   steps rather than longer */
+static void glide(int dir, int hold)
 {
 	long moved = 0, step;
 	unsigned long last, now;
-	int went_on = 0;
 	layout();
 	last = pf_ms() - 40;
 	for (;;) {
 		int held = hold && button_held();
 		if (!held && moved >= hour_h)
 			break;
-		if (moved >= hour_h)
-			went_on = 1;
 		while ((now = pf_ms()) - last < 20UL)
 			;		/* no more than 50 steps a second */
 		step = (long)(now - last) * hour_h * 5 / 1000;
@@ -2291,7 +2288,6 @@ static int glide(int dir, int hold)
 			break;
 		moved += step;
 	}
-	return went_on;
 }
 
 /* A key's hour glides a step at a time from the event loop
@@ -2344,14 +2340,6 @@ static void glide_key(int dir)
 	views_glide();
 }
 
-/* the AES sends WM_ARROWED again while an arrow is held: those that
-   came while we went on scrolling ourselves, the button held, are left
-   alone. Only then: a second click soon after is a second step (TOS 4's
-   one click sent twice is dropped in common's evnt_multi_; this skipped
-   any within 250 ms, a real second click too) */
-static unsigned long arrow_done;
-static int arrow_was;
-
 /* the window's scroll bar: 0 page up, 1 page down, 2 line up, 3 line
    down. The hours glide while an arrow is held, and go a page at a time
    while the bar is */
@@ -2369,12 +2357,9 @@ void views_arrow(short what)
 			views_step(dir);
 		return;
 	}
-	if (arrow_was && pf_ms() - arrow_done < 250UL)
-		return;
 	layout();
-	arrow_was = 0;
 	if (what >= 2) {
-		arrow_was = glide(dir, 1);
+		glide(dir, 1);
 	} else {
 		while (scroll_by(dir * (long)(grid.h - hour_h))) {
 			unsigned long t = pf_ms();
@@ -2382,10 +2367,8 @@ void views_arrow(short what)
 				;
 			if (!button_held())
 				break;
-			arrow_was = 1;
 		}
 	}
-	arrow_done = pf_ms();
 }
 
 /* the slider moved to pos (0..1000) */
