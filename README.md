@@ -23,7 +23,7 @@ CalDAV server.
   offline.
 - **Makes the most of the machine:** TT RAM when there is some, GDOS fonts, hover tooltips.
 
-![ECal's month view on a Falcon (Hatari): October 2026 with the Home, Work and Family calendars in red, olive and yellow, today in red, and the calendar list and a small month on the left](docs/month.png)
+![ECal's month view on a Falcon in 256 colours (Hatari): October 2026 with the Home, Work and Family calendars in red, olive and yellow, today in red, and the calendar list and a small month on the left](docs/month.png)
 
 ## Getting started
 
@@ -382,9 +382,10 @@ tests/hatari/help_test.py WORK [--machine M]      # the Help key (make fakeguide
 tests/hatari/hypview_test.py WORK                 # the guide in EHypView's latest release (make
                                                   # help first): Falcon:16, Falcon:256, TT:mono
 tests/hatari/ui_tour.py WORK [--machine M]        # screenshots of every view (Falcon)
-TZ=America/New_York tests/hatari/docs_shots.py WORK --update
-                                                  # the screenshots in docs/ (Falcon:16, ST:mono,
-                                                  # EmuTOS), and docs/help/WINDOW.IMG
+TZ=America/New_York tests/hatari/docs_shots.py WORK --update [--help-picture]
+                                                  # the screenshots in docs/ (Falcon:256, and
+                                                  # st-mono.png on ST:mono; EmuTOS); with
+                                                  # --help-picture docs/help/WINDOW.IMG (Falcon:16)
 ```
 
 Which machines a change passes (the family's guidelines): the accessory's rigs on `ST` and `ST-1`, in

@@ -6,11 +6,14 @@ events, Hebrew dates off and a New York clock:
 
     TZ=America/New_York tests/hatari/docs_shots.py WORK [--update]
 
-On the Falcon (16 colours) and an ST in mono, under EmuTOS (as anyone
-building ECal would take them). The people invited in new-event.png
-come from a contacts file as EContact writes it (Settings > Contacts).
-They land in WORK/*/shots; --update copies them into docs/ and makes
-docs/help/WINDOW.IMG, the help front page's picture, from week.png.
+On the Falcon in 256 colours (Erez, 28 Oct 2026: every app picture
+the 256-colour one, as it looks best), and st-mono.png on an ST in
+mono, under EmuTOS (as anyone building ECal would take them). The
+people invited in new-event.png come from a contacts file as EContact
+writes it (Settings > Contacts). They land in WORK/*/shots; --update
+copies them into docs/. --help-picture makes docs/help/WINDOW.IMG, the
+help front page's picture, from a week taken in 16 colours (ST-Guide
+shows a picture of more planes in wrong colours on a 16-colour screen).
 """
 import argparse
 import os
@@ -95,8 +98,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("work")
     ap.add_argument("--update", action="store_true", help="copy them into docs/")
+    ap.add_argument("--help-picture", action="store_true",
+                    help="docs/help/WINDOW.IMG from a week taken on Falcon:16")
     a = ap.parse_args()
-    dirs = [program(os.path.join(a.work, "falcon"), "Falcon:16", falcon_shots),
+    dirs = [program(os.path.join(a.work, "falcon"), "Falcon:256", falcon_shots),
             program(os.path.join(a.work, "st"), "ST:mono", st_shots)]
     for d in dirs:
         for f in sorted(os.listdir(d)):
@@ -105,13 +110,14 @@ def main():
             print(os.path.join(d, f))
             if a.update:
                 shutil.copy(os.path.join(d, f), os.path.join(ROOT, "docs", f))
-    if a.update:
+    if a.help_picture:
+        week16 = os.path.join(program(os.path.join(a.work, "falcon16"), "Falcon:16", falcon_shots), "week.png")
         # numbered: 1 the calendar list, 2 the view buttons, 3 today's
         # Team meeting (in today's column of the week), 4 the little month
         wday = (time.localtime().tm_wday + 1) % 7
         out = os.path.join(ROOT, "docs", "help", "WINDOW.IMG")
         subprocess.check_call([sys.executable, os.path.join(ROOT, "common", "tools", "helpfront.py"), "thumb",
-                               os.path.join(ROOT, "docs", "week.png"), out, "16,18,600,396",
+                               week16, out, "16,18,600,396",
                                "60,118", "404,73", "%d,215" % (275 + 52 * wday), "104,348"])
         os.remove(os.path.splitext(out)[0] + ".png")
         print(out)
