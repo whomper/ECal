@@ -20,6 +20,7 @@ static SROW srow[MAXROWS];
 static short nrows, row_h;
 static GRECT mini;		/* the small month */
 static long mini_first;		/* the day in its first cell */
+static int mini_ym;			/* the month it shows, y * 12 + m (0 before it is drawn) */
 
 static void side_layout(void)
 {
@@ -52,7 +53,8 @@ static void side_layout(void)
 		mini.h = 0;
 }
 
-static void draw_mini(void)
+/* (only the rows that reach into clip) */
+static void draw_mini(const GRECT *clip)
 {
 	int y, m, d;
 	long first, t = ct_days(now_view());
@@ -61,11 +63,12 @@ static void draw_mini(void)
 	civil_from_days(cur_day, &y, &m, &d);
 	first = days_from_civil(y, m, 1);
 	mini_first = first - (wday_of(first) - opt.weekstart + 7) % 7;
-	snprintf(s, sizeof(s), "%s %d", month_names[m - 1], y);
-	text_at(mini.x, mini.y, s, (long)strlen(s), 21, TX_BOLD | TX_LTR | TX_CENTER);
-	{
+	mini_ym = y * 12 + m;
+	if (clip->y < mini.y + 2 * ch + 4) {
 		/* the weekdays in one text (each a call of milliseconds on an ST) */
 		char wd[22];
+		snprintf(s, sizeof(s), "%s %d", month_names[m - 1], y);
+		text_at(mini.x, mini.y, s, (long)strlen(s), 21, TX_BOLD | TX_LTR | TX_CENTER);
 		for (k = 0; k < 7; k++) {
 			const char *n = wday_short[(k + opt.weekstart) % 7];
 			wd[k * 3] = n[0];
@@ -78,7 +81,7 @@ static void draw_mini(void)
 		/* runs of same-looking days in one piece of text (see views.c);
 		   the dates counted on from the first, not worked out each */
 		char run[24];
-		short rl = 0, rx = 0, ry = 0, rflags = -1, col = 0, row = 0;
+		short rl = 0, rx = 0, ry = 0, rflags = -1, col = 0, row = 0, out;
 		int yy, mm, dd, dim;
 		civil_from_days(mini_first, &yy, &mm, &dd);
 		dim = days_in_month(yy, mm);
@@ -95,6 +98,7 @@ static void draw_mini(void)
 					dim = days_in_month(yy, mm);
 				}
 			}
+			out = yp + ch <= clip->y || yp >= clip->y + clip->h;
 			if (k < 42) {
 				if (day == t || day == cur_day) {
 					GRECT b;
@@ -102,7 +106,8 @@ static void draw_mini(void)
 					b.y = yp;
 					b.w = 2 * cw + 2;
 					b.h = ch;
-					fill(&b, day == t ? red_color() : 1);
+					if (!out)
+						fill(&b, day == t ? red_color() : 1);
 					flags = TX_INVERSE | (day == t ? TX_BOLD : 0);
 				} else {
 					flags = mm != m ? TX_PALE : 0;
@@ -114,6 +119,8 @@ static void draw_mini(void)
 			}
 			if (k == 42)
 				break;
+			if (out)
+				continue;	/* (a row outside what is drawn: a day's box alone) */
 			if (!rl) {
 				rx = x;
 				ry = yp;
@@ -144,6 +151,35 @@ void side_redraw_mini(void)
 	r.x -= 2;		/* the day's box reaches a pixel to the left */
 	r.w += 4;
 	win_redraw(&r);
+}
+
+/* the small month after the chosen day moved from day0: the two days'
+   boxes alone while it shows the same month (all of it took an ST 85 ms) */
+void side_redraw_mini_from(long day0)
+{
+	int y, m, d, i;
+	long day[2];
+	if (r_side.w <= 0)
+		return;
+	side_layout();
+	if (!mini.h)
+		return;
+	civil_from_days(cur_day, &y, &m, &d);
+	if (day0 < 0 || y * 12 + m != mini_ym || day0 < mini_first || day0 >= mini_first + 42) {
+		side_redraw_mini();
+		return;
+	}
+	day[0] = day0;
+	day[1] = cur_day;
+	for (i = 0; i < 2; i++) {
+		short k = (short)(day[i] - mini_first);
+		GRECT b;
+		b.x = mini.x + k % 7 * 3 * cw - 1;
+		b.y = mini.y + (k / 7 + 2) * ch + 4;
+		b.w = 2 * cw + 2;
+		b.h = ch;
+		win_redraw(&b);
+	}
 }
 
 void side_draw(GRECT *clip)
@@ -192,7 +228,7 @@ void side_draw(GRECT *clip)
 		m.x -= 2;
 		m.w += 4;
 		if (rect_and(&m, &r))
-			draw_mini();
+			draw_mini(&m);
 	}
 }
 

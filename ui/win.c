@@ -86,6 +86,9 @@ static struct {
 	short take, rows;		/* pieces of a row, or whole rows, to draw together next */
 	unsigned long row_ms, piece_ms;	/* the dearest row and piece drawn yet */
 	int mini;			/* the small month still to draw, after it */
+	long mini_from;			/* the day it marked, -1 for all of it */
+	int later;			/* pieces of the view still to draw (win_redraw_later) */
+	GRECT later_r[4];
 } vj;
 
 void win_layout(void)
@@ -688,9 +691,42 @@ void win_redraw_title(int buttons)
 	win_redraw(&a);
 }
 
+/* the small month on the left drawn again in the next turn (the chosen
+   day moved from day0): not in the turn that answers the click */
+void win_mini_later(long day0)
+{
+	if (win_h <= 0)
+		return;
+	vj.mini_from = vj.mini ? -1 : day0;	/* (moved twice: all of it) */
+	vj.mini = 1;
+}
+
+/* a piece of the view drawn again in the next turn: what a click leaves
+   behind (the day no longer chosen), after what it brings */
+void win_redraw_later(const GRECT *a)
+{
+	GRECT *l;
+	if (win_h <= 0)
+		return;
+	if (vj.later < 4) {
+		vj.later_r[vj.later++] = *a;
+		return;
+	}
+	l = &vj.later_r[3];	/* (more: the last grows over them) */
+	{
+		short x2 = l->x + l->w, y2 = l->y + l->h;
+		if (a->x + a->w > x2) x2 = a->x + a->w;
+		if (a->y + a->h > y2) y2 = a->y + a->h;
+		if (a->x < l->x) l->x = a->x;
+		if (a->y < l->y) l->y = a->y;
+		l->w = x2 - l->x;
+		l->h = y2 - l->y;
+	}
+}
+
 int win_view_busy(void)
 {
-	return vj.on || vj.mini;
+	return vj.on || vj.mini || vj.later;
 }
 
 void win_view_later(void)
@@ -706,6 +742,7 @@ void win_view_later(void)
 		vj.t0 = pf_ms();
 	vj.on = 1;
 	vj.ready = 0;
+	vj.later = 0;		/* (in the view drawn whole) */
 }
 
 /* a slice of ms or so: 1 while there is more */
@@ -725,10 +762,21 @@ static void slice_said(const char *what, unsigned long t0)
 int win_view_step(unsigned long ms)
 {
 	unsigned long t0 = pf_ms();
+	if (!vj.on && vj.later) {
+		int i, n = vj.later;
+		vj.later = 0;
+		for (i = 0; i < n; i++)
+			win_redraw(&vj.later_r[i]);
+		slice_said("a piece left for later", t0);
+		return vj.mini;
+	}
 	if (!vj.on) {
 		if (vj.mini) {
 			vj.mini = 0;
-			side_redraw_mini();	/* (the range it marks moved) */
+			if (vj.mini_from >= 0)
+				side_redraw_mini_from(vj.mini_from);
+			else
+				side_redraw_mini();	/* (the range it marks moved) */
 			slice_said("the small month", t0);
 		}
 		return 0;
@@ -825,6 +873,7 @@ int win_view_step(unsigned long ms)
 		wind_update(END_UPDATE);
 		vj.on = 0;
 		vj.mini = 1;		/* the small month, in the next slice */
+		vj.mini_from = -1;
 #ifdef AES_PROFILE
 		{
 			char b[48];

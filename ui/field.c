@@ -97,10 +97,15 @@ static void aes_button(const FIELD *f, const GRECT *r, int pressed)
 	t[1].ob_flags = SELECTABLE | EXIT | LASTOB | ((f->flags & FF_DEFAULT) ? DEFAULT : 0);
 	t[1].ob_state = ((f->flags & FF_DISABLED) ? DISABLED : 0) | (pressed ? SELECTED : 0);
 	t[1].ob_spec = (long)f->label;
-	t[1].ob_x = r->x;
-	t[1].ob_y = r->y;
-	t[1].ob_width = r->w;
-	t[1].ob_height = r->h;
+	/* the AES draws an exit button's frame outside the object, 2 or 3
+	   pixels (a default one's thicker, raised on TOS 4): the object inset
+	   by that, so what is drawn keeps within its field's place and clear
+	   of the fields above and below (the New Event dialog's Add and Remove
+	   reached into Location and Calendar; a tester, Erez 28 Oct 2026) */
+	t[1].ob_x = r->x + 2;
+	t[1].ob_y = r->y + 3;
+	t[1].ob_width = r->w - 4;
+	t[1].ob_height = r->h - 6;
 	dlg_3d(t);
 	objc_draw(t, 1, 0, clip_now.x, clip_now.y, clip_now.w, clip_now.h);
 }

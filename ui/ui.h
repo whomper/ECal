@@ -43,6 +43,8 @@ void clip_off(void);
 int win_save_under(const GRECT *r);	/* the screen under a dialog kept (win.c) */
 int win_restore_under(const GRECT *r);	/* and back: 0 if it was not kept */
 void win_clear(GRECT *r);	/* r in colour 0, fast where it can be (win.c) */
+void win_mini_later(long day0);	/* the small month, next turn (win.c) */
+void win_redraw_later(const GRECT *a);	/* a piece of the view, next turn */
 void text_font_now(short id);	/* the font just set, to text.c (draw.c) */
 void text_at(short x, short y, const char *s, long n, short cols, short flags);
 short text_x(short x);			/* where text_at puts text that starts at x */
@@ -142,6 +144,7 @@ int  occ_find_again(void);	/* after a reload, find the selected one again */
 /* ---- the sidebar (sidebar.c) ---- */
 void side_draw(GRECT *clip);
 void side_redraw_mini(void);		/* the small month alone */
+void side_redraw_mini_from(long day0);	/* its two days' boxes, the day moved from day0 */
 int  side_click(short mx, short my, short clicks, short button);
 int  side_instant(short mx, short my);	/* over a tick box: no double click to wait for */
 

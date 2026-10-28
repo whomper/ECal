@@ -1417,6 +1417,11 @@ static void open_window(void)
 		return;
 	int first = win_h <= 0;
 	bg_opened();			/* the user is here: work may go on */
+	/* the arrow: the desktop shows the bee while it starts a program, and
+	   the calendars, read in the background since 2.32, no longer end
+	   with busy(0) to take it away (a tester, Erez 28 Oct 2026) */
+	if (first)
+		graf_mouse(ARROW, 0);
 	if (first && sync_busy()) {
 		sync_stop();		/* a background refresh half way: the window's own finishes it */
 		bg_next = -1;
@@ -1517,6 +1522,19 @@ static void wait_release(void)
 		if (!(mb & 3))
 			return;
 		evnt_timer_(10);
+	}
+}
+
+/* the press the AES kept while we watched the button ourselves
+   (second_click): taken here, not by the dialog a double click opens */
+static void drop_clicks(void)
+{
+	short msg[8], k;
+	AEVENT e;
+	for (k = 0; k < 4; k++) {
+		evnt_multi_(MU_BUTTON | MU_TIMER, 0x101, 3, 0, 0, msg, &e);
+		if (!(e.which & MU_BUTTON))
+			break;
 	}
 }
 
@@ -2284,6 +2302,11 @@ int main(void)
 					last_x = ev.mx;
 					last_y = ev.my;
 					if (n == 1 && !is_acc && second_click(ev.mx, ev.my, t0)) {
+						/* (the second press let go and taken first: else
+						   what it opens, the event's dialog, takes it as a
+						   click on whatever is under the mouse there) */
+						wait_release();
+						drop_clicks();
 						win_mouse(ev.mx, ev.my, ev.mbutton, 2, ev.kstate);
 						last_t = 0;
 					}

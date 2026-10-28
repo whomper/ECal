@@ -1775,8 +1775,38 @@ static long day_at(short mx, short my, short *minute)
 
 static void select_item(int i);
 
-/* every box of an occurrence (a bar over several days has several) */
-static void redraw_occ(const OCC *o)
+/* where the view marks day as the chosen one: its cell in the month, its
+   head in the week; 0 elsewhere, or when it isn't on the page */
+static int day_box(long day, GRECT *r)
+{
+	short c = (short)(day - first_day), k;
+	if (cur_view == V_MONTH) {
+		if (c < 0 || c >= rows * 7)
+			return 0;
+		k = c / 7;
+		c -= k * 7;
+		r->x = colx[c];
+		r->y = grid.y + k * cell_h;
+		r->w = COLW(c);
+		r->h = k == rows - 1 ? grid.y + grid.h - r->y : cell_h;
+		return 1;
+	}
+	if (cur_view == V_WEEK) {
+		if (c < 0 || c >= cols)
+			return 0;
+		r->x = colx[c];
+		r->y = r_view.y;
+		r->w = COLW(c);
+		r->h = ch + 4;
+		return 1;
+	}
+	return 0;
+}
+
+/* every box of an occurrence (a bar over several days has several), but
+   those inside skip (drawn with it anyway; 0 for none); later: in the next
+   turn */
+static void redraw_occ_but(const OCC *o, const GRECT *skip, int later)
 {
 	int i;
 	if (!o->ev)
@@ -1786,8 +1816,40 @@ static void redraw_occ(const OCC *o)
 			GRECT r = items[i].r;
 			r.w++;
 			r.h++;
-			win_redraw(&r);
+			if (skip && r.x >= skip->x && r.y >= skip->y && r.x + r.w <= skip->x + skip->w && r.y + r.h <= skip->y + skip->h)
+				continue;
+			if (later)
+				win_redraw_later(&r);
+			else
+				win_redraw(&r);
 		}
+}
+
+static void redraw_occ(const OCC *o)
+{
+	redraw_occ_but(o, 0, 0);
+}
+
+/* the chosen day moved from day0 (and the chosen event from was, unless
+   same): in the month and the week only the two days' cells or heads (the
+   whole view laid out and drawn again took a Falcon 445 ms, an ST 1.1 s; a
+   tester, Erez 28 Oct 2026: "takes a second to highlight"), the new day
+   now, the old one and the small month in the turns after */
+static void day_moved(long day0, const OCC *was, int same)
+{
+	GRECT a, b;
+	if (day_box(day0, &a) && day_box(cur_day, &b)) {
+		if (!same)
+			redraw_occ_but(&sel_occ, &b, 0);
+		win_redraw(&b);
+		win_redraw_later(&a);
+		if (!same)
+			redraw_occ_but(was, &a, 1);
+	} else {
+		laid_out = 0;
+		win_redraw(&r_view);
+	}
+	win_mini_later(day0);
 }
 
 /* Dragging an event: an outline follows the mouse, snapped to 15 minutes
@@ -2074,8 +2136,7 @@ int views_click(short mx, short my, short clicks, short kstate, short button)
 		if (cur_view == V_MONTH || cur_view == V_WEEK)
 			cur_day = items[it].day;
 		if (cur_day != day0) {
-			laid_out = 0;
-			win_redraw(&r_view);	/* the day's highlight moves too */
+			day_moved(day0, &was, same);
 		} else if (!same) {
 			/* only what changed: the two events' boxes, the day's details */
 			redraw_occ(&was);
@@ -2101,16 +2162,24 @@ int views_click(short mx, short my, short clicks, short kstate, short button)
 		}
 		return 1;
 	}
-	views_select_none();
-	cur_day = day;
-	win_status("");
-	if (clicks == 2) {
-		editor_new(day, minute, cur_view == V_MONTH ? 0 : (minute < 0 && my < grid.y));
-		return 1;
+	{
+		OCC was = sel_occ;
+		long day0 = cur_day;
+		views_select_none();
+		cur_day = day;
+		win_status("");
+		if (clicks == 2) {
+			editor_new(day, minute, cur_view == V_MONTH ? 0 : (minute < 0 && my < grid.y));
+			return 1;
+		}
+		if (cur_day != day0) {
+			day_moved(day0, &was, 0);
+		} else if (was.ev) {
+			redraw_occ(&was);
+			if (cur_view == V_DAY && detail.w)
+				win_redraw(&detail);
+		}
 	}
-	laid_out = 0;
-	win_redraw(&r_view);
-	win_redraw(&r_side);
 	(void)kstate;
 	return 1;
 }
