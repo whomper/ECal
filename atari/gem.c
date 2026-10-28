@@ -493,9 +493,15 @@ short evnt_timer_(unsigned long ms)
 	return aes(24, 2, 1, 0, 0);
 }
 
+/* asked only where the AES has it (AES 4.0 and later, the ?AGI cookie,
+   MagiC): TOS 4.04's AES 3.40 answers with "Illegal AES function call"
+   (EMail, 28 Oct 2026). 0 elsewhere, as for a question it can't answer */
 short appl_getinfo(short type, short *o1, short *o2, short *o3, short *o4)
 {
 	short r;
+	*o1 = *o2 = *o3 = *o4 = 0;
+	if (global[0] < 0x0400 && !get_cookie(0x3F414749L) && !get_cookie(0x4D616758L))	/* ?AGI, MagX */
+		return 0;
 	aintin[0] = type;
 	r = aes(130, 1, 5, 0, 0);
 	*o1 = aintout[1];
@@ -526,6 +532,55 @@ short shel_write(short mode, short wisgr, short wiscr, const void *cmd, const vo
 	addrin[0] = (void *)cmd;
 	addrin[1] = (void *)tail;
 	return aes(121, 3, 1, 2, 0);
+}
+
+short shel_read(char *cmd, char *tail)
+{
+	addrin[0] = cmd;
+	addrin[1] = tail;
+	return aes(120, 0, 1, 2, 0);
+}
+
+/* the program's own folder, X:\PATH\ with its backslash, from the command the AES
+   started it with (shel_read), where its own files are. Not the current
+   folder: a program started by another one with shel_write gets the
+   desktop's on TOS 1.04 and 4.04, whatever folder the caller set (EMail
+   starting EWeb, which then missed its fonts: Erez, 28 Oct 2026; EmuTOS
+   and the multitasking AESes do set it). A command without a folder (a
+   name alone, the desktop starting it from its own window, which makes
+   that folder current) gives the current folder. For a program only: an
+   accessory's command is the program's in front */
+const char *app_dir(void)
+{
+	static char dir[256];
+	static char cmd[256], tail[256];
+	short i, end = -1, drv;
+	cmd[0] = 0;
+	if (shel_read(cmd, tail) == 0)
+		cmd[0] = 0;
+	cmd[sizeof(cmd) - 1] = 0;
+	for (i = 0; cmd[i]; i++)
+		if (cmd[i] == '\\' || cmd[i] == ':')
+			end = i;
+	if (end > 1 && cmd[end] == '\\' && cmd[1] == ':') {
+		for (i = 0; i <= end; i++)	/* the command's own X:\...\ */
+			dir[i] = cmd[i];
+		dir[i] = 0;
+		return dir;
+	}
+	/* no drive and folder of its own: the current ones */
+	drv = (short)Dgetdrv();
+	dir[0] = (char)('A' + drv);
+	dir[1] = ':';
+	if (Dgetpath(dir + 2, drv + 1) < 0)
+		dir[2] = 0;
+	for (i = 2; dir[i] && i < (short)sizeof(dir) - 2; i++)
+		;
+	if (i == 2 || dir[i - 1] != '\\') {
+		dir[i++] = '\\';
+		dir[i] = 0;
+	}
+	return dir;
 }
 
 /* the AES's environment: *value points after "NAME=" (name given with
@@ -699,8 +754,59 @@ short wind_calc(short type, short kind, short x, short y, short w, short h,
 	return r;
 }
 
+/* TOS 3 and 4's AES (Erez's Falcon, TOS 4.04) send a click on a window's
+   arrow or on its slider's track twice: a second WM_ARROWED, the same,
+   waits in the queue by the time the program asks again, the button let
+   go, so the window moved two pages a click (TOS 1.04 sends one:
+   common/tests/arrowed). It is dropped here: one that comes at once after
+   the same one, the button up. A held button's repeats come with it down
+   and are kept. Not on MagiC or MiNT, nor on EmuTOS, which do otherwise */
+static short arr_win = -1, arr_what;
+static unsigned long os_magic;
+
+static void sup_magic(void)
+{
+	const unsigned char *os;
+	__asm__ volatile("move.l 0x4f2.w,%0" : "=a"(os));	/* _sysbase */
+	os_magic = *(const unsigned long *)(os + 0x2c);
+}
+
+static int arrow_echoes(void)
+{
+	static short k = -1;
+	if (k < 0) {
+		Supexec(sup_magic);
+		k = global[0] >= 0x0300 && global[0] < 0x0400 && os_magic != 0x45544F53L	/* 'ETOS' */
+		    && !get_cookie(0x4D616758L) && !get_cookie(0x4D694E54L);	/* MagX, MiNT */
+	}
+	return k;
+}
+
+static short evnt_multi_aes(short flags, short clicks, short mask, short state,
+			    unsigned long timer, short *msg, AEVENT *ev);
+
 short evnt_multi_(short flags, short clicks, short mask, short state,
 		  unsigned long timer, short *msg, AEVENT *ev)
+{
+	for (;;) {
+		u32 t0 = arr_win >= 0 ? tos_ms() : 0;
+		short which = evnt_multi_aes(flags, clicks, mask, state, timer, msg, ev);
+		if (!(which & MU_MESAG) || msg[0] != WM_ARROWED || !arrow_echoes())
+			return which;
+		if (msg[3] == arr_win && msg[4] == arr_what && !(ev->mbutton & 1) && tos_ms() - t0 < 40) {
+			arr_win = -1;		/* the echo: dropped */
+			if (which & ~MU_MESAG)
+				return ev->which = (short) (which & ~MU_MESAG);
+			continue;
+		}
+		arr_win = msg[3];
+		arr_what = msg[4];
+		return which;
+	}
+}
+
+static short evnt_multi_aes(short flags, short clicks, short mask, short state,
+			    unsigned long timer, short *msg, AEVENT *ev)
 {
 	short i;
 	aintin[0] = flags;
