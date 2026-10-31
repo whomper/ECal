@@ -100,6 +100,7 @@ void draw_forget(void);		/* the VDI attributes set again at the next use */
 void win_scroll(const GRECT *a, short dy);	/* a's content up by dy pixels */
 void win_message(short *msg);
 void win_status(const char *s);	/* the info line */
+void win_status_later(const char *s);	/* win_status in the next turn */
 void win_frame_refresh(void);
 int  win_instant(short mx, short my);	/* a toolbar button: no double click to wait for */
 int  win_mouse(short mx, short my, short button, short clicks, short kstate);

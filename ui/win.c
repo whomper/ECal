@@ -59,7 +59,9 @@ void win_frame_refresh(void)
 
 /* GEM draws the info line left to right as it is given: Hebrew in it
    (an event's title) goes in visual order, and into the font's letters */
-void win_status(const char *s)
+static int info_due;	/* info made, not yet given to the AES (win_status_later) */
+
+static void info_make(const char *s)
 {
 	char logical[sizeof(info)];
 	short n;
@@ -74,8 +76,23 @@ void win_status(const char *s)
 	} else {
 		str_copy(info, logical, sizeof(info));
 	}
+}
+
+void win_status(const char *s)
+{
+	info_make(s);
+	info_due = 0;
 	if (win_h > 0)
 		wind_set_str(win_h, WF_INFO, info);
+}
+
+/* win_status in the next turn, not the one answering a key or click: the
+   AES draws the info line again each time it is set (60 ms of a Tab's
+   100 on an ST). A win_status meanwhile wins */
+void win_status_later(const char *s)
+{
+	info_make(s);
+	info_due = win_h > 0;
 }
 
 /* the view drawn in slices (below, win_view_later) */
@@ -749,7 +766,7 @@ void win_redraw_later(const GRECT *a)
 
 int win_view_busy(void)
 {
-	return vj.on || vj.mini || vj.later || sl_due || vj.st_i < vj.st_n;
+	return vj.on || vj.mini || vj.later || sl_due || vj.st_i < vj.st_n || info_due;
 }
 
 void win_view_later(void)
@@ -786,6 +803,14 @@ int win_view_step(unsigned long ms)
 {
 	unsigned long t0 = pf_ms();
 	int drawn;
+	if (info_due) {
+		/* the info line a key or click set (win_status_later) */
+		info_due = 0;
+		if (win_h > 0)
+			wind_set_str(win_h, WF_INFO, info);
+		slice_said("the info line", t0);
+		return win_view_busy();
+	}
 	if (vj.st_i < vj.st_n) {
 		/* a new window: its toolbar and list a piece at a time, before
 		   the view (win_start) */

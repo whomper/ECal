@@ -2035,7 +2035,7 @@ static void select_item(int i)
 	snprintf(line, sizeof(line), "%s %d %s%s%s  %.60s  (%s)", wday_short[a.wday], a.day, month_short[a.mon - 1],
 		 o->ev->allday ? "" : ", ", o->ev->allday ? "" : t1,
 		 o->ev->summary ? o->ev->summary : "", cals[o->ev->cal].name);
-	win_status(line);
+	win_status_later(line);	/* (the AES's drawing of it in the next turn) */
 }
 
 static void open_selected(void)
