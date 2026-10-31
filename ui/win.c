@@ -109,7 +109,8 @@ static struct {
 	GRECT later_r[4];
 	short st_n, st_i;		/* a new window's toolbar and list, a piece a slice */
 	int show;			/* each piece of the view copied when drawn (a new window's) */
-	GRECT st_r[6];
+	unsigned long copy_ms;		/* the last copy of the whole view's time */
+	GRECT st_r[8];
 } vj;
 static int start_fresh;		/* the window just opened: its first redraw in slices */
 
@@ -719,15 +720,40 @@ static void off_copy(GRECT *full)
  * (a selection, a scroll, a redraw) has it finished first. Where there
  * is no buffer to draw in, the view is drawn at once, as before. */
 
+/* a piece of the window drawn in the turns after, before the view's
+   pieces (with a new window's toolbar and list, win_start) */
+static void redraw_soon(const GRECT *a)
+{
+	if (vj.st_i >= vj.st_n)
+		vj.st_i = vj.st_n = 0;
+	if (vj.st_n < (short)(sizeof(vj.st_r) / sizeof(vj.st_r[0])))
+		vj.st_r[vj.st_n++] = *a;
+	else
+		win_redraw((GRECT *)a);
+}
+
 /* a page moved: its title, and with buttons the view buttons, drawn
-   at once (the rest of the toolbar is as it was) */
+   at once, or in the slices after for a new view (the rest of the
+   toolbar is as it was) */
 void win_redraw_title(int buttons)
 {
 	GRECT a = r_title;
-	if (buttons)		/* (one redraw for both: each is an AES round and a copy) */
-		a.w = but[B_YEAR].x + but[B_YEAR].w - a.x;
 	a.y = r_tool.y;
 	a.h = r_tool.h;
+	if (buttons && vj.on) {
+		/* a new view, drawn in slices: the buttons, then the title,
+		   each in a slice of its own (both in the key's turn: 105 ms
+		   on an ST) */
+		GRECT b = a;
+		b.x = but[B_DAY].x;
+		b.w = but[B_YEAR].x + but[B_YEAR].w - b.x;
+		a.w = b.x - a.x;
+		redraw_soon(&b);
+		redraw_soon(&a);
+		return;
+	}
+	if (buttons)		/* (one redraw for both: each is an AES round and a copy) */
+		a.w = but[B_YEAR].x + but[B_YEAR].w - a.x;
 	win_redraw(&a);
 }
 
@@ -813,19 +839,23 @@ int win_view_step(unsigned long ms)
 	}
 	if (vj.st_i < vj.st_n) {
 		/* a new window: its toolbar and list a piece at a time, before
-		   the view (win_start) */
+		   the view (win_start); a new view's buttons and title */
 		GRECT a = vj.st_r[vj.st_i++];
 		win_redraw(&a);
 		slice_said("the window's start", t0);
 		return 1;
 	}
 	if (!vj.on && vj.later) {
-		int i, n = vj.later;
-		vj.later = 0;
-		for (i = 0; i < n; i++)
-			win_redraw(&vj.later_r[i]);
+		/* one a slice, in the order asked (Tab: the event chosen,
+		   then the one it left; 45 ms each on an ST) */
+		GRECT a = vj.later_r[0];
+		int i;
+		vj.later--;
+		for (i = 0; i < vj.later; i++)
+			vj.later_r[i] = vj.later_r[i + 1];
+		win_redraw(&a);
 		slice_said("a piece left for later", t0);
-		return vj.mini || sl_due;
+		return win_view_busy();
 	}
 	if (!vj.on) {
 		if (vj.mini) {
@@ -945,9 +975,9 @@ int win_view_step(unsigned long ms)
 		slice_said(w, t0);
 	}
 #endif
-	if (vj.ti >= vj.nt && pf_ms() - t0 > ms / 2) {
+	if (vj.ti >= vj.nt && !vj.show && pf_ms() - t0 + (vj.copy_ms ? vj.copy_ms : ms / 2) > ms) {
 		vj.inside = 0;
-		return 1;	/* the copy in the next slice */
+		return 1;	/* the copy in the next slice, where it fits */
 	}
 whole:
 	if (vj.ti >= vj.nt) {
@@ -956,12 +986,14 @@ whole:
 		unsigned long c0 = pf_ms();
 #endif
 		if (!vj.show) {	/* (a new window's: each band copied already) */
+			unsigned long k0 = pf_ms();
 			wind_update(BEG_UPDATE);
 			graf_mouse(M_OFF, 0);
 			if (rect_and(&full, &r_view))
 				off_copy(&full);
 			graf_mouse(M_ON, 0);
 			wind_update(END_UPDATE);
+			vj.copy_ms = pf_ms() - k0;	/* (what the next one is judged by) */
 		}
 		vj.show = 0;
 		vj.on = 0;
@@ -1014,11 +1046,24 @@ static int win_start(void)
 	clip_off();
 	graf_mouse(M_ON, 0);
 	wind_update(END_UPDATE);
-	for (k = 0; k < 3; k++) {
-		r = r_tool;
-		r.x = r_tool.x + (short)((long)r_tool.w * k / 3);
-		r.w = r_tool.x + (short)((long)r_tool.w * (k + 1) / 3) - r.x;
-		vj.st_r[n++] = r;
+	{
+		/* the toolbar cut at the title's edges: the buttons before it,
+		   the title, the rest in two (in thirds the first, buttons and
+		   title, took an ST 100 ms) */
+		short x[5];
+		x[0] = r_tool.x;
+		x[1] = r_title.x;
+		x[2] = but[B_DAY].x;
+		x[4] = r_tool.x + r_tool.w;
+		x[3] = x[2] + (x[4] - x[2]) / 2;
+		for (k = 0; k < 4; k++) {
+			if (x[k + 1] <= x[k])
+				continue;
+			r = r_tool;
+			r.x = x[k];
+			r.w = x[k + 1] - x[k];
+			vj.st_r[n++] = r;
+		}
 	}
 	for (k = 0; k < 3 && r_side.w > 0; k++) {
 		r = r_side;

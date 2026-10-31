@@ -30,7 +30,8 @@ static short scroll_hh, want_hour = 8;
 
 static OCCLIST occ;
 static int occ_valid;
-static int occ_partial;		/* a collect begun in slices (views_prepare), not finished */
+static int occ_partial;		/* a collect begun in slices (views_prepare), not finished; 2: but
+				   its days (oday_fill) */
 static int busy_known;
 static void yg_forget(void);
 static int laid_out;
@@ -171,8 +172,16 @@ static int collect_for(unsigned long ms)
 		occ_collect_begin(&occ, a, b);
 		occ_partial = 1;
 	}
-	if (occ_collect_step(&occ, ms ? ms : 0xffffffffUL))
-		return 0;
+	if (occ_partial == 1) {
+		if (occ_collect_step(&occ, ms ? ms : 0xffffffffUL))
+			return 0;
+		if (ms) {
+			/* sliced: what follows in a slice of its own (a year's
+			   days worked out after its last step: 100 ms on an ST) */
+			occ_partial = 2;
+			return 0;
+		}
+	}
 	occ_partial = 0;
 	oday_fill();
 	busy_known = 0;
@@ -624,7 +633,9 @@ int views_prepare(unsigned long ms)
 	range(&from, &n);
 	if (!occ_valid || occ.from != from * MIN_PER_DAY || occ.to != (from + n) * MIN_PER_DAY) {
 		views_phase = "collect";
-		collect_for(ms);
+		/* (a step runs past its time by an event or a month of a
+		   series: 20-30 ms on an ST) */
+		collect_for(ms > 40 ? ms - 25 : 15);
 		return 1;	/* (laid out in a slice of its own) */
 	}
 	if (!laid_out) {
@@ -1589,9 +1600,11 @@ int views_tiles(GRECT *t, int max)
 		if (detail.w)
 			xs[nx++] = detail.x;
 		/* the hours in quarters: a column of a busy day is too much for
-		   one slice on an ST */
-		for (r = 0; r < 4; r++)
-			ys[ny++] = grid.y + r * (grid.h / 4);
+		   one slice on an ST; the day view's one column in eighths (a
+		   quarter of 24 events took an ST 110 ms) */
+		short bands = cur_view == V_DAY ? 8 : 4;
+		for (r = 0; r < bands; r++)
+			ys[ny++] = grid.y + r * (grid.h / bands);
 	} else {
 		/* a month a row of weeks at a time (the year's small text is off
 		   a byte, a month too much for one slice on an ST) */
@@ -2270,10 +2283,13 @@ static void select_next(int dir)
 		   the day's details (the whole view took 0.8 s on an ST) */
 		OCC was = sel_occ;
 		select_item(best);
-		redraw_occ(&was);
-		redraw_occ(&sel_occ);
+		/* both in the turns after, the chosen one first (the key's own
+		   turn 75 ms on an ST with the box drawn in it), then the one
+		   it leaves */
+		redraw_occ_but(&sel_occ, 0, 1);
+		redraw_occ_but(&was, 0, 1);
 		if (cur_view == V_DAY && detail.w)
-			win_redraw(&detail);
+			win_redraw_later(&detail);
 	}
 }
 
