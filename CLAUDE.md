@@ -23,7 +23,9 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
   what changed, keep the 68000's slow operations out of inner loops, do work once. A change to
   drawing, a loop over the data or the start gives its `AESGAP` stretches on `ST` and `Falcon-4`,
   before and after, in its commit message. A GEM release passes the speed rig within the
-  guidelines' times.
+  guidelines' times. One exception, Erez's (31 Oct 2026): scrolling the hours a line keeps its
+  speed, an ST's glide steps of 115 to 155 ms (the copy 40-50, the strip coming in 40-95), not
+  smaller steps that would keep each under 100 ms and scroll slower.
 - **Shared code lives in [AERA-Atari](https://github.com/whomper/AERA-Atari).** Files under `common/` come from it. Change them
   there, not here, and pull them in with `tools/sync-common.sh`. A fix made only in this repo will drift
   again.
