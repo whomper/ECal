@@ -3614,10 +3614,12 @@ static int occ_long(const OCC *o)
 
 /* the sort, resumable (a view collected in slices sorts in them too):
    the long ones put first in one pass, then each part merged bottom up,
-   a merge at a time */
+   a merge stopped part way when the step's time is up (the last merge
+   of a year's occurrences, all of them at once, took an ST 130 ms) */
 static struct {
 	OCC *o, *t, *a, *b;
 	int n, nl, lo, hi, w, i, seg;	/* seg 2: done */
+	int p, q, k, merging;		/* a merge part way */
 } os;
 
 static void os_part(int lo, int hi)
@@ -3628,6 +3630,7 @@ static void os_part(int lo, int hi)
 	os.i = lo;
 	os.a = os.o;
 	os.b = os.t;
+	os.merging = 0;
 }
 
 static void os_begin(OCC *o, int n)
@@ -3668,7 +3671,7 @@ static int os_step(unsigned long ms)
 	unsigned long t0 = pf_ms();
 	while (os.seg < 2) {
 		OCC *a = os.a, *b = os.b, *sw;
-		int m, h, p, q, k;
+		int m, h, p, q, k, n;
 		if (os.w >= os.hi - os.lo) {
 			/* this part sorted: back in o if it ended in t */
 			if (os.a != os.o && os.hi > os.lo)
@@ -3679,9 +3682,16 @@ static int os_step(unsigned long ms)
 		}
 		m = os.i + os.w < os.hi ? os.i + os.w : os.hi;
 		h = os.i + 2 * os.w < os.hi ? os.i + 2 * os.w : os.hi;
-		p = os.i;
-		q = m;
-		k = os.i;
+		if (os.merging) {
+			p = os.p;
+			q = os.q;
+			k = os.k;
+		} else {
+			p = os.i;
+			q = m;
+			k = os.i;
+		}
+		n = 0;
 		while (p < m || q < h) {
 			const OCC *f;
 			if (q >= h)
@@ -3696,7 +3706,18 @@ static int os_step(unsigned long ms)
 			}
 			OCC_MOVE(b[k], *f);
 			k++;
+			if (++n >= 128) {	/* (the clock is a trap to the OS: asked now and then) */
+				n = 0;
+				if (pf_ms() - t0 >= ms && (p < m || q < h)) {
+					os.p = p;
+					os.q = q;
+					os.k = k;
+					os.merging = 1;
+					return 1;
+				}
+			}
 		}
+		os.merging = 0;
 		os.i += 2 * os.w;
 		if (os.i >= os.hi) {
 			sw = os.a;

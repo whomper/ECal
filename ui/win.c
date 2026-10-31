@@ -824,7 +824,7 @@ int win_view_step(unsigned long ms)
 		return 0;
 	}
 	while (!vj.ready) {
-		unsigned long used = pf_ms() - t0;
+		unsigned long used = pf_ms() - t0, p0 = pf_ms();
 		if (used >= ms)
 			return 1;
 		if (!views_prepare(ms - used)) {
@@ -838,6 +838,8 @@ int win_view_step(unsigned long ms)
 			return 1;	/* (the pieces from the next slice) */
 		}
 		slice_said(views_phase, t0);
+		if (pf_ms() - p0 >= 10)
+			return 1;	/* (a phase that worked: the next, the layout say, in a slice of its own) */
 	}
 	vj.inside = 1;		/* (off the screen: no wind_update until the copy) */
 	if (vj.ti >= vj.nt)
@@ -1171,6 +1173,9 @@ void win_scroll(const GRECT *a, short dy)
 {
 	GRECT box, strip = *a;
 	short ady = dy < 0 ? -dy : dy, whole = 0;
+#ifdef AES_PROFILE
+	unsigned long sc0 = pf_ms(), sc1 = 0, sc2 = 0;
+#endif
 	if (win_h <= 0 || win_iconified)
 		return;
 	win_view_finish();	/* (what is on the screen is moved: the view whole) */
@@ -1196,7 +1201,13 @@ void win_scroll(const GRECT *a, short dy)
 		/* the VDI clips raster copies to the last clip, TOS's as NVDI's:
 		   the area moved, not one left by the last thing drawn */
 		clip_on(&strip);
+#ifdef AES_PROFILE
+		sc1 = pf_ms();
+#endif
 		scr_rows(vdi_h, pxy);	/* (on TOS's screen by the CPU, else vro_cpyfm S_ONLY) */
+#ifdef AES_PROFILE
+		sc2 = pf_ms();
+#endif
 		clip_off();
 		graf_mouse(M_ON, 0);
 		strip.h = ady;
@@ -1204,7 +1215,18 @@ void win_scroll(const GRECT *a, short dy)
 			strip.y = a->y + a->h - ady;
 	}
 	wind_update(END_UPDATE);
+#ifdef AES_PROFILE
+	{
+		unsigned long c1 = pf_ms();
+		char b[80];
+		win_redraw(&strip);
+		snprintf(b, sizeof(b), "SCROLLMS %dx%d by %d: before %lu, rows %lu (fast %d), after %lu, strip %lu\n",
+			 a->w, a->h, dy, sc1 - sc0, sc2 - sc1, text_plain_state(), c1 - sc2, pf_ms() - c1);
+		nf_debug(b);
+	}
+#else
 	win_redraw(&strip);
+#endif
 }
 
 void win_message(short *msg)

@@ -616,6 +616,8 @@ static void layout(void)
    more */
 const char *views_phase = "";	/* what views_prepare did last (the profiled build says) */
 
+static void year_busy(void);
+
 int views_prepare(unsigned long ms)
 {
 	long from, n;
@@ -629,6 +631,11 @@ int views_prepare(unsigned long ms)
 		views_phase = "layout";
 		layout();
 		return 1;	/* (drawing begins in the next slice) */
+	}
+	if (cur_view == V_YEAR && !busy_known) {
+		views_phase = "the year's days with events";
+		year_busy();
+		return 1;
 	}
 	return 0;
 }
@@ -1349,24 +1356,38 @@ static void year_geom(short *mw, short *mh, short *pc)
 static unsigned char busy_[372];	/* the year's days with events, for the occurrences
 					   collected (busy_known: once, not each piece drawn) */
 
+/* busy_ for the year shown, from each occurrence's days as collected
+   (the oday table, read in line): in the prepare phase, not in the
+   first piece drawn (that piece took an ST 145 ms) */
+static void year_busy(void)
+{
+	int y0, m0, d0, i;
+	long jan1;
+	civil_from_days(cur_day, &y0, &m0, &d0);
+	jan1 = days_from_civil(y0, 1, 1);
+	memset(busy_, 0, sizeof(busy_));
+	for (i = 0; i < occ.n; i++) {
+		long a = OCC_FIRST(i, &occ.o[i]) - jan1, b = OCC_LAST(i, &occ.o[i]) - jan1;
+		if (a < 0)
+			a = 0;
+		if (b > 371)
+			b = 371;
+		for (; a <= b; a++)
+			busy_[a] = 1;
+	}
+	busy_known = 1;
+}
+
 static void draw_year(GRECT *clip)
 {
 	short mw, mh, pc, m;
-	int y0, m0, d0, i;
+	int y0, m0, d0;
 	long jan1, t = today();
 	short bytes_was = text_bytes;
 	civil_from_days(cur_day, &y0, &m0, &d0);
 	jan1 = days_from_civil(y0, 1, 1);
-	if (!busy_known) {
-		memset(busy_, 0, sizeof(busy_));
-		for (i = 0; i < occ.n; i++) {
-			long a = occ_first_day(&occ.o[i]) - jan1, b = occ_last_day(&occ.o[i]) - jan1;
-			for (; a <= b && a < 372; a++)
-				if (a >= 0)
-					busy_[a] = 1;
-		}
-		busy_known = 1;
-	}
+	if (!busy_known)
+		year_busy();
 	year_geom(&mw, &mh, &pc);
 	/* a day is three columns: where three aren't a byte (the 6x6 font),
 	   its text goes where it falls, not on a byte (rounded, a run of
