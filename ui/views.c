@@ -1727,7 +1727,8 @@ int views_tip(short mx, short my, char *title, int tn, char *when, int wn)
 	char t1[16], t2[16];
 	if (!rect_hit(&r_view, mx, my) || cur_view == V_YEAR)
 		return 0;
-	layout();
+	if (!occ_valid || !laid_out)
+		return -1;	/* (not laid out since a calendar was read: when it is, not here) */
 	it = item_at(mx, my);
 	if (it < 0 || items[it].kind != IT_EVENT)
 		return 0;

@@ -1586,7 +1586,12 @@ static void tip_show(void)
 	if (win_h <= 0 || wind_find(hover_x, hover_y) != win_h)
 		return;
 	wind_get(0, WF_TOP, &t, &dd, &dd, &dd);
-	if (t != win_h || !views_tip(hover_x, hover_y, title, sizeof(title), when, sizeof(when)))
+	if (t != win_h)
+		return;
+	t = (short)views_tip(hover_x, hover_y, title, sizeof(title), when, sizeof(when));
+	if (t < 0)
+		tip_tried = 0;	/* the view not laid out yet: tried again in a later turn */
+	if (t <= 0)
 		return;
 	n1 = (short)strlen(title);
 	n2 = (short)strlen(when);

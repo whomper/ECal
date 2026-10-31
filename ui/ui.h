@@ -121,7 +121,7 @@ extern long cur_day;		/* the selected day (days since 1970, view zone) */
 extern short cur_view;
 extern OCC sel_occ;		/* the selected occurrence (ev NULL: none) */
 void views_scroll_to(short hour);	/* scroll there: the events move too */
-int  views_tip(short mx, short my, char *title, int tn, char *when, int wn);	/* the event under the mouse */
+int  views_tip(short mx, short my, char *title, int tn, char *when, int wn);	/* the event under the mouse: 1, none 0, -1 not laid out yet */
 void views_copy(void);				/* ^C: the event chosen, to the clipboard */
 void views_invalidate(void);	/* events changed: collect again */
 void views_draw(GRECT *clip);
