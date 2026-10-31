@@ -251,7 +251,20 @@ static CONN *get_conn(const URL *u, int gw, int *reused, char *err, int errlen)
 	http_close_all();
 	if (http_connecting)
 		http_connecting(1);
-	kept = conn_open("HTTP", host, port, 0, sec, err, errlen);
+	{
+		/* the receive buffer 16 KB where that is free, else 4 KB, as a
+		   file's reading falls back (the hub, 27 Oct 2026): a 1 MB ST's
+		   fixed heap after the calendars are read may have 40 KB free
+		   and no 16 KB in one piece, and the connection failed "out of
+		   memory" (acc_files, ST-1, 31 Oct 2026) */
+		long bs = 0;
+		void *t = malloc(sizeof(CONN) + conn_bufsize);
+		if (t)
+			free(t);
+		else
+			bs = 4096;
+		kept = conn_open("HTTP", host, port, bs, sec, err, errlen);
+	}
 	if (http_connecting)
 		http_connecting(0);
 	if (!kept) {
