@@ -153,6 +153,31 @@ void side_redraw_mini(void)
 	win_redraw(&r);
 }
 
+/* half the small month drawn again: 0 its head and first three weeks, 1
+   the other three (all of it took an ST 110 ms of a view's slices) */
+void side_redraw_mini_half(int half)
+{
+	GRECT r;
+	short cut;
+	if (r_side.w <= 0)
+		return;
+	side_layout();
+	if (!mini.h)
+		return;
+	r = mini;
+	r.x -= 2;
+	r.w += 4;
+	cut = mini.y + 5 * ch + 4;	/* (the fourth week's row) */
+	if (half == 0) {
+		r.h = cut - r.y;
+	} else {
+		r.h = r.y + r.h - cut;
+		r.y = cut;
+	}
+	if (r.h > 0)
+		win_redraw(&r);
+}
+
 /* the small month after the chosen day moved from day0: the two days'
    boxes alone while it shows the same month (all of it took an ST 85 ms) */
 void side_redraw_mini_from(long day0)

@@ -2134,7 +2134,7 @@ int main(void)
 	crash_offer("ECal", "next to ECAL.PRG");
 
 	while (!quit_now) {
-		short flags = MU_MESAG | MU_TIMER, which, hovering;
+		short flags = MU_MESAG | MU_TIMER, which, hovering, glided;
 		unsigned long wait = sync_pending ? 150 : 1000;
 		if (win_h > 0)
 			flags |= MU_KEYBD | MU_BUTTON;
@@ -2333,8 +2333,11 @@ int main(void)
 				settings_flush();
 			}
 		}
-		if (views_gliding() && win_h > 0 && !win_iconified && !win_view_busy() && !(which & (MU_KEYBD | MU_BUTTON | MU_MESAG)))
+		glided = 0;
+		if (views_gliding() && win_h > 0 && !win_iconified && !win_view_busy() && !(which & (MU_KEYBD | MU_BUTTON | MU_MESAG))) {
 			views_glide();	/* (a turn that answered a key glided a step already) */
+			glided = 1;
+		}
 		bg_tick();
 		if (which & MU_TIMER) {
 			prg_runs();		/* ECAL.PRG ended: what it changed is read again */
@@ -2350,7 +2353,7 @@ int main(void)
 		if (win_view_busy()) {
 			/* a view being drawn, a slice a turn (not after a key, click
 			   or message: what answered it has had this turn) */
-			if (!(which & (MU_MESAG | MU_KEYBD | MU_BUTTON))) {
+			if (!(which & (MU_MESAG | MU_KEYBD | MU_BUTTON)) && !glided) {
 				aes_profile_tag("view: a slice");
 				win_view_step(VIEW_SLICE_MS);
 			}

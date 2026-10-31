@@ -144,24 +144,42 @@ void win_layout(void)
 }
 
 static long sl_size = -1, sl_pos = -1;	/* as last set */
+static long sl_want_size, sl_want_pos;	/* as they should be */
+static int sl_due;			/* not yet set so */
 
+/* the sliders as the view is now: set in the turns after (sliders_step),
+   one a turn, as the AES draws each again (two took an ST 85 to 120 ms,
+   on top of what the turn drew) */
 void win_sliders(void)
 {
 	long size, pos;
 	if (win_h <= 0 || vj.on)
 		return;		/* (a view being drawn in slices: when it is done) */
 	views_slider(&size, &pos);
-	/* only when they change: the AES draws them each time */
 	if (size < 30)
 		size = 30;
 	if (pos > 1000)
 		pos = 1000;
-	if (size != sl_size)
-		wind_set(win_h, WF_VSLSIZE, (short)size, 0, 0, 0);
-	if (pos != sl_pos)
-		wind_set(win_h, WF_VSLIDE, (short)pos, 0, 0, 0);
-	sl_size = size;
-	sl_pos = pos;
+	sl_want_size = size;
+	sl_want_pos = pos;
+	/* only when they change: the AES draws them each time */
+	sl_due = size != sl_size || pos != sl_pos;
+}
+
+/* one slider set as win_sliders asked: 1 while the other is still due */
+static int sliders_step(void)
+{
+	if (sl_due && win_h > 0) {
+		if (sl_want_size != sl_size) {
+			wind_set(win_h, WF_VSLSIZE, (short)sl_want_size, 0, 0, 0);
+			sl_size = sl_want_size;
+		} else if (sl_want_pos != sl_pos) {
+			wind_set(win_h, WF_VSLIDE, (short)sl_want_pos, 0, 0, 0);
+			sl_pos = sl_want_pos;
+		}
+	}
+	sl_due = win_h > 0 && (sl_want_size != sl_size || sl_want_pos != sl_pos);
+	return sl_due;
 }
 
 static void draw_button(int i)
@@ -727,7 +745,7 @@ void win_redraw_later(const GRECT *a)
 
 int win_view_busy(void)
 {
-	return vj.on || vj.mini || vj.later;
+	return vj.on || vj.mini || vj.later || sl_due;
 }
 
 void win_view_later(void)
@@ -763,24 +781,31 @@ static void slice_said(const char *what, unsigned long t0)
 int win_view_step(unsigned long ms)
 {
 	unsigned long t0 = pf_ms();
+	int drawn;
 	if (!vj.on && vj.later) {
 		int i, n = vj.later;
 		vj.later = 0;
 		for (i = 0; i < n; i++)
 			win_redraw(&vj.later_r[i]);
 		slice_said("a piece left for later", t0);
-		return vj.mini;
+		return vj.mini || sl_due;
 	}
 	if (!vj.on) {
 		if (vj.mini) {
-			vj.mini = 0;
-			if (vj.mini_from >= 0)
+			if (vj.mini_from >= 0) {
+				vj.mini = 0;
 				side_redraw_mini_from(vj.mini_from);
-			else
-				side_redraw_mini();	/* (the range it marks moved) */
+			} else {
+				/* (the range it marks moved) a half a slice */
+				side_redraw_mini_half(vj.mini - 1);
+				vj.mini = vj.mini == 1 ? 2 : 0;
+			}
 			slice_said("the small month", t0);
+			return vj.mini || sl_due;
 		}
-		return 0;
+		sliders_step();
+		slice_said("a slider", t0);
+		return sl_due;
 	}
 	if (win_h <= 0 || win_iconified || !off_screen()) {
 		vj.on = 0;
@@ -803,6 +828,9 @@ int win_view_step(unsigned long ms)
 		slice_said(views_phase, t0);
 	}
 	vj.inside = 1;		/* (off the screen: no wind_update until the copy) */
+	if (vj.ti >= vj.nt)
+		goto whole;	/* (the copy alone: the last pieces had the slice before) */
+	drawn = 0;
 	/* as much as the last draw's time says fits in half the slice:
 	   whole rows of pieces together where they fit (each draw has its
 	   cost whatever its size), a row's pieces a few at a time where one
@@ -835,6 +863,11 @@ int win_view_step(unsigned long ms)
 				k++;
 			}
 		}
+		/* not begun when the dearest yet says it would end past the
+		   slice (one drawn already: each slice draws one at least) */
+		if (drawn && pf_ms() - t0 + (rows ? vj.row_ms * rows : vj.piece_ms * k) > ms)
+			break;
+		drawn = 1;
 		vj.ti += k;
 		off_draw(&r);
 		took = pf_ms() - p0;
@@ -864,8 +897,16 @@ int win_view_step(unsigned long ms)
 		slice_said(w, t0);
 	}
 #endif
+	if (vj.ti >= vj.nt && pf_ms() - t0 > ms / 2) {
+		vj.inside = 0;
+		return 1;	/* the copy in the next slice */
+	}
+whole:
 	if (vj.ti >= vj.nt) {
 		GRECT full = work;
+#ifdef AES_PROFILE
+		unsigned long c0 = pf_ms();
+#endif
 		wind_update(BEG_UPDATE);
 		graf_mouse(M_OFF, 0);
 		if (rect_and(&full, &r_view))
@@ -877,15 +918,15 @@ int win_view_step(unsigned long ms)
 		vj.mini_from = -1;
 #ifdef AES_PROFILE
 		{
-			char b[48];
-			snprintf(b, sizeof(b), "VIEWDONE %lu ms\n", pf_ms() - vj.t0);
+			char b[64];
+			snprintf(b, sizeof(b), "VIEWDONE %lu ms (the copy %lu)\n", pf_ms() - vj.t0, pf_ms() - c0);
 			nf_debug(b);
 		}
 #endif
 	}
 	vj.inside = 0;
 	if (!vj.on)
-		win_sliders();
+		win_sliders();	/* (set in the slices after) */
 	return vj.on;
 }
 

@@ -147,6 +147,7 @@ int  occ_find_again(void);	/* after a reload, find the selected one again */
 void side_draw(GRECT *clip);
 void side_redraw_mini(void);		/* the small month alone */
 void side_redraw_mini_from(long day0);	/* its two days' boxes, the day moved from day0 */
+void side_redraw_mini_half(int half);	/* 0 its head and first weeks, 1 the rest */
 int  side_click(short mx, short my, short clicks, short button);
 int  side_instant(short mx, short my);	/* over a tick box: no double click to wait for */
 
