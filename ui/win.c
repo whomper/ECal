@@ -13,6 +13,7 @@
 #include "iconify.h"
 #include "av.h"
 #include "plat.h"
+#include "text.h"
 #include <tos.h>
 
 short win_h = -1;
@@ -1073,9 +1074,7 @@ void win_scroll(const GRECT *a, short dy)
 		}
 	}
 	if (whole) {
-		MFDB scr;
 		short pxy[8];
-		memset(&scr, 0, sizeof(scr));
 		pxy[0] = pxy[4] = a->x;
 		pxy[2] = pxy[6] = a->x + a->w - 1;
 		pxy[1] = a->y + (dy > 0 ? ady : 0);
@@ -1086,7 +1085,7 @@ void win_scroll(const GRECT *a, short dy)
 		/* the VDI clips raster copies to the last clip, TOS's as NVDI's:
 		   the area moved, not one left by the last thing drawn */
 		clip_on(&strip);
-		vro_cpyfm(vdi_h, 3, pxy, &scr, &scr);	/* S_ONLY */
+		scr_rows(vdi_h, pxy);	/* (on TOS's screen by the CPU, else vro_cpyfm S_ONLY) */
 		clip_off();
 		graf_mouse(M_ON, 0);
 		strip.h = ady;

@@ -68,14 +68,14 @@ static void draw_mini(const GRECT *clip)
 		/* the weekdays in one text (each a call of milliseconds on an ST) */
 		char wd[22];
 		snprintf(s, sizeof(s), "%s %d", month_names[m - 1], y);
-		text_at(mini.x, mini.y, s, (long)strlen(s), 21, TX_BOLD | TX_LTR | TX_CENTER);
+		text_at(mini.x, mini.y, s, (long)strlen(s), 21, TX_BOLD | TX_LTR | TX_CENTER | TX_WHITE);
 		for (k = 0; k < 7; k++) {
 			const char *n = wday_short[(k + opt.weekstart) % 7];
 			wd[k * 3] = n[0];
 			wd[k * 3 + 1] = n[1];
 			wd[k * 3 + 2] = ' ';
 		}
-		text_at(mini.x, mini.y + ch + 2, wd, 20, 20, TX_LTR | TX_GREY);
+		text_at(mini.x, mini.y + ch + 2, wd, 20, 20, TX_LTR | TX_GREY | TX_WHITE);
 	}
 	{
 		/* runs of same-looking days in one piece of text (see views.c);
@@ -114,7 +114,7 @@ static void draw_mini(const GRECT *clip)
 				}
 			}
 			if (rl && (k == 42 || flags != rflags || col == 0 || (rflags & TX_INVERSE))) {
-				text_at(rx, ry, run, rl, rl, TX_LTR | rflags);
+				text_at(rx, ry, run, rl, rl, TX_LTR | TX_WHITE | rflags);	/* (side_draw's white under it) */
 				rl = 0;
 			}
 			if (k == 42)
@@ -201,7 +201,7 @@ void side_draw(GRECT *clip)
 			continue;	/* (outside what is drawn: the small month alone, say) */
 		if (s->cal < 0) {
 			ACCOUNT *a = &accts[s->acct];
-			text_at(r_side.x + cw / 2, s->y, a->name, (long)strlen(a->name), cols - 1, TX_BOLD | TX_RIGHT | TX_GREY);
+			text_at(r_side.x + cw / 2, s->y, a->name, (long)strlen(a->name), cols - 1, TX_BOLD | TX_RIGHT | TX_GREY | TX_WHITE);
 			if (a->err[0])
 				text_at(r_side.x + r_side.w - 2 * cw, s->y, "!", 1, 1, TX_BOLD | TX_LTR);
 		} else {
@@ -220,7 +220,7 @@ void side_draw(GRECT *clip)
 				frame(&box, p.color);
 			}
 			text_at(r_side.x + 3 * cw, s->y, c->name, (long)strlen(c->name), cols - 3,
-				TX_RIGHT | (c->visible ? 0 : TX_PALE));
+				TX_RIGHT | TX_WHITE | (c->visible ? 0 : TX_PALE));
 		}
 	}
 	if (mini.h) {

@@ -592,7 +592,7 @@ void text_color(short color)
 }
 
 #ifdef AES_PROFILE
-long prof_texts, prof_texts_off, prof_texts_bold;	/* for VIEWMS: what text cost */
+long prof_texts, prof_texts_off, prof_texts_bold, prof_texts_plain;	/* for VIEWMS: what text cost */
 #endif
 
 /* Set while the window is drawn (win.c): text goes on a byte. TOS's VDI
@@ -683,6 +683,32 @@ void text_at(short x, short y, const char *s, long n, short cols, short flags)
 			memcpy(vis, out, n);
 		out = vis;
 		heb_font_map(vis, n, opt.hebfont);
+	}
+	/* black on white, in the system font on TOS's screen: straight into
+	   it, the cells' white with it, some three times the VDI's speed on
+	   an ST (text_plain; the same pixels as drawing it transparent there) */
+	if ((flags & TX_WHITE) && color == 1 && !(flags & TX_INVERSE) && !(effects & ~1) &&
+	    font_cells == FC_RUNS && text_plain_state() >= 0) {
+		set_wrmode(1);
+		set_text(1, 0);
+		for (i = 0; i < n; i += 120) {
+			short k = n - i > 120 ? 120 : (short)(n - i);
+			text_plain(vdi_h, x + i * cw, y, out + i, k);
+		}
+#ifdef AES_PROFILE
+		prof_texts++;
+		prof_texts_plain++;
+		if (effects)
+			prof_texts_bold++;
+#endif
+		if (effects & 1) {
+			set_wrmode(2);
+			for (i = 0; i < n; i += 120) {
+				short k = n - i > 120 ? 120 : (short)(n - i);
+				cells_at(x + i * cw + 1, y, out + i, k);
+			}
+		}
+		return;
 	}
 	set_wrmode(2);
 	set_text((flags & TX_INVERSE) ? 0 : color, effects & ~1);

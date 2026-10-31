@@ -33,6 +33,8 @@ extern short ncolors;		/* 2, 4, 16, 256 */
 #define TX_DIM    128	/* what can't be used (disabled controls): light grey, else dotted */
 #define TX_GREY   256	/* secondary text: labels, hints, Hebrew dates (dark grey) */
 #define TX_PALE   512	/* what recedes: other months' days, hidden calendars (light grey) */
+#define TX_WHITE 1024	/* its cells plain white, nothing in them to keep: black text may go
+			   in by text_plain, cells and all (common/ui/text.h) */
 void fill(GRECT *r, short color);
 void set_wrmode(short mode);	/* VDI writing mode, through draw.c's cache */
 void fill_pat(GRECT *r, short color, short interior, short style);
