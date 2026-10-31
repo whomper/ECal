@@ -118,8 +118,12 @@ class Meter:
         # background work (reading the calendars, the reminder check) isn't the action's
         own = [g for g in gaps if not g[1].startswith(("work", "reminder", "settings"))]
         worst = max(own)[0] if own else 0
-        if start:
+        if start and not (kind == "start" and re.search(r"VIEWDONE", new)):
             worst = max(worst, start[0])
+        # a start whose window is drawn in slices: AESSTART (loaded to the
+        # first event call) against the start's 2 s, each stretch after it
+        # against a slice's 100 ms (the guidelines' Speed)
+        start_over = bool(start) and kind == "start" and start[0] > LIMIT["start"]
         views = re.findall(r"(?:VIEWMS|REDRAWMS) ([^\n]*)", new)
         # a view drawn in slices: the stretches are its slices; when the
         # whole picture was there
@@ -129,8 +133,10 @@ class Meter:
         row = dict(action=name, kind=kind, limit=LIMIT[kind], ms=worst, start=start[0] if start else None,
                    gaps=own, background=[g for g in gaps if g not in own], where=views,
                    picture=done[-1] if done else None)
+        if start_over:
+            row["ms"] = max(worst, LIMIT[kind] + 1)
         self.rows.append(row)
-        print("  %5d ms %s %-34s %s%s%s" % (worst, "OVER" if worst > LIMIT[kind] else "    ", name,
+        print("  %5d ms %s %-34s %s%s%s" % (worst, "OVER" if row["ms"] > LIMIT[kind] else "    ", name,
               ", ".join("%d %s" % g for g in sorted(own, reverse=True)[:4]),
               ("  (AESSTART %d)" % start[0]) if start else "",
               ("  (the picture whole after %d)" % done[-1]) if done else ""), flush=True)

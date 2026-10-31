@@ -90,7 +90,11 @@ static struct {
 	long mini_from;			/* the day it marked, -1 for all of it */
 	int later;			/* pieces of the view still to draw (win_redraw_later) */
 	GRECT later_r[4];
+	short st_n, st_i;		/* a new window's toolbar and list, a piece a slice */
+	int show;			/* each piece of the view copied when drawn (a new window's) */
+	GRECT st_r[6];
 } vj;
+static int start_fresh;		/* the window just opened: its first redraw in slices */
 
 void win_layout(void)
 {
@@ -232,8 +236,8 @@ static void draw_button(int i)
 			line_col(x0 - dir * c, cy - sh, x0 - dir * c, cy + sh, 1);
 		return;
 	}
-	text_at((r.x + (r.w - n * cw) / 2 + 3) & ~7, r.y + 1, l, n, n, TX_LTR | (on ? TX_INVERSE : 0) |
-		(i == B_TODAY ? TX_BOLD : 0));
+	text_at((r.x + (r.w - n * cw) / 2 + 3) & ~7, r.y + 1, l, n, n, TX_LTR | (on ? TX_INVERSE : TX_WHITE) |
+		(i == B_TODAY ? TX_BOLD : 0));	/* (inside its frame, clear of it) */
 }
 
 static void draw_toolbar(GRECT *clip)
@@ -286,7 +290,7 @@ static void draw_toolbar(GRECT *clip)
 				break;
 		}
 	}
-	text_at(r_title.x, r_title.y, t, (long)strlen(t), r_title.w / cw, TX_BOLD | TX_LTR);
+	text_at(r_title.x, r_title.y, t, (long)strlen(t), r_title.w / cw, TX_BOLD | TX_LTR | TX_WHITE);
 	hline(work.x, work.x + work.w - 1, work.y + r_tool.h - 1);
 }
 
@@ -745,7 +749,7 @@ void win_redraw_later(const GRECT *a)
 
 int win_view_busy(void)
 {
-	return vj.on || vj.mini || vj.later || sl_due;
+	return vj.on || vj.mini || vj.later || sl_due || vj.st_i < vj.st_n;
 }
 
 void win_view_later(void)
@@ -782,6 +786,14 @@ int win_view_step(unsigned long ms)
 {
 	unsigned long t0 = pf_ms();
 	int drawn;
+	if (vj.st_i < vj.st_n) {
+		/* a new window: its toolbar and list a piece at a time, before
+		   the view (win_start) */
+		GRECT a = vj.st_r[vj.st_i++];
+		win_redraw(&a);
+		slice_said("the window's start", t0);
+		return 1;
+	}
 	if (!vj.on && vj.later) {
 		int i, n = vj.later;
 		vj.later = 0;
@@ -870,6 +882,15 @@ int win_view_step(unsigned long ms)
 		drawn = 1;
 		vj.ti += k;
 		off_draw(&r);
+		if (vj.show) {
+			/* a new window: the band on the screen at once, as
+			   EContact's (Erez, 31 Oct 2026) */
+			wind_update(BEG_UPDATE);
+			graf_mouse(M_OFF, 0);
+			off_copy(&r);
+			graf_mouse(M_ON, 0);
+			wind_update(END_UPDATE);
+		}
 		took = pf_ms() - p0;
 		if (took < 5)
 			took = 5;
@@ -907,12 +928,15 @@ whole:
 #ifdef AES_PROFILE
 		unsigned long c0 = pf_ms();
 #endif
-		wind_update(BEG_UPDATE);
-		graf_mouse(M_OFF, 0);
-		if (rect_and(&full, &r_view))
-			off_copy(&full);
-		graf_mouse(M_ON, 0);
-		wind_update(END_UPDATE);
+		if (!vj.show) {	/* (a new window's: each band copied already) */
+			wind_update(BEG_UPDATE);
+			graf_mouse(M_OFF, 0);
+			if (rect_and(&full, &r_view))
+				off_copy(&full);
+			graf_mouse(M_ON, 0);
+			wind_update(END_UPDATE);
+		}
+		vj.show = 0;
 		vj.on = 0;
 		vj.mini = 1;		/* the small month, in the next slice */
 		vj.mini_from = -1;
@@ -935,6 +959,51 @@ void win_view_finish(void)
 {
 	while (win_view_step(0xffffffffUL))
 		;
+}
+
+/* the first redraw of a window just opened, in slices (Erez, 31 Oct
+   2026: drawn whole it was one stretch of 575 ms on an ST): white at
+   once, then the toolbar in three pieces and the list in three, a piece
+   a slice, and the view in bands, each on the screen as it is drawn, as
+   EContact's. 0 where it can't be: drawn whole as before */
+static int win_start(void)
+{
+	GRECT box, r;
+	short k, n = 0;
+	if (win_h <= 0 || win_iconified)
+		return 0;
+	win_layout();
+	wind_update(BEG_UPDATE);
+	graf_mouse(M_OFF, 0);
+	wind_get(win_h, WF_FIRSTXYWH, &box.x, &box.y, &box.w, &box.h);
+	while (box.w && box.h) {
+		r = box;
+		if (rect_and(&r, &work)) {
+			clip_on(&r);
+			fill(&r, 0);
+		}
+		wind_get(win_h, WF_NEXTXYWH, &box.x, &box.y, &box.w, &box.h);
+	}
+	clip_off();
+	graf_mouse(M_ON, 0);
+	wind_update(END_UPDATE);
+	for (k = 0; k < 3; k++) {
+		r = r_tool;
+		r.x = r_tool.x + (short)((long)r_tool.w * k / 3);
+		r.w = r_tool.x + (short)((long)r_tool.w * (k + 1) / 3) - r.x;
+		vj.st_r[n++] = r;
+	}
+	for (k = 0; k < 3 && r_side.w > 0; k++) {
+		r = r_side;
+		r.y = r_side.y + (short)((long)r_side.h * k / 3);
+		r.h = r_side.y + (short)((long)r_side.h * (k + 1) / 3) - r.y;
+		vj.st_r[n++] = r;
+	}
+	vj.st_n = n;
+	vj.st_i = 0;
+	win_view_later();	/* the view after them, off the screen in slices, */
+	vj.show = vj.on;	/* each band shown as it is drawn */
+	return 1;
 }
 
 void win_redraw(GRECT *area)
@@ -1053,6 +1122,7 @@ void win_open(void)
 	}
 	wind_open(win_h, x, y, w, h);
 	sl_size = sl_pos = -1;	/* a new window's sliders */
+	start_fresh = 1;	/* (its first redraw: win_start) */
 	if (is_acc)		/* the desktop drops files on it (VA_DRAGACCWIND) */
 		av_window(win_h, 1);
 	win_layout();
@@ -1148,6 +1218,12 @@ void win_message(short *msg)
 		r.y = msg[5];
 		r.w = msg[6];
 		r.h = msg[7];
+		if (start_fresh) {
+			/* the AES's first redraw of the window just opened */
+			start_fresh = 0;
+			if (off_screen() && win_start())
+				break;
+		}
 		win_redraw(&r);
 		break;
 	case WM_TOPPED:
