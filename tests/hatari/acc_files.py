@@ -160,15 +160,18 @@ class Trace:
         return False
 
 
-def budget(j, piece):
+def budget(j, piece, why=None):
     """6.5's budget for a job: an open per file it touches (one per piece
     of what it reads), and when it writes it (itself, or through its safe
     save's other half, ECAL.IN$ or CAL00003.NEW) one more per piece written;
     a piece being the buffer the run got (the hub, 27 Oct 2026). Read, its
     largest read, at most piece and at least the reader's smallest buffer,
     2 KB (a feed read in 4 KB where 16 KB wasn't free on a 1 MB ST);
-    written, its largest write, at least piece (a snapshot held in 16 KB
-    goes out in two). A look per file, plus the files' look (ECAL.INF,
+    written the same, one open per piece: ceil(size / piece), the piece its
+    largest write, at most piece and at least 2 KB (the family's way, the
+    hub, 31 Oct 2026: a file gathered in pieces goes out as Fcreate and an
+    Fopen for each piece after, as EContact's CONTACTS.TMP and clip.c's
+    SCRAP.TXT). A look per file, plus the files' look (ECAL.INF,
     ECAL.KEY, the CACHE listing)"""
     opens = looks = 0
     halves = [n for n, f in j["files"].items()
@@ -186,8 +189,16 @@ def budget(j, piece):
         reads = -(-f.get("bytes", 0) // rp) if f.get("Fread") else 0
         mine = [f] + [j["files"][h] for h in halves if half_of(name, h)]
         written = f.get("Fcreate") or f.get("Fwrite") or len(mine) > 1
-        writes = max(-(-w.get("wbytes", 0) // max(w.get("wmax", 0), piece)) for w in mine)
-        opens += max(reads, 1 if f.get("Fopen") else 0) + (max(writes, 1) if written else 0)
+        # written in pieces of the buffer the writer got: its largest write,
+        # at most piece and at least 2 KB (an accessory's download gathered
+        # in 8 KB where 16 KB wasn't free on a 1 MB ST: 7877 + 2904 B)
+        writes = max(-(-w.get("wbytes", 0) // max(2048, min(piece, w.get("wmax", 0) or piece))) for w in mine)
+        o = max(reads, 1 if f.get("Fopen") else 0) + (max(writes, 1) if written else 0)
+        if why is not None:
+            why.append("%s %d (read %d B, rmax %d; written %d B, wmax %d)" % (
+                name, o, f.get("bytes", 0), f.get("rmax", 0), sum(w.get("wbytes", 0) for w in mine),
+                max(w.get("wmax", 0) for w in mine)))
+        opens += o
         looks += 1
     return opens, looks + 3
 
@@ -208,7 +219,10 @@ def report(tr, label, piece, timeline=False):
         if timeline:
             for t, call, name in j.get("log", []):
                 print("        %7.1f s  %-8s %s" % (t, call, name))
-        bo, bl = budget(j, piece)
+        why = [] if timeline else None
+        bo, bl = budget(j, piece, why)
+        for w in why or []:
+            print("        budget: " + w)
         o, l = c.get("Fopen", 0) + c.get("Fcreate", 0), c.get("Fsfirst", 0)
         print("      budget (6.5): opens %d of %d, looks %d of %d%s" % (o, bo, l, bl,
               "" if o <= bo and l <= bl else "   OVER"))
