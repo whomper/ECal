@@ -346,6 +346,8 @@ static void draw_eye(const FIELD *f)
 	memset(&src, 0, sizeof(src));
 	memset(&dst, 0, sizeof(dst));
 	src.fd_addr = st_ram(sizeof(bits));
+	if (!src.fd_addr)
+		return;
 	memcpy(src.fd_addr, bits, sizeof(bits));
 	src.fd_w = 16;
 	src.fd_h = rows;

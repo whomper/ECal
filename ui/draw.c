@@ -107,21 +107,29 @@ int rect_and(GRECT *a, const GRECT *b)
 /* Bitmaps the VDI copies to the screen must be in ST RAM: a blitter
    can't reach TT/Fast RAM, where the program itself is loaded when there
    is some. One small block, taken at start-up (an accessory can't take
-   memory later); ST RAM is all there is when Mxalloc is missing. */
-static unsigned short st_fallback[512];
+   memory later); where Mxalloc is missing (TOS 1) ST RAM is all there
+   is, and Malloc's. (Not a static fallback: 1 KB the accessory held for
+   good beside Mxalloc's block, the hub's first-boot rule, 31 Oct 2026) */
+#define ST_BUF 1024
 static unsigned short *st_buf;
+static char st_tried;
 
 void st_ram_init(void)
 {
-	void *p = Mxalloc(sizeof(st_fallback), 0);
-	st_buf = (long)p > 0 ? p : st_fallback;
+	void *p;
+	if (st_tried)
+		return;
+	st_tried = 1;
+	p = Mxalloc(ST_BUF, 0);
+	if ((long)p <= 0)
+		p = Malloc(ST_BUF);
+	st_buf = (long)p > 0 ? p : 0;
 }
 
 void *st_ram(long n)
 {
-	if (!st_buf)
-		st_ram_init();
-	return n <= (long)sizeof(st_fallback) ? st_buf : 0;
+	st_ram_init();
+	return n <= ST_BUF ? st_buf : 0;
 }
 
 /* small marks drawn on events: a loop for a repeating one, a bell for
