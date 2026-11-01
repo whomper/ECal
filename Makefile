@@ -39,6 +39,12 @@ CFLAGS  += -DAES_PROFILE=$(AESPROF)
 endif
 LDFLAGS := -m68000 -nostdlib -static -no-pie -Wl,--emit-relocs -Wl,-T,common/atari/link.ld \
            -Wl,--build-id=none -Wl,-z,noexecstack -Wl,--no-warn-rwx-segments
+# each function and variable in a section of its own, and the linker
+# keeps only those reached from _start: common's files carry code other
+# apps use (text.c's CPU drawing for dialogs, 7.6 KB), resident in every
+# accessory otherwise (the hub's first-boot rule, 1 Nov 2026: 16 KB less)
+CFLAGS  += -ffunction-sections -fdata-sections
+LDFLAGS += -Wl,--gc-sections
 
 # BearSSL 0.6: on the Atari only its MD5 (Digest logins), as 68000 code; the
 # TLS is TLS.OVL's (the guidelines, 7.4). The build machine's tests link it
@@ -89,11 +95,14 @@ $(OBJDIR)/st/%.o: $(BSSL)/src/codec/%.c
 	$(CC) $(STBSSLCF) -c -o $@ $<
 
 # one program, two names: it sees at start-up whether TOS loaded it as
-# an accessory or started it as an application
+# an accessory or started it as an application. ECAL.PRG has dialog.c's
+# drawing by the CPU too (-DDLG_CPU: dialogs a third faster on an 8 MHz
+# ST); ECAL.ACC hasn't, the 5 KB more an accessory is a first boot can't
+# afford (the hub, 1 Nov 2026)
 $(BIN)/ECAL.ACC: $(OBJDIR)/cal.elf common/tools/elf2tos.py | $(BIN)
 	PRGFLAGS=7 python3 common/tools/elf2tos.py $< $@
-$(BIN)/ECAL.PRG: $(BIN)/ECAL.ACC
-	cp $< $@
+$(BIN)/ECAL.PRG: $(OBJDIR)/cal_prg.elf common/tools/elf2tos.py | $(BIN)
+	PRGFLAGS=7 python3 common/tools/elf2tos.py $< $@
 
 # ECal's icon for the desktop: icons/, ui/icon*.h and docs/icon*.png, from
 # its drawing in common/icons/ECAL.txt (the guidelines, 5.5), committed; a
@@ -116,6 +125,11 @@ $(OBJDIR)/fakeguide.o: tests/hatari/fakeguide.c common/atari/gem.h | $(OBJDIR)
 
 $(OBJDIR)/cal.elf: $(OBJS) common/atari/link.ld
 	$(CC) $(LDFLAGS) -o $@ $(OBJS) -lgcc
+PRGOBJS := $(filter-out $(OBJDIR)/dialog.o,$(OBJS)) $(OBJDIR)/dialog_cpu.o
+$(OBJDIR)/cal_prg.elf: $(PRGOBJS) common/atari/link.ld
+	$(CC) $(LDFLAGS) -o $@ $(PRGOBJS) -lgcc
+$(OBJDIR)/dialog_cpu.o: common/ui/dialog.c $(HDRS) | $(OBJDIR)
+	$(CC) $(CFLAGS) -DDLG_CPU -c -o $@ $<
 
 $(OBJDIR)/%.o: src/%.c $(HDRS) | $(OBJDIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
