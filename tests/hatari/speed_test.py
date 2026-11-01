@@ -40,7 +40,7 @@ CLI = os.path.join(ROOT, "build", "cal-cli")
 LIMIT = dict(key=50, line=50, page=150, dialog=150, window=300, acc=500, start=2000, slice=100)   # slice: a step of a longer job (a key answered within 100 ms)
 
 
-def seed(hd, work, acc):
+def seed(hd, work, acc, font=None):
     """bigcal's four calendars and 24 events today, as installed:
     ECAL.INF in the root of C:, FOLDER= naming C:\\ECAL"""
     folder = os.path.join(hd, "ECAL")
@@ -69,11 +69,13 @@ def seed(hd, work, acc):
     for f in os.listdir(os.path.join(d, "CACHE")):
         shutil.copy(os.path.join(d, "CACHE", f), os.path.join(folder, "CACHE", f.upper()))
     with open(inf, newline="") as f:
-        lines = [l for l in f.read().split("\r\n") if not l.upper().startswith(("START=", "SYNC_OPEN=", "ALARMS="))]
+        lines = [l for l in f.read().split("\r\n")
+                 if not l.upper().startswith(("START=", "SYNC_OPEN=", "ALARMS=") + (("FONT_ID=", "FONT_PT=") if font else ()))]
     i = next(k for k, l in enumerate(lines) if l.upper().startswith("FOLDER="))
     lines[i] = "FOLDER=C:\\ECAL"
     # no reminders: their alerts would take the keys meant for the window
-    lines[i + 1:i + 1] = ["START=5" if acc else "START=0", "SYNC_OPEN=0", "ALARMS=0"]
+    lines[i + 1:i + 1] = ["START=5" if acc else "START=0", "SYNC_OPEN=0", "ALARMS=0"] + \
+        (["FONT_ID=%d" % font[0], "FONT_PT=%d" % font[1]] if font else [])
     with open(inf, "w", newline="") as f:
         f.write("\r\n".join(lines))
 
@@ -181,6 +183,10 @@ def run_prg(r, m, st):
     m.act("back to today", "window", lambda: k(K["HOME"]))
     m.act("week view again", "window", lambda: k(SCAN["w"]))
     m.act("Tab: the next event selected", "key", lambda: k(K["TAB"]))
+    if clicks(r, m):
+        double_check(r, m, "the program")
+        k(K["TAB"])                    # (an event chosen again, for Delete below)
+        time.sleep(2)
     m.act("Settings opened (^,)", "dialog", lambda: k(SCAN[","], ctrl=True), settle=1.5, done=0)
     m.act("Settings closed with Esc (window uncovered)", "window", lambda: k(K["ESC"]), settle=1.5, done=2)
     m.act("an alert opened (Delete)", "dialog", lambda: k(K["DELETE"]), settle=1.5, done=0)
@@ -193,6 +199,87 @@ def run_prg(r, m, st):
     time.sleep(1)
 
 
+def human_double(r, x, y):
+    """a double click as a hand makes it: each press held 80 ms, 120 ms
+    between them (xdotool's own lets go at once, shorter than the
+    AES's look at the button can catch)"""
+    r.move(x, y)
+    for i in range(2):
+        r.xdo("mousedown", "1")
+        time.sleep(0.08)
+        r.xdo("mouseup", "1")
+        if not i:
+            time.sleep(0.12)
+
+
+def double_check(r, m, where):
+    """the second release over a calendar's name opens Calendar info
+    (the guidelines 5.8; one click asked for, press_double timing it)"""
+    pos = len(m.text())
+    human_double(r, 60, 114)
+    time.sleep(4)
+    ok = "DLGMS" in m.text()[pos:]
+    print("  %s a double click on a calendar's name (%s): %s" %
+          ("    " if ok else "FAIL", where, "Calendar info opened" if ok else "nothing opened"), flush=True)
+    m.rows.append(dict(action="a double click (%s)" % where, kind="key", limit=LIMIT["key"],
+                       ms=0 if ok else 9999, gaps=[], background=[], where=[], picture=None))
+    r.key(K["ESC"])
+    time.sleep(2)
+
+
+def clicks(r, m):
+    """the guidelines 5.8: a press drawn at once (a key's 50 ms), the
+    action on the release over the same thing, timed apart. Where ECal's
+    window fills a 640x400 screen (ST:mono, the Falcon's 640x400): the
+    toolbar's Today, a calendar's name in the list, and a day in the
+    small month"""
+    from PIL import Image
+    if Image.open(r.shot("_size")).size != (640, 400):
+        print("  (the clicks: only on a 640x400 screen)", flush=True)
+        return False
+
+    def row(name, kind, ms, note):
+        m.rows.append(dict(action=name, kind=kind, limit=LIMIT[kind], ms=ms, gaps=[], background=[],
+                           where=[], picture=None))
+        print("  %5d ms %s %-34s %s" % (ms, "OVER" if ms > LIMIT[kind] else "    ", name, note), flush=True)
+
+    def press(name, x, y):
+        # the profiled build's AESPRESS: from the click's coming to what
+        # the press shows drawn (the stretch itself goes on while held)
+        pos = len(m.text())
+        r.move(x, y)
+        r.xdo("mousedown", "1")
+        time.sleep(1.0)
+        got = re.search(r"AESPRESS (\d+) ms", m.text()[pos:])
+        row(name, "key", int(got.group(1)) if got else 0, "" if got else "(no AESPRESS line)")
+
+    def release(name):
+        # AESRELEASE (the button seen up, from the click) to AESDONE (the
+        # loop back): the action's own turn; then its slices, if any
+        pos = len(m.text())
+        r.xdo("mouseup", "1")
+        end = time.time() + 20
+        while "AESDONE" not in m.text()[pos:] and time.time() < end:
+            time.sleep(0.3)
+        m.quiet(1.5, 60, None)
+        new = m.text()[pos:]
+        rel = re.search(r"AESRELEASE (\d+) ms", new)
+        done = re.search(r"AESDONE (\d+) ms", new)
+        slices = [int(g) for g in re.findall(r"AESGAP (\d+) ms view", new)]
+        turn = int(done.group(1)) - int(rel.group(1)) if rel and done else 0
+        row(name, "slice", max([turn] + slices),
+            "the action's turn %s, its slices %s" % ("%d ms" % turn if rel else "(no release seen: nothing to do)",
+                                                     ", ".join(map(str, sorted(slices, reverse=True)[:4])) or "none"))
+
+    press("Today pressed (mouse down: drawn pressed)", 100, 68)
+    release("Today let go (mouse up: today shown)")
+    press("a calendar's name pressed (mouse down: chosen)", 60, 114)
+    release("the calendar's name let go (mouse up: nothing more)")
+    press("a day in the small month pressed (drawn pressed)", 63, 300)
+    release("the small month's day let go (mouse up: the day shown)")
+    return True
+
+
 def run_acc(r, m, st):
     m.act("boot to the desktop", "start", lambda: None, settle=10, limit=300, until="AESPROF", done=0)
     time.sleep(40 if st else 20)       # START=5, then the calendars read in the background
@@ -203,6 +290,8 @@ def run_acc(r, m, st):
     m.act("the accessory opened", "acc", open_acc, settle=2, limit=120, done=2)
     m.act("week view drawn whole", "window", lambda: r.key(SCAN["w"]))
     m.act("day view, 24 events", "window", lambda: r.key(SCAN["d"]))
+    if clicks(r, m):
+        double_check(r, m, "the accessory")
 
 
 def main():
@@ -213,6 +302,8 @@ def main():
     ap.add_argument("--bin", default=os.path.join(ROOT, "build", "prof20", "bin"))
     ap.add_argument("--json", help="the rows, for the table")
     ap.add_argument("--display", default=":99")
+    ap.add_argument("--font", help="ID,PT: a GDOS font chosen in ECAL.INF (NVDI's Courier 14 as Erez runs it:"
+                    " the guidelines' Speed); with AERA_WITH_NVDI=1")
     ap.add_argument("--again", action="store_true",
                     help="WORKDIR as an earlier run left it: the files ECal wrote then (its snapshots) kept")
     a = ap.parse_args()
@@ -224,7 +315,7 @@ def main():
     else:
         shutil.rmtree(a.work, ignore_errors=True)
         os.makedirs(hd)
-        seed(hd, a.work, a.acc)
+        seed(hd, a.work, a.acc, tuple(int(x) for x in a.font.split(",")) if a.font else None)
     if a.acc:
         shutil.copy(os.path.join(a.bin, "ECAL.ACC"), os.path.join(hd, "ECAL.ACC"))
         auto = None
