@@ -2160,10 +2160,11 @@ int main(void)
 		else
 			which = evnt_multi_(flags, is_acc ? 0x102 : 0x101, 3, 0, wait, msg, &ev);
 		/* (the program: one click, a press handed over at once (5.8).
-		   An accessory under TOS gets a press only after the AES has
-		   counted clicks for the desktop, which asks for two, whatever
-		   it asks itself; asking for one too lost the double click's
-		   second press: rig, ST:mono, 1 Nov 2026, as in 862046c) */
+		   The accessory: two, and the AES's count. With one, under TOS,
+		   its double click lost the second press in 2 tries of 3 on
+		   ST:mono, idle or not, while the program's never did (the rig,
+		   1 Nov 2026; the hub's decision until press_track's polling is
+		   tried) */
 #ifdef AES_PROFILE
 		{
 			/* what this stretch answers, for the AESGAP and AESDONE lines */
@@ -2269,6 +2270,17 @@ int main(void)
 		if ((which & MU_BUTTON) && win_h > 0) {
 			short h = wind_find(ev.mx, ev.my), t, dd;
 			press_begin();
+#ifdef AES_PROFILE
+			{
+				/* the speed rig's: each press as the AES hands it over (is
+				   the button still down? the AES's count) */
+				char b[64];
+				short x, y, mb, ks;
+				graf_mkstate(&x, &y, &mb, &ks);
+				snprintf(b, sizeof(b), "AESBUTTON breturn %d down %d\n", ev.breturn, mb & 1);
+				nf_debug(b);
+			}
+#endif
 			wind_get(0, WF_TOP, &t, &dd, &dd, &dd);
 			if (h == win_h) {
 				/* the events and the calendars' list need them read */
@@ -2285,9 +2297,8 @@ int main(void)
 					short n = 1;
 					if (!(ev.mbutton & 2) && press_double(win_press_id(ev.mx, ev.my), ev.mx, ev.my))
 						n = 2;
-					/* (an accessory: the AES's count, asked for above) */
 					if (is_acc && !(ev.mbutton & 2) && ev.breturn >= 2)
-						n = 2;
+						n = 2;	/* (the accessory: the AES's count, asked for above) */
 					win_mouse(ev.mx, ev.my, ev.mbutton, n, ev.kstate);
 					press_drawn();
 				}

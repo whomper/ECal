@@ -1082,6 +1082,7 @@ static int win_start(void)
 void win_redraw(GRECT *area)
 {
 	GRECT box, full;
+	int took;
 	if (win_h <= 0)
 		return;
 	if (win_iconified) {
@@ -1093,12 +1094,15 @@ void win_redraw(GRECT *area)
 		if (!area || rect_and(&v, area))
 			win_view_finish();	/* (the view whole first) */
 	}
-	wind_update(BEG_UPDATE);
+	/* (common's press_update: TOS's AES holds BEG_UPDATE back while the
+	   left button is held still, and a press's row drew only at its
+	   release; the guidelines 5.8, 60d1ea5) */
+	took = press_update_begin();
 	graf_mouse(M_OFF, 0);
 	full = work;
 	if (area && !rect_and(&full, area)) {
 		graf_mouse(M_ON, 0);
-		wind_update(END_UPDATE);
+		press_update_end(took);
 		return;
 	}
 	if (off_screen()) {
@@ -1140,7 +1144,7 @@ void win_redraw(GRECT *area)
 #endif
 	}
 	graf_mouse(M_ON, 0);
-	wind_update(END_UPDATE);
+	press_update_end(took);
 	if (!views_gliding())
 		win_sliders();	/* (gliding: when it stops, views_glide; 45 ms a step on an ST) */
 }
@@ -1441,13 +1445,13 @@ static short held_on = -1;	/* 1 while it is shown pressed, -1 no button held */
 
 static void held_flip(void)
 {
-	wind_update(BEG_UPDATE);
+	int took = press_update_begin();	/* (not BEG_UPDATE: held back on TOS while the button is down) */
 	graf_mouse(M_OFF, 0);
 	clip_on(&held);
 	xor_fill(&held);
 	clip_off();
 	graf_mouse(M_ON, 0);
-	wind_update(END_UPDATE);
+	press_update_end(took);
 	held_on = !held_on;
 }
 

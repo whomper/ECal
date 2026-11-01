@@ -215,6 +215,7 @@ def human_double(r, x, y):
 def double_check(r, m, where):
     """the second release over a calendar's name opens Calendar info
     (the guidelines 5.8; one click asked for, press_double timing it)"""
+    time.sleep(3)     # (idle first: a double click begun inside a stretch loses its second press, 5.8's cost)
     pos = len(m.text())
     human_double(r, 60, 114)
     time.sleep(4)
@@ -232,10 +233,11 @@ def clicks(r, m):
     action on the release over the same thing, timed apart. Where ECal's
     window fills a 640x400 screen (ST:mono, the Falcon's 640x400): the
     toolbar's Today, a calendar's name in the list, and a day in the
-    small month"""
+    small month (on 640x400 only)"""
     from PIL import Image
-    if Image.open(r.shot("_size")).size != (640, 400):
-        print("  (the clicks: only on a 640x400 screen)", flush=True)
+    size = Image.open(r.shot("_size")).size
+    if size not in ((640, 400), (640, 480)):
+        print("  (the clicks: only on a 640x400 or 640x480 screen)", flush=True)
         return False
 
     def row(name, kind, ms, note):
@@ -245,13 +247,24 @@ def clicks(r, m):
 
     def press(name, x, y):
         # the profiled build's AESPRESS: from the click's coming to what
-        # the press shows drawn (the stretch itself goes on while held)
-        pos = len(m.text())
+        # the press shows drawn (the stretch itself goes on while held);
+        # and the pixels round the press while the button is still held:
+        # TOS's AES holds BEG_UPDATE back then, and a press drawn under it
+        # showed only at the release, AESPRESS none the wiser (5.8, 60d1ea5)
+        from PIL import Image, ImageChops
         r.move(x, y)
+        time.sleep(0.5)
+        before = Image.open(r.shot("_before")).convert("L")
+        pos = len(m.text())
         r.xdo("mousedown", "1")
         time.sleep(1.0)
+        held = Image.open(r.shot("_held")).convert("L")
+        box = (max(0, x - 16), max(0, y - 10), x + 16, y + 10)
+        shown = ImageChops.difference(before.crop(box), held.crop(box)).getbbox() is not None
         got = re.search(r"AESPRESS (\d+) ms", m.text()[pos:])
-        row(name, "key", int(got.group(1)) if got else 0, "" if got else "(no AESPRESS line)")
+        ms = int(got.group(1)) if got else 0
+        row(name, "key", ms if shown else 9999,
+            ("" if got else "(no AESPRESS line) ") + ("drawn while held" if shown else "NOT DRAWN while held (1 s)"))
 
     def release(name):
         # AESRELEASE (the button seen up, from the click) to AESDONE (the
@@ -275,8 +288,9 @@ def clicks(r, m):
     release("Today let go (mouse up: today shown)")
     press("a calendar's name pressed (mouse down: chosen)", 60, 114)
     release("the calendar's name let go (mouse up: nothing more)")
-    press("a day in the small month pressed (drawn pressed)", 63, 300)
-    release("the small month's day let go (mouse up: the day shown)")
+    if size == (640, 400):             # (the small month is at the window's foot: its place on 400 lines)
+        press("a day in the small month pressed (drawn pressed)", 63, 300)
+        release("the small month's day let go (mouse up: the day shown)")
     return True
 
 
