@@ -147,7 +147,9 @@ int dlg_3d_ok(void);
    the flags anyway). The tests set 0 to see the flat look on a 3D AES */
 extern int dlg_3d_on;
 
-/* dlg_open and dlg_draw over TOS's own screen, in an app with text.c:
+/* Built with -DDLG_CPU only (a program for the ST; not an accessory, nor a
+   program for the 68030 alone: 5 KB more for nothing there). Then
+   dlg_open and dlg_draw over TOS's own screen, in an app with text.c:
    the root's fill, flat G_BOXTEXTs and plain G_STRINGs by the CPU where
    text.c draws into the screen and the look is flat, the rest by
    objc_draw, the screen the same as objc_draw's (tests/dialog: make cmp).

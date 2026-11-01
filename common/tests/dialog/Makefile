@@ -53,7 +53,7 @@ $(T):
 # DLGCMP.PRG, dlg_draw's fast way against objc_draw, byte for byte and
 # timed: make cmp, then python3 run_cmp.py WORK MACHINE
 C       := $(B)/cmp
-CCFLAGS := $(filter-out -DDLG_TRACE,$(TCFLAGS)) -DDLG_FAST_TIMES
+CCFLAGS := $(filter-out -DDLG_TRACE,$(TCFLAGS)) -DDLG_FAST_TIMES -DDLG_CPU
 cmp: $(C)/DLGCMP.PRG
 $(C)/DLGCMP.PRG: $(C)/dlgcmp.elf ../../tools/elf2tos.py
 	python3 ../../tools/elf2tos.py $< $@

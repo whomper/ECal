@@ -471,6 +471,7 @@ static void band_show(OBJECT *tree, short i)
 	dw[i].band = 0;
 }
 
+#ifdef DLG_CPU
 /* ---------------- a dialog drawn partly by the CPU ----------------
  * On TOS's own screen, where text.c's drawing goes into it and beats the
  * AES (scr_cpu_wins(): TOS's VDI, the system font, interleaved planes, a
@@ -966,6 +967,26 @@ long dlg_fast_count(void)
 {
 	return fast_count;
 }
+#else
+
+/* without -DDLG_CPU (accessories, programs for the 68030 only): every
+   dialog objc_draw's, none of the CPU's drawing linked in (EMAILCHK.ACC
+   grew 5.7 KB with it, 1 Nov 2026: the accessories' first-boot memory) */
+int dlg_fast_on = 0;
+int dlg_fast_part = 4;
+
+static void fast_draw(OBJECT *tree, short cx, short cy, short cw, short cch, int hidden)
+{
+	(void)hidden;
+	objc_draw(tree, 0, 8, cx, cy, cw, cch);
+}
+
+long dlg_fast_count(void)
+{
+	return 0;
+}
+
+#endif /* DLG_CPU */
 
 static short open_any(OBJECT *tree, void (*draw)(short, short, short, short),
 		      short *x, short *y, short *w, short *h)
