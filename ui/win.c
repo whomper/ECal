@@ -14,6 +14,7 @@
 #include "av.h"
 #include "plat.h"
 #include "text.h"
+#include "click.h"
 #include <tos.h>
 
 short win_h = -1;
@@ -1396,6 +1397,114 @@ void win_message(short *msg)
 	}
 }
 
+#ifdef AES_PROFILE
+/* the speed rig's press and release (the guidelines 5.8: press to row
+   drawn, release to the action timed apart), from the click's coming */
+static unsigned long press_t0;
+static int press_said;
+
+void press_begin(void)
+{
+	press_t0 = pf_ms();
+	press_said = 0;
+}
+
+void press_drawn(void)
+{
+	char b[40];
+	if (!press_t0 || press_said)
+		return;
+	press_said = 1;
+	snprintf(b, sizeof(b), "AESPRESS %lu ms\n", pf_ms() - press_t0);
+	nf_debug(b);
+}
+
+static void press_released(void)
+{
+	char b[40];
+	if (!press_t0)
+		return;
+	snprintf(b, sizeof(b), "AESRELEASE %lu ms\n", pf_ms() - press_t0);
+	nf_debug(b);
+}
+#else
+#define press_released()
+#endif
+
+/* A button ECal draws itself, pressed (the guidelines 5.8): shown in
+   inverse while the button is held over it (inset: inside its frame, as
+   GEM's own buttons look selected), its action when let go over it (1),
+   nothing elsewhere (0). The wait is common's press_track (ui_track),
+   the background going on meanwhile */
+static GRECT held;		/* the button held, inverted when shown */
+static short held_on = -1;	/* 1 while it is shown pressed, -1 no button held */
+
+static void held_flip(void)
+{
+	wind_update(BEG_UPDATE);
+	graf_mouse(M_OFF, 0);
+	clip_on(&held);
+	xor_fill(&held);
+	clip_off();
+	graf_mouse(M_ON, 0);
+	wind_update(END_UPDATE);
+	held_on = !held_on;
+}
+
+/* each turn of the wait: pressed while the mouse is over it */
+void win_track_idle(void)
+{
+	short x, y, mb, k;
+	if (held_on < 0)
+		return;
+	graf_mkstate(&x, &y, &mb, &k);
+	if (rect_hit(&held, x, y) != held_on)
+		held_flip();
+}
+
+int win_press_held(const GRECT *b, short inset, short mx, short my)
+{
+	GRECT desk;
+	int k;
+	held = *b;
+	held.x += inset;
+	held.y += inset;
+	held.w -= 2 * inset;
+	held.h -= 2 * inset;
+	wind_get(0, WF_WORKXYWH, &desk.x, &desk.y, &desk.w, &desk.h);
+	if (!rect_and(&held, &work) || !rect_and(&held, &desk))
+		return 0;
+	held_on = 0;
+	held_flip();	/* pressed, at once */
+	press_drawn();
+	k = ui_track(b, mx, my);
+	press_released();
+	if (held_on > 0)
+		held_flip();	/* (as it was: what the action draws comes after) */
+	held_on = -1;
+	return k == PRESS_IN;
+}
+
+/* what a press at (mx, my) is on, for press_double: a double click is
+   two presses on the same one */
+short win_press_id(short mx, short my)
+{
+	short i;
+	if (win_h <= 0 || !rect_hit(&work, mx, my))
+		return 0;
+	if (rect_hit(&r_tool, mx, my)) {
+		for (i = 0; i < NBUT; i++)
+			if (rect_hit(&but[i], mx, my))
+				return (short)(3000 + i);
+		return 3100;	/* (the title) */
+	}
+	if (r_side.w && rect_hit(&r_side, mx, my))
+		return side_press_id(mx, my);
+	if (rect_hit(&r_view, mx, my))
+		return views_press_id(mx, my);
+	return 0;
+}
+
 int win_mouse(short mx, short my, short button, short clicks, short kstate)
 {
 	int i;
@@ -1405,6 +1514,10 @@ int win_mouse(short mx, short my, short button, short clicks, short kstate)
 		for (i = 0; i < NBUT; i++)
 			if (rect_hit(&but[i], mx, my))
 				break;
+		/* a button: pressed while held, its action on the release over
+		   it, nothing elsewhere (the guidelines 5.8) */
+		if (i < NBUT && !(button & 2) && !win_press_held(&but[i], 1, mx, my))
+			return 1;
 		switch (i) {
 		case B_SIDE:
 			opt.sidebar = !opt.sidebar;
@@ -1422,8 +1535,10 @@ int win_mouse(short mx, short my, short button, short clicks, short kstate)
 		case B_REFRESH: cmd_refresh(kstate & (K_LSHIFT | K_RSHIFT)); break;
 		case B_MENU: cmd_menu(but[B_MENU].x, but[B_MENU].y + but[B_MENU].h); break;
 		default:
-			if (rect_hit(&r_title, mx, my) && clicks == 2)
-				dlg_goto();
+			if (rect_hit(&r_title, mx, my) && clicks == 2 && ui_track(&r_title, mx, my) == PRESS_IN)
+				dlg_goto();	/* (the double click's on its release) */
+			else if (rect_hit(&r_title, mx, my))
+				ui_track(&r_title, mx, my);	/* (its release seen: press_double's time) */
 		}
 		return 1;
 	}

@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include "click.h"
 #include "ui.h"
 #include "bidi.h"
 #include "util.h"
@@ -762,6 +763,24 @@ static short section_at(DLG *d, short mx, short my)
 	return 0;
 }
 
+/* one entry of the list of sections (k from 0), as d->page says */
+static void draw_section(DLG *d, short k)
+{
+	GRECT r;
+	const char *s;
+	if (k < 0 || k >= d->npages)
+		return;
+	s = d->pages[k];
+	section_rect(d, k, &r);
+	graf_mouse(M_OFF, 0);
+	if (clip_box(&r)) {
+		fill(&r, k + 1 == d->page ? 1 : bg);
+		text_at(box.x + pad, r.y + 3, s, (long)strlen(s), d->side, TX_LTR | (k + 1 == d->page ? TX_INVERSE : 0));
+	}
+	clip_off();
+	graf_mouse(M_ON, 0);
+}
+
 /* the list of sections, the line beside it, and the chosen one's name
    over a rule */
 static void draw_sections(DLG *d)
@@ -1382,7 +1401,7 @@ short dlg_run(DLG *d)
 	while (result == -2) {
 		if (tips) {
 			evnt_set_m1(1, hx, hy, 1, 1);
-			dlg_evnt(MU_KEYBD | MU_BUTTON | MU_M1 | MU_MESAG | MU_TIMER, 0x102, 3, 0, todo < d->n ? 0 : 100, m, &e);
+			dlg_evnt(MU_KEYBD | MU_BUTTON | MU_M1 | MU_MESAG | MU_TIMER, 0x101, 3, 0, todo < d->n ? 0 : 100, m, &e);
 			box_now();
 			if (e.which & (MU_KEYBD | MU_BUTTON | MU_M1))
 				tip_take(d);
@@ -1396,7 +1415,7 @@ short dlg_run(DLG *d)
 				tip_for(d, hx, hy);
 			}
 		} else {
-			dlg_evnt(MU_KEYBD | MU_BUTTON | MU_MESAG | MU_TIMER, 0x102, 3, 0, todo < d->n ? 0 : 200, m, &e);
+			dlg_evnt(MU_KEYBD | MU_BUTTON | MU_MESAG | MU_TIMER, 0x101, 3, 0, todo < d->n ? 0 : 200, m, &e);
 			box_now();
 		}
 		if (e.which & MU_MESAG)
@@ -1441,12 +1460,28 @@ short dlg_run(DLG *d)
 		if ((e.which & MU_BUTTON) && d->npages) {
 			short k = section_at(d, e.mx, e.my);
 			if (k) {
-				if (k != d->page)
-					set_page(d, k);
+				/* as tabs (the guidelines 5.8): the section shown chosen
+				   on the press, only it and the one before drawn; its page
+				   on the release over it, back as it was elsewhere */
+				short was = d->page;
+				if (k != was) {
+					d->page = k;
+					draw_section(d, was - 1);
+					draw_section(d, k - 1);
+				}
 				e.which &= ~MU_BUTTON;
 				do {
 					graf_mkstate(&mx, &my, &mb, &ks);
 				} while (mb & 3);
+				if (k != was) {
+					d->page = was;
+					if (section_at(d, mx, my) == k)
+						set_page(d, k);
+					else {
+						draw_section(d, k - 1);
+						draw_section(d, was - 1);
+					}
+				}
 			}
 		}
 		if (e.which & MU_BUTTON) {
@@ -1599,6 +1634,8 @@ static void pick_draw(short x, short y, short w, short h)
 		r.y = pk.list.y + i * (ch + 2) + 1;
 		r.w = pk.list.w - 2;
 		r.h = ch + 1;
+		if (r.y >= c.y + c.h || r.y + r.h <= c.y)
+			continue;	/* (a row drawn alone: the others not) */
 		fill(&r, pk.first + i == pk.sel ? 1 : 0);
 		text_at(r.x + cw, r.y, s, (long)strlen(s), pk.w,
 			(pk.first + i == pk.sel ? TX_INVERSE : 0) | (line_rtl(s, (long)strlen(s)) ? 0 : TX_LTR));
@@ -1608,9 +1645,19 @@ static void pick_draw(short x, short y, short w, short h)
 	graf_mouse(M_ON, 0);
 }
 
+/* one row of the list as it is now (k: its index in the items) */
+static void pick_row(short k)
+{
+	short i = k - pk.first;
+	if (i < 0 || i >= pk.rows)
+		return;
+	pick_draw(pk.list.x + 1, pk.list.y + i * (ch + 2) + 1, pk.list.w - 2, ch + 1);
+}
+
 short dlg_pick(const char *title, const char *const *items, short n, short sel)
 {
-	short rows = (desk_h - 8 * ch) / (ch + 2), w = 10, i, first, res = -2, m[8], via;
+	short rows = (desk_h - 8 * ch) / (ch + 2), w = 10, i, first, res = -2, m[8], via, last_k = -1;
+	unsigned long last_t = 0;
 	AEVENT e;
 	if (rows > n)
 		rows = n;
@@ -1647,7 +1694,7 @@ short dlg_pick(const char *title, const char *const *items, short n, short sel)
 	pick_place();
 	while (res == -2) {
 		short mx, my, mb, ks;
-		dlg_evnt(MU_KEYBD | MU_BUTTON | MU_MESAG, 0x102, 3, 0, 0, m, &e);
+		dlg_evnt(MU_KEYBD | MU_BUTTON | MU_MESAG, 0x101, 3, 0, 0, m, &e);	/* (one click: the press at once, 5.8) */
 		dlg_area(&pk.b.x, &pk.b.y, &pk.b.w, &pk.b.h);
 		pick_place();
 		if (e.which & MU_MESAG) {
@@ -1688,11 +1735,24 @@ short dlg_pick(const char *title, const char *const *items, short n, short sel)
 			if (rect_hit(&pk.list, e.mx, e.my)) {
 				short k = first + (e.my - pk.list.y) / (ch + 2);
 				if (k < n) {
-					if (k == sel && e.breturn >= 2)
+					/* the row selected on the press, only it and the
+					   one before drawn; a double click chooses on its
+					   second release (the guidelines 5.8) */
+					unsigned long t = pf_ms();
+					int dbl = k == last_k && t - last_t < press_dclick();	/* (the desktop's double-click time) */
+					if (k != pk.sel) {
+						short was = pk.sel;
+						pk.sel = sel = k;
+						pick_row(was);
+						pick_row(k);
+					}
+					do {
+						graf_mkstate(&mx, &my, &mb, &ks);
+					} while (mb & 3);
+					if (dbl && first + (my - pk.list.y) / (ch + 2) == k && rect_hit(&pk.list, mx, my))
 						res = sel;
-					sel = k;
-					if (e.breturn >= 2)
-						res = sel;
+					last_k = dbl ? -1 : k;
+					last_t = t;
 				}
 			} else if (!rect_hit(&pk.b, e.mx, e.my)) {
 				res = -1;

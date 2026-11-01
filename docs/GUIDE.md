@@ -232,8 +232,9 @@ File > **Add account or calendar...** (in the accessory, the ≡ menu):
 - **On My Atari**: a calendar kept only on this computer. Right-click it
   to import an `.ics` file into it.
 
-The calendars appear on the left, under their accounts. Click one to show
-or hide it; double-click for its name, colour (twelve to choose from) and
+The calendars appear on the left, under their accounts. Click a calendar's
+tick box to show or hide it; clicking its name only chooses it (a black
+bar). Double-click the name for its name, colour (twelve to choose from) and
 whether its alerts show; right-click for more (show only this one, refresh, import,
 unsubscribe). Right-click an account to refresh it, change its settings or
 delete it from the Atari (nothing is deleted on the server).

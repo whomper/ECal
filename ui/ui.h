@@ -40,6 +40,7 @@ void set_wrmode(short mode);	/* VDI writing mode, through draw.c's cache */
 void fill_pat(GRECT *r, short color, short interior, short style);
 void frame(GRECT *r, short color);
 void xor_frame(GRECT *r);	/* an outline in XOR (twice: gone) */
+void xor_fill(GRECT *r);	/* a box in inverse by XOR (twice: gone) */
 void clip_on(GRECT *r);
 void clip_off(void);
 int win_save_under(const GRECT *r);	/* the screen under a dialog kept (win.c) */
@@ -103,6 +104,19 @@ void win_status(const char *s);	/* the info line */
 void win_status_later(const char *s);	/* win_status in the next turn */
 void win_frame_refresh(void);
 int  win_instant(short mx, short my);	/* a toolbar button: no double click to wait for */
+#ifdef AES_PROFILE
+void press_begin(void);		/* the speed rig's: a click came */
+void press_drawn(void);		/* and what its press shows is drawn */
+#else
+#define press_begin()
+#define press_drawn()
+#endif
+int  win_press_held(const GRECT *b, short inset, short mx, short my);	/* a button of ECal's own held: 1 if let go over it */
+void win_track_idle(void);	/* its look while held (main.c's ui_track) */
+short win_press_id(short mx, short my);	/* what a press is on, for press_double */
+short side_press_id(short mx, short my);
+short views_press_id(short mx, short my);
+int  ui_track(const GRECT *r, short x, short y);	/* main.c: a press held, PRESS_IN/OUT/DRAG (click.h) */
 int  win_mouse(short mx, short my, short button, short clicks, short kstate);
 int  win_key(short kstate, short key);
 void win_layout(void);		/* after a size or font change */

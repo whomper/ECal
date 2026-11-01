@@ -192,6 +192,16 @@ void fill_pat(GRECT *r, short color, short interior, short style)
 	pxy[1] = r->y;
 	pxy[2] = r->x + r->w - 1;
 	pxy[3] = r->y + r->h - 1;
+	if (interior == 1 && (color == 0 || color == 1) && scr_cpu_wins()) {
+		/* white or black where the CPU beats the VDI at boxes (TOS's
+		   screen, a 68000): common/ui/text.c's scr_fill, the same pixels
+		   (the guidelines' Speed, "common's fast paths", b3fafbe). Not
+		   elsewhere: on a 68030 TOS 4 fills as fast, and scr_fill's VDI
+		   way asks for the fill and puts it back, slower than this one's
+		   cached attributes (NVDI, a GDOS font) */
+		scr_fill(vdi_h, pxy, color);
+		return;
+	}
 	set_fill(interior, style, color);
 	set_wrmode(interior >= 2 ? 2 : 1);	/* patterns over what is there */
 	vr_recfl(vdi_h, pxy);
@@ -259,6 +269,27 @@ void xor_frame(GRECT *r)
 	p[5] = p[7] = r->y + r->h - 2;
 	if (r->w > 4 && r->h > 4)
 		v_pline(vdi_h, 5, p);
+	set_wrmode(1);
+}
+
+/* a box in inverse, by XOR: drawn twice it is gone (a button held) */
+void xor_fill(GRECT *r)
+{
+	short pxy[4];
+	if (r->w <= 0 || r->h <= 0)
+		return;
+	pxy[0] = r->x;
+	pxy[1] = r->y;
+	pxy[2] = r->x + r->w - 1;
+	pxy[3] = r->y + r->h - 1;
+	if (text_plain_state() > 0) {
+		scr_xor(vdi_h, pxy);	/* (by the CPU; it leaves MD_REPLACE) */
+		c_wr = 1;
+		return;
+	}
+	set_fill(1, 0, 1);
+	set_wrmode(3);
+	vr_recfl(vdi_h, pxy);
 	set_wrmode(1);
 }
 
@@ -621,7 +652,7 @@ void text_at(short x, short y, const char *s, long n, short cols, short flags)
 	short orig_x = x;
 	char vis[BIDI_MAX];
 	const char *out = s;
-	short i, color = next_text_color, effects;
+	short i, color = next_text_color, effects, fx;
 	next_text_color = 1;
 	if (cols <= 0 || n <= 0)
 		return;
@@ -695,8 +726,10 @@ void text_at(short x, short y, const char *s, long n, short cols, short flags)
 	/* black on white, in the system font on TOS's screen: straight into
 	   it, the cells' white with it, some three times the VDI's speed on
 	   an ST (text_plain; the same pixels as drawing it transparent there) */
-	if ((flags & TX_WHITE) && color == 1 && !(flags & TX_INVERSE) && !(effects & ~1) &&
-	    font_cells == FC_RUNS && text_plain_state() >= 0) {
+	fx = (short)(effects & 9);	/* bold, underline */
+	if ((flags & TX_WHITE) && color == 1 && !(flags & TX_INVERSE) && !(effects & ~9) &&
+	    font_cells == FC_RUNS && text_plain_state() >= 0 &&
+	    (fx == 0 || fx == 1 || text_fx_fast(fx, 1))) {
 		set_wrmode(1);
 		set_text(1, 0);
 		for (i = 0; i < n; i += 120) {
@@ -709,7 +742,16 @@ void text_at(short x, short y, const char *s, long n, short cols, short flags)
 		if (effects)
 			prof_texts_bold++;
 #endif
-		if (effects & 1) {
+		if (fx && text_fx_fast(fx, 1)) {
+			/* bold and underline on it by the CPU, TOS's own bytes
+			   (common's text_fx: the guidelines' Speed) */
+			for (i = 0; i < n; i += 120) {
+				short k = n - i > 120 ? 120 : (short)(n - i);
+				text_fx(vdi_h, x + i * cw, y, out + i, k, fx, 1);
+			}
+		} else if (fx & 1) {
+			/* (where it can't: struck again a pixel to the right, as
+			   before) */
 			set_wrmode(2);
 			for (i = 0; i < n; i += 120) {
 				short k = n - i > 120 ? 120 : (short)(n - i);

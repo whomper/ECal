@@ -28,7 +28,7 @@ CFLAGS  := -m68000 -Os -fomit-frame-pointer -ffreestanding -fno-builtin \
            -fdisable-tree-bswap -fno-asynchronous-unwind-tables -Wall -Wno-pointer-sign \
            -DCAL_TOS -nostdinc -isystem $(GCCINC) -Iatari/include -Icommon/atari/include \
            -Isrc -Icommon/src -Iatari -Icommon/atari -Iui -Icommon/ui -Icommon/third_party/bearssl/inc \
-           -DTLS_FULL_EDITION=\"ECAL.ACC\"
+           -DTLS_FULL_EDITION=\"ECAL.ACC\" -DDLG_CLICK
 # make AESPROF=50: every stretch of 50 ms or more between event calls
 # goes to the emulator's console (common/atari/gem.c; make profile)
 ifdef STACKPROBE
@@ -63,7 +63,7 @@ CORE    := util charset conn tls bidi secret futil ctime tz ics rrule xml inflat
 # tls.h's calls on, dsp_ovl.c the DSP's (common/README.md, "TLS.OVL")
 ACORE   := $(filter-out tls,$(CORE)) ovl
 ATARI   := libc tos plat_tos net_tos sting gem tls_ovl
-UI      := main win draw popup dsp_ovl views sidebar editor dialogs field about font fontsel help av alert aboutbox iconify clip dd mbar twin busy bgwork accmem dialog av_people people_ask people_file notify aboutline text
+UI      := main win draw popup dsp_ovl views sidebar editor dialogs field about font fontsel help av alert aboutbox iconify clip dd mbar twin busy bgwork accmem dialog av_people people_ask people_file notify aboutline text click
 STBSSL  := hash/md5 codec/dec32le codec/enc32le
 
 OBJDIR  := build

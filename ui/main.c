@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "ui.h"
+#include "click.h"
 #include "conn.h"
 #include "secret.h"
 #include "busy.h"
@@ -1525,43 +1526,6 @@ static void wait_release(void)
 	}
 }
 
-/* the press the AES kept while we watched the button ourselves
-   (second_click): taken here, not by the dialog a double click opens */
-static void drop_clicks(void)
-{
-	short msg[8], k;
-	AEVENT e;
-	for (k = 0; k < 4; k++) {
-		evnt_multi_(MU_BUTTON | MU_TIMER, 0x101, 3, 0, 0, msg, &e);
-		if (!(e.which & MU_BUTTON))
-			break;
-	}
-}
-
-/* one click or two. GEM's own count holds every click back until the
-   double-click time has passed; here only clicks that can be doubles
-   wait (events, days, calendar names), and they wait before any work is
-   done, so the second click isn't missed. The tick boxes, the toolbar
-   and the right button act at once */
-static short click_count(short mx, short my, short button)
-{
-	unsigned long t0 = pf_ms();
-	short x, y, b, k, released = 0;
-	if ((button & 2) || win_instant(mx, my) || side_instant(mx, my))
-		return 1;
-	/* the button itself, watched every few milliseconds: waiting for
-	   GEM's next click event missed a quick second click that was over
-	   before we asked for it */
-	while (pf_ms() - t0 < 300UL) {
-		graf_mkstate(&x, &y, &b, &k);
-		if (!(b & 1))
-			released = 1;
-		else if (released)
-			return (x - mx < 6 && mx - x < 6 && y - my < 6 && my - y < 6) ? 2 : 1;
-		evnt_timer_(5);
-	}
-	return 1;
-}
 
 /* the tooltip over an event: shown when the mouse rests on one, gone
    when it moves, a key is pressed or the button clicked */
@@ -1918,21 +1882,6 @@ static void work_step(void)
 	}
 }
 
-/* after a click that was acted on at once: a second press near it
-   before the double-click time is up (counted from the first press) */
-static int second_click(short mx, short my, unsigned long t0)
-{
-	short x, y, b, k, released = 0;
-	while (pf_ms() - t0 < 350UL) {
-		graf_mkstate(&x, &y, &b, &k);
-		if (!(b & 1))
-			released = 1;
-		else if (released)
-			return x - mx < 6 && mx - x < 6 && y - my < 6 && my - y < 6;
-		evnt_timer_(5);
-	}
-	return 0;
-}
 
 /* alerts (common/ui/alert.c): Hebrew letters where the font has them */
 static void alert_heb(char *line, long n)
@@ -1995,6 +1944,36 @@ static void redraw_under(const short *m)
 	memcpy(mm, m, sizeof(mm));
 	win_message(mm);
 	font_sys_resume(k);
+}
+
+/* while a press is held (common's press_track, ui_track): the
+   background's steps go on, a slice a turn, and window messages are
+   answered; not the view's slices, which would lay out again the rows
+   the press is on */
+static void track_idle(void)
+{
+	win_track_idle();	/* (a button's pressed look, as the mouse is over it or not) */
+	if (work_pending() && bg_may_work()) {
+		bg_begin();
+		work_step();
+	}
+}
+
+static void track_msg(short *m)
+{
+	if (m[0] >= WM_REDRAW && m[0] <= 40)	/* (the window's: WM_REDRAW to WM_ALLICONIFY) */
+		win_message(m);
+}
+
+/* a press held on r, from (x, y): PRESS_IN let go over it, PRESS_OUT
+   elsewhere, PRESS_DRAG moved while held; PRESS_OUT whenever the
+   calendars changed meanwhile (what the press was on may be gone) */
+int ui_track(const GRECT *r, short x, short y)
+{
+	unsigned long gen = store_gen;
+	short dx, dy;
+	int k = press_track(r, x, y, track_idle, track_msg, &dx, &dy);
+	return store_gen != gen ? PRESS_OUT : k;	/* (a drag too: its row may be gone) */
 }
 
 int main(void)
@@ -2155,8 +2134,8 @@ int main(void)
 			wait = 20;
 		if (win_view_busy())
 			wait = 0;	/* the next slice of a view at once, keys first */	/* the hours gliding, a step a turn */
-		/* a click comes at once; where a double click means something,
-		   click_count() waits for the second one before anything is done */
+		/* a click comes at once (one asked for); press_double says if it
+		   ends a double click (common/ui/click.c, the guidelines 5.8) */
 		/* a refresh waiting: shortly, once the redraws are done */
 		conn_stop = 0;		/* a stop is for one operation */
 		busy_resend();		/* messages that came meanwhile */
@@ -2180,6 +2159,11 @@ int main(void)
 			which = MU_KEYBD;
 		else
 			which = evnt_multi_(flags, is_acc ? 0x102 : 0x101, 3, 0, wait, msg, &ev);
+		/* (the program: one click, a press handed over at once (5.8).
+		   An accessory under TOS gets a press only after the AES has
+		   counted clicks for the desktop, which asks for two, whatever
+		   it asks itself; asking for one too lost the double click's
+		   second press: rig, ST:mono, 1 Nov 2026, as in 862046c) */
 #ifdef AES_PROFILE
 		{
 			/* what this stretch answers, for the AESGAP and AESDONE lines */
@@ -2284,6 +2268,7 @@ int main(void)
 		}
 		if ((which & MU_BUTTON) && win_h > 0) {
 			short h = wind_find(ev.mx, ev.my), t, dd;
+			press_begin();
 			wind_get(0, WF_TOP, &t, &dd, &dd, &dd);
 			if (h == win_h) {
 				/* the events and the calendars' list need them read */
@@ -2291,38 +2276,20 @@ int main(void)
 					data_wait();
 				if (h != t)
 					wind_set(h, WF_TOP, 0, 0, 0, 0);
-				else if (!(ev.mbutton & 2) && rect_hit(&r_view, ev.mx, ev.my)) {
-					/* the calendar itself: the click acts at once (a
-					   selection is harmless), a second one opens */
-					static unsigned long last_t;
-					static short last_x, last_y;
-					unsigned long t0 = pf_ms();
+				else {
+					/* selected on press, done on release (the guidelines
+					   5.8; common/ui/click.c): the AES hands the press over
+					   at once (one click asked for), press_double says if
+					   it ends a double click, and each row or button waits
+					   for its release with press_track (ui_track) */
 					short n = 1;
-					if (is_acc ? ev.breturn >= 2 :
-					    t0 - last_t < 450UL && ev.mx - last_x < 6 && last_x - ev.mx < 6 &&
-					    ev.my - last_y < 6 && last_y - ev.my < 6)
-						n = 2;	/* counted by the AES, or two events close together */
-					win_mouse(ev.mx, ev.my, ev.mbutton, n, ev.kstate);
-					last_t = n == 2 ? 0 : t0;
-					last_x = ev.mx;
-					last_y = ev.my;
-					if (n == 1 && !is_acc && second_click(ev.mx, ev.my, t0)) {
-						/* (the second press let go and taken first: else
-						   what it opens, the event's dialog, takes it as a
-						   click on whatever is under the mouse there) */
-						wait_release();
-						drop_clicks();
-						win_mouse(ev.mx, ev.my, ev.mbutton, 2, ev.kstate);
-						last_t = 0;
-					}
-				} else {
-					short n = click_count(ev.mx, ev.my, ev.mbutton);
-					/* an accessory gets the first click only once the AES
-					   has finished counting: its count is the one to use */
-					if (is_acc && ev.breturn >= 2 && !(ev.mbutton & 2) &&
-					    !win_instant(ev.mx, ev.my) && !side_instant(ev.mx, ev.my))
+					if (!(ev.mbutton & 2) && press_double(win_press_id(ev.mx, ev.my), ev.mx, ev.my))
+						n = 2;
+					/* (an accessory: the AES's count, asked for above) */
+					if (is_acc && !(ev.mbutton & 2) && ev.breturn >= 2)
 						n = 2;
 					win_mouse(ev.mx, ev.my, ev.mbutton, n, ev.kstate);
+					press_drawn();
 				}
 			}
 			wait_release();

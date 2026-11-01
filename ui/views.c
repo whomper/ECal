@@ -15,6 +15,7 @@
 #include "util.h"
 #include "clip.h"
 #include "text.h"
+#include "click.h"
 #include "../src/plat.h"
 #ifdef AES_PROFILE
 #include <tos.h>
@@ -300,18 +301,25 @@ static int add_item(GRECT *r, short kind, short oi, long day, short cont)
 
 /* lanes for the long events of days [d0, d0+n): each event gets the
    lowest lane free on all its days; lane[] per occurrence index */
-static short assign_lanes(long d0, long n, short *lane, short maxl)
+/* list: only these occurrences (nlist of them), the others' lanes left
+   as they are (the month's long ones, a row at a time: each row's three
+   passes over every occurrence of six weeks took an ST some 100 ms) */
+static short assign_lanes(long d0, long n, short *lane, short maxl, const short *list, int nlist)
 {
 	static unsigned long used[7 * 6];	/* bit l: lane l taken on that day */
 	short top = 0;
-	int i;
+	int i, k, count = list ? nlist : occ.n;
 	long d;
-	const ODAY *od = oday_n == occ.n ? oday : 0;	/* (read in line: called a row at a time) */
+	const ODAY *days = oday_n == occ.n ? oday : 0;	/* (read in line: called a row at a time) */
 	memset(used, 0, sizeof(used));
-	for (i = 0; i < occ.n; i++, od = od ? od + 1 : 0) {
-		OCC *o = &occ.o[i];
+	for (k = 0; k < count; k++) {
+		OCC *o;
+		const ODAY *od;
 		long a, b;
 		short l;
+		i = list ? list[k] : k;
+		o = &occ.o[i];
+		od = days ? days + i : 0;
 		lane[i] = -1;
 		if (od) {
 			if (cur_view == V_MONTH ? !od->lng : !o->ev->allday)
@@ -351,7 +359,7 @@ static short assign_lanes(long d0, long n, short *lane, short maxl)
 /* ---------------- layout ---------------- */
 
 /* a lane per occurrence; after it, room for as many more (the month's
-   lists of each day's events) */
+   lists of each day's events), and as many again (its long ones) */
 static int lane_cap;
 
 static short *lane_buf(void)
@@ -360,7 +368,7 @@ static short *lane_buf(void)
 	if (!buf || occ.n > lane_cap) {	/* a week with no events too */
 		free(buf);
 		lane_cap = occ.n + 32;
-		buf = malloc(2 * lane_cap * sizeof(short));
+		buf = malloc(3 * lane_cap * sizeof(short));	/* (and the month's long ones) */
 	}
 	return buf;
 }
@@ -370,7 +378,8 @@ static short day_head[42], day_tail[42], day_n[42];	/* the month's days' timed e
 static void layout_month(void)
 {
 	short r, c, line_h = ch + 1;
-	short *lane = lane_buf();
+	short *lane = lane_buf(), *longs = lane ? lane + 2 * lane_cap : 0;
+	int nlong = 0;
 	head_h = ch + 4;
 	rows = (short)(ndays / 7);
 	cols = 7;
@@ -388,11 +397,18 @@ static void layout_month(void)
 		   took most of a second on an ST (the guidelines, Speed) */
 		short *next = lane + lane_cap;
 		int i;
+		nlong = 0;
 		for (c = 0; c < 42; c++)
 			day_head[c] = day_n[c] = 0, day_tail[c] = -1;
 		for (i = 0; i < occ.n; i++) {
-			long d = occ_first_day(&occ.o[i]) - first_day;
-			if (is_long(&occ.o[i]) || d < 0 || d >= 42 || d >= ndays)
+			long d;
+			lane[i] = -1;
+			if (is_long(&occ.o[i])) {
+				longs[nlong++] = (short)i;	/* (the bars: the rows look at these only) */
+				continue;
+			}
+			d = occ_first_day(&occ.o[i]) - first_day;
+			if (d < 0 || d >= 42 || d >= ndays)
 				continue;
 			next[i] = -1;
 			if (day_tail[d] < 0)
@@ -406,18 +422,19 @@ static void layout_month(void)
 	for (r = 0; r < rows; r++) {
 		long d0 = first_day + r * 7;
 		short maxl = (cell_h - ch - 3) / line_h, used = 0;
-		int i;
+		int i, k;
 		short count[7];
 		if (maxl < 1)
 			maxl = 1;
-		used = assign_lanes(d0, 7, lane, maxl);
+		used = assign_lanes(d0, 7, lane, maxl, longs, nlong);
 		memset(count, 0, sizeof(count));
 		/* long events: bars across the row (their days read in line: a
-		   row at a time, over every occurrence) */
-		for (i = 0; i < occ.n; i++) {
+		   row at a time, over the long ones) */
+		for (k = 0; k < nlong; k++) {
 			OCC *o;
 			long a, b, f;
 			GRECT box;
+			i = longs[k];
 			if (lane[i] < 0)
 				continue;
 			o = &occ.o[i];
@@ -436,8 +453,9 @@ static void layout_month(void)
 		}
 		(void)used;
 		/* lanes taken by bars on each day: the timed events go below */
-		for (i = 0; i < occ.n; i++) {
+		for (k = 0; k < nlong; k++) {
 			long a, b;
+			i = longs[k];
 			if (lane[i] < 0)
 				continue;
 			a = OCC_FIRST(i, &occ.o[i]) - d0;
@@ -559,7 +577,7 @@ static void layout_days(void)
 		grid.w -= detail.w;
 	}
 	columns();
-	lanes = lane ? assign_lanes(first_day, ndays, lane, maxl) : 0;
+	lanes = lane ? assign_lanes(first_day, ndays, lane, maxl, 0, 0) : 0;
 	allday_h = (lanes ? lanes : 1) * line_h + 4;
 	grid.y = r_view.y + head_h + allday_h;
 	grid.h = r_view.h - head_h - allday_h;
@@ -1843,11 +1861,38 @@ static long day_at(short mx, short my, short *minute)
 
 static void select_item(int i);
 
-/* where the view marks day as the chosen one: its cell in the month, its
-   head in the week; 0 elsewhere, or when it isn't on the page */
+/* a day's cell in the year: as year_day_at reads one, the other way */
+static int year_day_box(long day, GRECT *r)
+{
+	short mw, mh, pc, m, row, col;
+	int y0, m0, d0, y1, m1, d1;
+	long first;
+	civil_from_days(cur_day, &y0, &m0, &d0);
+	civil_from_days(day, &y1, &m1, &d1);
+	if (y1 != y0)
+		return 0;
+	year_geom(&mw, &mh, &pc);
+	m = (short)(m1 - 1);
+	first = days_from_civil(y1, m1, 1);
+	col = (short)(wday_of(day) - opt.weekstart + 7) % 7;
+	row = (short)((day - (first - (wday_of(first) - opt.weekstart + 7) % 7)) / 7);
+	/* (a pixel round it: the chosen day's box, as drawn) */
+	r->x = (short)(((r_view.x + (m % pc) * mw + (mw - 21 * cw) / 2) & ~7) + col * 3 * cw - 1);
+	r->y = (short)(r_view.y + (m / pc - ytop) * mh + ch / 2 + 4 + (row + 2) * ch - 1);
+	r->w = (short)(3 * cw + 2);
+	r->h = (short)(ch + 2);
+	year_font(0);
+	return rect_and(r, &r_view);
+}
+
+/* where the view marks day as the chosen one: its cell in the month and
+   the year, its head in the week; 0 elsewhere, or when it isn't on the
+   page */
 static int day_box(long day, GRECT *r)
 {
 	short c = (short)(day - first_day), k;
+	if (cur_view == V_YEAR)
+		return year_day_box(day, r);
 	if (cur_view == V_MONTH) {
 		if (c < 0 || c >= rows * 7)
 			return 0;
@@ -2172,32 +2217,62 @@ static void context_menu(short mx, short my, int it, long day, short minute)
 	}
 }
 
+/* what a press at (mx, my) is on, for press_double (win_press_id) */
+short views_press_id(short mx, short my)
+{
+	int it;
+	long day;
+	layout();
+	if (cur_view == V_DAY && detail.w && rect_hit(&detail, mx, my))
+		return 50;
+	it = item_at(mx, my);
+	if (it >= 0)
+		return (short)(100 + it);
+	day = day_at(mx, my, 0);
+	return day < 0 ? 0 : (short)(10000 + (day - first_day));
+}
+
+/* the few pixels round a press: let go within them, the press is done
+   where it was (what has no box of its own to track) */
+static GRECT near_press(short x, short y)
+{
+	GRECT r;
+	r.x = x - CLICK_SLOP;
+	r.y = y - CLICK_SLOP;
+	r.w = r.h = 2 * CLICK_SLOP + 1;
+	return r;
+}
+
+/* Selected on press, done on release (the guidelines 5.8): the press
+   draws what it selects at once; ui_track (common's press_track) waits
+   for the release, and the double click's action comes when it is over
+   the same thing. clicks: 2 when press_double said this press ends one */
 int views_click(short mx, short my, short clicks, short kstate, short button)
 {
 	int it;
 	short minute;
 	long day;
+	GRECT r;
 	layout();
 	it = item_at(mx, my);
 	day = day_at(mx, my, &minute);
 	if (button & 2) {
-		context_menu(mx, my, it, day, minute);
+		context_menu(mx, my, it, day, minute);	/* (on the press, as the rule has it) */
 		return 1;
 	}
 	if (cur_view == V_DAY && detail.w && rect_hit(&detail, mx, my)) {
-		if (clicks == 2)
+		if (ui_track(&detail, mx, my) == PRESS_IN && clicks == 2)
 			open_selected();
 		return 1;
 	}
 	if (it >= 0 && items[it].kind == IT_MORE) {
-		views_goto(items[it].day, V_DAY);
+		/* a button: pressed while held, the day on the release over it */
+		if (win_press_held(&items[it].r, 0, mx, my))
+			views_goto(items[it].day, V_DAY);
 		return 1;
 	}
-	if (it >= 0 && clicks == 1 && cur_view != V_YEAR && cal_writable(&cals[occ.o[items[it].occ].ev->cal]) &&
-	    drag_event(it, mx, my))
-		return 1;
 	if (it >= 0) {
-		int same = sel_occ.ev == occ.o[items[it].occ].ev && sel_occ.start == occ.o[items[it].occ].start;
+		int same = sel_occ.ev == occ.o[items[it].occ].ev && sel_occ.start == occ.o[items[it].occ].start, k;
 		OCC was = sel_occ;
 		long day0 = cur_day;
 		select_item(it);
@@ -2207,27 +2282,44 @@ int views_click(short mx, short my, short clicks, short kstate, short button)
 			day_moved(day0, &was, same);
 		} else if (!same) {
 			/* only what changed: the two events' boxes, the day's details */
-			redraw_occ(&was);
 			redraw_occ(&sel_occ);
+			redraw_occ_but(&was, 0, 1);
 			if (cur_view == V_DAY && detail.w)
-				win_redraw(&detail);
+				win_redraw_later(&detail);
 		}
-		if (clicks == 2 || (same && clicks == 2))
+		press_drawn();
+		/* then the release: a drag if it moved while held, the editor on
+		   a double click's release over it */
+		r = items[it].r;
+		k = ui_track(&r, mx, my);
+		if (k == PRESS_DRAG && clicks == 1 && cur_view != V_YEAR &&
+		    cal_writable(&cals[occ.o[items[it].occ].ev->cal]))
+			drag_event(it, mx, my);
+		else if (k == PRESS_IN && clicks == 2)
 			open_selected();
 		return 1;
 	}
 	if (day < 0)
 		return 1;
+	r = near_press(mx, my);
 	if (cur_view == V_YEAR) {
-		if (minute == -2)
-			views_goto(day, V_MONTH);
-		else if (clicks == 2)
-			views_goto(day, V_DAY);
-		else {
-			cur_day = day;
-			win_redraw(&r_view);
-			win_redraw(&r_side);
+		if (minute == -2) {
+			if (ui_track(&r, mx, my) == PRESS_IN)
+				views_goto(day, V_MONTH);	/* (a month's name: that month, on the release) */
+			return 1;
 		}
+		if (clicks == 1 && day != cur_day) {
+			long day0 = cur_day;
+			OCC none;
+			memset(&none, 0, sizeof(none));
+			cur_day = day;
+			day_moved(day0, &none, 1);	/* (two cells, the small month after) */
+		}
+		press_drawn();
+		if (!day_box(day, &r))
+			r = near_press(mx, my);
+		if (ui_track(&r, mx, my) == PRESS_IN && clicks == 2)
+			views_goto(day, V_DAY);
 		return 1;
 	}
 	{
@@ -2236,17 +2328,16 @@ int views_click(short mx, short my, short clicks, short kstate, short button)
 		views_select_none();
 		cur_day = day;
 		win_status("");
-		if (clicks == 2) {
-			editor_new(day, minute, cur_view == V_MONTH ? 0 : (minute < 0 && my < grid.y));
-			return 1;
-		}
 		if (cur_day != day0) {
 			day_moved(day0, &was, 0);
 		} else if (was.ev) {
 			redraw_occ(&was);
 			if (cur_view == V_DAY && detail.w)
-				win_redraw(&detail);
+				win_redraw_later(&detail);
 		}
+		press_drawn();
+		if (ui_track(&r, mx, my) == PRESS_IN && clicks == 2)
+			editor_new(day, minute, cur_view == V_MONTH ? 0 : (minute < 0 && my < grid.y));
 	}
 	(void)kstate;
 	return 1;
@@ -2526,11 +2617,19 @@ int views_key(short kstate, short key)
 	case 0x0f:		/* Tab: the next event */
 		select_next(shift ? -1 : 1);
 		return 1;
-	case 0x01:		/* Esc */
+	case 0x01: {		/* Esc */
+		/* only the event it leaves drawn again, and nothing when none
+		   was chosen (the whole view drawn at once took an ST 525 ms) */
+		OCC was = sel_occ;
 		views_select_none();
 		win_status("");
-		win_redraw(&r_view);
+		if (was.ev) {
+			redraw_occ(&was);
+			if (cur_view == V_DAY && detail.w)
+				win_redraw_later(&detail);
+		}
 		return 1;
+	}
 	}
 	return 0;
 }

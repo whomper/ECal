@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "ui.h"
+#include "click.h"
 #include "../src/plat.h"
 
 typedef struct {
@@ -18,6 +19,7 @@ typedef struct {
 #define MAXROWS (MAXACCT + MAXCAL + 2)
 static SROW srow[MAXROWS];
 static short nrows, row_h;
+static short side_sel = -1;	/* the calendar chosen in the list (a click on its name), -1: none */
 static GRECT mini;		/* the small month */
 static long mini_first;		/* the day in its first cell */
 static int mini_ym;			/* the month it shows, y * 12 + m (0 before it is drawn) */
@@ -44,6 +46,8 @@ static void side_layout(void)
 		}
 		y += ch / 2;
 	}
+	if (side_sel >= ncals)
+		side_sel = -1;	/* (calendars gone since) */
 	/* the small month at the bottom, if there is room */
 	mini.w = 21 * cw;
 	mini.h = 8 * ch + 4;
@@ -51,6 +55,49 @@ static void side_layout(void)
 	mini.y = r_side.y + r_side.h - mini.h - ch / 2;
 	if (mini.y < y || r_side.w < mini.w)
 		mini.h = 0;
+}
+
+/* a calendar row's name, where the chosen one's black bar goes */
+static void side_name_rect(const SROW *s, GRECT *r)
+{
+	r->x = r_side.x + 3 * cw - 2;
+	r->y = s->y;
+	r->w = r_side.x + r_side.w - 2 - r->x;
+	r->h = row_h - 1;
+}
+
+/* the calendar chosen in the list (-1: none): its row and the one
+   chosen before drawn again, the others not */
+static void side_choose(short c)
+{
+	short was = side_sel, k;
+	if (c == was)
+		return;
+	side_sel = c;
+	for (k = 0; k < nrows; k++)
+		if (srow[k].cal >= 0 && (srow[k].cal == c || srow[k].cal == was)) {
+			GRECT row;
+			row.x = r_side.x;
+			row.y = srow[k].y;
+			row.w = r_side.w - 1;
+			row.h = row_h;
+			win_redraw(&row);
+		}
+}
+
+/* what a press at (mx, my) is on, for press_double (win_press_id) */
+short side_press_id(short mx, short my)
+{
+	short i;
+	side_layout();
+	if (mini.h && rect_hit(&mini, mx, my)) {
+		short k = (my - mini.y - 2 * ch - 4) / ch * 7 + (mx - mini.x) / (3 * cw);
+		return my >= mini.y + 2 * ch + 4 && k >= 0 && k < 42 ? (short)(2100 + k) : 2200;
+	}
+	for (i = 0; i < nrows; i++)
+		if (my >= srow[i].y && my < srow[i].y + row_h)
+			return (short)(2000 + i);
+	return 0;
 }
 
 /* (only the rows that reach into clip) */
@@ -244,8 +291,19 @@ void side_draw(GRECT *clip)
 				fill(&box, 0);
 				frame(&box, p.color);
 			}
-			text_at(r_side.x + 3 * cw, s->y, c->name, (long)strlen(c->name), cols - 3,
-				TX_RIGHT | TX_WHITE | (c->visible ? 0 : TX_PALE));
+			if (s->cal == side_sel) {
+				/* the chosen one: its name in a black bar, as Settings'
+				   sections (Erez, 1 Nov 2026); the tick box beside it on
+				   white, where a black one still shows */
+				GRECT bar;
+				side_name_rect(s, &bar);
+				fill(&bar, 1);
+				text_at(r_side.x + 3 * cw, s->y, c->name, (long)strlen(c->name), cols - 3,
+					TX_RIGHT | TX_INVERSE);
+			} else {
+				text_at(r_side.x + 3 * cw, s->y, c->name, (long)strlen(c->name), cols - 3,
+					TX_RIGHT | TX_WHITE | (c->visible ? 0 : TX_PALE));
+			}
 		}
 	}
 	if (mini.h) {
@@ -391,12 +449,26 @@ int side_click(short mx, short my, short clicks, short button)
 	short i;
 	side_layout();
 	if (mini.h && rect_hit(&mini, mx, my)) {
+		/* its days and its title are buttons (the guidelines 5.8): drawn
+		   pressed while held, the view moved on the release over them */
 		short k = (my - mini.y - 2 * ch - 4) / ch * 7 + (mx - mini.x) / (3 * cw);
+		GRECT b;
 		if (my >= mini.y + 2 * ch + 4 && k >= 0 && k < 42) {
-			views_select_none();
-			views_goto(mini_first + k, clicks == 2 ? V_DAY : cur_view);
+			b.x = mini.x + (k % 7) * 3 * cw;
+			b.y = mini.y + 2 * ch + 4 + (k / 7) * ch;
+			b.w = 3 * cw;
+			b.h = ch;
+			if (win_press_held(&b, 0, mx, my)) {
+				views_select_none();
+				views_goto(mini_first + k, clicks == 2 ? V_DAY : cur_view);
+			}
 		} else if (my < mini.y + ch) {
-			views_goto(cur_day, V_MONTH);
+			b.x = mini.x;
+			b.y = mini.y;
+			b.w = mini.w;
+			b.h = ch;
+			if (win_press_held(&b, 0, mx, my))
+				views_goto(cur_day, V_MONTH);
 		}
 		return 1;
 	}
@@ -405,9 +477,17 @@ int side_click(short mx, short my, short clicks, short button)
 		if (my < s->y || my >= s->y + row_h)
 			continue;
 		if (s->cal < 0) {
-			if (button & 2)
+			GRECT row;
+			if (button & 2) {
 				acct_menu(mx, my, s->acct);
-			else if (clicks == 2 && accts[s->acct].kind != AK_LOCAL) {
+				return 1;
+			}
+			row.x = r_side.x;
+			row.y = s->y;
+			row.w = r_side.w - 1;
+			row.h = row_h;
+			/* (an account's double click: its dialog, on the release) */
+			if (ui_track(&row, mx, my) == PRESS_IN && clicks == 2 && accts[s->acct].kind != AK_LOCAL) {
 				dlg_account(s->acct);
 				after_change();
 			}
@@ -417,9 +497,27 @@ int side_click(short mx, short my, short clicks, short button)
 			cal_menu(mx, my, s->cal);
 			return 1;
 		}
-		if (clicks == 2) {
-			if (dlg_calendar(s->cal))
-				after_change();
+		if (mx >= r_side.x + 3 * cw) {
+			/* its name: chosen on the press, nothing more on the release;
+			   shown or hidden by its tick box only; a double click's
+			   release, Calendar info (the guidelines 5.8, Erez 1 Nov
+			   2026). Let go elsewhere, the one chosen before is again
+			   (5.8, 3a60b0d) */
+			short was = side_sel;
+			GRECT name;
+			side_choose(s->cal);
+			press_drawn();
+			side_name_rect(s, &name);
+			switch (ui_track(&name, mx, my)) {
+			case PRESS_IN:
+				if (clicks == 2 && dlg_calendar(s->cal))
+					after_change();
+				break;
+			case PRESS_OUT:
+			case PRESS_DRAG:
+				side_choose(was);
+				break;
+			}
 			return 1;
 		}
 		/* the tick first, then the calendar's events; the disk last */
