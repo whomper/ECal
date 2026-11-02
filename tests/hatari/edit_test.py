@@ -12,13 +12,12 @@ The accessory is ECAL.ACC on every machine (TLS.OVL beside it on a TT or Falcon)
 Exit status 0 when every check passes.
 """
 import argparse
-import glob
 import os
 import shutil
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
-from rig import Rig, K, SCAN, add_machine, is_st  # noqa: E402
+from rig import Rig, K, SCAN, add_machine, is_st, machines  # noqa: E402
 import ui_tour  # noqa: E402
 
 
@@ -46,7 +45,8 @@ def cache_records(data):
 
 def cache_text(hd):
     out = ""
-    for f in glob.glob(os.path.join(hd, "ECAL", "CACHE", "*.DAT")):
+    cache = machines.ci_path(hd, "ecal/cache")
+    for f in sorted(os.path.join(cache, n) for n in os.listdir(cache) if n.lower().endswith(".dat")):
         for raw in cache_records(open(f, "rb").read()).values():
             out += "\nR " + raw.decode("utf-8", "replace")
     return out
@@ -67,10 +67,10 @@ def main():
     a = ap.parse_args()
     hd = os.path.join(a.work, "hd")
     shutil.rmtree(a.work, ignore_errors=True)
-    os.makedirs(os.path.join(hd, "ECAL"))
-    shutil.copy(os.path.join(ui_tour.ROOT, "binary", "ECAL.ACC"),
-                os.path.join(hd, "ECAL.ACC"))
-    ui_tour.seed(os.path.join(hd, "ECAL"))
+    os.makedirs(os.path.join(hd, "ecal"))
+    shutil.copy(machines.ci_path(os.path.join(ui_tour.ROOT, "binary"), "ecal.acc"),
+                os.path.join(hd, "ecal.acc"))
+    ui_tour.seed(os.path.join(hd, "ecal"))
     fails = []
 
     def check(what, ok):

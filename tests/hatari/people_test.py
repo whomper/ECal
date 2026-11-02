@@ -28,7 +28,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(__file__))
 import ui_tour  # noqa: E402
-from rig import Rig, K, SCAN, add_machine  # noqa: E402
+from rig import Rig, K, SCAN, add_machine, machines  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 fails = []
@@ -46,7 +46,7 @@ def fetch_econtact(work, want):
     ec = os.path.join(work, "econtact")
     app = "EContact@" + want if want else "EContact"
     subprocess.run([sys.executable, os.path.join(ROOT, "common", "tools", "getrelease.py"),
-                    app, os.path.join(ec, "binary"), "ECONTACT.ACC"], check=True)
+                    app, os.path.join(ec, "binary"), "econtact.acc"], check=True)
     tag = open(os.path.join(ec, "binary", "ECONTACT.VERSION")).read().strip()
     subprocess.run(["git", "clone", "-q", "--depth", "1", "--branch", tag,
                     "https://github.com/whomper/EContact", os.path.join(ec, "src")], check=True)
@@ -57,7 +57,7 @@ def fetch_econtact(work, want):
 
 
 def econtact(hd, ec):
-    """EContact's accessory and its folder, as installed: ECONTACT.INF in
+    """EContact's accessory and its folder, as installed: its INF in
     the root, FOLDER= naming C:\\ECONTACT"""
     folder = os.path.join(hd, "ECONTACT")
     os.makedirs(folder)
@@ -65,20 +65,24 @@ def econtact(hd, ec):
     subprocess.run([cli, folder, "local", "Contacts"], check=True, stdout=subprocess.DEVNULL)
     subprocess.run([cli, folder, "import", "Contacts", os.path.join(ec, "tests", "hatari", "sample.vcf")],
                    check=True, stdout=subprocess.DEVNULL)
-    inf = open(os.path.join(folder, "ECONTACT.INF"), "rb").read()
+    # the names as that release writes them (lowercase from 1.77 on,
+    # the guidelines' 6.6)
+    src = machines.ci_path(folder, "econtact.inf")
+    inf = open(src, "rb").read()
     inf = inf.replace(b"\nSYNC_OPEN=1", b"\nSYNC_OPEN=0")
     inf = re.sub(rb"\nSTART=[^\r\n]*", rb"\nSTART=now", inf)
     inf = re.sub(rb"\nFOLDER=[^\r\n]*", rb"\nFOLDER=C:\\ECONTACT", inf)
-    os.remove(os.path.join(folder, "ECONTACT.INF"))
-    open(os.path.join(hd, "ECONTACT.INF"), "wb").write(inf)
-    shutil.copy(os.path.join(ec, "binary", "ECONTACT.ACC"), os.path.join(hd, "ECONTACT.ACC"))
+    os.remove(src)
+    open(os.path.join(hd, os.path.basename(src)), "wb").write(inf)
+    acc = machines.ci_path(os.path.join(ec, "binary"), "econtact.acc")
+    shutil.copy(acc, os.path.join(hd, os.path.basename(acc)))
 
 
 def cache_text(hd):
     t = ""
     for root, _, files in os.walk(hd):
         for f in files:
-            if f.upper().endswith(".DAT") and "CAL" in f.upper():
+            if f.lower().endswith(".dat") and "cal" in f.lower():
                 t += open(os.path.join(root, f), "rb").read().decode("utf-8", "replace")
     return re.sub(r"\r?\n[ \t]", "", t)		# lines unfolded
 
@@ -88,7 +92,9 @@ def menu_entry_width(shot, y):
     from PIL import Image
     im = Image.open(shot).convert("L")
     px = im.load()
-    ink = [x for x in range(24, 200) for dy in range(-5, 6) if px[x, y + dy] < 128]
+    # the entries' text only, short of the menu box's right edge (x 176):
+    # the accessories come in the order TOS finds their files
+    ink = [x for x in range(24, 160) for dy in range(-5, 6) if px[x, y + dy] < 128]
     return max(ink) - min(ink) + 1 if ink else 0
 
 
@@ -106,14 +112,14 @@ def main():
     ec, tag = fetch_econtact(work, want)
     print("EContact", tag)
     if acc:
-        shutil.copy(os.path.join(ROOT, "binary", "ECAL.ACC"), os.path.join(hd, "ECAL.ACC"))
-        os.makedirs(os.path.join(hd, "ECAL"))
-        ui_tour.seed(os.path.join(hd, "ECAL"), english=True)
+        shutil.copy(machines.ci_path(os.path.join(ROOT, "binary"), "ecal.acc"), os.path.join(hd, "ecal.acc"))
+        os.makedirs(os.path.join(hd, "ecal"))
+        ui_tour.seed(os.path.join(hd, "ecal"), english=True)
     else:
-        shutil.copy(os.path.join(ROOT, "binary", "ECAL.PRG"), os.path.join(hd, "ECAL.PRG"))
+        shutil.copy(machines.ci_path(os.path.join(ROOT, "binary"), "ecal.prg"), os.path.join(hd, "ecal.prg"))
         ui_tour.seed(hd, english=True)
     econtact(hd, ec)
-    r = Rig(work, a.machine, auto=None if acc else "C:\\ECAL.PRG")
+    r = Rig(work, a.machine, auto=None if acc else "C:\\ecal.prg")
     try:
         r.wait(20)
         if acc:
@@ -175,7 +181,7 @@ def main():
           text_width(os.path.join(shots, "4b-later.png"), box, inverse=True) in range(80, 100))
     check("opened again, her name asked of EContact",
           text_width(os.path.join(shots, "6-opened.png"), box) in range(80, 100))
-    crash = [os.path.join(d, f) for d, _, fs in os.walk(hd) for f in fs if f.upper() == "CRASH.LOG"]
+    crash = [os.path.join(d, f) for d, _, fs in os.walk(hd) for f in fs if f.lower() == "crash.log"]
     check("no crash (CRASH.LOG)", not crash)
     print("screenshots in", os.path.join(work, "shots"))
     print("people test, with EContact %s:" % tag, "all passed" if not fails else "%d failed" % len(fails))

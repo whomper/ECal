@@ -257,10 +257,10 @@ void store_init_begin(const char *dir, const char *inf)
 	if (inf)
 		str_copy(inf_path, inf, sizeof(inf_path));
 	else
-		path_join(inf_path, sizeof(inf_path), dir, "ECAL.INF");
-	path_join(cache_dir, sizeof(cache_dir), dir, "CACHE");
+		path_join(inf_path, sizeof(inf_path), dir, "ecal.inf");
+	path_join(cache_dir, sizeof(cache_dir), dir, "cache");
 	pf_mkdir(cache_dir);
-	path_join(key, sizeof(key), dir, "ECAL.KEY");
+	path_join(key, sizeof(key), dir, "ecal.key");
 	secret_init(key);
 	si_open = 1;
 }
@@ -530,7 +530,7 @@ ACCOUNT *acct_add(int kind)
 static void cache_path(const CALENDAR *c, const char *ext, char *out, int size)
 {
 	char n[16];
-	snprintf(n, sizeof(n), "CAL%05d.%s", c->id, ext);
+	snprintf(n, sizeof(n), "cal%05d.%s", c->id, ext);
 	path_join(out, size, cache_dir, n);
 }
 
@@ -564,7 +564,7 @@ int store_files(const char **out, int max)
 	if (max < 3)
 		return 0;
 	str_copy(p[0], inf_path, sizeof(p[0]));
-	path_join(p[1], sizeof(p[1]), opt.workdir, "ECAL.KEY");
+	path_join(p[1], sizeof(p[1]), opt.workdir, "ecal.key");
 	snprintf(p[2], sizeof(p[2]), "%s%c", cache_dir, PF_SEP);
 	out[0] = p[0];
 	out[1] = p[1];
@@ -707,9 +707,9 @@ void cal_delete(int i)
 	int k;
 	CALENDAR *c = &cals[i];
 	cal_snap_forget(c);
-	cache_path(c, "DAT", p, sizeof(p));
+	cache_path(c, "dat", p, sizeof(p));
 	pf_remove(p);
-	cache_path(c, "ICS", p, sizeof(p));
+	cache_path(c, "ics", p, sizeof(p));
 	pf_remove(p);
 	cal_free_events(c);
 	for (k = i; k < ncals - 1; k++)
@@ -1233,13 +1233,13 @@ void cal_load_begin(CALENDAR *c)
 	ld.l.res = -1;
 	ld.t0 = pf_ms();
 	if (accts[c->acct].kind == AK_SUBSCR) {
-		cache_path(c, "ICS", path, sizeof(path));
+		cache_path(c, "ics", path, sizeof(path));
 		load_open(path, 8192);
 		if (ld.f.path[0])
 			ld.p = ics_begin(add_event, &ld.l, ld.from, ld.to);
 		return;
 	}
-	cache_path(c, "DAT", path, sizeof(path));
+	cache_path(c, "dat", path, sizeof(path));
 	if (!cal_snap_off && snap_begin(c, path))
 		return;
 	dat_begin(c, path);
@@ -1635,7 +1635,7 @@ static int snap_begin(CALENDAR *c, const char *dat)
 	unsigned long stamp = 0, sstamp = 0;
 	long ssize = 0;
 	int known;
-	snap_path(c, "SNP", path, sizeof(path));
+	snap_path(c, "snp", path, sizeof(path));
 	/* the snapshot first, from the listing where it can (on a first
 	   start there is none: no look for the cache file then either); the
 	   cache file's time and size kept for the snapshot written after */
@@ -1737,7 +1737,7 @@ static void snap_fail(void)
 	free(ld_line);
 	ld_line = 0;
 	memset(&ld.f, 0, sizeof(ld.f));
-	snap_path(c, "SNP", path, sizeof(path));
+	snap_path(c, "snp", path, sizeof(path));
 	pf_remove(path);
 	cal_free_events(c);
 	c->lost = 0;
@@ -1745,7 +1745,7 @@ static void snap_fail(void)
 	ld.snap = ld.reread = 0;
 	free(ld.again);
 	ld.again = 0;
-	cache_path(c, "DAT", dat, sizeof(dat));
+	cache_path(c, "dat", dat, sizeof(dat));
 	dat_begin(c, dat);
 }
 
@@ -1755,7 +1755,7 @@ static void snap_reread(int r)
 	CALENDAR *c = ld.c;
 	RESOURCE *rs = &c->res[r];
 	char dat[200], *raw = rs->len < 65536L ? malloc(rs->len + 1) : 0;
-	cache_path(c, "DAT", dat, sizeof(dat));
+	cache_path(c, "dat", dat, sizeof(dat));
 	if (raw && pf_read_at(dat, rs->off, raw, rs->len) == rs->len) {
 		raw[rs->len] = 0;
 		ld.l.res = r;
@@ -2203,7 +2203,7 @@ int cal_snap_step(void)
 		unsigned long stamp;
 		int i;
 		CTIME from, to;
-		cache_path(c, "DAT", dat, sizeof(dat));
+		cache_path(c, "dat", dat, sizeof(dat));
 		if (c->dat_stamp) {
 			/* as it was when read (no look; if it has been written
 			   since, the next start finds them different and reads
@@ -2296,7 +2296,7 @@ int cal_snap_step(void)
 	if (sw.part == 3) {
 		char snp[200];
 		sw_free();
-		snap_path(c, "SNP", snp, sizeof(snp));
+		snap_path(c, "snp", snp, sizeof(snp));
 		pf_remove(snp);
 		if (pf_rename(sw.path, snp) != 0)
 			pf_remove(sw.path);
@@ -2317,7 +2317,7 @@ void cal_snap_flush(void)
 void cal_snap_forget(CALENDAR *c)
 {
 	char p[200];
-	snap_path(c, "SNP", p, sizeof(p));
+	snap_path(c, "snp", p, sizeof(p));
 	pf_remove(p);
 }
 
@@ -2371,8 +2371,8 @@ static int cw_open(CW *w, CALENDAR *c)
 	memset(w, 0, sizeof(*w));
 	w->c = c;
 	w->oh = -1;
-	cache_path(c, "TMP", w->tmp, sizeof(w->tmp));
-	cache_path(c, "DAT", w->old, sizeof(w->old));
+	cache_path(c, "tmp", w->tmp, sizeof(w->tmp));
+	cache_path(c, "dat", w->old, sizeof(w->old));
 	h = pf_open(w->tmp, PF_WRITE);
 	if (h < 0) {
 		snprintf(cal_err, sizeof(cal_err), "can't write the calendar's cache (disk full or locked?)");
@@ -2584,7 +2584,7 @@ static int cache_change(CALENDAR *c, int drop, const char *href, const char *eta
 	long size;
 	listed_ok = 0;		/* a cache file written: the listing no longer says */
 	int h, n, ok = 1;
-	cache_path(c, "DAT", path, sizeof(path));
+	cache_path(c, "dat", path, sizeof(path));
 	size = pf_size(path);
 	if (size <= 0 || c->ndead >= 32)
 		return cache_rewrite(c, drop, href, etag, raw, len);
@@ -2806,8 +2806,8 @@ static int sync_subscription(CALENDAR *c, int force)
 	window(&from, &to);
 	ct_split(from, &a);
 	ct_split(to, &b);
-	cache_path(c, "NEW", tmp, sizeof(tmp));
-	cache_path(c, "ICS", path, sizeof(path));
+	cache_path(c, "new", tmp, sizeof(tmp));
+	cache_path(c, "ics", path, sizeof(path));
 	memset(&fs, 0, sizeof(fs));
 	fs.path = tmp;
 	sb_init(&fs.b);
@@ -3011,7 +3011,7 @@ static void sj_size(void)
 	char path[200];
 	if (sj.size >= 0)
 		return;
-	cache_path(sj.c, "DAT", path, sizeof(path));
+	cache_path(sj.c, "dat", path, sizeof(path));
 	sj.size = pf_size(path);
 	if (sj.size <= 0) {
 		sj.fresh = 1;
@@ -3025,7 +3025,7 @@ static int sj_open(void)
 	char path[200];
 	int h;
 	sj_size();
-	cache_path(sj.c, "DAT", path, sizeof(path));
+	cache_path(sj.c, "dat", path, sizeof(path));
 	if (sj.fresh) {
 		h = pf_open(path, PF_WRITE);
 		if (h >= 0 && pf_write(h, "CALCACHE 1\n", 11) != 11) {
@@ -3875,7 +3875,7 @@ void occ_search(OCCLIST *l, const char *text, CTIME from, CTIME to)
 static int cache_open(CALENDAR *c)
 {
 	char path[200];
-	cache_path(c, "DAT", path, sizeof(path));
+	cache_path(c, "dat", path, sizeof(path));
 	return pf_open(path, PF_READ);
 }
 

@@ -30,7 +30,7 @@ import urllib.request
 
 sys.path.insert(0, os.path.dirname(__file__))
 import rig  # noqa: E402
-from rig import K, SCAN  # noqa: E402
+from rig import K, SCAN, machines  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
@@ -71,7 +71,7 @@ def main():
     shutil.rmtree(work, ignore_errors=True)
     hd = os.path.join(work, "hd")
     os.makedirs(os.path.join(hd, "AUTO"))
-    os.makedirs(os.path.join(hd, "ECAL"))
+    os.makedirs(os.path.join(hd, "ecal"))
     os.makedirs(os.path.join(work, "srv"))
     with open(os.path.join(work, "srv", "users"), "w") as f:
         f.write("alice:wonderland\n")
@@ -119,25 +119,26 @@ def main():
          "END:VEVENT\r\nEND:VCALENDAR\r\n").encode(), "text/calendar")
 
     if a.prg:
-        shutil.copy(os.path.join(ROOT, "binary", "ECAL.PRG"), os.path.join(hd, "ECAL", "ECAL.PRG"))
+        shutil.copy(machines.ci_path(os.path.join(ROOT, "binary"), "ecal.prg"), os.path.join(hd, "ecal", "ecal.prg"))
     else:
-        shutil.copy(os.path.join(ROOT, "binary", "ECAL.ACC"),
-                    os.path.join(hd, "ECAL.ACC"))
+        shutil.copy(machines.ci_path(os.path.join(ROOT, "binary"), "ecal.acc"),
+                    os.path.join(hd, "ecal.acc"))
     if a.falcon_mode:
         # the Mozilla roots ECal ships, plus the test certificate, decoded here
-        with open(os.path.join(hd, "ECAL", "CACERT.PEM"), "wb") as f:
-            f.write(open(os.path.join(ROOT, "binary", "CACERT.PEM"), "rb").read() + open(cert, "rb").read())
-        subprocess.run([os.path.join(ROOT, "build", "mkroots"), os.path.join(hd, "ECAL", "CACERT.PEM"),
-                        os.path.join(hd, "ECAL", "ROOTS.DAT")], check=True, capture_output=True)
+        with open(os.path.join(hd, "ecal", "cacert.pem"), "wb") as f:
+            f.write(open(machines.ci_path(os.path.join(ROOT, "binary"), "cacert.pem"), "rb").read() +
+                    open(cert, "rb").read())
+        subprocess.run([os.path.join(ROOT, "build", "mkroots"), os.path.join(hd, "ecal", "cacert.pem"),
+                        os.path.join(hd, "ecal", "roots.dat")], check=True, capture_output=True)
         conn = "falcon=1\r\ndsp=1\r\n"
     else:
         conn = "gate=127.0.0.1\r\ngateport=%d\r\n" % GW
-    with open(os.path.join(hd, "ECAL", "ECAL.INF"), "w", newline="") as f:
+    with open(os.path.join(hd, "ecal", "ecal.inf"), "w", newline="") as f:
         f.write("home_tz=Asia/Jerusalem\r\nview_tz=Asia/Jerusalem\r\n%s"
                 "sync_open=1\r\nlog=1\r\n[account]\r\nname=Server\r\nkind=0\r\n"
                 "url=%s://127.0.0.1:%d/\r\nuser=alice\r\npass=wonderland\r\n" % (conn, SCHEME, RAD))
 
-    r = rig.Rig(work, a.machine, network=True, auto="C:\\ECAL\\ECAL.PRG" if a.prg else None)
+    r = rig.Rig(work, a.machine, network=True, auto="C:\\ecal\\ecal.prg" if a.prg else None)
     try:
         time.sleep(18)
         if not a.prg:
@@ -147,9 +148,9 @@ def main():
         time.sleep(150 if a.falcon_mode else 60)   # the first sync, over a serial line (and TLS)
         r.shot("n1-synced")
         cache = ""
-        for root, _, files in os.walk(os.path.join(hd, "ECAL")):
+        for root, _, files in os.walk(machines.ci_path(hd, "ecal")):
             for fn in files:
-                if fn.endswith(".DAT"):
+                if fn.lower().endswith(".dat"):
                     cache += open(os.path.join(root, fn), "rb").read().decode("utf-8", "replace")
         check("the server's Hebrew event arrived" + ("" if a.falcon_mode else " through the gateway"),
               "\u05de\u05e8\u05d5\u05d1\u05d4 \u05d4\u05e9\u05e8\u05ea" in cache)
@@ -164,7 +165,7 @@ def main():
         check("the Atari's event is on the server", "SUMMARY:From the Atari" in srv)
         check("with its zone", "TZID=Asia/Jerusalem" in srv)
         if a.falcon_mode:
-            log = open(os.path.join(hd, "ECAL", "ECAL.LOG"), "rb").read().decode("latin-1")
+            log = open(machines.ci_path(hd, "ecal/ecal.log"), "rb").read().decode("latin-1")
             check("Falcon mode: TLS on the Atari", "secure: TLS 1.2" in log)
             if a.machine.startswith("Falcon"):
                 check("the signature checked on the DSP", "signature on the DSP" in log)
@@ -181,8 +182,8 @@ def main():
             # File > Download everything again...: the copy, spoilt behind
             # ECal's back, comes from the server again (Refresh everything
             # would keep it: its etag still matches)
-            dats = [os.path.join(d, f) for d, _, fs in os.walk(os.path.join(hd, "ECAL")) for f in fs
-                    if f.endswith(".DAT")]
+            dats = [os.path.join(d, f) for d, _, fs in os.walk(machines.ci_path(hd, "ecal")) for f in fs
+                    if f.lower().endswith(".dat")]
             for p in dats:
                 b = open(p, "rb").read()
                 open(p, "wb").write(b.replace(b"From the Atari", b"From the Xtari"))
@@ -197,7 +198,7 @@ def main():
             cache = b"".join(open(p, "rb").read() for p in dats)
             check("Download everything again: the server's copy back",
                   b"From the Atari" in cache and b"From the Xtari" not in cache)
-        crash = [os.path.join(d, f) for d, _, fs in os.walk(hd) for f in fs if f.upper() == "CRASH.LOG"]
+        crash = [os.path.join(d, f) for d, _, fs in os.walk(hd) for f in fs if f.lower() == "crash.log"]
         check("no crash (CRASH.LOG)", not crash)
         for c in crash:
             print(open(c, "rb").read().decode("latin-1"))

@@ -22,7 +22,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(__file__))
 import ui_tour  # noqa: E402
-from rig import Rig, add_machine, is_st  # noqa: E402
+from rig import Rig, add_machine, is_st, machines  # noqa: E402
 
 ROOT = ui_tour.ROOT
 failed = 0
@@ -36,7 +36,7 @@ def check(what, ok):
 
 
 def set_start(folder, value):
-    inf = os.path.join(folder, "ECAL.INF")
+    inf = machines.ci_path(folder, "ecal.inf")
     with open(inf, newline="") as f:
         lines = f.read().split("\r\n")
     lines = [l for l in lines if not l.upper().startswith("START=")]
@@ -63,29 +63,31 @@ def main():
     a = ap.parse_args()
     hd = os.path.join(a.work, "hd")
     shutil.rmtree(a.work, ignore_errors=True)
-    folder = os.path.join(hd, "ECAL")
+    folder = os.path.join(hd, "ecal")
     os.makedirs(folder)
-    shutil.copy(os.path.join(ROOT, "binary", "ECAL.ACC"),
-                os.path.join(hd, "ECAL.ACC"))
+    shutil.copy(machines.ci_path(os.path.join(ROOT, "binary"), "ecal.acc"),
+                os.path.join(hd, "ecal.acc"))
     # an event 13 minutes on: its reminder (10 minutes before) comes in 3
     soon = time.localtime(time.time() + 13 * 60)
     ui_tour.seed(folder, more=lambda cli: cli("add", "0", "Tea with Dana", time.strftime("%Y%m%dT%H%M", soon), "30"))
     set_start(folder, "now")
-    idx = os.path.join(folder, "ALARMS.IDX")
     r = Rig(a.work, a.machine, auto=None)
     try:
         for _ in range(60):
             time.sleep(2)
+            idx = machines.ci_path(folder, "alarms.idx")
             if os.path.exists(idx) and b"Tea with Dana" in open(idx, "rb").read():
                 break
         r.shot("1-first-boot")
     finally:
         r.stop()
+    idx = machines.ci_path(folder, "alarms.idx")
     check("ALARMS.IDX written in the background", os.path.exists(idx))
     check("with the coming reminder", os.path.exists(idx) and b"Tea with Dana" in open(idx, "rb").read())
     # the second boot: nothing read but ALARMS.IDX
     set_start(folder, "opened")
-    before = {f: os.path.getmtime(os.path.join(folder, "CACHE", f)) for f in os.listdir(os.path.join(folder, "CACHE"))}
+    cache = machines.ci_path(folder, "cache")
+    before = {f: os.path.getmtime(os.path.join(cache, f)) for f in os.listdir(cache)}
     r = Rig(a.work, a.machine, auto=None)
     try:
         time.sleep(20)
@@ -99,7 +101,7 @@ def main():
         check("the reminder shown over the desktop (%.0f%% of the middle changed)" % (diff * 100), diff > 0.1)
     finally:
         r.stop()
-    after = {f: os.path.getmtime(os.path.join(folder, "CACHE", f)) for f in before}
+    after = {f: os.path.getmtime(os.path.join(cache, f)) for f in before}
     check("no calendar written", before == after)
     print("screenshots in", os.path.join(a.work, "shots"))
     print("alarm test: " + ("all passed" if not failed else "%d failed" % failed))

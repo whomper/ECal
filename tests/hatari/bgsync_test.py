@@ -33,6 +33,7 @@ import urllib.request
 
 sys.path.insert(0, os.path.dirname(__file__))
 import rig  # noqa: E402
+from rig import machines  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
@@ -100,7 +101,7 @@ def main():
     work = os.path.abspath(a.work)
     shutil.rmtree(work, ignore_errors=True)
     hd = os.path.join(work, "hd")
-    folder = os.path.join(hd, "ECAL")
+    folder = os.path.join(hd, "ecal")
     os.makedirs(os.path.join(hd, "AUTO"))
     os.makedirs(folder)
     os.makedirs(os.path.join(work, "srv"))
@@ -159,25 +160,26 @@ def main():
             subprocess.run([CLI, seed, "falcon", "1"], check=True, stdout=subprocess.DEVNULL)
         subprocess.run([CLI, seed, "caldav", "Server", "%s://127.0.0.1:%d/" % (SCHEME, RAD), "alice", "wonderland"],
                        check=True, stdout=subprocess.DEVNULL, env=env)
-        shutil.copy(os.path.join(seed, "ECAL.KEY"), os.path.join(folder, "ECAL.KEY"))
-        os.makedirs(os.path.join(folder, "CACHE"))
-        for f in os.listdir(os.path.join(seed, "CACHE")):
-            shutil.copy(os.path.join(seed, "CACHE", f), os.path.join(folder, "CACHE", f.upper()))
-        with open(os.path.join(seed, "ECAL.INF"), newline="") as f:
+        shutil.copy(machines.ci_path(seed, "ecal.key"), os.path.join(folder, "ecal.key"))
+        os.makedirs(os.path.join(folder, "cache"))
+        for f in os.listdir(machines.ci_path(seed, "cache")):
+            shutil.copy(os.path.join(machines.ci_path(seed, "cache"), f), os.path.join(folder, "cache", f.lower()))
+        with open(machines.ci_path(seed, "ecal.inf"), newline="") as f:
             lines = [l for l in f.read().split("\r\n")
                      if not l.upper().startswith(("START=", "SYNC_OPEN=", "SYNC_CLOSED=", "LOG=",
                                                   "GATE=", "GATEPORT=", "FALCON=", "DSP="))]
         i = next(k for k, l in enumerate(lines) if l.upper().startswith("FOLDER="))
-        lines[i] = "FOLDER=C:\\ECAL"
+        lines[i] = "FOLDER=C:\\ecal"
         conn = ["FALCON=1", "DSP=1"] if a.falcon_mode else ["GATE=127.0.0.1", "GATEPORT=%d" % GW]
         lines[i + 1:i + 1] = ["START=20", "SYNC_OPEN=0", "SYNC_CLOSED=1", "LOG=%d" % a.log] + conn
-        with open(os.path.join(hd, "ECAL.INF"), "w", newline="") as f:
+        with open(os.path.join(hd, "ecal.inf"), "w", newline="") as f:
             f.write("\r\n".join(lines))
         if a.falcon_mode:
-            with open(os.path.join(folder, "CACERT.PEM"), "wb") as f:
-                f.write(open(os.path.join(ROOT, "binary", "CACERT.PEM"), "rb").read() + open(cert, "rb").read())
-            subprocess.run([os.path.join(ROOT, "build", "mkroots"), os.path.join(folder, "CACERT.PEM"),
-                            os.path.join(folder, "ROOTS.DAT")], check=True, capture_output=True)
+            with open(os.path.join(folder, "cacert.pem"), "wb") as f:
+                f.write(open(machines.ci_path(os.path.join(ROOT, "binary"), "cacert.pem"), "rb").read() +
+                        open(cert, "rb").read())
+            subprocess.run([os.path.join(ROOT, "build", "mkroots"), os.path.join(folder, "cacert.pem"),
+                            os.path.join(folder, "roots.dat")], check=True, capture_output=True)
 
         # the server changes meanwhile
         soon = dt.datetime.combine(dt.date.today() + dt.timedelta(days=2), dt.time(10, 0))
@@ -189,9 +191,10 @@ def main():
         # changed and deleted: among those the Atari keeps (past one-off
         # events aren't copied)
         kept = []
-        for f in os.listdir(os.path.join(seed, "CACHE")):
-            if f.upper().endswith(".DAT"):
-                kept += re.findall(rb"^R [^\t]*\t/alice/work/w(\d+)\.ics\t", open(os.path.join(seed, "CACHE", f), "rb").read(), re.M)
+        for f in os.listdir(machines.ci_path(seed, "cache")):
+            if f.lower().endswith(".dat"):
+                kept += re.findall(rb"^R [^\t]*\t/alice/work/w(\d+)\.ics\t",
+                                   open(os.path.join(machines.ci_path(seed, "cache"), f), "rb").read(), re.M)
         kept = sorted(int(k) for k in kept)
         print("the server has %d events, the Atari a copy of %d" % (n_server, len(kept)))
         for i in kept[:2]:
@@ -200,8 +203,7 @@ def main():
         gone = "/alice/work/w%03d.ics" % kept[2]
         http("DELETE", gone)
 
-        acc = "ECAL.ACC"
-        shutil.copy(os.path.join(PROF, acc), os.path.join(hd, "ECAL.ACC"))
+        shutil.copy(machines.ci_path(PROF, "ecal.acc"), os.path.join(hd, "ecal.acc"))
         r = rig.Rig(work, a.machine, network=True, auto=None)
         time.sleep(secs)
         r.shot("desktop")
@@ -212,17 +214,17 @@ def main():
             p.terminate()
 
     cache = ""
-    for root, _, files in os.walk(os.path.join(folder, "CACHE")):
+    for root, _, files in os.walk(machines.ci_path(folder, "cache")):
         for fn in files:
-            if fn.endswith(".DAT"):
+            if fn.lower().endswith(".dat"):
                 cache += open(os.path.join(root, fn), "rb").read().decode("utf-8", "replace")
     check("the new events reached the cache", all(t in cache for t in (NEW_EVENT, "Second new", "Third new")))
     check("the changed ones too", cache.count("SUMMARY:Changed ") == 2)
     check("the deleted one marked gone", "X %s" % gone in cache)
-    idx = os.path.join(folder, "ALARMS.IDX")
+    idx = machines.ci_path(folder, "alarms.idx")
     check("the new event's reminder in ALARMS.IDX",
           os.path.exists(idx) and NEW_EVENT in open(idx, "rb").read().decode("latin-1"))
-    crash = [os.path.join(d, f) for d, _, fs in os.walk(hd) for f in fs if f.upper() == "CRASH.LOG"]
+    crash = [os.path.join(d, f) for d, _, fs in os.walk(hd) for f in fs if f.lower() == "crash.log"]
     check("no crash (CRASH.LOG)", not crash)
 
     log = open(os.path.join(work, "hatari.log"), errors="replace").read()

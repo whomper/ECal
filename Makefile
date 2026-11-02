@@ -2,7 +2,7 @@
 # Copyright (C) 2026 AERA | Erez Yaary
 # ECal - a calendar desk accessory for the Atari ST/STE/TT/Falcon, in C.
 #
-#   make            builds binary/ECAL.ACC (the desk accessory) and ECAL.PRG
+#   make            builds binary/ecal.acc (the desk accessory) and ecal.prg
 #                   (the same program, to start from the desktop) with a stock
 #                   m68k ELF cross compiler (Debian/Ubuntu: apt install
 #                   gcc-m68k-linux-gnu). No MiNTLib: the program is freestanding
@@ -10,9 +10,9 @@
 #   make test       builds the calendar core for this computer and runs the
 #                   unit tests; `make itest` also syncs with a local CalDAV
 #                   server (Radicale) directly and through the Pi gateway.
-#   make help       binary/ECAL.HYP, the guide for ST-Guide (needs hcp:
+#   make help       binary/ecal.hyp, the guide for ST-Guide (needs hcp:
 #                   common/tools/build-hcp.sh builds it)
-#   make dist       a release's files in dist/: each file, and ECAL-x.y.zip
+#   make dist       a release's files in dist/: each file, and ecal-x.y.zip
 #
 # binary/ is what make builds, never committed: releases carry the
 # programs (.github/workflows/release.yml, on a tag vX.Y).
@@ -77,11 +77,11 @@ HDRS    := $(wildcard src/*.h atari/*.h atari/include/*.h ui/*.h \
 # what goes onto the Atari: binary/ (built, never committed)
 BIN     := binary
 
-all: $(BIN)/ECAL.ACC $(BIN)/ECAL.PRG $(BIN)/TLS.OVL $(BIN)/ROOTS.DAT
+all: $(BIN)/ecal.acc $(BIN)/ecal.prg $(BIN)/tls.ovl $(BIN)/roots.dat
 
 # TLS.OVL: the family's, built in AERA-Atari and taken with common/,
 # never built here (the guidelines, 7.4)
-$(BIN)/TLS.OVL: common/tlsovl/TLS.OVL | $(BIN)
+$(BIN)/tls.ovl: common/tlsovl/tls.ovl | $(BIN)
 	cp $< $@
 
 # as 68000 code: no stores or loads joined into words (an odd address
@@ -99,9 +99,9 @@ $(OBJDIR)/st/%.o: $(BSSL)/src/codec/%.c
 # drawing by the CPU too (-DDLG_CPU: dialogs a third faster on an 8 MHz
 # ST); ECAL.ACC hasn't, the 5 KB more an accessory is a first boot can't
 # afford (the hub, 1 Nov 2026)
-$(BIN)/ECAL.ACC: $(OBJDIR)/cal.elf common/tools/elf2tos.py | $(BIN)
+$(BIN)/ecal.acc: $(OBJDIR)/cal.elf common/tools/elf2tos.py | $(BIN)
 	PRGFLAGS=7 python3 common/tools/elf2tos.py $< $@
-$(BIN)/ECAL.PRG: $(OBJDIR)/cal_prg.elf common/tools/elf2tos.py | $(BIN)
+$(BIN)/ecal.prg: $(OBJDIR)/cal_prg.elf common/tools/elf2tos.py | $(BIN)
 	PRGFLAGS=7 python3 common/tools/elf2tos.py $< $@
 
 # ECal's icon for the desktop: icons/, ui/icon*.h and docs/icon*.png, from
@@ -199,36 +199,40 @@ $(OBJDIR)/mkroots: common/tools/mkroots.c $(HOSTSRC) $(HDRS) $(HOSTLIB) | $(OBJD
 	$(HOSTCC) $(HOSTCFLAGS) -I$(BSSL)/inc -o $@ common/tools/mkroots.c $(HOSTSRC) $(HOSTLIB)
 
 # the root certificates: Mozilla's list, kept in common/
-$(BIN)/CACERT.PEM: common/certs/CACERT.PEM | $(BIN)
+$(BIN)/cacert.pem: common/certs/CACERT.PEM | $(BIN)
 	cp $< $@
 # made again, and mkroots with it, whenever common/ changes: the rigs use
 # build/mkroots too, and an old one wrote ROOTS.DAT in an old format
-$(BIN)/ROOTS.DAT: $(BIN)/CACERT.PEM $(OBJDIR)/mkroots
-	$(OBJDIR)/mkroots $(BIN)/CACERT.PEM $@
+$(BIN)/roots.dat: $(BIN)/cacert.pem $(OBJDIR)/mkroots
+	$(OBJDIR)/mkroots $(BIN)/cacert.pem $@
 
 # the help file for ST-Guide and HypView, from docs/GUIDE.md; needs hcp
 # (github.com/th-otto/hypview): make help HCP=/path/to/hcp
 HCP     ?= hcp
-help: $(BIN)/ECAL.HYP
-$(BIN)/ECAL.HYP: docs/GUIDE.md tools/guide2stg.py VERSION docs/front.json docs/help/WINDOW.IMG \
+help: $(BIN)/ecal.hyp
+$(BIN)/ecal.hyp: docs/GUIDE.md tools/guide2stg.py VERSION docs/front.json docs/help/WINDOW.IMG \
                  common/help/ECAL.IMG common/tools/helpfront.py common/tools/gemimg.py | $(OBJDIR) $(BIN)
 	python3 tools/guide2stg.py docs/GUIDE.md $(OBJDIR)/ECAL.STG VERSION
 	python3 common/tools/helpfront.py page docs/front.json $(OBJDIR)/ECAL.STG $(OBJDIR)/ECAL.STG
 	$(HCP) -o $@ $(OBJDIR)/ECAL.STG
 
 # a release's files: each one in dist/, and all of them in
-# dist/ECAL-x.y.zip (the icons in icons/), for the release workflow
-DIST    := $(BIN)/ECAL.ACC $(BIN)/ECAL.PRG $(BIN)/TLS.OVL $(BIN)/CACERT.PEM $(BIN)/ROOTS.DAT \
-           $(BIN)/ECAL.HYP $(BIN)/ECAL.REF
+# dist/ecal-x.y.zip (the icons in icons/), for the release workflow.
+# Every name in lowercase, the icons' too (the guidelines, 6.6)
+DIST    := $(BIN)/ecal.acc $(BIN)/ecal.prg $(BIN)/tls.ovl $(BIN)/cacert.pem $(BIN)/roots.dat \
+           $(BIN)/ecal.hyp $(BIN)/ecal.ref
 ICONS   := icons/ECAL.RSC icons/ECALNV.RSC icons/ECAL.ICN icons/ECALMK.ICN
 dist: all help
 	rm -rf dist
 	mkdir -p dist/zip/icons
-	cp $(DIST) $(ICONS) dist/
+	cp $(DIST) dist/
 	cp $(DIST) dist/zip/
-	cp $(ICONS) dist/zip/icons/
-	cd dist/zip && zip -q -9 -r ../ECAL-$(VERSION_STR).zip .
+	for f in $(ICONS); do b=$$(basename $$f | tr A-Z a-z); \
+		cp $$f dist/$$b; cp $$f dist/zip/icons/$$b; done
+	cd dist/zip && zip -q -9 -r ../ecal-$(VERSION_STR).zip .
 	rm -rf dist/zip
+	@if ls dist | grep -q '[A-Z]' || unzip -Z1 dist/ecal-$(VERSION_STR).zip | grep -q '[A-Z]'; then \
+		echo "dist: a name with capitals (the guidelines, 6.6)"; exit 1; fi
 
 # ---- fuzzing (the AERA guidelines, 7.1): what servers send, from
 # libFuzzer, with AddressSanitizer and UBSan. The network is

@@ -24,7 +24,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(__file__))
-from rig import Rig, K, SCAN  # noqa: E402
+from rig import Rig, K, SCAN, machines  # noqa: E402
 import ui_tour  # noqa: E402
 
 ROOT = ui_tour.ROOT
@@ -35,12 +35,12 @@ os.environ["AERA_TOS"] = "emutos"
 def contacts(hd):
     """EContact's CONTACTS.TXT in C:\\ECONTACT, and ECAL.INF reading it"""
     os.makedirs(os.path.join(hd, "ECONTACT"))
-    with open(os.path.join(hd, "ECONTACT", "CONTACTS.TXT"), "w", newline="") as f:
+    with open(os.path.join(hd, "ECONTACT", "contacts.txt"), "w", newline="") as f:
         f.write("; EContact's contacts\r\n"
                 "P\tAlex Morgan\talex.morgan@example.org\thome\r\n"
                 "P\tJo Lee\tjo@example.org\twork\r\n"
                 "P\tSam Taylor\tsam.taylor@example.net\twork\r\n")
-    inf = os.path.join(hd, "ECAL.INF")
+    inf = os.path.join(hd, "ecal.inf")
     t = re.sub(rb"\r\n(PEOPLEFILE|PEOPLEDIR)=[^\r\n]*", b"", open(inf, "rb").read())
     t = t.replace(b"[OPTIONS]\r\n", b"[OPTIONS]\r\nPEOPLEFILE=1\r\nPEOPLEDIR=C:\\ECONTACT\r\n", 1)
     open(inf, "wb").write(t)
@@ -51,7 +51,7 @@ def program(work, machine, shots):
     hd = os.path.join(work, "hd")
     shutil.rmtree(work, ignore_errors=True)
     os.makedirs(hd)
-    shutil.copy(os.path.join(BIN, "ECAL.PRG"), os.path.join(hd, "ECAL.PRG"))
+    shutil.copy(machines.ci_path(BIN, "ecal.prg"), os.path.join(hd, "ecal.prg"))
     ui_tour.seed(hd, english=True)
     contacts(hd)
     r = Rig(work, machine)

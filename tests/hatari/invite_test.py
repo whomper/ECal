@@ -24,7 +24,7 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 import ui_tour  # noqa: E402
 from people_test import cache_text  # noqa: E402
-from rig import Rig, K, add_machine, is_st  # noqa: E402
+from rig import Rig, K, add_machine, is_st, machines  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 AV = os.path.join(ROOT, "common", "tests", "av")
@@ -52,12 +52,11 @@ def main():
     subprocess.run(["make", "-s", "-C", AV, "build/THING.ACC"], check=True)
     shutil.copy(os.path.join(AV, "build", "THING.ACC"), os.path.join(hd, "THING.ACC"))
     if a.acc:
-        acc = "ECAL.ACC"
-        shutil.copy(os.path.join(ROOT, "binary", acc), os.path.join(hd, "ECAL.ACC"))
-        os.makedirs(os.path.join(hd, "ECAL"))
-        ui_tour.seed(os.path.join(hd, "ECAL"), english=True)
+        shutil.copy(machines.ci_path(os.path.join(ROOT, "binary"), "ecal.acc"), os.path.join(hd, "ecal.acc"))
+        os.makedirs(os.path.join(hd, "ecal"))
+        ui_tour.seed(os.path.join(hd, "ecal"), english=True)
     else:
-        shutil.copy(os.path.join(ROOT, "binary", "ECAL.PRG"), os.path.join(hd, "ECAL.PRG"))
+        shutil.copy(machines.ci_path(os.path.join(ROOT, "binary"), "ecal.prg"), os.path.join(hd, "ecal.prg"))
         ui_tour.seed(hd, english=True)
     day = (dt.date.today() + dt.timedelta(days=3)).strftime("%Y%m%d")
     with open(os.path.join(hd, "INVITE.ICS"), "w", newline="") as f:
@@ -68,7 +67,7 @@ def main():
                 "END:VEVENT\r\nEND:VCALENDAR\r\n" % (UID, day, day, TITLE))
     with open(os.path.join(hd, "AVSEND.TXT"), "w", newline="") as f:
         f.write("await GO.TXT\r\nsend ECAL|C:\\INVITE.ICS\r\n")
-    r = Rig(work, a.machine, auto=None if a.acc else "C:\\ECAL.PRG")
+    r = Rig(work, a.machine, auto=None if a.acc else "C:\\ecal.prg")
     try:
         r.wait(25)
         r.shot("1-before")
@@ -97,7 +96,7 @@ def main():
     check("with its place", "LOCATION:Room 4" in ev)
     check("the organiser kept", "ORGANIZER;CN=Alice:mailto:alice@example.org" in ev)
     check("no METHOD in the calendar's copy", "METHOD:" not in t)
-    crash = [f for d, _, fs in os.walk(hd) for f in fs if f.upper() == "CRASH.LOG"]
+    crash = [f for d, _, fs in os.walk(hd) for f in fs if f.lower() == "crash.log"]
     check("no crash (CRASH.LOG)", not crash)
     print("invite test:", "all passed" if not fails else "%d failed" % len(fails))
     return 1 if fails else 0

@@ -18,7 +18,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(__file__))
-from rig import Rig, K, add_machine  # noqa: E402
+from rig import Rig, K, add_machine, machines  # noqa: E402
 import ui_tour  # noqa: E402
 
 ROOT = ui_tour.ROOT
@@ -28,12 +28,12 @@ def run(work, machine, guide, hyp):
     hd = os.path.join(work, "hd")
     shutil.rmtree(work, ignore_errors=True)
     os.makedirs(hd)
-    shutil.copy(os.path.join(ROOT, "binary", "ECAL.PRG"), os.path.join(hd, "ECAL.PRG"))
+    shutil.copy(machines.ci_path(os.path.join(ROOT, "binary"), "ecal.prg"), os.path.join(hd, "ecal.prg"))
     ui_tour.seed(hd, english=True)
     if guide:
         shutil.copy(os.path.join(ROOT, "build", "ST-GUIDE.ACC"), hd)
     if hyp:
-        shutil.copy(os.path.join(ROOT, "binary", "ECAL.HYP"), hd)
+        shutil.copy(machines.ci_path(os.path.join(ROOT, "binary"), "ecal.hyp"), os.path.join(hd, "ecal.hyp"))
     r = Rig(work, machine)
     try:
         time.sleep(14)
@@ -53,11 +53,11 @@ def main():
     a = ap.parse_args()
     work = a.work
     ok = True
-    for name, guide, hyp, want in (("with-hyp", True, True, "C:\\ECAL.HYP"),
-                                   ("no-hyp", True, False, "*:\\ECAL.HYP"),
+    for name, guide, hyp, want in (("with-hyp", True, True, "C:\\ecal.hyp"),
+                                   ("no-hyp", True, False, "*:\\ecal.hyp"),
                                    ("no-guide", False, True, None)):
         got = run(os.path.join(work, name), a.machine, guide, hyp)
-        good = got == want
+        good = got == want or bool(got and want and got.lower() == want.lower())
         ok &= good
         print("%-9s %s: ST-Guide got %r" % (name, "ok" if good else "FAILED", got))
     print("screenshots in", os.path.join(work, "*", "shots"))

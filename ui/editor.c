@@ -699,7 +699,7 @@ static void invite(void)
 		   in the memory left (the dialog holds it whole while open) */
 		char path[200];
 		long size = 0;
-		snprintf(path, sizeof(path), "%s\\CONTACTS.TXT", opt.peopledir);
+		snprintf(path, sizeof(path), "%s\\contacts.txt", opt.peopledir);
 		pf_info(path, &size);
 		alert(1, is_acc ? "[1][EContact's contacts file|(%ld KB) doesn't fit in|ECal's memory now.|HEAPKB= in ECAL.INF gives|the accessory more.][ OK ]"
 					: "[1][EContact's contacts file|(%ld KB) doesn't fit in|ECal's memory now.][ OK ]",

@@ -20,7 +20,7 @@ import ui_tour  # noqa: E402
 from notes_test import open_cache  # noqa: E402
 from people_test import ADD_X, ADD_Y  # noqa: E402
 from peoplefile_test import MONO_ADD  # noqa: E402
-from rig import Rig, K, SCAN, add_machine, is_st  # noqa: E402
+from rig import Rig, K, SCAN, add_machine, is_st, machines  # noqa: E402
 
 TITLE = " ".join("word%02d" % i for i in range(1, 14)) + " end of it"   # 100 characters
 ADDRESS = "firstname.middlename.lastname@department-of-long-names.example-university.org"
@@ -45,15 +45,14 @@ def main():
     hd = os.path.join(work, "hd")
     os.makedirs(hd)
     if a.acc:
-        acc = "ECAL.ACC"
-        shutil.copy(os.path.join(ui_tour.ROOT, "binary", acc), os.path.join(hd, "ECAL.ACC"))
-        top = os.path.join(hd, "ECAL")
+        shutil.copy(machines.ci_path(os.path.join(ui_tour.ROOT, "binary"), "ecal.acc"), os.path.join(hd, "ecal.acc"))
+        top = os.path.join(hd, "ecal")
         os.makedirs(top)
     else:
-        shutil.copy(os.path.join(ui_tour.ROOT, "binary", "ECAL.PRG"), os.path.join(hd, "ECAL.PRG"))
+        shutil.copy(machines.ci_path(os.path.join(ui_tour.ROOT, "binary"), "ecal.prg"), os.path.join(hd, "ecal.prg"))
         top = hd
     ui_tour.seed(top, english=True)
-    r = Rig(work, a.machine, auto=None if a.acc else "C:\\ECAL.PRG")
+    r = Rig(work, a.machine, auto=None if a.acc else "C:\\ecal.prg")
     try:
         r.wait(16)
         if a.acc:
@@ -92,7 +91,7 @@ def main():
     check("the title whole, a letter at each end (%d characters)" % len(whole), "SUMMARY:" + whole in t)
     check("Location: the whole title, copied and pasted", "LOCATION:" + whole in t)
     check("the address whole (%d characters)" % len(ADDRESS), "mailto:" + ADDRESS in t.replace("\r\n ", ""))
-    crash = [f for d, _, fs in os.walk(hd) for f in fs if f.upper() == "CRASH.LOG"]
+    crash = [f for d, _, fs in os.walk(hd) for f in fs if f.lower() == "crash.log"]
     check("no crash (CRASH.LOG)", not crash)
     print("screenshots in", os.path.join(work, "shots"))
     print("field test:", "all passed" if not fails else "%d failed" % len(fails))

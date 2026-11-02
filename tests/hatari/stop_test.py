@@ -27,7 +27,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(__file__))
 import rig  # noqa: E402
-from rig import K  # noqa: E402
+from rig import K, machines  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
@@ -72,7 +72,7 @@ def main():
     shutil.rmtree(work, ignore_errors=True)
     hd = os.path.join(work, "hd")
     os.makedirs(os.path.join(hd, "AUTO"))
-    os.makedirs(os.path.join(hd, "ECAL"))
+    os.makedirs(os.path.join(hd, "ecal"))
     fails = []
 
     def check(what, ok):
@@ -82,13 +82,12 @@ def main():
 
     stop = threading.Event()
     threading.Thread(target=silent_server, args=(stop,), daemon=True).start()
-    shutil.copy(os.path.join(ROOT, "binary", "ECAL.ACC"), os.path.join(hd, "ECAL.ACC"))
-    with open(os.path.join(hd, "ECAL", "ECAL.INF"), "w", newline="") as f:
+    shutil.copy(machines.ci_path(os.path.join(ROOT, "binary"), "ecal.acc"), os.path.join(hd, "ecal.acc"))
+    with open(os.path.join(hd, "ecal", "ecal.inf"), "w", newline="") as f:
         f.write("home_tz=Asia/Jerusalem\r\nview_tz=Asia/Jerusalem\r\ngate=127.0.0.1\r\ngateport=%d\r\n"
                 "sync_open=1\r\nlog=1\r\n[account]\r\nname=Server\r\nkind=0\r\n"
                 "url=http://127.0.0.1:15232/\r\nuser=alice\r\npass=wonderland\r\n" % GW)
     r = rig.Rig(work, a.machine, network=True, auto=None)
-    log = os.path.join(hd, "ECAL", "ECAL.LOG")
     try:
         time.sleep(18)
         r.click(18, 8)                  # the Desk menu: ECal, which refreshes at once
@@ -103,6 +102,7 @@ def main():
         stopped = None
         while time.time() - pressed < 50 and stopped is None:
             time.sleep(1)
+            log = machines.ci_path(hd, "ecal/ecal.log")
             text = open(log, encoding="latin-1").read() if os.path.exists(log) else ""
             if "stopped" in text:
                 stopped = time.time() - pressed
@@ -115,6 +115,7 @@ def main():
     finally:
         r.stop()
         stop.set()
+    log = machines.ci_path(hd, "ecal/ecal.log")
     text = open(log, encoding="latin-1").read() if os.path.exists(log) else ""
     check("no timeout", "timed out" not in text)
     check("Ctrl+N typed meanwhile opened New Event (its alert: no calendar to add to)",

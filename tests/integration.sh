@@ -193,7 +193,7 @@ if [ -n "${FALCON:-}" ]; then
   echo "(Falcon mode: TLS in ECal)"
 fi
 "$CLI" "$D" zone Asia/Jerusalem
-export CAL_LOG=$W/ECAL.LOG
+export CAL_LOG=$W/ecal.log
 
 # a one-off event before today: not copied (nothing from the past is)
 put home/past.ics <<ICS >/dev/null
@@ -248,7 +248,7 @@ expect "second sync is quiet" "0 calendars changed" "$out"
 echo "== download everything again"
 # the Atari's copy spoilt behind ECal's back, the server's unchanged: only
 # "again" fetches it, as the others keep a copy whose etag matches
-sed -i 's/Design review/Design reviex/' "$D"/CACHE/*.DAT
+sed -i 's/Design review/Design reviex/' "$D"/cache/*.dat
 expect "the spoilt copy" "Design reviex" "$("$CLI" "$D" list $(d 20261013) $(d 20261014))"
 "$CLI" "$D" sync force >/dev/null
 expect "kept by Refresh everything" "Design reviex" "$("$CLI" "$D" list $(d 20261013) $(d 20261014))"
@@ -532,7 +532,7 @@ put_many "Changed"
 bg=$("$CLI" "$D" bgsync $(d 20261125) $(d 20261126)) || bad "bgsync changed"
 n=$(grep -c "Changed" <<<"$bg" || true)
 if [ "$n" = 36 ]; then ok "36 changed in the background"; else bad "$n of 36 changed"; fi
-dat=$(grep -rl "many-1@test" "$D" --include="*.DAT")
+dat=$(grep -rl "many-1@test" "$D" --include="*.dat")
 n=$(grep -c "^R .*many-" "$dat" || true)
 if [ "$n" = 36 ]; then ok "the cache written anew, one copy each"; else bad "$n copies in the cache"; fi
 fresh=$("$CLI" "$D" list $(d 20261125) $(d 20261126))

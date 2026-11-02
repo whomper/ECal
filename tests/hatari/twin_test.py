@@ -28,7 +28,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(__file__))
-from rig import Rig, SCAN, add_machine  # noqa: E402
+from rig import Rig, SCAN, add_machine, machines  # noqa: E402
 import ui_tour  # noqa: E402
 
 ROOT = ui_tour.ROOT
@@ -71,18 +71,18 @@ def main():
     os.environ["AERA_TOS"] = "emutos"   # the desktop's places are EmuTOS's (above)
     hd = os.path.join(a.work, "hd")
     shutil.rmtree(a.work, ignore_errors=True)
-    folder = os.path.join(hd, "ECAL")
+    folder = os.path.join(hd, "ecal")
     os.makedirs(folder)
-    shutil.copy(os.path.join(ROOT, "binary", "ECAL.ACC"), os.path.join(hd, "ECAL.ACC"))
-    shutil.copy(os.path.join(ROOT, "binary", "ECAL.PRG"), os.path.join(folder, "ECAL.PRG"))
+    shutil.copy(machines.ci_path(os.path.join(ROOT, "binary"), "ecal.acc"), os.path.join(hd, "ecal.acc"))
+    shutil.copy(machines.ci_path(os.path.join(ROOT, "binary"), "ecal.prg"), os.path.join(folder, "ecal.prg"))
     ui_tour.seed(folder)
     # ECAL.INF in the root, FOLDER= naming the program's folder; a log
-    with open(os.path.join(folder, "ECAL.INF"), newline="") as f:
+    with open(os.path.join(folder, "ecal.inf"), newline="") as f:
         inf = f.read()
-    os.remove(os.path.join(folder, "ECAL.INF"))
-    with open(os.path.join(hd, "ECAL.INF"), "w", newline="") as f:
+    os.remove(os.path.join(folder, "ecal.inf"))
+    with open(os.path.join(hd, "ecal.inf"), "w", newline="") as f:
         inf = re.sub(r"(?im)^HEBDATES=0", "HEBDATES=1", inf)
-        f.write("FOLDER=C:\\ECAL\r\n" + re.sub(r"(?im)^LOG=0", "LOG=1", inf))
+        f.write("FOLDER=C:\\ecal\r\n" + re.sub(r"(?im)^LOG=0", "LOG=1", inf))
     shots = os.path.join(a.work, "shots")
     r = Rig(a.work, a.machine, auto=None)
     try:
@@ -132,14 +132,14 @@ def main():
     if all(os.path.exists(s(n)) for n in ("2-program", "5-acc-chosen")):
         check(same(s("2-program"), s("5-acc-chosen")) > 0.97,
               "ECal chosen in the Desk menu while ECAL.PRG runs: no second window")
-    log = os.path.join(folder, "ECAL.LOG")
+    log = machines.ci_path(folder, "ecal.log")
     text = open(log, errors="replace").read() if os.path.exists(log) else ""
     check("the files changed since ECal last wrote them" in text,
           "the accessory read the files again after the program changed ECAL.INF")
-    with open(os.path.join(hd, "ECAL.INF"), newline="") as f:
+    with open(machines.ci_path(hd, "ecal.inf"), newline="") as f:
         got = f.read()
     check("HEBDATES=0" in got, "the program wrote HEBDATES=0")
-    check(not os.path.exists(os.path.join(hd, "ECAL.IN$")), "no ECAL.IN$ left behind")
+    check(not any(f.lower() == "ecal.in$" for f in os.listdir(hd)), "no ECAL.IN$ left behind")
     print("%d failed" % failed)
     sys.exit(1 if failed else 0)
 

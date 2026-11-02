@@ -25,7 +25,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 import ui_tour  # noqa: E402
-from rig import Rig, K, SCAN, add_machine  # noqa: E402
+from rig import Rig, K, SCAN, add_machine, machines  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 UNDO = 0x61
@@ -54,9 +54,9 @@ def files(hd):
     out = {}
     for root, _, names in os.walk(hd):
         for n in names:
-            if n.upper() == "ECAL.INF" or n.upper().endswith((".DAT", ".ICS")):
+            if n.lower() == "ecal.inf" or n.lower().endswith((".dat", ".ics")):
                 p = os.path.join(root, n)
-                out[os.path.relpath(p, hd)] = hashlib.sha1(open(p, "rb").read()).hexdigest()
+                out[os.path.relpath(p, hd).lower()] = hashlib.sha1(open(p, "rb").read()).hexdigest()
     return out
 
 
@@ -69,7 +69,7 @@ def main():
     shutil.rmtree(work, ignore_errors=True)
     hd = os.path.join(work, "hd")
     os.makedirs(hd)
-    shutil.copy(os.path.join(ROOT, "binary", "ECAL.PRG"), os.path.join(hd, "ECAL.PRG"))
+    shutil.copy(machines.ci_path(os.path.join(ROOT, "binary"), "ecal.prg"), os.path.join(hd, "ecal.prg"))
     ui_tour.seed(hd, english=True)
     r = Rig(work, a.machine)
     try:
@@ -132,7 +132,7 @@ def main():
         r.shot("6-end")
     finally:
         r.stop()
-    crash = [os.path.join(d, f) for d, _, fs in os.walk(hd) for f in fs if f.upper() == "CRASH.LOG"]
+    crash = [os.path.join(d, f) for d, _, fs in os.walk(hd) for f in fs if f.lower() == "crash.log"]
     check("no crash (CRASH.LOG)", not crash)
     print("screenshots in", os.path.join(work, "shots"))
     print("esc test:", "all passed" if not fails else "%d failed" % len(fails))

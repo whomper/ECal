@@ -735,11 +735,11 @@ static void test_alarms_idx(void)
 		unsigned long h1, h2;
 		f2[0] = dir;
 		pf_mkdir("/tmp/ecal-unit-cache");
-		CHECK(pf_save("/tmp/ecal-unit-cache/CAL00001.DAT", "one", 3) == 0);
+		CHECK(pf_save("/tmp/ecal-unit-cache/cal00001.dat", "one", 3) == 0);
 		h1 = alarms_stamp_add(ALARM_STAMP0, dir);
-		CHECK(pf_save("/tmp/ecal-unit-cache/CAL00001.NEW", "x", 1) == 0);
+		CHECK(pf_save("/tmp/ecal-unit-cache/cal00001.new", "x", 1) == 0);
 		CHECK(alarms_stamp_add(ALARM_STAMP0, dir) == h1);
-		CHECK(pf_save("/tmp/ecal-unit-cache/CAL00002.ICS", "two", 3) == 0);
+		CHECK(pf_save("/tmp/ecal-unit-cache/cal00002.ics", "two", 3) == 0);
 		h2 = alarms_stamp_add(ALARM_STAMP0, dir);
 		CHECK(h2 != h1);
 		/* the check done with a stamp taken by the caller */
@@ -755,9 +755,9 @@ static void test_alarms_idx(void)
 		CHECK(alarms_load(idx, b + 10, &on, &h24));
 		alarms_verify_with(f2, 1, h1);	/* changed since */
 		CHECK(!alarms_verified && alarm_n == 0);
-		pf_remove("/tmp/ecal-unit-cache/CAL00001.DAT");
-		pf_remove("/tmp/ecal-unit-cache/CAL00001.NEW");
-		pf_remove("/tmp/ecal-unit-cache/CAL00002.ICS");
+		pf_remove("/tmp/ecal-unit-cache/cal00001.dat");
+		pf_remove("/tmp/ecal-unit-cache/cal00001.new");
+		pf_remove("/tmp/ecal-unit-cache/cal00002.ics");
 		rmdir("/tmp/ecal-unit-cache");
 		pf_remove(idx);
 	}

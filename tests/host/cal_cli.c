@@ -210,9 +210,9 @@ int main(int argc, char **argv)
 		str_copy(conn_logfile, getenv("CAL_LOG"), sizeof(conn_logfile));
 	if (getenv("CACERT")) {
 		str_copy(conn_cacert, getenv("CACERT"), sizeof(conn_cacert));
-		path_join(tls_roots_cache, sizeof(tls_roots_cache), dir, "ROOTS.DAT");
+		path_join(tls_roots_cache, sizeof(tls_roots_cache), dir, "roots.dat");
 	}
-	path_join(tls_seed_path, sizeof(tls_seed_path), dir, "SEED.DAT");
+	path_join(tls_seed_path, sizeof(tls_seed_path), dir, "seed.dat");
 	tls_read_at = pf_read_at;	/* as the accessory: CAL_FILECHECK holds in Falcon mode too */
 	tls_file_info = pf_info;
 	pf_size_open = pf_handle_size;
@@ -278,7 +278,7 @@ int main(int argc, char **argv)
 				if (accts[cals[i].acct].kind != AK_SUBSCR) {
 					char p[300];
 					FILE *f;
-					snprintf(p, sizeof(p), "%s/CACHE/CAL%05d.DAT", dir, cals[i].id);
+					snprintf(p, sizeof(p), "%s/cache/cal%05d.dat", dir, cals[i].id);
 					if ((f = fopen(p, "ab")))
 						fputs("X nothing-here\n", f), fclose(f);	/* a deletion of nothing */
 				}

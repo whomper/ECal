@@ -14,7 +14,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(__file__))
-from rig import Rig, K, SCAN, add_machine, is_st  # noqa: E402
+from rig import Rig, K, SCAN, add_machine, is_st, machines  # noqa: E402
 import ui_tour  # noqa: E402
 from font_acc import changed, wait_still, menu_button  # noqa: E402
 
@@ -40,19 +40,18 @@ def main():
         os.makedirs(hd)
     else:
         shutil.rmtree(os.path.join(work, "shots"), ignore_errors=True)
-    acc = "ECAL.ACC"
     binary = os.path.join(ROOT, "binary")
     if a.prg:
-        shutil.copy(os.path.join(binary, "ECAL.PRG"), os.path.join(hd, "ECAL.PRG"))
+        shutil.copy(machines.ci_path(binary, "ecal.prg"), os.path.join(hd, "ecal.prg"))
         folder = hd
     else:
-        shutil.copy(os.path.join(binary, acc), os.path.join(hd, "ECAL.ACC"))
-        folder = os.path.join(hd, "ECAL")
+        shutil.copy(machines.ci_path(binary, "ecal.acc"), os.path.join(hd, "ecal.acc"))
+        folder = machines.ci_path(hd, "ecal")      # (--keep: as the last run left it)
         os.makedirs(folder, exist_ok=True)
     if not keep:
         ui_tour.seed(folder)
     if a.fnt:
-        shutil.copy(a.fnt, os.path.join(folder, "ECAL.FNT"))
+        shutil.copy(a.fnt, machines.ci_path(folder, "ecal.fnt"))
 
     def open_acc():
         r.click(18, 8)
@@ -79,7 +78,7 @@ def main():
         time.sleep(3)
         return one
 
-    r = Rig(work, a.machine, auto="C:\\ECAL.PRG" if a.prg else None)
+    r = Rig(work, a.machine, auto="C:\\ecal.prg" if a.prg else None)
     t0 = time.time()
     try:
         time.sleep(10)
@@ -142,9 +141,9 @@ def main():
         r.shot("99-end")
     finally:
         r.stop()
-    fnt = os.path.join(folder, "ECAL.FNT")
+    fnt = machines.ci_path(folder, "ecal.fnt")
     if os.path.exists(fnt):
-        shutil.copy(fnt, os.path.join(work, "ECAL.FNT"))
+        shutil.copy(fnt, os.path.join(work, "ecal.fnt"))
     print("screenshots in", os.path.join(work, "shots"))
 
 

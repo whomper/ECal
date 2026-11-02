@@ -27,7 +27,7 @@ for big in "" --big; do
   "$CLI" "$W/d" sliced 20260101 20280101 2>/dev/null | cmp -s - "$W/ref" ||
     { echo "${big:-bigcal}: the collect in steps differs"; exit 1; }
   for off in 60 3000 7000; do
-    f=$(ls "$W/d/CACHE/"*.SNP | head -1)
+    f=$(ls "$W/d/cache/"*.snp | head -1)
     printf 'Z' | dd of="$f" bs=1 seek=$off conv=notrunc 2>/dev/null
     "$CLI" "$W/d" list 20260101 20280101 | cmp -s - "$W/ref" ||
       { echo "snapshot damaged at byte $off: not the same events"; exit 1; }

@@ -35,7 +35,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 import ui_tour  # noqa: E402
 from people_test import (cache_text, text_width, fetch_econtact, econtact, menu_entry_width,  # noqa: E402
                          ADD_X, ADD_Y, PEOPLE_BOX, MONO_ADD, MONO_PEOPLE_BOX)
-from rig import Rig, K, SCAN, add_machine, is_st  # noqa: E402
+from rig import Rig, K, SCAN, add_machine, is_st, machines  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 fails = []
@@ -50,7 +50,7 @@ def check(what, ok):
 def contacts_file(hd, suffix="", cards=0, folder="ECONTACT"):
     folder = os.path.join(hd, folder)
     os.makedirs(folder, exist_ok=True)
-    with open(os.path.join(folder, "CONTACTS.TXT"), "w", newline="") as f:
+    with open(os.path.join(folder, "contacts.txt"), "w", newline="") as f:
         f.write("; EContact's contacts, for EMail and ECal when EContact isn't loaded\r\n")
         f.write("P\tAlice Archer%s\talice@example.org\thome\r\n" % suffix)
         f.write("P\tAvi Levi%s\tavi@example.org\twork\r\n" % suffix)
@@ -79,19 +79,19 @@ def main():
     shutil.rmtree(work, ignore_errors=True)
     hd = os.path.join(work, "hd")
     os.makedirs(hd)
-    top = os.path.join(hd, "ECAL") if a.acc else hd
+    top = os.path.join(hd, "ecal") if a.acc else hd
     if a.acc:
-        shutil.copy(os.path.join(ROOT, "binary", "ECAL.ACC"),
-                    os.path.join(hd, "ECAL.ACC"))
+        shutil.copy(machines.ci_path(os.path.join(ROOT, "binary"), "ecal.acc"),
+                    os.path.join(hd, "ecal.acc"))
         os.makedirs(top)
     else:
-        shutil.copy(os.path.join(ROOT, "binary", "ECAL.PRG"), os.path.join(hd, "ECAL.PRG"))
+        shutil.copy(machines.ci_path(os.path.join(ROOT, "binary"), "ecal.prg"), os.path.join(hd, "ecal.prg"))
 
     def more(cli):
         cli("add", "1", "Budget talk", time.strftime("%Y%m%d") + "T1600", "30")
         cli("invite", "Budget talk", "alice@example.org")
     ui_tour.seed(top, english=True, more=more)
-    inf = os.path.join(top, "ECAL.INF")
+    inf = os.path.join(top, "ecal.inf")
     t = re.sub(rb"\r\n(PEOPLEFILE|PEOPLEDIR)=[^\r\n]*", b"", open(inf, "rb").read())   # the last one counts
     if a.heapkb:
         t = re.sub(rb"\r\n(HEAPKB|MEMKB)=[^\r\n]*", b"", t)
@@ -103,8 +103,8 @@ def main():
     t = t.replace(b"[OPTIONS]\r\n", b"[OPTIONS]\r\nPEOPLEFILE=1\r\nPEOPLEDIR=C:\\" + dirname.encode() + b"\r\n", 1)
     if a.acc:       # in the root, where the accessory reads HEAPKB= at boot, naming its folder
         os.remove(inf)
-        inf = os.path.join(hd, "ECAL.INF")
-        t = re.sub(rb"\r\nFOLDER=[^\r\n]*", lambda m: b"\r\nFOLDER=C:\\ECAL", t)
+        inf = os.path.join(hd, "ecal.inf")
+        t = re.sub(rb"\r\nFOLDER=[^\r\n]*", lambda m: b"\r\nFOLDER=C:\\ecal", t)
     open(inf, "wb").write(t)
     tag = None
     if a.econtact:
@@ -114,10 +114,10 @@ def main():
         contacts_file(hd, " FILE", folder=dirname)  # names EContact doesn't have: never to be seen
     else:
         contacts_file(hd, cards=a.cards)
-    cfile = os.path.join(hd, dirname, "CONTACTS.TXT")
+    cfile = machines.ci_path(hd, dirname + "/contacts.txt")
     print("CONTACTS.TXT: %d KB" % ((os.path.getsize(cfile) + 1023) // 1024))
     os.utime(cfile, (1, os.stat(cfile).st_mtime))   # its access time: read or not
-    r = Rig(work, a.machine, auto=None if a.acc else "C:\\ECAL.PRG")
+    r = Rig(work, a.machine, auto=None if a.acc else "C:\\ecal.prg")
     try:
         r.wait(20)
         if a.acc:
@@ -222,7 +222,7 @@ def main():
         check("the file never read", os.stat(cfile).st_atime < 10)
     else:
         check("Alice by her name from the file (%d px)" % w, w in range(90, 100))
-    crash = [os.path.join(d, f) for d, _, fs in os.walk(hd) for f in fs if f.upper() == "CRASH.LOG"]
+    crash = [os.path.join(d, f) for d, _, fs in os.walk(hd) for f in fs if f.lower() == "crash.log"]
     check("no crash (CRASH.LOG)", not crash)
     print("screenshots in", shots)
     print("people file test%s:" % (", with EContact %s" % tag if tag else ""),

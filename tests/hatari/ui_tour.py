@@ -19,7 +19,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(__file__))
-from rig import Rig, K, SCAN, add_machine  # noqa: E402
+from rig import Rig, K, SCAN, add_machine, machines  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 CLI = os.path.join(ROOT, "build", "cal-cli")
@@ -51,17 +51,17 @@ def seed(hd, english=False, more=None):
     if more:
         more(cli)
     # the files as the Atari keeps them: ECAL.INF and CACHE\ next to the program
-    shutil.copy(os.path.join(d, "ECAL.INF"), os.path.join(hd, "ECAL.INF"))
-    shutil.copy(os.path.join(d, "ECAL.KEY"), os.path.join(hd, "ECAL.KEY"))
-    os.makedirs(os.path.join(hd, "CACHE"), exist_ok=True)
-    for f in os.listdir(os.path.join(d, "CACHE")):
-        shutil.copy(os.path.join(d, "CACHE", f), os.path.join(hd, "CACHE", f.upper()))
+    shutil.copy(machines.ci_path(d, "ecal.inf"), os.path.join(hd, "ecal.inf"))
+    shutil.copy(machines.ci_path(d, "ecal.key"), os.path.join(hd, "ecal.key"))
+    os.makedirs(os.path.join(hd, "cache"), exist_ok=True)
+    for f in os.listdir(machines.ci_path(d, "cache")):
+        shutil.copy(os.path.join(machines.ci_path(d, "cache"), f), os.path.join(hd, "cache", f.lower()))
     shutil.rmtree(d)
     # no refreshing at start: there is no network here
-    with open(os.path.join(hd, "ECAL.INF"), "a") as f:
+    with open(os.path.join(hd, "ecal.inf"), "a") as f:
         f.write("sync_open=0\r\n")
     if english:
-        inf = os.path.join(hd, "ECAL.INF")
+        inf = os.path.join(hd, "ecal.inf")
         with open(inf, newline="") as f:
             t = f.read()
         with open(inf, "w", newline="") as f:
@@ -72,12 +72,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("work")
     add_machine(ap, "Falcon")
-    ap.add_argument("--prg", default="ECAL.PRG")
+    ap.add_argument("--prg", default="ecal.prg")
     a = ap.parse_args()
     hd = os.path.join(a.work, "hd")
     shutil.rmtree(a.work, ignore_errors=True)
     os.makedirs(hd)
-    shutil.copy(os.path.join(ROOT, "binary", a.prg), os.path.join(hd, "ECAL.PRG"))
+    shutil.copy(machines.ci_path(os.path.join(ROOT, "binary"), a.prg), os.path.join(hd, "ecal.prg"))
     seed(hd)
     r = Rig(a.work, a.machine)
     try:

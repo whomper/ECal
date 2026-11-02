@@ -29,7 +29,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(__file__))
-from rig import Rig, K, SCAN, add_machine, is_st  # noqa: E402
+from rig import Rig, K, SCAN, add_machine, is_st, machines  # noqa: E402
 import ui_tour  # noqa: E402
 
 ROOT = ui_tour.ROOT
@@ -143,14 +143,14 @@ def main():
                         "ECal@" + a.release, binary, acc, "ECAL.PRG"], check=True)
     print("ECal from", a.release or binary)
     if a.prg:
-        shutil.copy(os.path.join(binary, "ECAL.PRG"), os.path.join(hd, "ECAL.PRG"))
+        shutil.copy(machines.ci_path(binary, "ecal.prg"), os.path.join(hd, "ecal.prg"))
         folder = hd
     else:
-        shutil.copy(os.path.join(binary, acc), os.path.join(hd, "ECAL.ACC"))
-        folder = os.path.join(hd, "ECAL")
+        shutil.copy(machines.ci_path(binary, "ecal.acc"), os.path.join(hd, "ecal.acc"))
+        folder = os.path.join(hd, "ecal")
         os.makedirs(folder)
     ui_tour.seed(folder)
-    inf = os.path.join(folder, "ECAL.INF")
+    inf = os.path.join(folder, "ecal.inf")
     # no reminders: the seed's lunch at 12:30 today put its alert over the
     # toolbar's menu when the rig ran just before it
     with open(inf, "a") as f:
@@ -176,7 +176,7 @@ def main():
         time.sleep(6)
         wait_still(r, "opening", 60)
 
-    r = Rig(work, a.machine, auto="C:\\ECAL.PRG" if a.prg else None)
+    r = Rig(work, a.machine, auto="C:\\ecal.prg" if a.prg else None)
     skipped = False
     try:
         time.sleep(10)
@@ -251,14 +251,14 @@ def main():
                       "%.1f%% differs from step 6" % (100 * changed(later, again)))
     finally:
         r.stop()
-    root = os.path.join(hd, "ECAL.INF")        # where the accessory keeps it (the INF location rule)
-    used = root if os.path.exists(root) and not a.prg else inf
+    root = machines.ci_path(hd, "ecal.inf")    # where the accessory keeps it (the INF location rule)
+    used = root if os.path.exists(root) and not a.prg else machines.ci_path(folder, "ecal.inf")
     if os.path.exists(used):
         ids = [l.strip() for l in open(used, errors="replace") if l.upper().startswith("FONT_ID=")]
         print("  %s:" % ("C:\\ECAL.INF" if used == root else "ECAL.INF"), ids[0] if ids else "no FONT_ID=")
-    log = os.path.join(folder, "ECAL.LOG")
+    log = machines.ci_path(folder, "ecal.log")
     if a.log and os.path.exists(log):
-        shutil.copy(log, os.path.join(work, "ECAL.LOG"))
+        shutil.copy(log, os.path.join(work, "ecal.log"))
         for l in open(log, errors="replace"):
             if " font " in l or "font " in l[:60]:
                 print("  log:", l.rstrip())

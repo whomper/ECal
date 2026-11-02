@@ -8,6 +8,7 @@ dist/
 *.o
 .venv/
 *.KEY
+*.key
 CRASH.LOG
 tests/**/work/
 *.log

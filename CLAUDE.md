@@ -81,10 +81,16 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
 
 ## ECal
 
-- **A release** carries `ECAL.ACC`, `ECAL.PRG`, `TLS.OVL` (common's, never built here; guidelines
-  7.4), `ECAL.HYP` and `.REF` (hcp from `common/tools/build-hcp.sh`), `CACERT.PEM`, `ROOTS.DAT` and
-  the icon. The icons are committed in
+- **A release** carries `ecal.acc`, `ecal.prg`, `tls.ovl` (common's, never built here; guidelines
+  7.4), `ecal.hyp` and `.ref` (hcp from `common/tools/build-hcp.sh`), `cacert.pem`, `roots.dat` and
+  the icon, all in `ecal-x.y.zip` too. The icons are committed in
   `icons/` (`make icons`).
+- **File names in lowercase** (guidelines 6.6, Erez, 2 Nov 2026): every file and folder ECal opens,
+  creates, looks for, renames or deletes by a name of its own is written in lowercase in the code
+  (`ecal.inf`, `cache\cal00001.dat`, `tls.ovl`...), and `make dist` checks the release has no capital.
+  AES names (`ECAL    `), the clipboard's `SCRAP.*` and names in texts, alerts and help stay as they
+  are; names from outside are used as they came. A rig reading ECal's files from the host uses
+  `ci_path` (`common/tools/machines.py`).
 - Speed: `tests/hatari/speed_test.py` (a profiled build: `make OBJDIR=build/prof20 BIN=build/prof20/bin
   AESPROF=20 all`) times the guidelines' actions on `ST:mono`, `ST:med` and `Falcon-4:16` (with
   `AERA_WITH_NVDI=1` too); `--acc` the accessory, `--again` a second start on the first's files (the
@@ -97,7 +103,7 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
   Hatari rigs in `tests/hatari/`, on the family's machines (`--machine`, from
   `common/tools/machines.py`): the accessory's rigs on `ST` and `ST-1` (`:mono` and `:med`), the
   others, Direct connection among them, on `TT` and `Falcon`, drawing also on `Falcon:256`. One
-  ECAL.ACC/PRG for every machine; the rigs put `binary/TLS.OVL` in ECal's folder.
+  ecal.acc/prg for every machine; the rigs put `binary/tls.ovl` in ECal's folder.
 - **Before a GEM release**, run these rigs on his TOS images (`~/.aera/tos`: TOS 1.04 on
   ST/ST-1, TOS 4.04 on the Falcons; and his NVDI in `~/.aera/nvdi/x` with `AERA_WITH_NVDI=1`), then send the
   hub the commit and the results; the hub runs only the family checks (`acc_all.py`):
@@ -141,3 +147,4 @@ ECal is in maintenance mode while EWeb, EPDF and EPlay go to 1.0 (AERA-Atari, AT
 - Work on `main` that isn't released stays unreleased.
 - Nothing runs in the background; the session waits for Erez or the hub.
 - Only Erez's explicit word ends this mode, for instance that every app is to take the latest shared code and release. The hub passes it on quoting him.
+- The one exception (Erez, 2 Nov 2026: "Start fresh, and roll it out to all apps"): file names in lowercase (guidelines 6.6), with the shared code it needs and a release. Nothing else rides along.

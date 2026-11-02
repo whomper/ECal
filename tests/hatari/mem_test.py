@@ -29,6 +29,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(__file__))
 import rig  # noqa: E402
+from rig import machines  # noqa: E402
 import bgsync_test as bg  # noqa: E402
 
 NAMES = ["Work", "Home", "Family", "Club", "Studio", "School"]
@@ -130,7 +131,7 @@ def main():
     work = os.path.abspath(a.work)
     shutil.rmtree(work, ignore_errors=True)
     hd = os.path.join(work, "hd")
-    folder = os.path.join(hd, "ECAL")
+    folder = os.path.join(hd, "ecal")
     os.makedirs(os.path.join(hd, "AUTO"))
     os.makedirs(folder)
     os.makedirs(os.path.join(work, "srv"))
@@ -184,26 +185,27 @@ def main():
             subprocess.run([bg.CLI, seed, "falcon", "1"], check=True, stdout=subprocess.DEVNULL)
         subprocess.run([bg.CLI, seed, "caldav", "Server", "%s://127.0.0.1:%d/" % (bg.SCHEME, bg.RAD), "alice",
                         "wonderland"], check=True, stdout=subprocess.DEVNULL, env=env)
-        shutil.copy(os.path.join(seed, "ECAL.KEY"), os.path.join(folder, "ECAL.KEY"))
-        os.makedirs(os.path.join(folder, "CACHE"))
-        for f in os.listdir(os.path.join(seed, "CACHE")):
-            shutil.copy(os.path.join(seed, "CACHE", f), os.path.join(folder, "CACHE", f.upper()))
-        with open(os.path.join(seed, "ECAL.INF"), newline="") as f:
+        shutil.copy(machines.ci_path(seed, "ecal.key"), os.path.join(folder, "ecal.key"))
+        os.makedirs(os.path.join(folder, "cache"))
+        for f in os.listdir(machines.ci_path(seed, "cache")):
+            shutil.copy(os.path.join(machines.ci_path(seed, "cache"), f), os.path.join(folder, "cache", f.lower()))
+        with open(machines.ci_path(seed, "ecal.inf"), newline="") as f:
             lines = [l for l in f.read().split("\r\n")
                      if not l.upper().startswith(("START=", "SYNC_OPEN=", "SYNC_CLOSED=", "LOG=", "HEAPKB=",
                                                   "GATE=", "GATEPORT=", "FALCON=", "DSP="))]
         i = next(k for k, l in enumerate(lines) if l.upper().startswith("FOLDER="))
-        lines[i] = "FOLDER=C:\\ECAL"
+        lines[i] = "FOLDER=C:\\ecal"
         conn = ["FALCON=1", "DSP=1"] if a.falcon_mode else ["GATE=127.0.0.1", "GATEPORT=%d" % bg.GW]
         heap = ["HEAPKB=%d" % a.heapkb] if a.heapkb else []
         lines[i + 1:i + 1] = ["START=20", "SYNC_OPEN=0", "SYNC_CLOSED=1", "LOG=1"] + heap + conn
-        with open(os.path.join(hd, "ECAL.INF"), "w", newline="") as f:
+        with open(os.path.join(hd, "ecal.inf"), "w", newline="") as f:
             f.write("\r\n".join(lines))
         if a.falcon_mode:
-            with open(os.path.join(folder, "CACERT.PEM"), "wb") as f:
-                f.write(open(os.path.join(bg.ROOT, "binary", "CACERT.PEM"), "rb").read() + open(cert, "rb").read())
-            subprocess.run([os.path.join(bg.ROOT, "build", "mkroots"), os.path.join(folder, "CACERT.PEM"),
-                            os.path.join(folder, "ROOTS.DAT")], check=True, capture_output=True)
+            with open(os.path.join(folder, "cacert.pem"), "wb") as f:
+                f.write(open(machines.ci_path(os.path.join(bg.ROOT, "binary"), "cacert.pem"), "rb").read() +
+                        open(cert, "rb").read())
+            subprocess.run([os.path.join(bg.ROOT, "build", "mkroots"), os.path.join(folder, "cacert.pem"),
+                            os.path.join(folder, "roots.dat")], check=True, capture_output=True)
 
         # the events arrive on the server
         rnd = random.Random(1960)
@@ -215,16 +217,16 @@ def main():
         print("the server has %d calendars of %d events (%d), the Atari none of them yet" %
               (a.cals, a.events, total))
 
-        acc = "ECAL.ACC"
-        shutil.copy(os.path.join(bg.PROF, acc), os.path.join(hd, "ECAL.ACC"))
-        logf = os.path.join(folder, "ECAL.LOG")
+        shutil.copy(machines.ci_path(bg.PROF, "ecal.acc"), os.path.join(hd, "ecal.acc"))
         for boot in range(a.boots):
             # until the round's end is logged, or the time is up
+            logf = machines.ci_path(folder, "ecal.log")
             before = open(logf, "rb").read().count(b"memory:") if os.path.exists(logf) else 0
             r = rig.Rig(work, a.machine, network=True, auto=None)
             t0 = time.time()
             while time.time() - t0 < secs:
                 time.sleep(15)
+                logf = machines.ci_path(folder, "ecal.log")
                 if os.path.exists(logf) and open(logf, "rb").read().count(b"memory:") > before:
                     time.sleep(10)
                     break
@@ -238,14 +240,15 @@ def main():
         for p in procs:
             p.terminate()
 
+    logf = machines.ci_path(folder, "ecal.log")
     log = open(logf, "rb").read().decode("latin-1") if os.path.exists(logf) else ""
     for l in log.splitlines():
         if re.search(r"at boot|memory|Memory|out of memory|events in", l):
             print("  log: " + l.strip())
     cache = ""
-    for root, _, files in os.walk(os.path.join(folder, "CACHE")):
+    for root, _, files in os.walk(machines.ci_path(folder, "cache")):
         for fn in files:
-            if fn.endswith(".DAT"):
+            if fn.lower().endswith(".dat"):
                 cache += open(os.path.join(root, fn), "rb").read().decode("utf-8", "replace")
     kept = len(re.findall(r"^R ", cache, re.M))
     print("events in the Atari's cache: %d (%d KB)" % (kept, len(cache.encode("utf-8", "replace")) // 1024))
@@ -258,10 +261,10 @@ def main():
     for l in log.splitlines():
         if "!!" in l and "HTTP" not in l:
             print("  problem: " + l.strip())
-    inf = open(os.path.join(hd, "ECAL.INF"), "rb").read().decode("latin-1")
+    inf = open(machines.ci_path(hd, "ecal.inf"), "rb").read().decode("latin-1")
     mk = re.search(r"^MEMKB=(\d+)", inf, re.M)
     check("MEMKB= written to ECAL.INF for the next start", bool(mk and int(mk.group(1)) > 0))
-    crash = [os.path.join(d, f) for d, _, fs in os.walk(hd) for f in fs if f.upper() == "CRASH.LOG"]
+    crash = [os.path.join(d, f) for d, _, fs in os.walk(hd) for f in fs if f.lower() == "crash.log"]
     check("no crash (CRASH.LOG)", not crash)
     print("mem test:", "all passed" if not fails else "%d failed" % len(fails))
     return 1 if fails else 0

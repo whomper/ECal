@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 import ui_tour  # noqa: E402
 from edit_test import empty  # noqa: E402
 from people_test import text_width  # noqa: E402
-from rig import Rig, K, SCAN, add_machine  # noqa: E402
+from rig import Rig, K, SCAN, add_machine, machines  # noqa: E402
 
 # the title's place in the toolbar, between the → button and Day, up
 # from the toolbar's bottom line
@@ -63,9 +63,9 @@ def main():
     shutil.rmtree(work, ignore_errors=True)
     hd = os.path.join(work, "hd")
     os.makedirs(hd)
-    shutil.copy(os.path.join(ui_tour.ROOT, "binary", "ECAL.PRG"), os.path.join(hd, "ECAL.PRG"))
+    shutil.copy(machines.ci_path(os.path.join(ui_tour.ROOT, "binary"), "ecal.prg"), os.path.join(hd, "ecal.prg"))
     ui_tour.seed(hd, english=True)
-    r = Rig(work, a.machine, auto="C:\\ECAL.PRG")
+    r = Rig(work, a.machine, auto="C:\\ecal.prg")
     shots = []
     try:
         r.wait(16)

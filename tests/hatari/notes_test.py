@@ -12,7 +12,6 @@ ECAL.PRG, or with --acc the accessory.
 Screenshots in WORKDIR/shots: 6-details shows the notes in the day's details.
 """
 import argparse
-import glob
 import os
 import shutil
 import sys
@@ -21,7 +20,7 @@ import time
 sys.path.insert(0, os.path.dirname(__file__))
 import ui_tour  # noqa: E402
 from edit_test import cache_records, empty  # noqa: E402
-from rig import Rig, K, SCAN, add_machine, is_st  # noqa: E402
+from rig import Rig, K, SCAN, add_machine, is_st, machines  # noqa: E402
 
 NOTES = "Bring the Falcon and the spare PSU"
 fails = []
@@ -51,16 +50,15 @@ def main():
                 "DTEND:%sT160000Z\r\nSUMMARY:Repair cafe\r\nDESCRIPTION:%s\\nand the scope\r\n"
                 "END:VEVENT\r\nEND:VCALENDAR\r\n" % (day, day, NOTES))
     if a.acc:
-        acc = "ECAL.ACC"
-        shutil.copy(os.path.join(ui_tour.ROOT, "binary", acc), os.path.join(hd, "ECAL.ACC"))
-        os.makedirs(os.path.join(hd, "ECAL"))
-        top = os.path.join(hd, "ECAL")
+        shutil.copy(machines.ci_path(os.path.join(ui_tour.ROOT, "binary"), "ecal.acc"), os.path.join(hd, "ecal.acc"))
+        os.makedirs(os.path.join(hd, "ecal"))
+        top = os.path.join(hd, "ecal")
     else:
-        shutil.copy(os.path.join(ui_tour.ROOT, "binary", "ECAL.PRG"), os.path.join(hd, "ECAL.PRG"))
+        shutil.copy(machines.ci_path(os.path.join(ui_tour.ROOT, "binary"), "ecal.prg"), os.path.join(hd, "ecal.prg"))
         top = hd
     ui_tour.seed(top, english=True, more=lambda cli: cli("import", "1", ics))
     check("seeded with its notes", "DESCRIPTION:" + NOTES in open_cache(top))
-    r = Rig(work, a.machine, auto=None if a.acc else "C:\\ECAL.PRG")
+    r = Rig(work, a.machine, auto=None if a.acc else "C:\\ecal.prg")
     try:
         r.wait(16)
         if a.acc:
@@ -101,7 +99,7 @@ def main():
     check("Find found it by its notes, and the dialog saved it", "SUMMARY:Repair cafe moved" in t)
     check("written with its notes", "DESCRIPTION:" + NOTES in t)
     check("both lines of them", "\\nand the scope" in t)
-    crash = [f for d, _, fs in os.walk(hd) for f in fs if f.upper() == "CRASH.LOG"]
+    crash = [f for d, _, fs in os.walk(hd) for f in fs if f.lower() == "crash.log"]
     check("no crash (CRASH.LOG)", not crash)
     print("notes test:", "all passed" if not fails else "%d failed" % len(fails))
     return 1 if fails else 0
@@ -110,7 +108,8 @@ def main():
 def open_cache(top):
     """the events in top's CACHE (the folder ECal reads), unfolded"""
     out = ""
-    for f in glob.glob(os.path.join(top, "CACHE", "*.DAT")):
+    cache = machines.ci_path(top, "cache")
+    for f in sorted(os.path.join(cache, n) for n in os.listdir(cache) if n.lower().endswith(".dat")):
         for raw in cache_records(open(f, "rb").read()).values():
             out += "\nR " + raw.decode("utf-8", "replace").replace("\r\n ", "")
     return out

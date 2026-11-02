@@ -26,7 +26,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(__file__))
-from rig import Rig, add_machine, is_st  # noqa: E402
+from rig import Rig, add_machine, is_st, machines  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 CLI = os.path.join(ROOT, "build", "cal-cli")
@@ -49,16 +49,16 @@ def seed(folder, work, big=False):
         cli("local", name)
         cli("import", str(i), os.path.join(ics, name.upper() + ".ICS"))
     # as installed: ECAL.INF in the root of C:, FOLDER= naming the rest
-    inf = os.path.join(os.path.dirname(folder), "ECAL.INF")
-    shutil.copy(os.path.join(d, "ECAL.INF"), inf)
-    shutil.copy(os.path.join(d, "ECAL.KEY"), os.path.join(folder, "ECAL.KEY"))
-    os.makedirs(os.path.join(folder, "CACHE"), exist_ok=True)
-    for f in os.listdir(os.path.join(d, "CACHE")):
-        shutil.copy(os.path.join(d, "CACHE", f), os.path.join(folder, "CACHE", f.upper()))
+    inf = os.path.join(os.path.dirname(folder), "ecal.inf")
+    shutil.copy(machines.ci_path(d, "ecal.inf"), inf)
+    shutil.copy(machines.ci_path(d, "ecal.key"), os.path.join(folder, "ecal.key"))
+    os.makedirs(os.path.join(folder, "cache"), exist_ok=True)
+    for f in os.listdir(machines.ci_path(d, "cache")):
+        shutil.copy(os.path.join(machines.ci_path(d, "cache"), f), os.path.join(folder, "cache", f.lower()))
     with open(inf, newline="") as f:
         lines = [l for l in f.read().split("\r\n") if not l.upper().startswith(("START=", "SYNC_OPEN="))]
     i = next(k for k, l in enumerate(lines) if l.upper().startswith("FOLDER="))
-    lines[i] = "FOLDER=C:\\ECAL"
+    lines[i] = "FOLDER=C:\\ecal"
     lines[i + 1:i + 1] = ["START=20", "SYNC_OPEN=0"]
     with open(inf, "w", newline="") as f:
         f.write("\r\n".join(lines))
@@ -74,10 +74,9 @@ def main():
     limit = 100 if is_st(a.machine) else 50
     hd = os.path.join(a.work, "hd")
     shutil.rmtree(a.work, ignore_errors=True)
-    folder = os.path.join(hd, "ECAL")
+    folder = os.path.join(hd, "ecal")
     os.makedirs(folder)
-    acc = "ECAL.ACC"
-    shutil.copy(os.path.join(PROF, acc), os.path.join(hd, "ECAL.ACC"))
+    shutil.copy(machines.ci_path(PROF, "ecal.acc"), os.path.join(hd, "ecal.acc"))
     seed(folder, a.work, a.big)
     r = Rig(a.work, a.machine, auto=None)
     try:
@@ -85,7 +84,7 @@ def main():
         r.shot("desktop")
     finally:
         r.stop()
-    idx = os.path.join(folder, "ALARMS.IDX")
+    idx = machines.ci_path(folder, "alarms.idx")
     log = open(os.path.join(a.work, "hatari.log"), errors="replace").read()
     gaps = [(int(m.group(1)), m.group(2).strip()) for m in re.finditer(r"AESGAP (\d+) ms ([^\n]*)", log)]
     worst = {}

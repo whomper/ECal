@@ -17,7 +17,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(__file__))
-from rig import Rig, K, SCAN, add_machine, is_st  # noqa: E402
+from rig import Rig, K, SCAN, add_machine, is_st, machines  # noqa: E402
 import ui_tour  # noqa: E402
 
 ROOT = ui_tour.ROOT
@@ -33,18 +33,18 @@ def main():
     a = ap.parse_args()
     hd = os.path.join(a.work, "hd")
     shutil.rmtree(a.work, ignore_errors=True)
-    folder = os.path.join(hd, *(a.folder or "ECAL").split("\\"))
+    folder = os.path.join(hd, *(a.folder or "ecal").split("\\"))
     os.makedirs(folder)
-    shutil.copy(os.path.join(ROOT, "binary", "ECAL.ACC"),
-                os.path.join(hd, "ECAL.ACC"))
+    shutil.copy(machines.ci_path(os.path.join(ROOT, "binary"), "ecal.acc"),
+                os.path.join(hd, "ecal.acc"))
     ui_tour.seed(folder)
     if a.folder:
         # ECAL.INF in the root, FOLDER= naming where the rest is
-        with open(os.path.join(folder, "ECAL.INF"), newline="") as f:
+        with open(os.path.join(folder, "ecal.inf"), newline="") as f:
             inf = f.read()
-        os.remove(os.path.join(folder, "ECAL.INF"))
+        os.remove(os.path.join(folder, "ecal.inf"))
         where = "C:\\" + ("GONE\\" if a.missing else "") + a.folder
-        with open(os.path.join(hd, "ECAL.INF"), "w", newline="") as f:
+        with open(os.path.join(hd, "ecal.inf"), "w", newline="") as f:
             f.write("FOLDER=" + where + "\r\n" + inf)
     r = Rig(a.work, a.machine, auto=None)
     try:

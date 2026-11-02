@@ -21,7 +21,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(__file__))
 import ui_tour  # noqa: E402
-from rig import Rig, K  # noqa: E402
+from rig import Rig, K, machines  # noqa: E402
 
 ROOT = ui_tour.ROOT
 fails = []
@@ -37,8 +37,8 @@ def run(work, machine, viewer):
     hd = os.path.join(work, "hd")
     shutil.rmtree(work, ignore_errors=True)
     os.makedirs(hd)
-    shutil.copy(os.path.join(ROOT, "binary", "ECAL.PRG"), hd)
-    shutil.copy(os.path.join(ROOT, "binary", "ECAL.HYP"), hd)
+    shutil.copy(machines.ci_path(os.path.join(ROOT, "binary"), "ecal.prg"), os.path.join(hd, "ecal.prg"))
+    shutil.copy(machines.ci_path(os.path.join(ROOT, "binary"), "ecal.hyp"), os.path.join(hd, "ecal.hyp"))
     # an accessory named so that ECal's Help finds it as it finds ST-Guide
     shutil.copy(viewer, os.path.join(hd, "ST-GUIDE.ACC"))
     ui_tour.seed(hd, english=True)
@@ -73,7 +73,7 @@ def main():
     tag = open(os.path.join(ehv, "EHYPVIEW.VERSION")).read().strip()
     for name in a.machine or ("Falcon:16", "Falcon:256", "TT:mono"):
         log = run(os.path.join(work, name.replace(":", "-")), name, os.path.join(ehv, "EHYPVIEW.ACC"))
-        check("%s: the guide opens on its front page" % name, "EHV page C:\\ECAL.HYP Main" in log)
+        check("%s: the guide opens on its front page" % name, "ehv page c:\\ecal.hyp main" in log.lower())
         check("%s: no crash" % name, "Panic" not in log)
     print("screenshots in", os.path.join(work, "*", "shots"))
     print("hypview test, with EHypView %s:" % tag, "all passed" if not fails else "%d failed" % len(fails))

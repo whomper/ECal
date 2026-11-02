@@ -31,7 +31,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(__file__))
-from rig import Rig, K, SCAN, add_machine, is_st  # noqa: E402
+from rig import Rig, K, SCAN, add_machine, is_st, machines  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 CLI = os.path.join(ROOT, "build", "cal-cli")
@@ -43,7 +43,7 @@ LIMIT = dict(key=50, line=50, page=150, dialog=150, window=300, acc=500, start=2
 def seed(hd, work, acc, font=None):
     """bigcal's four calendars and 24 events today, as installed:
     ECAL.INF in the root of C:, FOLDER= naming C:\\ECAL"""
-    folder = os.path.join(hd, "ECAL")
+    folder = os.path.join(hd, "ecal")
     os.makedirs(folder, exist_ok=True)
     d = os.path.join(work, "seed")
     shutil.rmtree(d, ignore_errors=True)
@@ -62,17 +62,17 @@ def seed(hd, work, acc, font=None):
     for i in range(24):
         h, m = 7 + i * 30 // 60, i * 30 % 60
         cli("add", str(i % 3), "Busy day item %d" % (i + 1), "%sT%02d%02d" % (today, h, m), "45")
-    inf = os.path.join(hd, "ECAL.INF")
-    shutil.copy(os.path.join(d, "ECAL.INF"), inf)
-    shutil.copy(os.path.join(d, "ECAL.KEY"), os.path.join(folder, "ECAL.KEY"))
-    os.makedirs(os.path.join(folder, "CACHE"), exist_ok=True)
-    for f in os.listdir(os.path.join(d, "CACHE")):
-        shutil.copy(os.path.join(d, "CACHE", f), os.path.join(folder, "CACHE", f.upper()))
+    inf = os.path.join(hd, "ecal.inf")
+    shutil.copy(machines.ci_path(d, "ecal.inf"), inf)
+    shutil.copy(machines.ci_path(d, "ecal.key"), os.path.join(folder, "ecal.key"))
+    os.makedirs(os.path.join(folder, "cache"), exist_ok=True)
+    for f in os.listdir(machines.ci_path(d, "cache")):
+        shutil.copy(os.path.join(machines.ci_path(d, "cache"), f), os.path.join(folder, "cache", f.lower()))
     with open(inf, newline="") as f:
         lines = [l for l in f.read().split("\r\n")
                  if not l.upper().startswith(("START=", "SYNC_OPEN=", "ALARMS=") + (("FONT_ID=", "FONT_PT=") if font else ()))]
     i = next(k for k, l in enumerate(lines) if l.upper().startswith("FOLDER="))
-    lines[i] = "FOLDER=C:\\ECAL"
+    lines[i] = "FOLDER=C:\\ecal"
     # no reminders: their alerts would take the keys meant for the window
     lines[i + 1:i + 1] = ["START=5" if acc else "START=0", "SYNC_OPEN=0", "ALARMS=0"] + \
         (["FONT_ID=%d" % font[0], "FONT_PT=%d" % font[1]] if font else [])
@@ -331,11 +331,11 @@ def main():
         os.makedirs(hd)
         seed(hd, a.work, a.acc, tuple(int(x) for x in a.font.split(",")) if a.font else None)
     if a.acc:
-        shutil.copy(os.path.join(a.bin, "ECAL.ACC"), os.path.join(hd, "ECAL.ACC"))
+        shutil.copy(machines.ci_path(a.bin, "ecal.acc"), machines.ci_path(hd, "ecal.acc"))
         auto = None
     else:
-        shutil.copy(os.path.join(a.bin, "ECAL.PRG"), os.path.join(hd, "ECAL", "ECAL.PRG"))
-        auto = "C:\\ECAL\\ECAL.PRG"
+        shutil.copy(machines.ci_path(a.bin, "ecal.prg"), machines.ci_path(hd, "ecal/ecal.prg"))   # (--again: as left)
+        auto = "C:\\ecal\\ecal.prg"
     st = is_st(a.machine)
     r = Rig(a.work, a.machine, display=a.display, auto=auto)
     m = Meter(r, os.path.join(a.work, "hatari.log"))

@@ -848,7 +848,7 @@ void dlg_find(void)
    viewer, an alert says how to get one and offers the keys dialog */
 void help_open(void)
 {
-	if (help_key(opt.workdir, "ECAL.HYP", 0, "Keys"))
+	if (help_key(opt.workdir, "ecal.hyp", 0, "Keys"))
 		dlg_keys();
 }
 

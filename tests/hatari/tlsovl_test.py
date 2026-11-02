@@ -20,7 +20,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(__file__))
 import ui_tour  # noqa: E402
-from rig import Rig, K, add_machine  # noqa: E402
+from rig import Rig, K, add_machine, machines  # noqa: E402
 
 fails = []
 
@@ -35,15 +35,15 @@ def run(work, machine, with_ovl):
     shutil.rmtree(work, ignore_errors=True)
     hd = os.path.join(work, "hd")
     os.makedirs(hd)
-    shutil.copy(os.path.join(ui_tour.ROOT, "binary", "ECAL.PRG"), os.path.join(hd, "ECAL.PRG"))
-    shutil.copy(os.path.join(ui_tour.ROOT, "binary", "CACERT.PEM"), os.path.join(hd, "CACERT.PEM"))
+    shutil.copy(machines.ci_path(os.path.join(ui_tour.ROOT, "binary"), "ecal.prg"), os.path.join(hd, "ecal.prg"))
+    shutil.copy(machines.ci_path(os.path.join(ui_tour.ROOT, "binary"), "cacert.pem"), os.path.join(hd, "cacert.pem"))
     ui_tour.seed(hd, english=True)
-    inf = os.path.join(hd, "ECAL.INF")
+    inf = os.path.join(hd, "ecal.inf")
     t = open(inf, "rb").read().replace(b"\r\nLOG=0", b"\r\nLOG=1")
     if b"\r\nLOG=1" not in t:
         t = t.replace(b"[OPTIONS]\r\n", b"[OPTIONS]\r\nLOG=1\r\n", 1)
     open(inf, "wb").write(t)
-    r = Rig(work, machine, auto="C:\\ECAL.PRG", tls_ovl=with_ovl)
+    r = Rig(work, machine, auto="C:\\ecal.prg", tls_ovl=with_ovl)
     try:
         r.wait(16)
         r.click(OPTIONS_X, 8)               # the Options menu
@@ -58,18 +58,18 @@ def run(work, machine, with_ovl):
         time.sleep(4)
     finally:
         r.stop()
-    t = open(inf, "rb").read().decode("latin-1")
+    t = open(machines.ci_path(hd, "ecal.inf"), "rb").read().decode("latin-1")
     log = ""
     for d, _, fs in os.walk(hd):
         for f in fs:
-            if f.upper() == "ECAL.LOG":
+            if f.lower() == "ecal.log":
                 log += open(os.path.join(d, f), "rb").read().decode("latin-1")
-    crash = [f for d, _, fs in os.walk(hd) for f in fs if f.upper() == "CRASH.LOG"]
+    crash = [f for d, _, fs in os.walk(hd) for f in fs if f.lower() == "crash.log"]
     return t, log, crash, os.path.join(work, "shots")
 
 
 # the log's line when it is loaded, whatever TLS.OVL's version
-LOADED = re.compile(r"TLS\.OVL \d+\.\d+ loaded")
+LOADED = re.compile(r"TLS\.OVL \d+\.\d+ loaded", re.I)
 
 # ECAL.PRG's menu bar on 640x480: Options, and its Direct connection line
 OPTIONS_X, DIRECT_Y = 300, 91
@@ -87,7 +87,7 @@ def main():
     check("without TLS.OVL: no crash (CRASH.LOG)", not crash)
     print("  (the alert: %s)" % os.path.join(shots, "2-ticked.png"))
     t, log, crash, shots = run(os.path.join(work, "with"), a.machine, True)
-    check("with TLS.OVL: loaded at once (%s)" % next((l.strip() for l in log.splitlines() if "TLS.OVL" in l), "no log line"),
+    check("with TLS.OVL: loaded at once (%s)" % next((l.strip() for l in log.splitlines() if "tls.ovl" in l.lower()), "no log line"),
           bool(LOADED.search(log)))
     check("with TLS.OVL: FALCON=1 written", "\r\nFALCON=1" in t)
     check("with TLS.OVL: no crash (CRASH.LOG)", not crash)

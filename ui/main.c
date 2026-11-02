@@ -160,7 +160,7 @@ void set_logging(void)
 {
 	conn_log_flush();
 	if (opt.log)
-		path_join(conn_logfile, sizeof(conn_logfile), workdir, "ECAL.LOG");
+		path_join(conn_logfile, sizeof(conn_logfile), workdir, "ecal.log");
 	else
 		conn_logfile[0] = 0;
 }
@@ -460,7 +460,7 @@ static void save_alarms_step(void)
 		return;
 	}
 	if (idx_i == idx_n) {
-		path_join(p, sizeof(p), workdir, "ALARMS.IDX");
+		path_join(p, sizeof(p), workdir, "alarms.idx");
 		alarms_save_begin(p, idx_files, idx_n, idx_stamp, opt.alarms, opt.h24);
 		idx_i++;
 		return;
@@ -482,7 +482,7 @@ static void alarms_boot(void)
 	int on = 1, h24 = opt.h24;
 	if (!workdir[0])
 		return;
-	path_join(p, sizeof(p), workdir, "ALARMS.IDX");
+	path_join(p, sizeof(p), workdir, "alarms.idx");
 	if (alarms_load(p, now_clock(), &on, &h24)) {
 		opt.alarms = (short)on;
 		opt.h24 = (short)h24;
@@ -534,7 +534,7 @@ static int pick_ics(char *path, int size)
 {
 	char name[20] = "", dir[200];
 	short button = 0;
-	snprintf(dir, sizeof(dir), "%s\\*.ICS", workdir);
+	snprintf(dir, sizeof(dir), "%s\\*.ics", workdir);
 	if (!fsel_exinput(dir, name, &button, "Import which .ics file?") || !button || !name[0])
 		return 0;
 	{
@@ -1012,13 +1012,13 @@ static void find_workdir(void)
 {
 	char path[160], old[200];
 	short drv = (short)Dgetdrv(), boot = boot_drive();
-	snprintf(inf_file, sizeof(inf_file), "%c:\\ECAL.INF", 'A' + boot);
+	snprintf(inf_file, sizeof(inf_file), "%c:\\ecal.inf", 'A' + boot);
 	if (is_acc) {
 		inf_folder(workdir, sizeof(workdir));
 		if (!inf_boot_stamp) {
 			/* settings from before ECAL.INF moved to the root */
-			snprintf(workdir, sizeof(workdir), "%c:\\ECAL", 'A' + boot);
-			path_join(old, sizeof(old), workdir, "ECAL.INF");
+			snprintf(workdir, sizeof(workdir), "%c:\\ecal", 'A' + boot);
+			path_join(old, sizeof(old), workdir, "ecal.inf");
 			if (!pf_exists(old))
 				workdir[0] = 0;
 		}
@@ -1041,7 +1041,7 @@ static void move_inf(void)
 	long len;
 	if (inf_boot_stamp || !workdir[0])
 		return;		/* (the start found it in the root) */
-	path_join(old, sizeof(old), workdir, "ECAL.INF");
+	path_join(old, sizeof(old), workdir, "ecal.inf");
 	if (!strcasecmp(old, inf_file) || !(t = pf_load(old, &len)))
 		return;
 	pf_save(inf_file, t, len);
@@ -1078,7 +1078,7 @@ static int locate_folder(void)
 			return 1;
 		}
 	}
-	snprintf(workdir, sizeof(workdir), "%c:\\ECAL", 'A' + boot);
+	snprintf(workdir, sizeof(workdir), "%c:\\ecal", 'A' + boot);
 	pf_mkdir(workdir);
 	return 1;
 }
@@ -1197,11 +1197,11 @@ static int settings_step(void)
 		return 1;
 	}
 	if (settings_stage == 2) {
-		path_join(conn_cacert, sizeof(conn_cacert), workdir, "CACERT.PEM");
-		path_join(tls_ovl_path, sizeof(tls_ovl_path), workdir, "TLS.OVL");
-		path_join(tls_roots_cache, sizeof(tls_roots_cache), workdir, "ROOTS.DAT");
-		path_join(tls_seed_path, sizeof(tls_seed_path), workdir, "SEED.DAT");
-		path_join(tls_sigs_path, sizeof(tls_sigs_path), workdir, "SIGS.DAT");
+		path_join(conn_cacert, sizeof(conn_cacert), workdir, "cacert.pem");
+		path_join(tls_ovl_path, sizeof(tls_ovl_path), workdir, "tls.ovl");
+		path_join(tls_roots_cache, sizeof(tls_roots_cache), workdir, "roots.dat");
+		path_join(tls_seed_path, sizeof(tls_seed_path), workdir, "seed.dat");
+		path_join(tls_sigs_path, sizeof(tls_sigs_path), workdir, "sigs.dat");
 		/* CACERT.PEM read a piece at a time, never open across the
 		   network's waits (guidelines 2.2); ROOTS.DAT then checked by
 		   its date and size, from one directory look */

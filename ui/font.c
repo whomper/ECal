@@ -311,7 +311,7 @@ void font_menu(void)
 {
 	static fontsel fs;
 	static char fnt[220];
-	path_join(fnt, sizeof(fnt), opt.workdir, "ECAL.FNT");
+	path_join(fnt, sizeof(fnt), opt.workdir, "ecal.fnt");
 	memset(&fs, 0, sizeof(fs));
 	fs.app = "ECal";
 	fs.fnt = fnt;

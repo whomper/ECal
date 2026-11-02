@@ -43,6 +43,7 @@ import urllib.request
 
 sys.path.insert(0, os.path.dirname(__file__))
 import rig  # noqa: E402
+from rig import machines  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
@@ -253,7 +254,7 @@ def main():
     work = os.path.abspath(a.work)
     shutil.rmtree(work, ignore_errors=True)
     hd = os.path.join(work, "hd")
-    folder = os.path.join(hd, "ECAL")
+    folder = os.path.join(hd, "ecal")
     os.makedirs(os.path.join(hd, "AUTO"))
     os.makedirs(folder)
     srv = os.path.join(work, "srv")
@@ -315,37 +316,37 @@ def main():
                        check=True, stdout=subprocess.DEVNULL, env=env)
         subprocess.run([CLI, seed, "subscribe", "http://127.0.0.1:%d/holidays.ics" % FEED, "Holidays"],
                        check=True, stdout=subprocess.DEVNULL, env=env)
-        shutil.copy(os.path.join(seed, "ECAL.KEY"), os.path.join(folder, "ECAL.KEY"))
-        os.makedirs(os.path.join(folder, "CACHE"))
-        for f in os.listdir(os.path.join(seed, "CACHE")):
-            shutil.copy(os.path.join(seed, "CACHE", f), os.path.join(folder, "CACHE", f.upper()))
-        with open(os.path.join(seed, "ECAL.INF"), newline="") as f:
+        shutil.copy(machines.ci_path(seed, "ecal.key"), os.path.join(folder, "ecal.key"))
+        os.makedirs(os.path.join(folder, "cache"))
+        for f in os.listdir(machines.ci_path(seed, "cache")):
+            shutil.copy(os.path.join(machines.ci_path(seed, "cache"), f), os.path.join(folder, "cache", f.lower()))
+        with open(machines.ci_path(seed, "ecal.inf"), newline="") as f:
             lines = [l for l in f.read().split("\r\n")
                      if not l.upper().startswith(("START=", "SYNC_OPEN=", "SYNC_CLOSED=", "LOG=", "GATE=",
                                                   "GATEPORT=", "FALCON=", "DSP=", "REFRESH=", "PEOPLEFILE=", "PEOPLEDIR="))]
         i = next(k for k, l in enumerate(lines) if l.upper().startswith("FOLDER="))
-        lines[i] = "FOLDER=C:\\ECAL"
+        lines[i] = "FOLDER=C:\\ecal"
         sync = a.run in ("sync", "falcon")
         conn = ["FALCON=1", "DSP=1"] if falcon else ["GATE=127.0.0.1", "GATEPORT=%d" % GW]
         lines[i + 1:i + 1] = ["START=20", "SYNC_OPEN=0", "SYNC_CLOSED=%d" % sync, "REFRESH=%d" % (2 if sync else 0),
                               "LOG=0"] + conn + (["PEOPLEFILE=1", "PEOPLEDIR=C:\\ECONTACT"] if a.peoplefile else [])
         if a.peoplefile:
             os.makedirs(os.path.join(hd, "ECONTACT"))
-            with open(os.path.join(hd, "ECONTACT", "CONTACTS.TXT"), "w", newline="") as f:
+            with open(os.path.join(hd, "ECONTACT", "contacts.txt"), "w", newline="") as f:
                 f.write("; EContact's contacts\r\n" +
                         "".join("P\tPerson %d\tperson%d@example.org\twork\r\n" % (k, k) for k in range(200)))
-        with open(os.path.join(hd, "ECAL.INF"), "w", newline="") as f:
+        with open(os.path.join(hd, "ecal.inf"), "w", newline="") as f:
             f.write("\r\n".join(lines))
         if falcon:
-            with open(os.path.join(folder, "CACERT.PEM"), "wb") as f:
-                f.write(open(os.path.join(a.bin, "CACERT.PEM"), "rb").read() + open(cert, "rb").read())
+            with open(os.path.join(folder, "cacert.pem"), "wb") as f:
+                f.write(open(machines.ci_path(a.bin, "cacert.pem"), "rb").read() + open(cert, "rb").read())
             if not a.roots:
-                subprocess.run([os.path.join(ROOT, "build", "mkroots"), os.path.join(folder, "CACERT.PEM"),
-                                os.path.join(folder, "ROOTS.DAT")], check=True, capture_output=True)
-        acc = "ECAL.ACC"
-        if rig.is_st(a.machine) and os.path.exists(os.path.join(a.bin, "ECALST.ACC")):
-            acc = "ECALST.ACC"         # a release before 2.25 (--bin)
-        shutil.copy(os.path.join(a.bin, acc), os.path.join(hd, "ECAL.ACC"))
+                subprocess.run([os.path.join(ROOT, "build", "mkroots"), os.path.join(folder, "cacert.pem"),
+                                os.path.join(folder, "roots.dat")], check=True, capture_output=True)
+        acc = machines.ci_path(a.bin, "ecal.acc")
+        if rig.is_st(a.machine) and os.path.exists(machines.ci_path(a.bin, "ecalst.acc")):
+            acc = machines.ci_path(a.bin, "ecalst.acc")         # a release before 2.25 (--bin)
+        shutil.copy(acc, os.path.join(hd, "ecal.acc"))
 
         pipe = os.path.join(work, "trace.pipe")
         os.mkfifo(pipe)
@@ -375,10 +376,11 @@ def main():
             tr.job = "between"
             work_i, (uids, res) = 0, events["work"]
             kept = []
-            for f in os.listdir(os.path.join(folder, "CACHE")):
-                if f.endswith(".DAT"):
+            cache = machines.ci_path(folder, "cache")
+            for f in os.listdir(cache):
+                if f.lower().endswith(".dat"):
                     kept += [int(k) for k in re.findall(rb"^R [^\t]*\t/alice/work/e(\d+)\.ics\t",
-                                                        open(os.path.join(folder, "CACHE", f), "rb").read(), re.M)]
+                                                        open(os.path.join(cache, f), "rb").read(), re.M)]
             for k in sorted(kept)[:10]:
                 http("PUT", "/alice/work/e%03d.ics" % k,
                      res[uids[k]].replace("SUMMARY:", "SUMMARY:Changed ", 1).encode(), "text/calendar")
