@@ -200,6 +200,10 @@ void after_change(void)
 	views_select_none();
 	views_invalidate();
 	win_redraw(0);
+	if (cal_note[0]) {
+		status(cal_note);	/* a save that went another way: said once */
+		cal_note[0] = 0;
+	}
 }
 
 /* ---------------- Direct connection ---------------- */

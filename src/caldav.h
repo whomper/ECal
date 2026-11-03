@@ -46,6 +46,9 @@ void caldav_free_items(DAVITEM *items, int n);
 typedef int (*DAV_CB)(void *ud, const char *href, const char *etag, const char *data, long len);
 int caldav_multiget(const char *url, const DAVAUTH *a, char **hrefs, int n,
 		    DAV_CB cb, void *ud, char *err, int errlen);
+/* the event with this UID in the calendar, through cb */
+int caldav_by_uid(const char *url, const DAVAUTH *a, const char *uid,
+		  DAV_CB cb, void *ud, char *err, int errlen);
 
 /* The same, read in steps (the accessory's background refresh): the
    request is made at once, then caldav_next gives one event at a time,

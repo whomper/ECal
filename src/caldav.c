@@ -23,8 +23,8 @@ const char *caldav_status_text(int st)
 	case 403: return "this calendar can't be changed (read-only?)";
 	case 404: return "not found on the server";
 	case 405: return "the server doesn't allow this here";
-	case 409: return "the server refused: a conflict";
-	case 412: return "it was changed elsewhere in the meantime; refresh and try again";
+	case 409: return "the calendar has this event already, and it couldn't be updated";
+	case 412: return "it was changed elsewhere and couldn't be saved over; refresh and try again";
 	case 413: return "too big for the server";
 	case 415: return "the server doesn't take this kind of data";
 	case 500: return "the server had an internal error";
@@ -496,6 +496,36 @@ int caldav_multiget(const char *url, const DAVAUTH *a, char **hrefs, int n,
 	return ok;
 }
 
+/* the event with this UID in the calendar (a server keeps one per UID:
+   RFC 4791's no-uid-conflict), with its ETag and text */
+int caldav_by_uid(const char *url, const DAVAUTH *a, const char *uid,
+		  DAV_CB cb, void *ud, char *err, int errlen)
+{
+	HTTPRESP rs;
+	SBUF q, out;
+	MGET m;
+	char esc[300];
+	int ok;
+	xml_escape(uid, esc, sizeof(esc));
+	sb_init(&q);
+	sb_printf(&q, "<?xml version=\"1.0\" encoding=\"utf-8\"?><c:calendar-query " NS
+		  "><d:prop><d:getetag/><c:calendar-data/></d:prop>"
+		  "<c:filter><c:comp-filter name=\"VCALENDAR\"><c:comp-filter name=\"VEVENT\">"
+		  "<c:prop-filter name=\"UID\"><c:text-match collation=\"i;octet\">%s</c:text-match>"
+		  "</c:prop-filter></c:comp-filter></c:comp-filter></c:filter></c:calendar-query>", esc);
+	sb_init(&out);
+	ok = dav("REPORT", url, a, 1, q.s, &rs, &out, err, errlen);
+	sb_free(&q);
+	if (ok) {
+		memset(&m, 0, sizeof(m));
+		m.cb = cb;
+		m.ud = ud;
+		parse_multistatus(out.s, out.len, got_data, &m);
+	}
+	sb_free(&out);
+	return ok;
+}
+
 /* ---------------- an answer read in steps ---------------- */
 
 struct DAVREAD {
@@ -594,7 +624,11 @@ int caldav_put(const char *url, const char *href, const DAVAUTH *a, const char *
 		return 0;
 	caldav_status = rs.status;
 	if (rs.status != 200 && rs.status != 201 && rs.status != 204) {
-		snprintf(err, errlen, "%s (HTTP %d)", caldav_status_text(rs.status), rs.status);
+		/* 412 and 409 in plain words: the log has the status */
+		if (rs.status == 412 || rs.status == 409)
+			str_copy(err, caldav_status_text(rs.status), errlen);
+		else
+			snprintf(err, errlen, "%s (HTTP %d)", caldav_status_text(rs.status), rs.status);
 		return 0;
 	}
 	str_copy(newetag, rs.etag, size);

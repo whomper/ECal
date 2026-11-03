@@ -615,6 +615,86 @@ out=$("$CLI" "$D" read-ics "$W/two.ics")
 expect "several events: counted, none for the dialog" "events 2" "$out"
 absent "several events: no single one" "uid " "$out"
 
+echo "== a second invitation, with the event changed or made by another client (HTTP 412)"
+# inv UID SEQUENCE SUMMARY HOUR: an invitation, as EMail hands it over
+inv() {
+  printf 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//EN\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nUID:%s\r\nSEQUENCE:%s\r\nDTSTAMP:20261020T100000Z\r\nDTSTART:%sT%s0000Z\r\nDTEND:%sT%s3000Z\r\nSUMMARY:%s\r\nORGANIZER;CN=Alice:mailto:alice@example.org\r\nATTENDEE;CN=Bob;PARTSTAT=NEEDS-ACTION:mailto:bob@example.org\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n' \
+    "$1" "$2" $(d 20261112) "$4" $(d 20261112) "$4" "$3"
+}
+# put HREF FILE [HEADER]: another client (the Mac's Calendar) writes it; its HTTP status
+put() {
+  "${CURL[@]}" -o /dev/null -w '%{http_code}' -X PUT -H "Content-Type: text/calendar" ${3:+-H "$3"} \
+    --data-binary @"$2" "$BASE/alice/work/$1"
+}
+calendar_copy() { # the calendar's copy of an invitation, without METHOD:
+  grep -v '^METHOD:' "$1"
+}
+# 1. two invitations, different UIDs
+inv inv-a@example.org 0 "Invitation A" 06 > "$W/a.ics"
+inv inv-b@example.org 0 "Invitation B" 08 > "$W/b.ics"
+out=$("$CLI" "$D" accept-ics "$WORK" "$W/a.ics") || bad "first invitation: $out"
+expect "the first invitation saved" "saved inv-a@example.org" "$out"
+out=$("$CLI" "$D" accept-ics "$WORK" "$W/b.ics") || bad "second invitation, another UID: $out"
+expect "a second invitation (another UID) saved" "saved inv-b@example.org" "$out"
+# 2. the first one updated (same UID, SEQUENCE 1) after the Mac changed it:
+# ECal's ETag is old
+inv inv-a@example.org 0 "Invitation A (Mac)" 06 | calendar_copy /dev/stdin > "$W/a-mac.ics"
+code=$(put inv-a_example_org.ics "$W/a-mac.ics")
+[ "$code" = 204 ] || [ "$code" = 201 ] && ok "the Mac changes A (HTTP $code)" || bad "the Mac's change: HTTP $code"
+inv inv-a@example.org 1 "Invitation A (moved)" 07 > "$W/a1.ics"
+out=$("$CLI" "$D" accept-ics "$WORK" "$W/a1.ics" 2>&1) || bad "an update to A, changed on the Mac meanwhile: $out"
+expect "... saved over the newer copy" "updated inv-a@example.org" "$out"
+expect "... and said so in plain words" "note: It had been changed elsewhere meanwhile" "$out"
+absent "... no HTTP status for the user" "412" "$out"
+raw=$("${CURL[@]}" "$BASE/alice/work/inv-a_example_org.ics")
+expect "... the update on the server" "SUMMARY:Invitation A (moved)" "$raw"
+# 3. a third invitation that the Mac's Calendar put on the server first, at
+# the href ECal would use: ECal hasn't seen it yet
+inv inv-c@example.org 0 "Invitation C" 09 > "$W/c.ics"
+calendar_copy "$W/c.ics" > "$W/c-mac.ics"
+put inv-c_example_org.ics "$W/c-mac.ics" > /dev/null
+out=$("$CLI" "$D" accept-ics "$WORK" "$W/c.ics" 2>&1) || bad "an invitation already on the server (same href): $out"
+expect "... taken as an update of it" "inv-c@example.org" "$out"
+expect "... and said so" "note: It was in the calendar already: updated" "$out"
+absent "... no HTTP status for the user" "412" "$out"
+# 4. ... and at another href (the Mac names its own files)
+inv inv-d@example.org 0 "Invitation D" 10 > "$W/dd.ics"
+calendar_copy "$W/dd.ics" > "$W/d-mac.ics"
+put 5C1E2F3A-MAC.ics "$W/d-mac.ics" > /dev/null
+out=$("$CLI" "$D" accept-ics "$WORK" "$W/dd.ics" 2>&1) || bad "an invitation already on the server (another href): $out"
+expect "... taken as an update of it" "inv-d@example.org" "$out"
+n=$("${CURL[@]}" -X PROPFIND -H "Depth: 1" "$BASE/alice/work/" | grep -o 'inv-d[^<]*\|5C1E2F3A-MAC[^<]*' | sort -u | grep -c . || true)
+[ "$n" = 1 ] && ok "... one copy on the server, not two" || bad "... $n copies of D on the server"
+# 5. the same invitation again, unchanged
+out=$("$CLI" "$D" accept-ics "$WORK" "$W/a1.ics" 2>&1) || bad "the same invitation again: $out"
+expect "... saved again" "inv-a@example.org" "$out"
+# 6. an older invitation after a newer one: the newer copy stays
+inv inv-c@example.org 2 "Invitation C (v2)" 09 | calendar_copy /dev/stdin > "$W/c2-mac.ics"
+put inv-c_example_org.ics "$W/c2-mac.ics" "If-Match: $("${CURL[@]}" -sI "$BASE/alice/work/inv-c_example_org.ics" | tr -d '\r' | awk -F': ' 'tolower($1)=="etag"{print $2}')" > /dev/null
+inv inv-e@example.org 0 "Invitation E" 11 > "$W/e.ics"
+calendar_copy <(inv inv-e@example.org 3 "Invitation E (v3)" 11) > "$W/e3-mac.ics"
+put inv-e_example_org.ics "$W/e3-mac.ics" > /dev/null
+out=$("$CLI" "$D" accept-ics "$WORK" "$W/e.ics" 2>&1) && bad "an older invitation saved over a newer copy: $out" || true
+expect "an older invitation: refused in plain words" "newer version of this event already" "$out"
+raw=$("${CURL[@]}" "$BASE/alice/work/inv-e_example_org.ics")
+expect "... the newer copy kept" "SUMMARY:Invitation E (v3)" "$raw"
+# 7. an edit in ECal after the Mac added a place: both kept
+"$CLI" "$D" sync > /dev/null
+raw=$("${CURL[@]}" "$BASE/alice/work/inv-b_example_org.ics" | sed 's/^SUMMARY:Invitation B/LOCATION:Room 9\r\nSUMMARY:Invitation B/')
+printf '%s\n' "$raw" > "$W/b-mac.ics"
+put inv-b_example_org.ics "$W/b-mac.ics" > /dev/null
+out=$("$CLI" "$D" rename "Invitation B" "Invitation B (renamed)" 2>&1) || bad "a rename after the Mac's change: $out"
+expect "... said so" "note: It had been changed elsewhere meanwhile" "$out"
+raw=$("${CURL[@]}" "$BASE/alice/work/inv-b_example_org.ics")
+expect "... the rename on the server" "SUMMARY:Invitation B (renamed)" "$raw"
+expect "... the Mac's place kept" "LOCATION:Room 9" "$raw"
+# 8. an edit in ECal after the Mac deleted the event: made again
+"${CURL[@]}" -X DELETE "$BASE/alice/work/inv-b_example_org.ics" > /dev/null
+out=$("$CLI" "$D" rename "Invitation B (renamed)" "Invitation B (again)" 2>&1) || bad "a rename after the Mac deleted it: $out"
+expect "... said so" "note: It had been deleted elsewhere meanwhile: it is saved again" "$out"
+raw=$("${CURL[@]}" "$BASE/alice/work/inv-b_example_org.ics")
+expect "... on the server again" "SUMMARY:Invitation B (again)" "$raw"
+
 if [ -n "${FALCON:-}" ]; then
   expect "the log shows TLS" "secure: TLS 1.2" "$(cat "$CAL_LOG")"
   # Radicale closes after every answer: the next connection resumes

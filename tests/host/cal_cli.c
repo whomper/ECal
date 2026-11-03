@@ -487,8 +487,12 @@ int main(int argc, char **argv)
 		m = ev_master(e);
 		c = ev_dup(m ? m : e);
 		{ char *t_ = to_atari(argv[4]); ev_set(&c->summary, t_); free(t_); }
-		if (!ev_save(c, c->cal, SAVE_ALL, CT_NONE))
+		if (!ev_save(c, c->cal, SAVE_ALL, CT_NONE)) {
+			ev_free(c);
 			return fail("rename");
+		}
+		if (cal_note[0])
+			printf("note: %s\n", cal_note);
 		ev_free(c);
 		return 0;
 	}
@@ -647,9 +651,14 @@ int main(int argc, char **argv)
 			e->res = old->res;
 			e->cal = (short)oc;
 		}
-		if (!ev_save(e, ci, SAVE_ALL, CT_NONE))
+		if (!ev_save(e, ci, SAVE_ALL, CT_NONE)) {
+			ev_free(e);
+			cal_invite_done();
 			return fail("accept-ics");
+		}
 		printf("%s %s\n", old ? "updated" : "saved", e->uid);
+		if (cal_note[0])
+			printf("note: %s\n", cal_note);
 		ev_free(e);
 		cal_invite_done();
 		return 0;

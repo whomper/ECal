@@ -4053,29 +4053,284 @@ static void new_href(const char *uid, char *out, int size)
 	strcpy(out + o, ".ics");
 }
 
+/* the server's copy of one event, read again after a 412 or a 409 */
+typedef struct {
+	char href[400], etag[100];
+	char *data;
+	long len;
+} CURRENT;
+
+static int got_current(void *ud, const char *href, const char *etag, const char *data, long len)
+{
+	CURRENT *o = ud;
+	if (o->data || !(o->data = malloc(len + 1)))
+		return 0;
+	memcpy(o->data, data, len);
+	o->data[len] = 0;
+	o->len = len;
+	str_copy(o->href, href, sizeof(o->href));
+	str_copy(o->etag, etag, sizeof(o->etag));
+	return 0;
+}
+
+/* calendar c's copy at href, or of the event with this UID (href 0) */
+static int read_current(CALENDAR *c, const char *href, const char *uid, CURRENT *o)
+{
+	DAVAUTH au = auth_of(c->acct);
+	char err[160];
+	memset(o, 0, sizeof(*o));
+	if (href) {
+		/* the multiget names it by its path on the server, which ECal's
+		   own names for new events (CALnnnnn, a UID's) are not */
+		char full[512], *h[1];
+		static URL u;
+		url_resolve(c->url, href, full, sizeof(full));
+		if (!url_parse(full, &u))
+			return 0;
+		h[0] = u.path;
+		caldav_multiget(c->url, &au, h, 1, got_current, o, err, sizeof(err));
+	} else if (uid && *uid) {
+		caldav_by_uid(c->url, &au, uid, got_current, o, err, sizeof(err));
+	}
+	return o->data != 0;
+}
+
+/* a property's value in an event's text: the first, or 0 */
+static void ical_value(const char *t, const char *name, char *out, int size)
+{
+	int n = (int)strlen(name), k = 0;
+	const char *p;
+	out[0] = 0;
+	for (p = t; p && *p; p = strchr(p, '\n'), p = p ? p + 1 : 0)
+		if (!strncasecmp(p, name, n) && (p[n] == ':' || p[n] == ';')) {
+			p = strchr(p, ':');
+			for (p = p ? p + 1 : ""; *p && *p != '\r' && *p != '\n' && k < size - 1; p++)
+				out[k++] = *p;
+			out[k] = 0;
+			return;
+		}
+}
+
+static int ical_seq(const char *t)
+{
+	char v[12];
+	ical_value(t, "SEQUENCE", v, sizeof(v));
+	return atoi(v);
+}
+
+/* the cached resource kept at this href (the server's full path or the
+   name ECal gave it), or -1 */
+static int res_at(CALENDAR *c, const char *href)
+{
+	const char *b = strrchr(href, '/') ? strrchr(href, '/') + 1 : href;
+	int i;
+	for (i = 0; i < c->nres; i++) {
+		const char *h = c->res[i].href, *hb;
+		if (c->res[i].dead || !h)
+			continue;
+		hb = strrchr(h, '/') ? strrchr(h, '/') + 1 : h;
+		if (!strcmp(h, href) || !strcmp(hb, b))
+			return i;
+	}
+	return -1;
+}
+
+static int same_rule(const RRULE *a, const RRULE *b);
+
+/* text t's event like e (its UID, the same occurrence), notes and
+   people too; 0 if none */
+static EVENT *parse_like(const char *t, long n, const EVENT *e)
+{
+	PEOPLECTX p;
+	int keep_p = ics_people, keep_n = ics_notes;
+	p.want = e;
+	p.got = 0;
+	ics_people = ics_notes = 1;
+	ics_parse(t, n, people_of, &p, CT_NONE, CT_NONE);
+	ics_people = keep_p;
+	ics_notes = keep_n;
+	return p.got;
+}
+
+static int same_text(const char *a, const char *b)
+{
+	return !strcmp(a ? a : "", b ? b : "");
+}
+
+/* mine (ECal's change) over theirs (the server's newer copy), both from
+   base (what ECal had read): what ECal didn't change is theirs */
+static EVENT *merge_change(const EVENT *mine, EVENT *base, EVENT *theirs)
+{
+	EVENT *r = ev_dup(mine);
+	if (!r)
+		return 0;
+#define TAKE_TEXT(f) if (same_text(mine->f, base->f)) ev_set(&r->f, theirs->f)
+	TAKE_TEXT(summary);
+	TAKE_TEXT(location);
+	TAKE_TEXT(notes);
+	TAKE_TEXT(url);
+#undef TAKE_TEXT
+	if (mine->start == base->start && mine->end == base->end && mine->allday == base->allday &&
+	    mine->floating == base->floating && mine->tz == base->tz) {
+		r->start = theirs->start;
+		r->end = theirs->end;
+		r->allday = theirs->allday;
+		r->floating = theirs->floating;
+		r->tz = theirs->tz;
+	}
+	if (same_rule(mine->rr, base->rr) && mine->nexdate == base->nexdate) {
+		RRULE *rr = r->rr;
+		CTIME *ex = r->exdate;
+		r->rr = theirs->rr;
+		r->exdate = theirs->exdate;
+		r->nexdate = theirs->nexdate;
+		theirs->rr = rr;
+		theirs->exdate = ex;
+	}
+	if (mine->alarm == base->alarm)
+		r->alarm = theirs->alarm;
+	if (mine->status == base->status)
+		r->status = theirs->status;
+	if (!mine->att_edited) {
+		free(r->attendees);
+		free(r->organizer);
+		r->attendees = theirs->attendees ? strdup(theirs->attendees) : 0;
+		r->organizer = theirs->organizer ? strdup(theirs->organizer) : 0;
+	}
+	if (r->seq < theirs->seq)
+		r->seq = theirs->seq;
+	return r;
+}
+
+char cal_note[120];		/* a save that went another way than asked */
+/* the event the text was built from, built again over the server's newer
+   copy when that has changed meanwhile (412) */
+static const EVENT *put_ev;
+static CURRENT put_cur;		/* the server's copy read again: freed after the save */
+
+static void put_log(const char *m)
+{
+	conn_log("ECal", "--", m, (long)strlen(m));
+}
+
+/* A PUT refused (caldav_status). An update with an old ETag (412): the
+   event was changed elsewhere since ECal read it, or deleted. Read it
+   again, put this change over the newer copy, once. A new event refused
+   (412: something is at its href already; 409 or 403: the calendar has
+   its UID under another name): an invitation saved twice, or put there
+   by the server or another program first. The copy there is updated when
+   it is the same event (the same UID) and not newer than this one. *res,
+   *h and the text change to what was saved */
+static int put_again(CALENDAR *c, int *res, const char **h, const char **text, long *len,
+		     char **built, char *etag, int esize)
+{
+	DAVAUTH au = auth_of(c->acct);
+	int st = caldav_status, ok = 0;
+	char uid[200], uid2[200], m[160];
+	if (*res >= 0 && st == 412) {
+		snprintf(m, sizeof(m), "PUT %d: changed elsewhere since it was read; reading it again", st);
+		put_log(m);
+		if (read_current(c, *h, 0, &put_cur)) {
+			if (put_ev) {
+				/* this change over the newer copy: what it didn't
+				   change stays as the other program left it */
+				long blen = 0;
+				char *braw = ev_raw(put_ev, &blen);
+				EVENT *base = braw ? parse_like(braw, blen, put_ev) : 0;
+				EVENT *theirs = parse_like(put_cur.data, put_cur.len, put_ev);
+				EVENT *e2 = base && theirs ? merge_change(put_ev, base, theirs) : ev_dup(put_ev);
+				int sq = ical_seq(put_cur.data);
+				if (e2) {
+					if (e2->seq < sq)
+						e2->seq = sq;
+					*built = ics_build(e2, put_cur.data, put_cur.len, len);
+					ev_free(e2);
+				}
+				ev_free(base);
+				ev_free(theirs);
+				free(braw);
+				if (!*built)
+					goto out;
+				*text = *built;
+			}
+			ok = caldav_put(c->url, *h, &au, *text, *len, put_cur.etag, etag, esize, cal_err, sizeof(cal_err));
+			if (ok)
+				str_copy(cal_note, "It had been changed elsewhere meanwhile: this change is saved over it",
+					 sizeof(cal_note));
+		} else {
+			/* deleted elsewhere: made again */
+			ok = caldav_put(c->url, *h, &au, *text, *len, 0, etag, esize, cal_err, sizeof(cal_err));
+			if (ok)
+				str_copy(cal_note, "It had been deleted elsewhere meanwhile: it is saved again",
+					 sizeof(cal_note));
+		}
+	} else if (*res < 0 && (st == 412 || st == 409 || st == 403)) {
+		ical_value(*text, "UID", uid, sizeof(uid));
+		snprintf(m, sizeof(m), "PUT %d: a new event, there already; looking for it", st);
+		put_log(m);
+		if (!(st == 412 && read_current(c, *h, 0, &put_cur)) && !read_current(c, 0, uid, &put_cur))
+			goto out;
+		ical_value(put_cur.data, "UID", uid2, sizeof(uid2));
+		if (strcmp(uid2, uid)) {
+			/* its name taken by another event: under another one */
+			static char h2[130];
+			snprintf(h2, sizeof(h2), "%.*s-1.ics", (int)strcspn(*h, "."), *h);
+			*h = h2;
+			ok = caldav_put(c->url, *h, &au, *text, *len, 0, etag, esize, cal_err, sizeof(cal_err));
+		} else if (ical_seq(*text) < ical_seq(put_cur.data)) {
+			str_copy(cal_err, "the calendar has a newer version of this event already", sizeof(cal_err));
+			put_log("not saved: the copy there is newer");
+		} else {
+			*h = put_cur.href;
+			*res = res_at(c, put_cur.href);
+			ok = caldav_put(c->url, *h, &au, *text, *len, put_cur.etag, etag, esize, cal_err, sizeof(cal_err));
+			if (ok)
+				str_copy(cal_note, "It was in the calendar already: updated", sizeof(cal_note));
+		}
+	}
+out:
+	if (!ok)
+		caldav_status = caldav_status ? caldav_status : st;
+	put_log(ok ? "saved" : "not saved");
+	return ok;
+}
+
 /* store text for resource res (-1: a new one at href) of calendar c,
    on the server and in the cache */
 static int put_resource(CALENDAR *c, int res, const char *href, const char *text, long len)
 {
-	char etag[100] = "";
+	char etag[100] = "", *built = 0;
 	const char *h = res >= 0 ? c->res[res].href : href;
+	int ok;
+	cal_note[0] = 0;
 	if (accts[c->acct].kind == AK_CALDAV) {
 		DAVAUTH au = auth_of(c->acct);
 		status("Saving to %s...", accts[c->acct].name);
-		if (!caldav_put(c->url, h, &au, text, len, res >= 0 ? c->res[res].etag : 0,
-				etag, sizeof(etag), cal_err, sizeof(cal_err))) {
-			status_clear();
+		ok = caldav_put(c->url, h, &au, text, len, res >= 0 ? c->res[res].etag : 0,
+				etag, sizeof(etag), cal_err, sizeof(cal_err));
+		if (!ok && caldav_status)
+			ok = put_again(c, &res, &h, &text, &len, &built, etag, sizeof(etag));
+		put_ev = 0;
+		status_clear();
+		if (!ok) {
+			free(built);
+			free(put_cur.data);
+			put_cur.data = 0;
 			return 0;
 		}
-		status_clear();
 	} else if (accts[c->acct].kind != AK_LOCAL) {
+		put_ev = 0;
 		str_copy(cal_err, "subscribed calendars can't be changed", sizeof(cal_err));
 		return 0;
 	}
+	put_ev = 0;
 	{
 		char *hh = strdup(h);
-		int ok = hh && cache_change(c, res, hh, etag, text, len);
+		ok = hh && cache_change(c, res, hh, etag, text, len);
 		free(hh);
+		free(built);
+		free(put_cur.data);	/* h may have pointed into it until here */
+		put_cur.data = 0;
 		return ok;
 	}
 }
@@ -4165,7 +4420,8 @@ static int save_new(EVENT *e, int ci)
 		e->uid = strdup(uid);
 	}
 	e->recurid = CT_NONE;
-	e->seq = 0;
+	if (!(inv_text && inv_uid && !strcmp(e->uid, inv_uid)))
+		e->seq = 0;	/* an invitation keeps its organiser's SEQUENCE */
 	new_href(e->uid, href, sizeof(href));
 	ics_now_utc = now_utc();
 	set_me(c);		/* the organizer of its invitations */
@@ -4291,8 +4547,10 @@ int ev_save(EVENT *e, int ci, int how, CTIME occ)
 		old->rr->count = 0;
 		old->seq++;
 		text = ics_build(old, raw, rawlen, &len);
-		ev_free(old);
+		put_ev = old;
 		ok = text && put_resource(c, res, 0, text, len);
+		put_ev = 0;
+		ev_free(old);
 		free(text);
 		free(raw);
 		if (!ok)
@@ -4323,6 +4581,7 @@ int ev_save(EVENT *e, int ci, int how, CTIME occ)
 	free(raw);
 	if (!text)
 		return 0;
+	put_ev = e;
 	ok = put_resource(c, res, 0, text, len);
 	free(text);
 	return ok;
@@ -4368,10 +4627,13 @@ int ev_delete(EVENT *e, int how, CTIME occ)
 	copy->seq++;
 	text = r2 ? ics_build(copy, r2, rawlen, &len) : 0;
 	free(r2);
-	ev_free(copy);
-	if (!text)
+	if (!text) {
+		ev_free(copy);
 		return 0;
+	}
+	put_ev = copy;
 	ok = put_resource(c, e->res, 0, text, len);
+	ev_free(copy);
 	free(text);
 	return ok;
 }

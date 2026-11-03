@@ -105,6 +105,7 @@ extern int naccts;
 extern CALENDAR cals[MAXCAL];
 extern int ncals;
 extern char cal_err[200];		/* what went wrong last */
+extern char cal_note[120];		/* a save that went another way than asked: for the status line */
 extern void (*cal_status)(const char *msg);	/* progress for the status line */
 extern int store_lost_passwords;
 extern int store_plain_passwords;
