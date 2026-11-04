@@ -9,7 +9,7 @@ background, builds the reminders and writes ALARMS.IDX. Second boot with
 START=opened: it reads nothing but ALARMS.IDX, and an event's reminder
 two minutes on still comes, over the desktop.
 
-    tests/hatari/alarm_test.py WORKDIR [--machine Falcon|TT|ST:mono|...]
+    tests/hatari/alarm_test.py WORKDIR [--machine Falcon|TT|ST-1:mono|...]
 
 Run with TZ set to the seed's zone (TZ=Asia/Jerusalem). Exit status 0
 when every check passes.

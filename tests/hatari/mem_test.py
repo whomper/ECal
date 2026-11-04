@@ -14,7 +14,7 @@ to a year ahead (the window ECal copies), some of them weekly series
 from the past, some with reminders, attendees and longer descriptions.
 ECAL.ACC from make profile, LOG=1, window never opened.
 
-    make profile && tests/hatari/mem_test.py WORKDIR [--machine ST:mono|Falcon|...] [--falcon-mode]
+    make profile && tests/hatari/mem_test.py WORKDIR [--machine ST-1:mono|Falcon|...] [--falcon-mode]
                                              [--cals 3] [--events 500] [--heapkb N]
 """
 import argparse

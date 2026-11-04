@@ -17,7 +17,9 @@ settle, and the stretches that came meanwhile are its own.
 With the calendars of tests/host/bigcal.py (580 events) and a day of
 24 events today, ECAL.PRG starts and goes through the views, scrolls,
 opens and closes a dialog, an alert and the event editor, types in a
-field; with --acc, ECAL.ACC boots and is opened from the Desk menu.
+field; with --acc, ECAL.ACC boots and is opened from the Desk menu
+(on ST-1 or a Falcon with 14 MB: the accessory isn't tested on the 4 MB
+machines, ST and Falcon-4, Erez 4 Nov 2026).
 
     tests/hatari/speed_test.py WORKDIR [--machine ST:mono] [--acc] [--json OUT]
 """

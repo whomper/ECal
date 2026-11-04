@@ -6,7 +6,7 @@ drive's root, its files in C:\\ECAL\\. Boots to the desktop, opens the
 Desk menu, chooses ECal, and takes screenshots; then closes the window
 and opens it again, as one does with an accessory.
 
-    tests/hatari/acc_test.py WORKDIR [--machine Falcon|TT|ST:mono|...]
+    tests/hatari/acc_test.py WORKDIR [--machine Falcon|TT|ST-1:mono|...]
 
 The accessory is ECAL.ACC on every machine (TLS.OVL beside it on a TT or Falcon).
 """

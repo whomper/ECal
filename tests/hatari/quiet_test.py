@@ -13,7 +13,7 @@ event calendar), it boots with START=20, sits on the desktop through
 the background reading and several reminder checks, and fails on any
 stretch over 50 ms on a Falcon or TT (100 ms on an ST).
 
-    make profile && tests/hatari/quiet_test.py WORKDIR [--machine Falcon|TT|ST:mono|...] [--big] [--secs 150]
+    make profile && tests/hatari/quiet_test.py WORKDIR [--machine Falcon|TT|ST-1:mono|...] [--big] [--secs 150]
 
 --big seeds about 1050 events (bigcal.py --big), as Erez's calendars hold.
 """

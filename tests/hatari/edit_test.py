@@ -6,7 +6,7 @@ an English title and one with a Hebrew title typed on the Israeli
 keyboard, change one, delete it, and check what ECAL.ACC wrote to its
 cache (the iCalendar text that would go to the server).
 
-    tests/hatari/edit_test.py WORKDIR [--machine Falcon|TT|ST:mono|ST-1:med|...]
+    tests/hatari/edit_test.py WORKDIR [--machine Falcon|TT|ST-1:mono|ST-1:med|...]
 
 The accessory is ECAL.ACC on every machine (TLS.OVL beside it on a TT or Falcon).
 Exit status 0 when every check passes.

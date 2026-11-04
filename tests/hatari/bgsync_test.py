@@ -18,7 +18,7 @@ event calls over 50 ms on a Falcon or TT (100 ms on an ST), except a new
 connection's (with --falcon-mode, the TLS handshake on the Atari),
 which is reported apart.
 
-    make profile && tests/hatari/bgsync_test.py WORKDIR [--machine Falcon|TT|ST:mono|...] [--falcon-mode]
+    make profile && tests/hatari/bgsync_test.py WORKDIR [--machine Falcon|TT|ST-1:mono|...] [--falcon-mode]
 """
 import argparse
 import base64

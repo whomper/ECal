@@ -343,12 +343,12 @@ tests/hatari/font_acc.py WORK [--machine M] [--prg] [--font-id N]
 tests/hatari/edit_test.py WORK [--machine M]      # add, Hebrew title, find, delete, one occurrence,
                                                   # custom repeats (Falcon; on an ST up to delete)
 tests/hatari/alarm_test.py WORK [--machine M]     # reminders from ALARMS.IDX at boot (Falcon)
-tests/hatari/net_test.py WORK [--machine M]       # syncing through ecalgate (ST)
+tests/hatari/net_test.py WORK [--machine M]       # syncing through ecalgate (ST-1)
 tests/hatari/net_test.py WORK --falcon-mode       # a Direct connection on the Falcon (TLS.OVL),
                                                   # RSA and X25519 on the DSP
 tests/hatari/tlsovl_test.py WORK [--machine M]    # Direct connection ticked: without TLS.OVL an
                                                   # alert, no crash; with it, loaded (Falcon)
-tests/hatari/stop_test.py WORK [--machine M]      # Esc stops a server that says nothing (ST)
+tests/hatari/stop_test.py WORK [--machine M]      # Esc stops a server that says nothing (ST-1)
 tests/hatari/quiet_test.py WORK [--machine M]     # make profile first: the accessory's quiet
                                                   # start, timed between event calls (Falcon)
 tests/hatari/bgsync_test.py WORK [--machine M] [--falcon-mode]

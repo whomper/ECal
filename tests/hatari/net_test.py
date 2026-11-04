@@ -12,7 +12,7 @@ server's Hebrew event, and an event added on the Atari must arrive on
 the server. The accessory is ECAL.ACC on every machine; --falcon-mode
 connects directly, with TLS.OVL.
 
-    tests/hatari/net_test.py WORKDIR [--machine ST:mono|ST-1:med|TT|Falcon|...]
+    tests/hatari/net_test.py WORKDIR [--machine ST-1:mono|ST-1:med|TT|Falcon|...]
 
 With --prg it is ECAL.PRG instead, started from C:\\ECAL: the program is
 where the crash catcher is, so this is the run that shows STinG's way
@@ -55,7 +55,7 @@ def http(method, path, body=None, ctype=None):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("work")
-    rig.add_machine(ap, "ST")
+    rig.add_machine(ap, "ST-1")
     ap.add_argument("--prg", action="store_true", help="ECAL.PRG instead of the accessory")
     ap.add_argument("--falcon-mode", action="store_true",
                     help="TLS on the Falcon itself (RSA on the DSP), no gateway")

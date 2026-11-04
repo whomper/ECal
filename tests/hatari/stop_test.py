@@ -14,7 +14,7 @@ Hatari has no network card: FAKESTNG.PRG carries the Atari's TCP
 connections over the emulated serial port to serial_bridge.py
 (common/tools/machines.py's network()), as in net_test.py.
 
-    tests/hatari/stop_test.py WORKDIR [--machine ST:mono|ST-1:med|...]
+    tests/hatari/stop_test.py WORKDIR [--machine ST-1:mono|ST-1:med|...]
 """
 import argparse
 import os
@@ -66,7 +66,7 @@ def silent_server(stop):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("work")
-    rig.add_machine(ap, "ST")
+    rig.add_machine(ap, "ST-1")
     a = ap.parse_args()
     work = os.path.abspath(a.work)
     shutil.rmtree(work, ignore_errors=True)

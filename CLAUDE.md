@@ -93,7 +93,7 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
   `ci_path` (`common/tools/machines.py`).
 - Speed: `tests/hatari/speed_test.py` (a profiled build: `make OBJDIR=build/prof20 BIN=build/prof20/bin
   AESPROF=20 all`) times the guidelines' actions on `ST:mono`, `ST:med` and `Falcon-4:16` (with
-  `AERA_WITH_NVDI=1` too); `--acc` the accessory, `--again` a second start on the first's files (the
+  `AERA_WITH_NVDI=1` too); `--acc` the accessory (on `ST-1` and `Falcon:16` only), `--again` a second start on the first's files (the
   snapshots). Its VIEWMS/REDRAWMS lines say where a view's time goes.
 - Before pushing: `make test` (the core, the fuzz inputs again, the
   gateway, the snapshots, a series' occurrences with and without the jump; `make rrjump-m68k` runs
@@ -101,16 +101,19 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
   radicale`; also `GATEWAY=1` and `FALCON=1` when the connection code
   changes), and `make` with no warnings. When the GEM side changes, the
   Hatari rigs in `tests/hatari/`, on the family's machines (`--machine`, from
-  `common/tools/machines.py`): the accessory's rigs on `ST` and `ST-1` (`:mono` and `:med`), the
+  `common/tools/machines.py`): the accessory's rigs on `ST-1` (`:mono` and `:med`), the
   others, Direct connection among them, on `TT` and `Falcon`, drawing also on `Falcon:256`. One
   ecal.acc/prg for every machine; the rigs put `binary/tls.ovl` in ECal's folder.
 - **Before a GEM release**, run these rigs on his TOS images (`~/.aera/tos`: TOS 1.04 on
   ST/ST-1, TOS 4.04 on the Falcons; and his NVDI in `~/.aera/nvdi/x` with `AERA_WITH_NVDI=1`), then send the
   hub the commit and the results; the hub runs only the family checks (`acc_all.py`):
-  - `acc_test.py` and `font_acc.py` (accessory, `--prg`, `--font-id`) on `Falcon:16` and `Falcon-4:16`,
-    with and without NVDI;
-  - `acc_test.py`, `acc_files.py` and `quiet_test.py` on `ST:mono` and `ST-1` (TOS 1.04);
+  - `acc_test.py` and `font_acc.py` (accessory, `--prg`, `--font-id`) on `Falcon:16`, with and
+    without NVDI;
+  - `acc_test.py`, `acc_files.py` and `quiet_test.py` on `ST-1` (TOS 1.04);
   - `edit_test.py`, `esc_test.py` and `ui_tour.py` on `Falcon:16`; `Falcon:256` when drawing changes.
+
+  The accessory isn't tested on the 4 MB machines, `ST` and `Falcon-4` (Erez, 4 Nov 2026; AERA-Atari
+  21ba998): `ST-1`, `TT` and `Falcon` only. ECAL.PRG on its own stays tested on `ST` and `Falcon-4`.
 
   His TOS images and NVDI are his copies: never in git (nor a test's `hd`), never sent anywhere. EmuTOS
   stays for development and CI.
