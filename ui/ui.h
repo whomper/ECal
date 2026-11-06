@@ -289,14 +289,12 @@ void views_event(int what);
 void cmd_new_event(void);
 void cmd_import(int cal);
 void after_change(void);		/* events changed: redraw all */
-extern short hebrew_kbd;
-void set_hebrew_kbd(short on);
+#include "hebkey.h"		/* hebrew_kbd, set_hebrew_kbd, key_char, the badge: common/ui */
 void settings_later(void);	/* save the settings in a few seconds (main.c) */
 void mem_ran_out(void);		/* MEMKB= doubled for the next start (main.c) */
 const char *mem_full_advice(void);	/* a "memory is full" alert's last lines */
 void settings_flush(void);	/* now, if anything is waiting */
 void closing_down(int quitting);	/* the last steps, on the info line */
-unsigned char key_char(short kstate, short key);	/* honours the Hebrew layout */
 void falcon_dsp_init(void);		/* dsp_ovl.c */
 const char *falcon_dsp_state(void);
 int calendars_read(void);

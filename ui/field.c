@@ -856,8 +856,7 @@ static void draw_all_in(DLG *d, const GRECT *clip)
 	t.h = ch + 2;
 	if (dlg_in_window()) {
 		/* the window's title bar names it */
-		if (hebrew_kbd)
-			text_at(t.x + t.w - 4 * cw, t.y + 1, "\xD3\xC3", 2, 2, TX_BOLD);	/* "עב": Hebrew keyboard */
+		hebrew_badge_right(vdi_h, t.x, t.y, t.w, t.h, 1);	/* the Hebrew keyboard's, while on */
 	} else {
 		short cols = (short)((box.w - 2 * pad) / cw), n;
 		fill(&t, 1);
@@ -867,8 +866,7 @@ static void draw_all_in(DLG *d, const GRECT *clip)
 		   a cell off when the room left is odd) */
 		text_at(box.x + pad + (n < cols ? (cols - n) / 2 : 0) * cw, t.y + 1, title, n, cols,
 			TX_INVERSE | TX_BOLD | (line_rtl(title, n) ? TX_RIGHT : TX_LTR));
-		if (hebrew_kbd)
-			text_at(t.x + t.w - 4 * cw, t.y + 1, "\xD3\xC3", 2, 2, TX_INVERSE);	/* "עב": Hebrew keyboard */
+		hebrew_badge_right(vdi_h, t.x, t.y, t.w, t.h, 0);	/* white on the band */
 	}
 	if (frame_only) {
 		/* the rest in slices (draw_some): the inside below the title

@@ -101,6 +101,8 @@ def main():
         time.sleep(1.5)
         r.key(K["F10"])
         r.type("ehb,", pace=0.1)      # "קפה" on the Israeli layout... and a few letters
+        time.sleep(0.5)
+        r.shot("5h-hebrew-dialog")    # the keyboard's badge at the title's right end
         r.key(K["F10"])
         r.type(" 4pm")
         time.sleep(0.5)
@@ -108,6 +110,11 @@ def main():
         r.key(0x61)                   # Undo: the dialog cancelled (Esc empties a field, 3.5)
         time.sleep(1)
         r.shot("6-after")
+        r.key(K["F10"])               # the keyboard on in the main window: its badge
+        time.sleep(1.5)               # at the toolbar's right end (guideline 5.3)
+        r.shot("7-hebrew-toolbar")
+        r.key(K["F10"])
+        time.sleep(1)
     finally:
         r.stop()
     print("screenshots in", os.path.join(a.work, "shots"))

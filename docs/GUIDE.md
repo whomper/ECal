@@ -341,8 +341,8 @@ As in EMail, the Options menu (and the ≡ menu) has three ticks:
 - **Direct connection (TLS)**: the same as the tick in Settings > Connection.
 - **Write a log**: ECAL.LOG, the conversation with the servers.
 
-While the Hebrew keyboard is on, the info line ends with "Hebrew keyboard
-(F10)".
+While the Hebrew keyboard is on, its badge, the letters ayin and bet
+(עב), shows at the right end of the toolbar and of each dialog's title.
 
 Where the AES can iconify windows (MultiTOS, MagiC, XaAES, N.AES), the
 window has the iconify button: ECal shrinks to its icon, with today's

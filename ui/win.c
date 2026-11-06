@@ -148,7 +148,8 @@ void win_layout(void)
 	r_title.x = x;
 	r_title.y = work.y + 4;
 	r_title.h = ch;
-	x = work.x + work.w - 4;
+	/* the right end clear for the Hebrew keyboard's badge while it is on */
+	x = work.x + work.w - 4 - (hebrew_kbd ? 20 : 0);
 	for (i = B_MENU; i >= B_DAY; i--) {
 		bw = ((short)strlen(blabel[i]) + 2) * cw;
 		if (work.w < 70 * cw && i >= B_DAY && i <= B_YEAR)
@@ -310,6 +311,7 @@ static void draw_toolbar(GRECT *clip)
 		}
 	}
 	text_at(r_title.x, r_title.y, t, (long)strlen(t), r_title.w / cw, TX_BOLD | TX_LTR | TX_WHITE);
+	hebrew_badge_right(vdi_h, r_tool.x, r_tool.y, r_tool.w, r_tool.h - 1, 1);	/* while it is on */
 	hline(work.x, work.x + work.w - 1, work.y + r_tool.h - 1);
 }
 

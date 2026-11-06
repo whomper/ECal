@@ -42,7 +42,7 @@
 #include "notify.h"
 
 short vdi_h, cw, ch, scr_w, scr_h, desk_x, desk_y, desk_w, desk_h, planes;
-short gl_wchar, gl_hchar, ap_id, is_acc, ncolors, hebrew_kbd, quit_now;
+short gl_wchar, gl_hchar, ap_id, is_acc, ncolors, quit_now;
 extern short _is_acc;		/* crt0.S */
 
 static short menu_id = -1;
@@ -127,18 +127,12 @@ void closing_down(int quitting)
 	busy(0);
 }
 
-/* the info line; while the Hebrew keyboard is on it says so at the end,
-   whatever else it shows (EMail's editor line does the same) */
+/* the info line (the Hebrew keyboard's badge is in the toolbar) */
 void status(const char *msg)
 {
-	char s[200];
 	crash_note(msg);		/* for CRASH.LOG, should ECal crash */
 	if (win_h <= 0)
 		return;
-	if (hebrew_kbd) {
-		snprintf(s, sizeof(s), "%s%sHebrew keyboard (F10)", msg, *msg ? "   " : "");
-		msg = s;
-	}
 	win_status(msg);
 }
 
@@ -165,31 +159,17 @@ void set_logging(void)
 		conn_logfile[0] = 0;
 }
 
-/* Israeli SI-1452 layout by key position (scancode 0x10-0x35), giving
-   Atari character codes; 0 = not remapped. From Claude ST and EMail. */
-static const u8 hebrew_keys[0x36 - 0x10] = {
-	/* 10 q..p */ '/', '\'', 0xD4, 0xD5, 0xC2, 0xCA, 0xC7, 0xD8, 0xDA, 0xD2,
-	/* 1a [ ] ret ctrl */ 0, 0, 0, 0,
-	/* 1e a..' */ 0xD6, 0xC5, 0xC4, 0xCC, 0xD1, 0xCB, 0xC9, 0xCD, 0xD9, 0xDB, ',',
-	/* 29 ` lshift \ */ 0, 0, 0,
-	/* 2c z../ */ 0xC8, 0xD0, 0xC3, 0xC6, 0xCF, 0xCE, 0xD3, 0xD7, 0xDC, '.'
-};
-
-unsigned char key_char(short kstate, short key)
-{
-	short scan = KEY_SCAN(key);
-	unsigned char ascii = KEY_ASCII(key);
-	if (hebrew_kbd && !(kstate & (K_LSHIFT | K_RSHIFT | K_ALT)) && !key_ctrl(kstate, key) &&
-	    scan >= 0x10 && scan < 0x36 && hebrew_keys[scan - 0x10])
-		ascii = hebrew_keys[scan - 0x10];
-	return ascii;
-}
-
 static void updated_status(void);
 
-void set_hebrew_kbd(short on)
+/* the Hebrew keyboard switched (common/ui/hebkey.c): its badge at the
+   toolbar's right end (the info line is the AES's: guideline 5.3) and
+   the info line again */
+static void kbd_changed(void)
 {
-	hebrew_kbd = on;
+	if (win_h > 0) {
+		win_layout();
+		win_redraw(&r_tool);
+	}
 	if (data_ready)
 		updated_status();
 }
@@ -1239,6 +1219,7 @@ static int settings_step(void)
 	if (store_plain_passwords && !store_lost_passwords)
 		store_save_settings();
 	hebrew_kbd = opt.hebrew;
+	hebrew_kbd_hook = kbd_changed;
 	{
 		/* where TOS put us: TT/Fast RAM starts at 16 MB */
 		char m[100];
