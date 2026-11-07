@@ -642,8 +642,8 @@ static void open_contacts(void)
 
 /* the commands of the menu bar (the program) and the toolbar's menu */
 enum { C_NONE, C_ABOUT, C_NEW, C_ADD, C_REFRESH, C_REFRESH_ALL, C_AGAIN, C_QUIT, C_COPY, C_DAY, C_WEEK,
-       C_MONTH, C_YEAR, C_TODAY, C_GOTO, C_FIND, C_SIDE, C_HEB, C_SET, C_FONT, C_OFFL, C_FALC,
-       C_LOG, C_KBD, C_HELP, C_KEYS, C_CONTACTS, C_IMPORT, C_CLOSE, C_NEW_ALLDAY, C_OPEN, C_DUP,
+       C_MONTH, C_YEAR, C_TODAY, C_GOTO, C_FIND, C_SIDE, C_SET, C_FONT, C_OFFL, C_FALC,
+       C_LOG, C_HELP, C_KEYS, C_CONTACTS, C_IMPORT, C_CLOSE, C_NEW_ALLDAY, C_OPEN, C_DUP,
        C_DEL };
 
 static const MBAR_ITEM m_desk[] = {
@@ -678,7 +678,6 @@ static const MBAR_ITEM m_view[] = {
 	{ "Find...", "^F", C_FIND },
 	{ "-", 0, 0 },
 	{ "Calendar list", "\x01^S", C_SIDE },
-	{ "Hebrew dates", 0, C_HEB },
 	{ 0, 0, 0 }
 };
 /* the commands on events, New among them, in their own menu (the
@@ -699,7 +698,6 @@ static const MBAR_ITEM m_opts[] = {
 	{ "Work offline", 0, C_OFFL },
 	{ "Direct connection (TLS)", 0, C_FALC },
 	{ "Write a log", 0, C_LOG },
-	{ "Hebrew keyboard", "F10", C_KBD },
 	{ 0, 0, 0 }
 };
 static const MBAR_ITEM m_help[] = {
@@ -763,11 +761,9 @@ static void menu_update(void)
 	check(C_MONTH, cur_view == V_MONTH);
 	check(C_YEAR, cur_view == V_YEAR);
 	check(C_SIDE, opt.sidebar);
-	check(C_HEB, opt.hebdates);
 	check(C_OFFL, opt.offline);
 	check(C_FALC, opt.falcon);
 	check(C_LOG, opt.log);
-	check(C_KBD, hebrew_kbd);
 	event_items();
 }
 
@@ -795,7 +791,7 @@ static void command(int c)
 {
 	switch (c) {
 	case C_ABOUT: case C_DAY: case C_WEEK: case C_MONTH: case C_YEAR: case C_TODAY: case C_GOTO:
-	case C_SIDE: case C_HEB: case C_KBD: case C_HELP: case C_KEYS: case C_QUIT:
+	case C_SIDE: case C_HELP: case C_KEYS: case C_QUIT:
 		break;
 	default:
 		data_wait();	/* the rest needs the calendars read */
@@ -825,12 +821,6 @@ static void command(int c)
 		win_layout();
 		win_redraw(0);
 		break;
-	case C_HEB:
-		opt.hebdates = !opt.hebdates;
-		settings_later();
-		after_change();
-		break;
-	case C_KBD: set_hebrew_kbd(!hebrew_kbd); break;
 	case C_OFFL:
 		opt.offline = !opt.offline;
 		if (opt.offline)
@@ -892,8 +882,6 @@ void cmd_menu(short x, short y)
 		{ "  Download everything again...", C_AGAIN },
 		{ "-", 0 },
 		{ "  Calendar list      \x01^S", C_SIDE },
-		{ "  Hebrew dates", C_HEB },
-		{ "  Hebrew keyboard     F10", C_KBD },
 		{ "-", 0 },
 		/* as EMail's Options menu */
 		{ "  Work offline", C_OFFL },
@@ -912,8 +900,7 @@ void cmd_menu(short x, short y)
 	const char *items[N];
 	short i, k, n = N;
 	for (i = 0; i < N; i++) {
-		int on = (m[i].cmd == C_SIDE && opt.sidebar) || (m[i].cmd == C_HEB && opt.hebdates) ||
-			 (m[i].cmd == C_KBD && hebrew_kbd) || (m[i].cmd == C_OFFL && opt.offline) ||
+		int on = (m[i].cmd == C_SIDE && opt.sidebar) || (m[i].cmd == C_OFFL && opt.offline) ||
 			 (m[i].cmd == C_FALC && opt.falcon) || (m[i].cmd == C_LOG && opt.log);
 		items[i] = m[i].text;
 		if (on) {

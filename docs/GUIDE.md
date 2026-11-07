@@ -329,7 +329,7 @@ Double-click an empty day or hour for a new event there. Right-click an event to
 duplicate or delete it; right-click a day for a new event or to change
 the view.
 
-**Hebrew dates** (View > Hebrew dates, or ≡ > Hebrew dates) show next to each day: the day of the
+**Hebrew dates** (Settings > General > Show Hebrew dates) show next to each day: the day of the
 Hebrew month in each cell, the month's name on its first day, the full
 date in day and week views.
 
@@ -341,7 +341,7 @@ As in EMail, the Options menu (and the ≡ menu) has three ticks:
 - **Direct connection (TLS)**: the same as the tick in Settings > Connection.
 - **Write a log**: ECAL.LOG, the conversation with the servers.
 
-While the Hebrew keyboard is on, its badge, the letters ayin and bet
+F10 switches the Hebrew keyboard on and off (it has no menu entry). While it is on, its badge, the letters ayin and bet
 (עב), shows at the right end of the toolbar and of each dialog's title.
 
 Where the AES can iconify windows (MultiTOS, MagiC, XaAES, N.AES), the

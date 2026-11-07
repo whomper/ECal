@@ -7,7 +7,7 @@ the AERA guidelines, 2.3 and 3.1):
     desktop: it runs, with its menu bar;
   - ECal chosen in the Desk menu meanwhile: the accessory stands aside and
     the program's window stays the only one;
-  - Hebrew dates turned off in the program's View menu, then Quit;
+  - Hebrew dates turned off in the program's Settings, then Quit;
   - the accessory opened from the desktop: it reads ECAL.INF again (the
     program changed it), and shows no Hebrew dates either.
 Screenshots in WORK/shots; the checks read C:\\ECAL\\ECAL.LOG.
@@ -28,7 +28,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(__file__))
-from rig import Rig, SCAN, add_machine, machines  # noqa: E402
+from rig import Rig, K, SCAN, add_machine, machines  # noqa: E402
 import ui_tour  # noqa: E402
 
 ROOT = ui_tour.ROOT
@@ -112,10 +112,12 @@ def main():
         r.click(60, r.ecal_row())     # its first accessory: ECAL.ACC
         time.sleep(5)
         r.shot("5-acc-chosen")
-        r.click(184, 8)                 # View > Hebrew dates (off)
-        time.sleep(1)
-        r.click(200, 19 + 10 * 16 + 8)
+        r.ctrl(",")                     # Settings (no menu entry for Hebrew dates: Erez 7 Nov 2026)
         time.sleep(2)
+        r.click(325, 257)               # Show Hebrew dates (off), as esc_test
+        time.sleep(1)
+        r.key(K["RETURN"])              # OK
+        time.sleep(5)
         r.shot("6-no-hebrew")
         r.key(SCAN["q"], ctrl=True)     # Quit
         time.sleep(8)
