@@ -1205,7 +1205,6 @@ static int settings_step(void)
 	/* passwords typed into ECAL.INF by hand: encrypt them right away */
 	if (store_plain_passwords && !store_lost_passwords)
 		store_save_settings();
-	hebrew_kbd = opt.hebrew;
 	hebrew_kbd_hook = kbd_changed;
 	{
 		/* where TOS put us: TT/Fast RAM starts at 16 MB */

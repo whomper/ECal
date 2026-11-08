@@ -507,7 +507,7 @@ static void settings_changed(DLG *d, short i)
 
 static void settings(short first)
 {
-	enum { L1, F1, L2, F2, F3, F4, L13, F13, F14,
+	enum { L1, F1, L2, F2, F3, F4, L13, F13,
 	       L5, F5, L6, F6, F7,
 	       L8, F8, F9, L10, F10,
 	       L11, F11, F12, F17, L18, F18, H3, L15, F15, L16, F16,
@@ -551,10 +551,7 @@ static void settings(short first)
 	f[F13].items = heb_items;
 	f[F13].nitems = 3;
 	f[F13].val = opt.hebfont;
-	row++;
-	put(&f[F14], FT_CHECK, 0, VX, row, 32, "Start with the Hebrew keyboard");
-	f[F14].val = opt.hebrew;
-	for (i = L1; i <= F14; i++)
+	for (i = L1; i <= F13; i++)
 		in(&f[i], S_GENERAL);
 
 	/* Events */
@@ -701,8 +698,6 @@ static void settings(short first)
 	opt.h24 = f[F3].val;
 	opt.hebdates = f[F4].val;
 	opt.hebfont = f[F13].val;
-	opt.hebrew = f[F14].val;
-	set_hebrew_kbd(opt.hebrew);
 	opt.duration = len_min[f[F5].val];
 	opt.alarm_default = alert_min[f[F6].val];
 	opt.alarms = f[F7].val;

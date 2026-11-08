@@ -107,7 +107,7 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
 - **General**: the first day of the week (Sunday, Monday or Saturday),
   the first hour the day and week views show, the 24-hour clock, Hebrew
   dates next to the civil ones, which character set your font has
-  Hebrew in, and whether ECal starts with the Hebrew keyboard.
+  Hebrew in.
   Where the AES draws dialogs in 3D (TOS 4, MagiC, N.AES, XaAES, EmuTOS
   in colour), ECal's dialogs and alerts take that look with 16 colours or
   more: a grey ground, the AES's own raised buttons, white fields; on

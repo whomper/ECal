@@ -83,7 +83,6 @@ typedef struct {
 	char start[12];		/* when the accessory reads the calendars: "now", "opened",
 				   or seconds after boot (common/ui/bgwork.h) */
 	short offline;		/* Work offline: no connections */
-	short hebrew;		/* start with the Hebrew keyboard */
 	short heapkb;		/* the accessory's memory, KB (read at boot by main.c); 0: chosen */
 	short memkb;		/* what it measured it needs, KB (MEMKB=, main.c); 0: not yet */
 	short peoplefile;	/* EContact not loaded: names from its CONTACTS.TXT (4.1) */
