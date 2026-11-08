@@ -14,8 +14,9 @@ the event is saved inviting her by name; then "Team" taken adds the
 group's two. An event that invites Alice by address alone shows her
 name from the file.
 
-With --econtact (its latest release loaded, the file's names made
-different): the names are EContact's, and the file is never read.
+With --econtact (the stand-in EContact, tests/hatari/fakecontact.c, loaded
+(the guidelines, 1.2), the file's names made different): the names are
+EContact's, and the file is never read.
 --cards N adds N more people (600: a 65 KB file, as EContact writes for
 600 cards); --heapkb K gives the accessory K KB (HEAPKB=), and with
 --too-small the list mustn't fit: an alert says so, and the address is
@@ -33,7 +34,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(__file__))
 import ui_tour  # noqa: E402
-from people_test import (cache_text, text_width, fetch_econtact, econtact, menu_entry_width,  # noqa: E402
+from people_test import (cache_text, text_width, fake_econtact, fake_questions, menu_entry_width,  # noqa: E402
                          ADD_X, ADD_Y, PEOPLE_BOX, MONO_ADD, MONO_PEOPLE_BOX)
 from rig import Rig, K, SCAN, add_machine, is_st, machines  # noqa: E402
 
@@ -70,7 +71,7 @@ def main():
     ap.add_argument("work")
     add_machine(ap, "Falcon")
     ap.add_argument("--acc", action="store_true", help="ECal as the accessory, opened from the Desk menu")
-    ap.add_argument("--econtact", action="store_true", help="EContact's latest release loaded too")
+    ap.add_argument("--econtact", action="store_true", help="the stand-in EContact loaded too")
     ap.add_argument("--cards", type=int, default=0, help="more people in the file")
     ap.add_argument("--heapkb", type=int, default=0, help="HEAPKB= for the accessory")
     ap.add_argument("--too-small", action="store_true", help="the list mustn't fit: the alert expected")
@@ -106,11 +107,8 @@ def main():
         inf = os.path.join(hd, "ecal.inf")
         t = re.sub(rb"\r\nFOLDER=[^\r\n]*", lambda m: b"\r\nFOLDER=C:\\ecal", t)
     open(inf, "wb").write(t)
-    tag = None
     if a.econtact:
-        ec, tag = fetch_econtact(work, None)
-        print("EContact", tag)
-        econtact(hd, ec)
+        fake_econtact(hd)
         contacts_file(hd, " FILE", folder=dirname)  # names EContact doesn't have: never to be seen
     else:
         contacts_file(hd, cards=a.cards)
@@ -155,10 +153,11 @@ def main():
             print("screenshots in", os.path.join(work, "shots"), "(2-dialog: the alert)")
             print("people file test (too small):", "all passed" if not fails else "%d failed" % len(fails))
             return 1 if fails else 0
-        r.type("Grace")                 # its Find line
-        r.wait(3)
-        r.shot("3-found")
-        r.key(K["RETURN"])              # Grace taken
+        if not a.econtact:              # (the stand-in EContact picks Grace itself)
+            r.type("Grace")             # its Find line
+            r.wait(3)
+            r.shot("3-found")
+            r.key(K["RETURN"])          # Grace taken
         r.wait(6)
         r.shot("4-back")
         if not a.econtact:
@@ -217,15 +216,16 @@ def main():
               and sum("mailto:grace.baker@example.net" in ln for ln in att) == 1)
     w = text_width(os.path.join(shots, "5-budget.png"), MONO_PEOPLE_BOX if is_st(a.machine) else PEOPLE_BOX)
     if a.econtact:
-        # EContact's sample hasn't Alice: her address (136 px), not the file's name
+        # the stand-in hasn't Alice: her address (136 px), not the file's name
         check("Alice by her address, not the file's name (%d px)" % w, w in range(130, 145))
         check("the file never read", os.stat(cfile).st_atime < 10)
+        check("EContact asked for the names", any(q.startswith("names:") for q in fake_questions(hd)))
     else:
         check("Alice by her name from the file (%d px)" % w, w in range(90, 100))
     crash = [os.path.join(d, f) for d, _, fs in os.walk(hd) for f in fs if f.lower() == "crash.log"]
     check("no crash (CRASH.LOG)", not crash)
     print("screenshots in", shots)
-    print("people file test%s:" % (", with EContact %s" % tag if tag else ""),
+    print("people file test%s:" % (", with the stand-in EContact" if a.econtact else ""),
           "all passed" if not fails else "%d failed" % len(fails))
     return 1 if fails else 0
 

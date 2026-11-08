@@ -360,14 +360,15 @@ tests/hatari/mem_test.py WORK [--machine M] [--falcon-mode] [--cals 3] [--events
 tests/hatari/esc_test.py WORK [--machine M]       # Esc and Undo cancel dialogs and alerts, and
                                                   # nothing is written (Falcon)
 tests/hatari/people_test.py WORK [--machine M] [--acc]
-                                                  # inviting from EContact (PEOPLE), its latest
-                                                  # release (Falcon)
+                                                  # inviting through EContact (PEOPLE), a
+                                                  # stand-in (make fakecontact; Falcon)
 tests/hatari/invite_test.py WORK [--machine M] [--acc]
                                                   # an .ics invitation by VA_START: the New
                                                   # Event dialog filled, saved with its UID
 tests/hatari/peoplefile_test.py WORK [--machine M] [--acc] [--econtact]
                                                   # EContact's CONTACTS.TXT with EContact not
-                                                  # loaded: names, Add...; with it, never read
+                                                  # loaded: names, Add...; with the stand-in
+                                                  # EContact (--econtact), never read
 tests/hatari/notes_test.py WORK [--machine M] [--acc]
                                                   # notes read from the cache when wanted:
                                                   # Find, the details, saved with an edit
@@ -379,8 +380,6 @@ tests/hatari/title_test.py WORK [--machine M]     # the toolbar's title fits ("1
 tests/hatari/twin_test.py WORK [--machine M]      # ECAL.PRG and ECAL.ACC on one machine
                                                   # (EmuTOS: its desktop is clicked)
 tests/hatari/help_test.py WORK [--machine M]      # the Help key (make fakeguide first; Falcon)
-tests/hatari/hypview_test.py WORK                 # the guide in EHypView's latest release (make
-                                                  # help first): Falcon:16, Falcon:256, TT:mono
 tests/hatari/ui_tour.py WORK [--machine M]        # screenshots of every view (Falcon)
 TZ=America/New_York tests/hatari/docs_shots.py WORK --update [--help-picture]
                                                   # the screenshots in docs/ (Falcon:256, and
@@ -399,8 +398,12 @@ The network tests use the family's `FAKESTNG.PRG`, which carries the emulated At
 serial port to `serial_bridge.py` (both in `common/tools/fakesting`, started by `machines.py`); it's
 for the emulator only, never for a real Atari.
 
-A test that needs another AERA program (EContact, EHypView) uses that program's latest release, what
-you run, fetched with `common/tools/getrelease.py`; the test prints which release it used.
+ECal's tests run ECal alone (the family's guidelines, 1.2, Erez 8 Nov 2026): no other AERA program or
+accessory is loaded beside it, started by it or fetched for it. What ECal does with another program is
+tested against a stand-in from this repository that plays the other side: `ECONTACT.ACC`
+(`tests/hatari/fakecontact.c`, `make fakecontact`) answers PEOPLE as EContact, `ST-GUIDE.ACC`
+(`fakeguide.c`) takes the Help key's VA_START. ECal with the real EContact, EMail and EHypView is the
+hub's family checks. ECAL.PRG with ECAL.ACC (`twin_test.py`) is ECal alone.
 
 ## Licence
 

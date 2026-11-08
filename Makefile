@@ -123,6 +123,17 @@ $(OBJDIR)/fakeguide.elf: $(FAKEGUIDE_OBJS) common/atari/link.ld
 $(OBJDIR)/fakeguide.o: tests/hatari/fakeguide.c common/atari/gem.h | $(OBJDIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+# a stand-in EContact for tests/hatari/people_test.py (the guidelines, 1.2):
+# common's EContact side of PEOPLE, answering from a list of its own
+fakecontact: $(OBJDIR)/ECONTACT.ACC
+$(OBJDIR)/ECONTACT.ACC: $(OBJDIR)/fakecontact.elf common/tools/elf2tos.py
+	python3 common/tools/elf2tos.py $< $@
+FAKECONTACT_OBJS := $(addprefix $(OBJDIR)/,crt0.o gem.o fakecontact.o av.o av_people.o people_ask.o twin.o tos.o libc.o nf.o)
+$(OBJDIR)/fakecontact.elf: $(FAKECONTACT_OBJS) common/atari/link.ld
+	$(CC) $(LDFLAGS) -o $@ $(FAKECONTACT_OBJS) -lgcc
+$(OBJDIR)/fakecontact.o: tests/hatari/fakecontact.c common/atari/gem.h common/ui/people_ask.h | $(OBJDIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
 $(OBJDIR)/cal.elf: $(OBJS) common/atari/link.ld
 	$(CC) $(LDFLAGS) -o $@ $(OBJS) -lgcc
 PRGOBJS := $(filter-out $(OBJDIR)/dialog.o,$(OBJS)) $(OBJDIR)/dialog_cpu.o
@@ -309,4 +320,4 @@ itest: $(OBJDIR)/cal-cli
 clean:
 	rm -rf $(OBJDIR) $(BIN) dist
 
-.PHONY: icons fakeguide all help dist test itest fuzz clean profile rrjump-m68k oddaccess FORCE
+.PHONY: icons fakeguide fakecontact all help dist test itest fuzz clean profile rrjump-m68k oddaccess FORCE

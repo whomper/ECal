@@ -61,10 +61,12 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
 
   How it is made is the team's, without asking: code, structure, shared code, tests, measurements,
   fixes, docs and releases inside an approved phase.
-- **Testing with another AERA program uses its latest release**, what Erez runs, never a build of its
-  `main`: `common/tools/getrelease.py APP DIR FILE...` fetches it. Only for a change both programs are
-  still making, test against the other's `main` at a named commit, say so, and test again against its
-  release when it is out.
+- **No test with another AERA program or accessory** (Erez, 8 Nov 2026; guidelines 1.2, AERA-Atari
+  76417f7): `make test`, `make itest`, the Hatari rigs, the speed rig and session checks run ECal alone;
+  nothing AERA is loaded beside it, started by it or fetched for it (no `getrelease.py`). What ECal does
+  with another program is tested against a stand-in this repo owns: `fakecontact.c` (ECONTACT.ACC,
+  PEOPLE), `fakeguide.c` (ST-GUIDE.ACC, the Help key). The real programs together are the hub's family
+  checks. ECAL.PRG with ECAL.ACC (twin) is ECal alone and stays.
 - **Every new source file starts with the SPDX line and copyright** (see any `.c` file); a generator
   writes them into the files it makes.
 - **The name** reads "AERA | Erez Yaary" wherever it is given: copyright lines

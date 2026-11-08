@@ -27,7 +27,7 @@ CONTACTS.TXT, EContact not loaded), the contacts file counted with ECal's.
 
 Hatari writes the trace to a pipe this script reads as it comes, so each
 call is put in the job going on at that moment. --bin takes the programs
-from another folder (a release's, from common/tools/getrelease.py).
+from another folder (a build of another commit, made here).
 """
 import argparse
 import base64

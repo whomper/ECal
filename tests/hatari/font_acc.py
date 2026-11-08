@@ -6,7 +6,7 @@ as Erez did under NVDI on 19 Oct 2026 with 2.14: the window should redraw
 in the new font, and the accessory, closed and opened again, should draw.
 
     tests/hatari/font_acc.py WORK [--machine Falcon] [--prg]
-                             [--release v2.14 | --bin DIR] [--font-id N] [--log]
+                             [--bin DIR] [--font-id N] [--log]
 
 Opens the window, then Font... from its menu (the toolbar's last button),
 moves to the first font after the system font (the first GDOS font, if a
@@ -15,9 +15,8 @@ screen each step changed are printed; it fails when the window doesn't
 redraw after the choice, or the accessory, opened again, draws nothing.
 Without a GDOS the list has only the system font (or the accessory says
 to choose a GDOS font in ECAL.PRG): "no GDOS fonts, skipped", and it
-passes. --release fetches that ECal release (common/tools/getrelease.py)
-instead of binary/ (--bin: another folder with ECAL.ACC,
-ECAL.PRG); --font-id puts FONT_ID= in ECAL.INF first, as a font chosen
+passes. --bin takes ECAL.ACC and ECAL.PRG from another folder instead of
+binary/ (nothing is fetched: the guidelines, 1.2); --font-id puts FONT_ID= in ECAL.INF first, as a font chosen
 before the machine started. Under NVDI it needs a machine with it
 installed (AERA_WITH_NVDI=1 on the hub, common/tools/machines.py).
 """
@@ -126,7 +125,6 @@ def main():
     ap.add_argument("work")
     add_machine(ap, "Falcon")
     ap.add_argument("--prg", action="store_true", help="ECAL.PRG instead of the accessory, for comparison")
-    ap.add_argument("--release", help="an ECal release to test (e.g. v2.14), fetched from GitHub")
     ap.add_argument("--bin", default=os.path.join(ROOT, "binary"), help="a folder with ECal's programs")
     ap.add_argument("--font-id", type=int, help="FONT_ID= in ECAL.INF before the machine starts")
     ap.add_argument("--log", action="store_true", help="LOG=1 in ECAL.INF; ECAL.LOG's font lines printed")
@@ -137,11 +135,7 @@ def main():
     os.makedirs(hd)
     acc = "ECAL.ACC"
     binary = a.bin
-    if a.release:
-        binary = os.path.join(work, "release")
-        subprocess.run([sys.executable, os.path.join(ROOT, "common", "tools", "getrelease.py"),
-                        "ECal@" + a.release, binary, acc, "ECAL.PRG"], check=True)
-    print("ECal from", a.release or binary)
+    print("ECal from", binary)
     if a.prg:
         shutil.copy(machines.ci_path(binary, "ecal.prg"), os.path.join(hd, "ecal.prg"))
         folder = hd

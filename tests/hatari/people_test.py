@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright (C) 2026 AERA | Erez Yaary
-"""Inviting people with EContact (the guidelines, 4.1: PEOPLE messages),
-in Hatari on a Falcon: ECAL.PRG, and EContact's accessory with the
-contacts of its tests/hatari/sample.vcf.
+"""Inviting people through EContact (the guidelines, 4.1: PEOPLE messages),
+in Hatari on a Falcon: ECAL.PRG and a stand-in EContact
+(tests/hatari/fakecontact.c, ECONTACT.ACC: the guidelines, 1.2, no other
+AERA program in an app's tests; the real EContact with ECal is the hub's
+family checks).
 
-    tests/hatari/people_test.py WORK [--machine Falcon|TT|ST:mono] [--acc] [--econtact v1.43]
+    tests/hatari/people_test.py WORK [--machine Falcon|TT|ST:mono] [--acc]
 
-EContact is its latest release (the guidelines, 1.2), or the one given:
-ECONTACT.ACC from common/tools/getrelease.py, and card-cli and
-sample.vcf from its source at the same tag, to write the contacts. The
-release is printed, for the report. A new event's Add... opens
-EContact's window to choose at once (no question first); "Grace" typed
-into its search and Return choose Grace Baker, and the editor comes back
-with her, by name.
+A new event's Add... asks EContact to pick (no question first); the
+stand-in picks Grace Baker, as a user would in EContact's window, and the
+editor comes back with her, by name.
 Saved, the event invites her with her name and address; opened again,
-she shows by the name ECal asks EContact for. With --acc ECal is the
+she shows by the name ECal asks EContact for. The stand-in writes down
+what it was asked (C:\\FAKECONT.TXT): a pick, and Grace's name. With --acc ECal is the
 accessory (ECAL.ACC), opened from the Desk menu, as both usually are.
 """
 import argparse
@@ -40,42 +39,19 @@ def check(what, ok):
         fails.append(what)
 
 
-def fetch_econtact(work, want):
-    """EContact's release: its accessory, and its source at that tag with
-    card-cli built; the directory, and the release's tag"""
-    ec = os.path.join(work, "econtact")
-    app = "EContact@" + want if want else "EContact"
-    subprocess.run([sys.executable, os.path.join(ROOT, "common", "tools", "getrelease.py"),
-                    app, os.path.join(ec, "binary"), "econtact.acc"], check=True)
-    tag = open(os.path.join(ec, "binary", "ECONTACT.VERSION")).read().strip()
-    subprocess.run(["git", "clone", "-q", "--depth", "1", "--branch", tag,
-                    "https://github.com/whomper/EContact", os.path.join(ec, "src")], check=True)
-    subprocess.run(["make", "-s", "-C", os.path.join(ec, "src"), "build/card-cli"], check=True)
-    for d in ("build", "tests"):
-        os.symlink(os.path.join(ec, "src", d), os.path.join(ec, d))
-    return ec, tag
+def fake_econtact(hd):
+    """the stand-in EContact (tests/hatari/fakecontact.c, the guidelines,
+    1.2: no other AERA program in an app's tests) in the root of C:, as
+    ECONTACT.ACC: the AES knows it as ECONTACT, and ECal asks it"""
+    subprocess.run(["make", "-s", "-C", ROOT, "fakecontact"], check=True)
+    shutil.copy(os.path.join(ROOT, "build", "ECONTACT.ACC"), os.path.join(hd, "econtact.acc"))
 
 
-def econtact(hd, ec):
-    """EContact's accessory and its folder, as installed: its INF in
-    the root, FOLDER= naming C:\\ECONTACT"""
-    folder = os.path.join(hd, "ECONTACT")
-    os.makedirs(folder)
-    cli = os.path.join(ec, "build", "card-cli")
-    subprocess.run([cli, folder, "local", "Contacts"], check=True, stdout=subprocess.DEVNULL)
-    subprocess.run([cli, folder, "import", "Contacts", os.path.join(ec, "tests", "hatari", "sample.vcf")],
-                   check=True, stdout=subprocess.DEVNULL)
-    # the names as that release writes them (lowercase from 1.77 on,
-    # the guidelines' 6.6)
-    src = machines.ci_path(folder, "econtact.inf")
-    inf = open(src, "rb").read()
-    inf = inf.replace(b"\nSYNC_OPEN=1", b"\nSYNC_OPEN=0")
-    inf = re.sub(rb"\nSTART=[^\r\n]*", rb"\nSTART=now", inf)
-    inf = re.sub(rb"\nFOLDER=[^\r\n]*", rb"\nFOLDER=C:\\ECONTACT", inf)
-    os.remove(src)
-    open(os.path.join(hd, os.path.basename(src)), "wb").write(inf)
-    acc = machines.ci_path(os.path.join(ec, "binary"), "econtact.acc")
-    shutil.copy(acc, os.path.join(hd, os.path.basename(acc)))
+def fake_questions(hd):
+    """the questions the stand-in was asked, a line each ("pick:ECAL ",
+    "names:ECAL a@b c@d")"""
+    f = machines.ci_path(hd, "fakecont.txt")
+    return open(f, errors="replace").read().splitlines() if os.path.exists(f) else []
 
 
 def cache_text(hd):
@@ -103,14 +79,11 @@ def main():
     ap.add_argument("work")
     add_machine(ap, "Falcon")
     ap.add_argument("--acc", action="store_true", help="ECal as the accessory, opened from the Desk menu")
-    ap.add_argument("--econtact", help="EContact's release, vX.Y (default: the latest)")
     a = ap.parse_args()
-    work, acc, want = os.path.abspath(a.work), a.acc, a.econtact
+    work, acc = os.path.abspath(a.work), a.acc
     shutil.rmtree(work, ignore_errors=True)
     hd = os.path.join(work, "hd")
     os.makedirs(hd)
-    ec, tag = fetch_econtact(work, want)
-    print("EContact", tag)
     if acc:
         shutil.copy(machines.ci_path(os.path.join(ROOT, "binary"), "ecal.acc"), os.path.join(hd, "ecal.acc"))
         os.makedirs(os.path.join(hd, "ecal"))
@@ -118,7 +91,7 @@ def main():
     else:
         shutil.copy(machines.ci_path(os.path.join(ROOT, "binary"), "ecal.prg"), os.path.join(hd, "ecal.prg"))
         ui_tour.seed(hd, english=True)
-    econtact(hd, ec)
+    fake_econtact(hd)
     r = Rig(work, a.machine, auto=None if acc else "C:\\ecal.prg")
     try:
         r.wait(20)
@@ -140,12 +113,7 @@ def main():
         r.shot("2-new")
         mono = r.machine.screen == "mono"
         box = MONO_PEOPLE_BOX if mono else PEOPLE_BOX
-        r.click(*(MONO_ADD if mono else (ADD_X, ADD_Y)))	# Add...: EContact's window at once
-        r.wait(6)
-        r.type("Grace")				# into its search field
-        r.wait(3)
-        r.shot("3-choosing")
-        r.key(K["RETURN"])			# Grace chosen
+        r.click(*(MONO_ADD if mono else (ADD_X, ADD_Y)))	# Add...: EContact picks (the stand-in: Grace)
         r.wait(6)
         r.shot("4-back")			# the editor again, Grace Baker in People
         r.wait(10)
@@ -183,8 +151,11 @@ def main():
           text_width(os.path.join(shots, "6-opened.png"), box) in range(80, 100))
     crash = [os.path.join(d, f) for d, _, fs in os.walk(hd) for f in fs if f.lower() == "crash.log"]
     check("no crash (CRASH.LOG)", not crash)
+    asked = fake_questions(hd)
+    check("EContact asked to pick", any(q.startswith("pick:") for q in asked))
+    check("and for Grace's name", any(q.startswith("names:") and "grace.baker@example.net" in q for q in asked))
     print("screenshots in", os.path.join(work, "shots"))
-    print("people test, with EContact %s:" % tag, "all passed" if not fails else "%d failed" % len(fails))
+    print("people test, with the stand-in EContact:", "all passed" if not fails else "%d failed" % len(fails))
     return 1 if fails else 0
 
 
