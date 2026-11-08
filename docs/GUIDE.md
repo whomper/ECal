@@ -8,8 +8,8 @@ choose it.
 
 | Your Atari        | Copy to `C:\`    | Connects                        |
 |-------------------|------------------|---------------------------------|
-| Falcon, TT        | `ECAL.ACC`       | by itself (Direct connection, with `TLS.OVL`) or through the Pi |
-| ST, STE, Mega ST  | `ECAL.ACC`       | through the Raspberry Pi gateway |
+| Falcon, TT        | `ECAL.ACC`       | by itself (Direct connection, with `TLS.OVL`) or through the Gateway |
+| ST, STE, Mega ST  | `ECAL.ACC`       | through the Gateway             |
 
 One program for every Atari: an ST never loads `TLS.OVL`, so it can
 leave it out. Before 2.25 an ST had `ECALST.ACC`: delete it.
@@ -125,7 +125,7 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
   calendars at start, then as often as **Refresh all** says. It works a
   little at a time while the machine is idle and fetches only what
   changed; problems show in the calendar list the next time you open
-  ECal. (Through the Pi gateway that costs the Atari next to nothing;
+  ECal. (Through the Gateway that costs the Atari next to nothing;
   with a Direct connection each new connection's TLS handshake holds the machine
   for a second or two, so it starts one only while you aren't working.)
   **Read calendars** (the accessory only): when it reads the calendars
@@ -136,9 +136,9 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
   before today is copied, and repeating events show from today on. Fewer use
   less memory and sync faster.
 - **Connection**: how ECal reaches the servers:
-  - **Pi gateway**: the Pi's address (`PI_IP`) and port 8180. Any Atari
-    can use it, and a Falcon can too, to save time. Set the Pi up from
-    AERA-Gateway's own repository, typing on the Pi. On a new Pi, every
+  - **Gateway**: the Gateway's address (`PI_IP`) and port 8180. Any Atari
+    can use it, and a Falcon can too, to save time. Set the Gateway up on a
+    Raspberry Pi from AERA-Gateway's own repository, typing on it. On a new Raspberry Pi, every
     AERA gateway for your Atari in one line, ECal's among them (e-mail's
     only with `--mail`):
 
@@ -156,7 +156,7 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
     sudo gateway/aera-gateway install dav --allow ATARI_IP
     ```
 
-    `ATARI_IP` is the Atari's address: only it may use the gateway.
+    `ATARI_IP` is the Atari's address: only it may use the Gateway.
     - To update it: `cd ~/AERA-Gateway && ./update-pi.sh`.
     - To check it: `gateway/aera-gateway status` in that folder, or
       http://PI_IP:8180/ in a browser.
@@ -186,7 +186,7 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
   tick it.
   - **Speed with a Direct connection**: the 68030 decrypts every byte and doesn't
     read from the network meanwhile, so the two take turns (about
-    13 KB/s in EMail's measurements, against 37 KB/s through the Pi). A
+    13 KB/s in EMail's measurements, against 37 KB/s through the Gateway). A
     bigger TCP receive window in STinG's configuration lets them overlap.
 
 **Font...** in the Options menu (or the ≡ menu) picks the font for the window, as in EMail: the
@@ -634,13 +634,13 @@ for icon editors. For EmuTOS, `tools/icon/add_to_emuicon.py` adds it to
 
 ## When something goes wrong
 
-- **"needs a secure connection"**: set up the Pi gateway, or a Direct connection.
+- **"needs a secure connection"**: set up the Gateway, or a Direct connection.
 - **"TLS.OVL is missing"** when you tick Direct connection: copy TLS.OVL
   from the release into ECal's folder. "Needs a 68020 or better": an ST
-  connects through the Pi gateway.
-- **"Can't reach the gateway"**: is the Pi on, and is `ecalgate` running?
+  connects through the Gateway.
+- **"Can't reach the Gateway"**: is the Gateway on, and is `ecalgate` running?
   Open `http://PI-ADDRESS:8180/` in any browser: it should answer. Use the
-  Pi's IP address, not its name.
+  Gateway's IP address, not its name.
 - **"refused the user name or password"**: iCloud, Fastmail and Yahoo
   want an app password, not your normal one: see
   [App passwords](#app-passwords-icloud-fastmail-yahoo).

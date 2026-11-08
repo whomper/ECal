@@ -239,8 +239,8 @@ static CONN *get_conn(const URL *u, int gw, int *reused, char *err, int errlen)
 		return 0;
 	}
 	if (!gw && u->tls && !http_cfg.falcon) {
-		snprintf(err, errlen, "%s needs a secure connection: set up the Raspberry Pi "
-			 "gateway in Settings > Connection, or turn on Direct connection", u->host);
+		snprintf(err, errlen, "%s needs a secure connection: set up the "
+			 "Gateway in Settings > Connection, or turn on Direct connection", u->host);
 		return 0;
 	}
 	snprintf(key, sizeof(key), "%s:%u:%d", host, port, sec);
@@ -271,7 +271,7 @@ static CONN *get_conn(const URL *u, int gw, int *reused, char *err, int errlen)
 		if (gw && !conn_stop) {		/* (Esc: "stopped", nothing more) */
 			char e2[200];
 			str_copy(e2, err, sizeof(e2));
-			snprintf(err, errlen, "Can't reach the gateway at %s:%u (%s). Is ecalgate running on the Pi?",
+			snprintf(err, errlen, "Can't reach the Gateway at %s:%u (%s). Is ecalgate running on the Gateway?",
 				 host, port, e2);
 		}
 		return 0;
@@ -561,7 +561,7 @@ fail:
 	http_close_all();
 	return 0;
 lost:
-	snprintf(err, errlen, "%s: %s", gw ? "the gateway" : u->host,
+	snprintf(err, errlen, "%s: %s", gw ? "the Gateway" : u->host,
 		 c->err[0] ? c->err : "connection lost");
 	sb_free(&line);
 	http_close_all();

@@ -12,7 +12,7 @@ CalDAV server.
 - **Modern but Atari:** a desk accessory that opens over whatever program you're working in, or a
   program; right-click menus, drag and drop, iconify, help in EHypView or ST-Guide.
 - **Secure:** a Direct connection on the TT and Falcon (TLS 1.2 from `TLS.OVL`, with RSA and the
-  elliptic curves on the DSP); ST and STE through a Raspberry Pi gateway. One program for every Atari.
+  elliptic curves on the DSP); ST and STE through the Gateway (on a Raspberry Pi). One program for every Atari.
 - **Hebrew** throughout: right-to-left text, the Israeli keyboard (F10), Hebrew dates and
   Hebrew-calendar repeats.
 - **Every repeat:** all of RFC 5545's rules, with "only this one" or "all future ones" edits.
@@ -46,9 +46,9 @@ file on its own, or all of them in `ECAL-x.y.zip`.
    always `ECAL.INF` in the root of the boot drive, says where the folder is: starting `ECAL.PRG`
    from the folder writes it, and the accessory asks the first time you open it (**Locate...**, or
    **Use C:\ECAL** to have it make that one).
-3. On an ST or STE, set up the gateway on a Raspberry Pi from
+3. On an ST or STE, set up the Gateway on a Raspberry Pi from
    [AERA-Gateway](https://github.com/whomper/AERA-Gateway)'s own repository (see
-   [gateway/README.md](gateway/README.md)). On a new Pi, every AERA gateway for your Atari in one
+   [gateway/README.md](gateway/README.md)). On a new Raspberry Pi, every AERA gateway for your Atari in one
    line, ECal's among them (e-mail's only with `--mail`):
 
    ```
@@ -65,14 +65,14 @@ file on its own, or all of them in `ECAL-x.y.zip`.
    sudo gateway/aera-gateway install dav --allow ATARI_IP
    ```
 
-   `ATARI_IP` is the Atari's address (e.g. 192.168.1.x): only it may use the gateway. Either way the
+   `ATARI_IP` is the Atari's address (e.g. 192.168.1.x): only it may use the Gateway. Either way the
    install prints the address to type into ECal.
    - To update it to AERA-Gateway's latest release: `cd ~/AERA-Gateway && ./update-pi.sh`.
    - To check it: `gateway/aera-gateway status` in that folder, or http://PI_IP:8180/ in a browser.
 4. Reboot and choose **ECal** in the Desk menu. Open **Settings...** (Control and comma, or the ≡ menu
    at the right of the toolbar):
-   - **Connection**: type the Pi's IP address (`PI_IP`, e.g. 192.168.1.x, not its name) and port 8180
-     into **Pi gateway**; or, on a Falcon or TT, tick **Direct connection**.
+   - **Connection**: type the Gateway's IP address (`PI_IP`, e.g. 192.168.1.x, not its name) and port 8180
+     into **Gateway**; or, on a Falcon or TT, tick **Direct connection**.
    - **Time zones**: set the zone the Atari's clock is in.
 5. Add your iCloud account with **Add account or calendar...** (the ≡ menu, or **File** in
    `ECAL.PRG`) and an app-specific password; your Apple ID's own password won't work (see
@@ -125,7 +125,7 @@ normal password stays as it is.
 
 **Needs:** TOS 1.04 to 4.x, EmuTOS, MagiC or MiNT; ST medium, ST high, TT or Falcon resolution (not ST
 low); 1 MB of RAM, where `ECAL.ACC` runs beside STinG (2 MB or more for big calendars); STinG or
-MiNTnet. On an ST or STE, a Raspberry Pi (or any Debian or Ubuntu computer) for the gateway; a Direct
+MiNTnet. On an ST or STE, a Raspberry Pi (or any Debian or Ubuntu computer) for the Gateway; a Direct
 connection needs a 68020 or better (a TT or Falcon). On a 1 MB ST, ECal's accessory or EContact's,
 not both: together they leave TOS no memory and the ST stops at boot. Run the other as a program.
 
@@ -144,12 +144,12 @@ Calendar servers want HTTPS. Like [EMail](https://github.com/whomper/EMail), ECa
 ways:
 
 ```
-ST, STE:     Atari (ECAL.ACC) --plain HTTP, home LAN--> Raspberry Pi (ecalgate.py) --HTTPS--> the server
+ST, STE:     Atari (ECAL.ACC) --plain HTTP, home LAN--> Gateway (ecalgate.py) -----HTTPS--> the server
 Falcon, TT:  Atari (ECAL.ACC + TLS.OVL: TLS 1.2, RSA, curves on the DSP) -------------HTTPS--> the server
-             (a Direct connection; or through the Pi, as an ST)
+             (a Direct connection; or through the Gateway, as an ST)
 ```
 
-- **Through the Pi.** `gateway/ecalgate.py` on a Raspberry Pi takes the Atari's requests and makes the
+- **Through the Gateway.** `gateway/ecalgate.py` on a Raspberry Pi takes the Atari's requests and makes the
   HTTPS connections. It also does what an 8 MHz machine finds hard: it unpacks compressed answers,
   keeps connections to the servers open, and cuts multi-megabyte subscription feeds down to the months
   you keep. Any Atari can use it, a Falcon too, to save time.
@@ -217,26 +217,26 @@ The gateway's own README, with its options and how to keep it private:
 - **TT RAM**: on a TT or an accelerated Falcon the program and its memory go to TT/Fast RAM, leaving
   ST RAM free; the About box says so.
 
-## Performance: Pi, ST and Falcon
+## Performance: Gateway, ST and Falcon
 
 Where the work happens decides the speed. Figures are from the emulated Falcon (16 MHz 68030) and from
 counting 68030 instructions; a real iCloud sync also depends on the network and on how many events
 change.
 
-| | ST through the Pi | Falcon through the Pi | Direct connection, DSP | Direct connection, no DSP |
+| | ST through the Gateway | Falcon through the Gateway | Direct connection, DSP | Direct connection, no DSP |
 |---|---|---|---|---|
-| TLS, certificates | on the Pi | on the Pi | 68030 + DSP | 68030 alone |
+| TLS, certificates | on the Gateway | on the Gateway | 68030 + DSP | 68030 alone |
 | New secure connection | none on the Atari | none on the Atari | a few seconds once, then ~0.7 s (resumed) | slower: the RSA check runs on the 68030 |
 | RSA signature check | — | — | ~0.1 s | several times longer |
 | Key exchange (X25519) | — | — | ~0.15 s | ~0.8 s |
 | Decrypting answers | — | — | ~200 instructions a byte | the same |
-| Compressed answers | unpacked by the Pi | unpacked by the Pi | unpacked by ECal, ~10 instructions a byte | the same |
-| Big subscription feeds | trimmed by the Pi to the months kept | trimmed by the Pi | parsed whole by ECal | parsed whole |
+| Compressed answers | unpacked by the Gateway | unpacked by the Gateway | unpacked by ECal, ~10 instructions a byte | the same |
+| Big subscription feeds | trimmed by the Gateway to the months kept | trimmed by the Gateway | parsed whole by ECal | parsed whole |
 
-- **Through the Pi** is the fastest way for any Atari: the Atari only sends and reads plain HTTP on
-  the home network, and the Pi keeps the connections to the servers open. On an 8 MHz ST, drawing and
+- **Through the Gateway** is the fastest way for any Atari: the Atari only sends and reads plain HTTP on
+  the home network, and the Gateway keeps the connections to the servers open. On an 8 MHz ST, drawing and
   reading the calendar data take most of the time, not the network.
-- **A Direct connection** needs no Pi. After the first connection each request costs well under a second;
+- **A Direct connection** needs no Gateway. After the first connection each request costs well under a second;
   most of a first sync goes into the first handshake and into decrypting what comes back, which
   compression keeps small. Saving an event takes about a second.
 - **The DSP** only speeds up the handshake at the start of each new connection (the certificate checks
@@ -246,7 +246,7 @@ change.
 
 With a Direct connection the 68030 decrypts every byte itself and doesn't read from STinG while it does, so
 receiving and decrypting take turns: the speed is about 1/(1/network + 1/decrypt). EMail measured
-13 KB/s that way against 37 KB/s through the Pi. Faster decryption is all ECal can do about it
+13 KB/s that way against 37 KB/s through the Gateway. Faster decryption is all ECal can do about it
 (table-based AES and the fastest GHASH, 16 KB reads, long copies on the 68030); a bigger TCP receive
 window in STinG's own configuration lets the two overlap. With **Write a log** on, every line of
 `ECAL.LOG` starts with the time of day to the hundredth of a second, so you can see where a sync spends
@@ -289,7 +289,7 @@ the programs and the help file, and publishes them as a GitHub Release with thos
 src/      the calendar core, also built on Linux for the tests:
           ics.c       iCalendar               rrule.c    repeat rules
           xml.c       WebDAV answers          inflate.c  compressed answers
-          http.c      HTTP/1.1, via the Pi or with TLS
+          http.c      HTTP/1.1, via the Gateway or with TLS
           caldav.c    CalDAV                  calstore.c accounts, caches, sync, saving changes
 ui/       the GEM program: window, views, sidebar, event editor, dialogs, fonts, About box,
           and field.c, dialogs whose text fields take Hebrew
@@ -298,7 +298,7 @@ common/   code shared with the other AERA programs (from AERA-Atari): the TOS ru
           C library, STinG, TLS and connections, BearSSL, the DSP RSA program, charsets,
           bidi, dates and the Hebrew calendar (ctime.c), time zones (tz.c), passwords,
           GEM building blocks (menus, alerts, help, AV, iconify), build tools
-gateway/  the Raspberry Pi gateways (ecalgate.py is ECal's) and aera-gateway, their installer:
+gateway/  the Gateway's services (ecalgate.py is ECal's) and aera-gateway, their installer:
           a copy of AERA-Gateway's
 tests/    unit tests, fuzz targets, CalDAV integration tests, Hatari tests
 tools/    bump.py (a release), guide2stg.py (the help file), icon/ (the icons),
