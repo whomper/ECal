@@ -7,141 +7,40 @@ CalDAV server.
 
 **Highlights**
 
-- **Like the Mac's Calendar:** day, week, month and year views; iCloud and other CalDAV calendars with
-  two-way sync, `.ics` subscriptions and calendars kept only on the Atari, each in its own colour.
-- **Modern but Atari:** a desk accessory that opens over whatever program you're working in, or a
-  program; right-click menus, drag and drop, iconify, help in EHypView or ST-Guide.
-- **Secure:** a Direct connection on the TT and Falcon (TLS 1.2 from `TLS.OVL`, with RSA and the
-  elliptic curves on the DSP); ST and STE through the Gateway (on a Raspberry Pi). One program for every Atari.
-- **Hebrew** throughout: right-to-left text, the Israeli keyboard (F10), Hebrew dates and
-  Hebrew-calendar repeats.
-- **Every repeat:** all of RFC 5545's rules, with "only this one" or "all future ones" edits.
-- **Invitations:** invite people by name from [EContact](https://github.com/whomper/EContact) (or
-  its contacts file when it isn't loaded) or by address; iCloud sends the invitations, and their
-  answers are kept.
-- **Always to hand:** reminders over any program, time zones, and its own copy on disk, so it works
-  offline.
-- **Makes the most of the machine:** TT RAM when there is some, GDOS fonts, hover tooltips.
+- **Like the Mac's Calendar:** day, week, month and year views, two-way sync, subscriptions, every repeat.
+- **Modern but Atari:** accessory or program, right-click menus, drag and drop, reminders over any program.
+- **Secure:** TLS 1.2 on the TT and Falcon (the DSP helps); ST and STE through the Gateway.
+- **Hebrew** throughout: right to left, the Israeli keyboard (F10), Hebrew dates and repeats.
+- **Invitations** by name from [EContact](https://github.com/whomper/EContact); works offline.
 
 ![ECal's month view on a Falcon in 256 colours (Hatari): October 2026 with the Home, Work and Family calendars in red, olive and yellow, today in red, and the calendar list and a small month on the left](docs/month.png)
 
 ## Getting started
 
-Download the latest release from **[Releases](https://github.com/whomper/ECal/releases/latest)**: each
-file on its own, or all of them in `ECAL-x.y.zip`.
+Download `ECAL-x.y.zip` (or each file) from **[Releases](https://github.com/whomper/ECal/releases/latest)**:
 
 | File | What it is |
 |---|---|
-| `ECAL.ACC` | the desk accessory, for every ST, STE, TT and Falcon |
-| `ECAL.PRG` | the same as `ECAL.ACC`, to start from the desktop, with a menu bar |
-| `TLS.OVL` | the Direct connection (TLS on a TT or Falcon, RSA and curves on the DSP), loaded only when used; an ST leaves it on the disk |
-| `CACERT.PEM`, `ROOTS.DAT` | the root certificates for a Direct connection |
-| `ECAL.HYP`, `ECAL.REF` | the guide, for EHypView, ST-Guide or HypView, opened by the Help key |
-| `ECAL.RSC`, `ECALNV.RSC`, `ECAL.ICN`, `ECALMK.ICN` | ECal's desktop icon, in black and white, 16 and 256 colours: `ECAL.RSC` under TOS, EmuTOS or NVDI with TOS's palette loaded (COLORVDI), `ECALNV.RSC` under NVDI with its own palette; in the zip's `icons/` folder (see the guide's [The desktop icon](docs/GUIDE.md#the-desktop-icon)) |
-| `ECAL-x.y.zip` | all of these in one file |
+| `ECAL.ACC` / `ECAL.PRG` | the accessory, or the same as a program, for every Atari |
+| `TLS.OVL`, `CACERT.PEM`, `ROOTS.DAT` | the Direct connection (TT, Falcon), loaded only when used |
+| `ECAL.HYP`, `ECAL.REF` | the guide, opened by the Help key |
+| `icons/` | ECal's desktop icon ([how](docs/GUIDE.md#the-desktop-icon)) |
 
-1. Copy `ECAL.ACC` to the root of your boot drive, e.g. `C:\`.
-2. Choose a folder for ECal's own files (its calendars, keys and log): any folder, on any drive.
-   For a Direct connection (TT, Falcon), put `TLS.OVL`, `CACERT.PEM` and `ROOTS.DAT` in it. `FOLDER=` in the settings file, which is
-   always `ECAL.INF` in the root of the boot drive, says where the folder is: starting `ECAL.PRG`
-   from the folder writes it, and the accessory asks the first time you open it (**Locate...**, or
-   **Use C:\ECAL** to have it make that one).
-3. On an ST or STE, set up the Gateway on a Raspberry Pi from
-   [AERA-Gateway](https://github.com/whomper/AERA-Gateway)'s own repository (see
-   [gateway/README.md](gateway/README.md)). On a new Raspberry Pi, every AERA gateway for your Atari in one
-   line, ECal's among them (e-mail's only with `--mail`):
+1. Copy `ECAL.ACC` to the root of the boot drive, the rest to a folder of its own (it asks where).
+2. On an ST or STE, set up the Gateway on a Raspberry Pi ([steps](docs/GUIDE.md#settings)).
+3. Reboot, choose **ECal** in the Desk menu; in **Settings...** give the Gateway or tick **Direct
+   connection**, and the clock's time zone.
+4. **Add account or calendar...** with an [app password](docs/GUIDE.md#app-passwords-icloud-fastmail-yahoo).
+5. Press **Help** for the [guide](docs/GUIDE.md).
 
-   ```
-   sudo apt install -y git && git clone https://github.com/whomper/AERA-Gateway ~/AERA-Gateway && ~/AERA-Gateway/update-pi.sh --allow ATARI_IP
-   ```
+**Needs:** TOS 1.04 to 4.x, EmuTOS, MagiC or MiNT; ST medium or high, TT or Falcon resolution; 1 MB
+(2 MB for big calendars); STinG or MiNTnet. A Direct connection needs a 68020 or better. On a 1 MB ST,
+ECal's accessory or EContact's, not both. Under TOS, `FOLDR100.PRG` first in `AUTO`; with STinG, its
+Delay set to the machine ([why](docs/GUIDE.md#installing)).
 
-   Or step by step, only ECal's:
-
-   ```
-   sudo apt install -y git                  (Raspberry Pi OS Lite only)
-   git clone https://github.com/whomper/AERA-Gateway
-   cd AERA-Gateway
-   ./update-pi.sh
-   sudo gateway/aera-gateway install dav --allow ATARI_IP
-   ```
-
-   `ATARI_IP` is the Atari's address (e.g. 192.168.1.x): only it may use the Gateway. Either way the
-   install prints the address to type into ECal.
-   - To update it to AERA-Gateway's latest release: `cd ~/AERA-Gateway && ./update-pi.sh`.
-   - To check it: `gateway/aera-gateway status` in that folder, or http://PI_IP:8180/ in a browser.
-4. Reboot and choose **ECal** in the Desk menu. Open **Settings...** (Control and comma, or the ≡ menu
-   at the right of the toolbar):
-   - **Connection**: type the Gateway's IP address (`PI_IP`, e.g. 192.168.1.x, not its name) and port 8180
-     into **Gateway**; or, on a Falcon or TT, tick **Direct connection**.
-   - **Time zones**: set the zone the Atari's clock is in.
-5. Add your iCloud account with **Add account or calendar...** (the ≡ menu, or **File** in
-   `ECAL.PRG`) and an app-specific password; your Apple ID's own password won't work (see
-   [App passwords](#app-passwords-icloud-fastmail-yahoo) below).
-6. Copy `ECAL.HYP` and `ECAL.REF` into ECal's folder or your viewer's help folder (e.g. `C:\GUIDES\`),
-   and press **Help** in ECal for the guide (EHypView, ST-Guide or HypView must be running).
-
-**Updating:** copy the new release's files over the old ones (the accessory, `ECAL.PRG`, the guide,
-and for a Direct connection `TLS.OVL` and the certificates) and reboot. The settings, passwords and
-calendars stay as they are. Before 2.25 an ST had `ECALST.ACC`: delete it, `ECAL.ACC` runs on every
-Atari now.
-
-The [user guide](docs/GUIDE.md) describes the rest.
-
-### App passwords (iCloud, Fastmail, Yahoo)
-
-iCloud, Fastmail and Yahoo refuse your normal password from a program
-like ECal. Each lets you make an **app password** instead: a password
-for ECal alone, which you type into ECal's **Password** field in place of
-your normal one. You can revoke it on the same page at any time, and your
-normal password stays as it is.
-
-- **iCloud** (needs two-factor authentication on your Apple Account):
-  sign in at [account.apple.com](https://account.apple.com), choose
-  **Sign-In and Security**, then **App-Specific Passwords**, and generate
-  one (name it ECal). In ECal: your Apple ID's address in **Apple ID**,
-  the app-specific password in **Password**. Changing your Apple Account
-  password revokes every app-specific password, so make a new one then.
-  Apple's page: <https://support.apple.com/en-us/102654>.
-- **Fastmail** (not on the Basic plan, which has no CalDAV): Settings >
-  **Privacy & Security** > **Manage app passwords and access** > **New
-  app password**, with access to calendars (CalDAV). In ECal: Other CalDAV
-  account, `https://caldav.fastmail.com/`, your full Fastmail address as
-  the user, the app password in **Password**. Fastmail shows it only once.
-  Fastmail's page: <https://www.fastmail.help/hc/en-us/articles/360058752854>.
-- **Yahoo**: sign in to Yahoo's **Account Security** page, and under
-  **External connections** choose **Create app password**, name it ECal
-  and generate it. In ECal: Other CalDAV account,
-  `https://caldav.calendar.yahoo.com`, your Yahoo address as the user,
-  the app password in **Password**. Yahoo's page:
-  <https://help.yahoo.com/kb/SLN15241.html>.
-- **Google**: an app password doesn't help. Google's CalDAV takes only an
-  OAuth sign-in, which ECal can't do. Subscribe instead: in Google
-  Calendar on a computer, Settings, choose the calendar under **Settings
-  for my calendars**, then **Integrate calendar**, and copy the **Secret
-  address in iCal format** into ECal's **Subscribe to a published
-  calendar**. It is read-only in ECal; keep the address to yourself
-  (**Reset** there makes a new one). Google's page:
-  <https://support.google.com/calendar/answer/37648>.
-
-**Needs:** TOS 1.04 to 4.x, EmuTOS, MagiC or MiNT; ST medium, ST high, TT or Falcon resolution (not ST
-low); 1 MB of RAM, where `ECAL.ACC` runs beside STinG (2 MB or more for big calendars); STinG or
-MiNTnet. On an ST or STE, a Raspberry Pi (or any Debian or Ubuntu computer) for the Gateway; a Direct
-connection needs a 68020 or better (a TT or Falcon). On a 1 MB ST, ECal's accessory or EContact's,
-not both: together they leave TOS no memory and the ST stops at boot. Run the other as a program.
-
-**Under TOS, put Atari's `FOLDR100.PRG` first in `AUTO`**, renamed for more room (`FOLDR400.PRG`).
-TOS keeps an entry in a small internal pool for every folder a program or accessory has looked
-into, and halts with "OUT OF INTERNAL MEMORY" when it runs out; FOLDRxxx makes the pool bigger.
-
-**With STinG, set the Delay in `STING.CPX` to suit the machine:** 10 on a Falcon or TT, 25 to 50 on
-an ST, as STinG's manual says. STinG looks at the network card that often, so it sets the speed of
-every STinG program: on Erez's Falcon with a NetUSBee, Delay 10 took EFTP's downloads from 40 to
-75 KB/s.
+Everything ECal does, and how fast: [docs/FEATURES.md](docs/FEATURES.md).
 
 ## How it reaches the servers
-
-Calendar servers want HTTPS. Like [EMail](https://github.com/whomper/EMail), ECal gets there one of two
-ways:
 
 ```
 ST, STE:     Atari (ECAL.ACC) --plain HTTP, home LAN--> Gateway (ecalgate.py) -----HTTPS--> the server
@@ -149,280 +48,43 @@ Falcon, TT:  Atari (ECAL.ACC + TLS.OVL: TLS 1.2, RSA, curves on the DSP) -------
              (a Direct connection; or through the Gateway, as an ST)
 ```
 
-- **Through the Gateway.** `gateway/ecalgate.py` on a Raspberry Pi takes the Atari's requests and makes the
-  HTTPS connections. It also does what an 8 MHz machine finds hard: it unpacks compressed answers,
-  keeps connections to the servers open, and cuts multi-megabyte subscription feeds down to the months
-  you keep. Any Atari can use it, a Falcon too, to save time.
-- **Direct connection.** On a Falcon (or a TT), ECal does TLS 1.2 itself with
-  [BearSSL](https://bearssl.org/), from `TLS.OVL`, the family's file it loads the first time it
-  needs it (about 140 KB; an ST never loads it), and the DSP56001 checks the servers' RSA signatures (about 0.1 s
-  each), as in EMail, and does the elliptic curves: the key exchange (X25519: two steps of about 0.07 s
-  each, 0.4 s on a 16 MHz 68030) and ECDSA certificates (P-256, P-384).
-
-The gateway's own README, with its options and how to keep it private:
-[gateway/README.md](gateway/README.md).
-
-## What it does
-
-- **iCloud** and any **CalDAV** server (Fastmail, Nextcloud, Radicale, Synology, Yahoo...): calendars
-  found automatically; events added, changed and deleted on the server; changes made elsewhere fetched
-  with ETags, so only what changed comes over the line.
-- **Subscriptions**: `webcal://` and `https://` `.ics` feeds (holidays, sports, a Google calendar's
-  secret iCal address), refreshed on a schedule.
-- **On My Atari** calendars, kept only on this computer; `.ics` import.
-- **Invitations**: an `.ics` invitation (handed over by EMail, opened on the desktop or with File >
-  Import .ics...) fills the New Event dialog; saved, it keeps its UID and its organiser, so a later
-  update of the same invitation finds the event. Files with several events are imported after asking.
-- **Views**: day (with the selected event's details), week, month and year; all-day and multi-day
-  events as bars, overlapping events side by side, "+3 more" when a day is full.
-- **Today** in red everywhere, a red line at the current time, a **Today** button, and the view moves
-  on at midnight.
-- **Repeating events**: every kind of repeat iCalendar has (RFC 5545: yearly to every second, any
-  BYDAY/BYMONTHDAY/BYYEARDAY/BYWEEKNO/BYMONTH/BYHOUR/BYMINUTE/BYSECOND, BYSETPOS, WKST, extra dates
-  (RDATE), excluded dates and rules (EXDATE, EXRULE)), plus Hebrew-calendar repeats (RFC 7529
-  `RSCALE=HEBREW`, "every year on 12 Tishri"). The **Repeat** menu has the usual ones; **Custom...**
-  builds any rule ("the last Friday of every month", "the second Monday of March and September"), or
-  type it in.
-- **One occurrence or the series**: move, change or delete just one occurrence of a repeating event,
-  or this and all future ones, as on the Mac. Changes made on an iPhone to one occurrence or to "this
-  and future" show as they should.
-- **Reminders** pop up over any program, even with the window closed.
-- **Syncs in the background**: with its window closed the accessory brings the calendars up to date a
-  little at a time while the machine is idle, fetching only what changed, so new events and their
-  reminders arrive without opening ECal.
-- **Time zones**: events keep their zone; with time zone support on, see your calendar as it looks
-  from another city. Summer time rules for Israel (the Friday before the last Sunday of March),
-  Europe, the Americas, Australia and more are built in; others are learned from the calendar data.
-- **Hebrew**: titles, places and notes in Hebrew, right to left, typed on the Israeli keyboard (F10)
-  in every field, as in EMail; Hebrew calendar names; Hebrew dates (י״ב תשרי תשפ״ז) next to the civil
-  ones.
-- **Cancelled events** are left out: cancelled by the organiser, titled "Canceled:" (Outlook,
-  Exchange), or invitations you declined.
-- **Find** (^F) through titles, places and notes.
-- **Tooltips**: rest the mouse on an event to see its title and times.
-- **Fonts**: the system font or any monospaced GDOS font (NVDI, SpeedoGDOS), picked in the family's
-  Font dialog; twelve calendar colours, the same in 16 and 256 colours. With NVDI the views draw
-  several times faster than with TOS's own VDI.
-- **3D dialogs**: where the AES draws 3D (TOS 4, MagiC, N.AES, XaAES, EmuTOS in colour), ECal's
-  dialogs and alerts take its look in 16 colours or more: grey ground, the AES's own raised
-  buttons, white fields; TOS 1 to 3 keep the flat look.
-- **Keys as in GEM**: Esc empties the text field it is in, Undo cancels a dialog; ^U closes the
-  window (`ECAL.PRG` quits). Reminders are BGEM.NG notifications where it runs (MiNT).
-- **MiNT and MagiC**: where the AES runs several programs at once (XaAES, N.AES, MyAES, MagiC),
-  alerts are the AES's own and each dialog opens in a window of its own, named after it: move it
-  by its title bar, close it with its closer or Esc, and the other programs go on running.
-- **The calendar list** hides with a toolbar button (or ⇧^S), leaving the window to the calendar.
-- **Offline**: ECal keeps a copy of everything on disk, so it opens at once, shows today before it
-  syncs, and works offline (**Work offline** in the Options or ≡ menu, as in EMail).
-- **TT RAM**: on a TT or an accelerated Falcon the program and its memory go to TT/Fast RAM, leaving
-  ST RAM free; the About box says so.
-
-## Performance: Gateway, ST and Falcon
-
-Where the work happens decides the speed. Figures are from the emulated Falcon (16 MHz 68030) and from
-counting 68030 instructions; a real iCloud sync also depends on the network and on how many events
-change.
-
-| | ST through the Gateway | Falcon through the Gateway | Direct connection, DSP | Direct connection, no DSP |
-|---|---|---|---|---|
-| TLS, certificates | on the Gateway | on the Gateway | 68030 + DSP | 68030 alone |
-| New secure connection | none on the Atari | none on the Atari | a few seconds once, then ~0.7 s (resumed) | slower: the RSA check runs on the 68030 |
-| RSA signature check | — | — | ~0.1 s | several times longer |
-| Key exchange (X25519) | — | — | ~0.15 s | ~0.8 s |
-| Decrypting answers | — | — | ~200 instructions a byte | the same |
-| Compressed answers | unpacked by the Gateway | unpacked by the Gateway | unpacked by ECal, ~10 instructions a byte | the same |
-| Big subscription feeds | trimmed by the Gateway to the months kept | trimmed by the Gateway | parsed whole by ECal | parsed whole |
-
-- **Through the Gateway** is the fastest way for any Atari: the Atari only sends and reads plain HTTP on
-  the home network, and the Gateway keeps the connections to the servers open. On an 8 MHz ST, drawing and
-  reading the calendar data take most of the time, not the network.
-- **A Direct connection** needs no Gateway. After the first connection each request costs well under a second;
-  most of a first sync goes into the first handshake and into decrypting what comes back, which
-  compression keeps small. Saving an event takes about a second.
-- **The DSP** only speeds up the handshake at the start of each new connection (the certificate checks
-  and the key exchange: 2.1 s of work became 1.3 s in the emulated Falcon); with session resumption
-  there are few of those, so it matters most for the first sync after starting ECal.
-- On a TT or an accelerated Falcon, running in TT/Fast RAM makes everything ECal does itself faster.
-
-With a Direct connection the 68030 decrypts every byte itself and doesn't read from STinG while it does, so
-receiving and decrypting take turns: the speed is about 1/(1/network + 1/decrypt). EMail measured
-13 KB/s that way against 37 KB/s through the Gateway. Faster decryption is all ECal can do about it
-(table-based AES and the fastest GHASH, 16 KB reads, long copies on the 68030); a bigger TCP receive
-window in STinG's own configuration lets the two overlap. With **Write a log** on, every line of
-`ECAL.LOG` starts with the time of day to the hundredth of a second, so you can see where a sync spends
-its time.
-
 ## Building
 
 ```sh
 sudo apt install gcc gcc-m68k-linux-gnu python3 zip   # Debian/Ubuntu; no MiNTLib needed
-make                          # binary/ECAL.ACC, ECAL.PRG, TLS.OVL (common's), CACERT.PEM, ROOTS.DAT
-make test                     # the core's unit tests on this computer, the fuzz inputs, the gateway's tests
+make                          # binary/: ECAL.ACC, ECAL.PRG, TLS.OVL, CACERT.PEM, ROOTS.DAT
+make test                     # the core's unit tests, the fuzz inputs, the gateway's tests
 make itest                    # against a local CalDAV server (Radicale)
-make help HCP=/path/to/hcp    # binary/ECAL.HYP from docs/GUIDE.md (hcp: common/tools/build-hcp.sh)
-make dist HCP=/path/to/hcp    # dist/: a release's files, each on its own and in ECAL-x.y.zip
-make icons                    # icons/, ui/icon*.h, docs/icon*.png: ECal's icon (committed),
-                              # from common/icons/ECAL.txt
+make dist HCP=/path/to/hcp    # dist/: a release's files and ECAL-x.y.zip
 ```
 
-The program is freestanding (no MiNTLib): the C library and the TOS runtime are in `common/atari/`,
-and `common/tools/elf2tos.py` writes the TOS executable. One binary is both the accessory and the
-program: the start-up code (`common/atari/crt0.S`) sees which way TOS started it. It is all 68000
-code, for every Atari. The TLS (BearSSL and the DSP's code, built for the 68030) is in `TLS.OVL`, the
-family's file built in AERA-Atari and taken with `common/` (`common/tlsovl/`), never built here; the
-build machine's tests link the same TLS code (`common/src/tls.c`) into cal-cli.
-
-`binary/` and `dist/` are what make builds; they are never committed, and a build changes no tracked
-file.
-
-**Versions and releases.** `VERSION` holds the last release, major.minor (e.g. 2.10), and the build
-never changes it. Every build shows it as it is in the About box and the User-Agent ECal sends. Only
-releases leave the build machine. To release: `tools/bump.py`, commit and push, then run
-the Release workflow (**Actions > Release > Run workflow**, on `main`) with what is new:
-[`.github/workflows/release.yml`](.github/workflows/release.yml) tags the commit `v2.11`, tests, builds
-the programs and the help file, and publishes them as a GitHub Release with those notes. Pushing a tag
-`v2.11` made with `git tag -a` does the same, with the tag's message as the notes.
+Releases, the help file and the icons: [docs/DEVELOPING.md](docs/DEVELOPING.md).
 
 ## Source
 
 ```
-src/      the calendar core, also built on Linux for the tests:
-          ics.c       iCalendar               rrule.c    repeat rules
-          xml.c       WebDAV answers          inflate.c  compressed answers
-          http.c      HTTP/1.1, via the Gateway or with TLS
-          caldav.c    CalDAV                  calstore.c accounts, caches, sync, saving changes
-ui/       the GEM program: window, views, sidebar, event editor, dialogs, fonts, About box,
-          and field.c, dialogs whose text fields take Hebrew
-atari/    plat_tos.c: files, folders and time on GEMDOS
-common/   code shared with the other AERA programs (from AERA-Atari): the TOS runtime and
-          C library, STinG, TLS and connections, BearSSL, the DSP RSA program, charsets,
-          bidi, dates and the Hebrew calendar (ctime.c), time zones (tz.c), passwords,
-          GEM building blocks (menus, alerts, help, AV, iconify), build tools
-gateway/  the Gateway's services (ecalgate.py is ECal's) and aera-gateway, their installer:
-          a copy of AERA-Gateway's
-tests/    unit tests, fuzz targets, CalDAV integration tests, Hatari tests
-tools/    bump.py (a release), guide2stg.py (the help file), icon/ (the icons),
-          sync-common.sh (common/ from AERA-Atari), sync-gateway.sh (gateway/ from AERA-Gateway)
-docs/     the user guide (GUIDE.md, the source of ECAL.HYP) and its pictures
+src/      the calendar core: iCalendar, repeats, CalDAV, sync
+ui/       the GEM program
+atari/    GEMDOS files and time
+common/   shared with the other AERA programs (AERA-Atari)
+gateway/  the Gateway's services, from AERA-Gateway
+tests/    unit, fuzz, CalDAV and Hatari tests
+tools/    release, help file, icons
+docs/     the user guide (ECAL.HYP's source), FEATURES.md, DEVELOPING.md
 ```
 
 ## Tests
 
-```
-make test                    # the core: dates, Hebrew dates, zones, iCalendar, repeats,
-                             # repeat rules with all of RFC 5545's examples, XML, URLs
-                             # (305 checks); the fuzz inputs again (tests/fuzz/seeds,
-                             # and found/: what once broke a parser); the gateway's tests
-make fuzz                    # the CalDAV answers, iCalendar, repeat rules, XML and
-                             # inflate from libFuzzer (clang), FUZZTIME seconds each
-make itest                   # cal-cli against a real CalDAV server (Radicale): sync,
-GATEWAY=1 make itest         # add, rename, move one occurrence, delete one or the
-FALCON=1 make itest          # rest, changes from elsewhere, subscriptions, import;
-                             # direct, through ecalgate, and with ECal's own TLS
-                             # (pip install radicale)
-```
-
-`tests/hatari/` runs the real accessory in the [Hatari](https://hatari.tuxfamily.org/) emulator with
-[EmuTOS](https://emutos.sourceforge.io/) 1.4, driven by Xvfb and xdotool. The machine is one of the
-family's test machines from `common/tools/machines.py`, named with `--machine`: `ST` (Erez's 1040 ST,
-4 MB) and `ST-1` (1 MB), each with `:mono` or `:med`; `TT` and `Falcon` (`:16` or `:256` colours),
-where the Direct connection rigs run. The program is ECAL.ACC or ECAL.PRG on all of them; the rigs put
-`binary/TLS.OVL` in ECal's folder. Each rig has a default, and prints the machine and TOS it
-ran on. An ST has no clock, so the rigs set its date and time at boot (`C:\AUTO\CLOCK.PRG`), as you
-would from the Control Panel:
-
-```
-tests/hatari/acc_test.py WORK [--machine M]       # as a desk accessory (Falcon)
-tests/hatari/acc_files.py WORK [--machine M] [--run quiet|sync|falcon]
-                                                  # the accessory's disk access, job by job,
-                                                  # from Hatari's GEMDOS trace (ST-1:mono)
-tests/hatari/font_acc.py WORK [--machine M] [--prg] [--font-id N]
-                                                  # a GDOS font chosen: the window redraws in
-                                                  # it, and opens again (Falcon; skipped
-                                                  # without a GDOS)
-tests/hatari/edit_test.py WORK [--machine M]      # add, Hebrew title, find, delete, one occurrence,
-                                                  # custom repeats (Falcon; on an ST up to delete)
-tests/hatari/alarm_test.py WORK [--machine M]     # reminders from ALARMS.IDX at boot (Falcon)
-tests/hatari/net_test.py WORK [--machine M]       # syncing through ecalgate (ST-1)
-tests/hatari/net_test.py WORK --falcon-mode       # a Direct connection on the Falcon (TLS.OVL),
-                                                  # RSA and X25519 on the DSP
-tests/hatari/tlsovl_test.py WORK [--machine M]    # Direct connection ticked: without TLS.OVL an
-                                                  # alert, no crash; with it, loaded (Falcon)
-tests/hatari/stop_test.py WORK [--machine M]      # Esc stops a server that says nothing (ST-1)
-tests/hatari/quiet_test.py WORK [--machine M]     # make profile first: the accessory's quiet
-                                                  # start, timed between event calls (Falcon)
-tests/hatari/bgsync_test.py WORK [--machine M] [--falcon-mode]
-                                                  # make profile first: a background refresh
-                                                  # with the window closed, timed (Falcon)
-tests/hatari/mem_test.py WORK [--machine M] [--falcon-mode] [--cals 3] [--events 500] [--boots N]
-                                                  # make profile first: the accessory's memory
-                                                  # (heap peak, MEMKB=) as calendars come new
-tests/hatari/esc_test.py WORK [--machine M]       # Esc and Undo cancel dialogs and alerts, and
-                                                  # nothing is written (Falcon)
-tests/hatari/people_test.py WORK [--machine M] [--acc]
-                                                  # inviting through EContact (PEOPLE), a
-                                                  # stand-in (make fakecontact; Falcon)
-tests/hatari/invite_test.py WORK [--machine M] [--acc]
-                                                  # an .ics invitation by VA_START: the New
-                                                  # Event dialog filled, saved with its UID
-tests/hatari/peoplefile_test.py WORK [--machine M] [--acc] [--econtact]
-                                                  # EContact's CONTACTS.TXT with EContact not
-                                                  # loaded: names, Add...; with the stand-in
-                                                  # EContact (--econtact), never read
-tests/hatari/notes_test.py WORK [--machine M] [--acc]
-                                                  # notes read from the cache when wanted:
-                                                  # Find, the details, saved with an edit
-tests/hatari/field_test.py WORK [--machine M] [--acc]
-                                                  # fields hold more than they show (5.4):
-                                                  # a long title, ^C ^V, a long address
-tests/hatari/title_test.py WORK [--machine M]     # the toolbar's title fits ("18-24 Oct", not
-                                                  # "18-24 Oct 202"), each view (Falcon)
-tests/hatari/twin_test.py WORK [--machine M]      # ECAL.PRG and ECAL.ACC on one machine
-                                                  # (EmuTOS: its desktop is clicked)
-tests/hatari/help_test.py WORK [--machine M]      # the Help key (make fakeguide first; Falcon)
-tests/hatari/ui_tour.py WORK [--machine M]        # screenshots of every view (Falcon)
-TZ=America/New_York tests/hatari/docs_shots.py WORK --update [--help-picture]
-                                                  # the screenshots in docs/ (Falcon:256, and
-                                                  # st-mono.png on ST:mono; EmuTOS); with
-                                                  # --help-picture docs/help/WINDOW.IMG (Falcon:16)
-```
-
-Which machines a change passes (the family's guidelines): the accessory's rigs on `ST` and `ST-1`, in
-mono and medium resolution; the others, the Direct connection ones among them, on `TT` and `Falcon`;
-what draws also on `Falcon:256`. On `ST-1` with the network the desktop must still start beside
-ECAL.ACC and FAKESTNG; ECal's log says how much memory was free at boot and how much the accessory
-took. `make STACKPROBE=1` builds the programs to report the least stack left untouched (`STACKFREE`
-in Hatari's log), which sets the stack (`STACK` in the Makefile).
-
-The network tests use the family's `FAKESTNG.PRG`, which carries the emulated Atari's TCP over its
-serial port to `serial_bridge.py` (both in `common/tools/fakesting`, started by `machines.py`); it's
-for the emulator only, never for a real Atari.
-
-ECal's tests run ECal alone (the family's guidelines, 1.2, Erez 8 Nov 2026): no other AERA program or
-accessory is loaded beside it, started by it or fetched for it. What ECal does with another program is
-tested against a stand-in from this repository that plays the other side: `ECONTACT.ACC`
-(`tests/hatari/fakecontact.c`, `make fakecontact`) answers PEOPLE as EContact, `ST-GUIDE.ACC`
-(`fakeguide.c`) takes the Help key's VA_START. ECal with the real EContact, EMail and EHypView is the
-hub's family checks. ECAL.PRG with ECAL.ACC (`twin_test.py`) is ECal alone.
+- `make test`: dates, zones, iCalendar, every RFC 5545 repeat example, XML.
+- `make fuzz`: the parsers under libFuzzer.
+- `make itest`: sync against Radicale, direct, through the Gateway and with ECal's TLS.
+- `tests/hatari/`: ECal in Hatari on the family's machines ([the rigs](docs/DEVELOPING.md#tests)).
 
 ## Licence
 
-ECal is free software: you can redistribute it and/or modify it under
-the terms of the GNU General Public License as published by the Free
-Software Foundation, either version 2 of the License, or (at your option)
-any later version. It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See [COPYING](COPYING).
-
-Copyright (C) 2026 AERA | Erez Yaary.
-
-It includes, under their own licences (compatible with the GPL):
-
-- [BearSSL](common/third_party/bearssl) by Thomas Pornin, in `TLS.OVL` and (MD5) in the program:
-  MIT licence ([LICENSE.txt](common/third_party/bearssl/LICENSE.txt))
-- `CACERT.PEM`, the root certificates for a Direct connection, from Mozilla's CA
-  list (Mozilla Public License 2.0)
+GPL version 2 or later, without any warranty ([COPYING](COPYING)). Copyright (C) 2026 AERA | Erez Yaary.
+Includes [BearSSL](common/third_party/bearssl) (MIT) and Mozilla's root certificates (MPL 2.0).
 
 ---
 
-Part of **AERA** for Atari: [ECal](https://github.com/whomper/ECal) · [EContact](https://github.com/whomper/EContact) · [EMail](https://github.com/whomper/EMail) · [EFTP](https://github.com/whomper/EFTP) · [EHypView](https://github.com/whomper/EHypView) · [ClaudeST](https://github.com/whomper/ClaudeST) · [EWeb](https://github.com/whomper/EWeb) · [EUpdate](https://github.com/whomper/EUpdate) · 8-bit: [EDOS](https://github.com/whomper/EDOS) · [EFTP_XL](https://github.com/whomper/EFTP_XL) · Pi: [AERA-Gateway](https://github.com/whomper/AERA-Gateway)
+Part of **AERA** for Atari: [ECal](https://github.com/whomper/ECal) · [EContact](https://github.com/whomper/EContact) · [EMail](https://github.com/whomper/EMail) · [EFTP](https://github.com/whomper/EFTP) · [EHypView](https://github.com/whomper/EHypView) · [ClaudeST](https://github.com/whomper/ClaudeST) · [EWeb](https://github.com/whomper/EWeb) · [EUpdate](https://github.com/whomper/EUpdate) · [EPDF](https://github.com/whomper/EPDF) · 8-bit: [EDOS](https://github.com/whomper/EDOS) · [EFTP_XL](https://github.com/whomper/EFTP_XL) · Pi: [AERA-Gateway](https://github.com/whomper/AERA-Gateway)
