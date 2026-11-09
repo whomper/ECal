@@ -153,3 +153,35 @@ ECal is in maintenance mode while EWeb, EPDF and EPlay go to 1.0 (AERA-Atari, AT
 - Nothing runs in the background; the session waits for Erez or the hub.
 - Only Erez's explicit word ends this mode, for instance that every app is to take the latest shared code and release. The hub passes it on quoting him.
 - The one exception (Erez, 2 Nov 2026: "Start fresh, and roll it out to all apps"): file names in lowercase (guidelines 6.6), with the shared code it needs and a release. Nothing else rides along.
+
+## UI backlog (Erez's 54 decisions, 9 Nov 2026; AERA-Atari a261597, standards/ui)
+
+Nothing here starts on its own: maintenance mode stands. Take items with a release ECal makes anyway (a fault
+fix, or one Erez asked for), without growing that release's risk: the S items freely, H and M only when that
+release is otherwise untouched. Every GEM release still passes the speed rig. When an item is done, send the
+hub one line with the commit (it ticks ECal's row in the guidelines' section-8 table). [hub] = waits for the
+shared code first; the hub says when it is in `common/`.
+
+1. File lists `Quit` alone in the program; the accessory's ≡ menu keeps Close (D3, MD7). S.
+2. ≡ menu: About first; help entry `ECal help  Help` and `Keys...`, as the bar (MG16, MD16). S. Adjust
+   `tests/hatari/font_acc.py`, which counts Font... from the end.
+3. `Direct connection` without `(TLS)` (D9, MD6). S.
+4. `Add account or calendar...` moves to Options, before Settings (D13, MD27). S.
+5. The event pop-up says `Copy event ^C`, the bar's words (D14, MD19). S.
+6. A black title band in dialogs that lack one; in a MiNT or MagiC window the window's title replaces it
+   (D22, C4). S.
+7. Tick boxes become bitmap ticks (D23, C5). S.
+8. One-of-several choices of four or fewer become radio buttons (D24, C5). [hub: the engine]
+9. A pop-up opens with the choice ticked over its button (`ui/field.c:dlg_run`, FT_POPUP, into `popup()`)
+   (D27, C8). S. [hub]
+10. Window: one minimum for the open check (50 x 16 today) and `WM_SIZED` (40 x 14) (D38, W10); the first run
+    on the whole desk (D39, W11). S each.
+11. Insert opens the context menu (D17, MD20). H. Where the box opens is still open.
+12. Buttons act on the release over them (C7); keyboard reach: Space on ticks, arrows in lists (D25, C6). H. [hub]
+13. ECAL.INF: `WINDOW=x,y,w,h` and `FONT=name,points`, the old keys read once (D43, D44, W18). M. `SIDEBAR=`
+    stays.
+14. The older FIELD dialogs to the AES look (rows, focus ring) (C24). M, several days.
+15. Tooltips on the toolbar, 0.7 s (D18). [hub] The event tips (700 ms) and dialog tips (500 ms) stay.
+
+Still open, not to start: Find's words (D4); press and release for ticks and pop-ups (C7). Nothing to do: the
+out-of-range alerts (ECal is the model, D30), `Show|Later` (D51), the palette (D42), the toolbar's look (D33).
