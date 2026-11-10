@@ -198,7 +198,7 @@ def main():
             # monthly, on the last Friday, by the fields
             r.click(250, 92)                   # every ... weeks: the unit
             r.wait(1)
-            r.click(250, 165)                  # months
+            r.click(250, 110)                  # months: a row below "weeks" (ticked), which opens over the button (D27)
             r.wait(1)
             r.click(98, 180)                   # "the"
             r.wait(0.5)
