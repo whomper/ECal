@@ -117,6 +117,17 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
   The accessory isn't tested on the 4 MB machines, `ST` and `Falcon-4` (Erez, 4 Nov 2026; AERA-Atari
   21ba998): `ST-1`, `TT` and `Falcon` only. ECAL.PRG on its own stays tested on `ST` and `Falcon-4`.
 
+  **From the next release (Erez, 10 Nov 2026; AERA-Atari 148df17):** his configuration,
+  `Falcon-4:256` with `AERA_WITH_NVDI=1` (`machines.ERZ_MACHINE`, `machines.erz_env()`), replaces one
+  Falcon run, not added to them: `acc_test.py` and `font_acc.py` (accessory, `--prg`, `--font-id`)
+  become one run on it, in place of `Falcon:16` with and without NVDI. That run takes the accessory on a
+  4 MB machine (his configuration; the 4 Nov rule above is for the others). `edit_test.py`,
+  `esc_test.py` and `ui_tour.py` stay on a Falcon without NVDI only where a different function needs
+  it. Without his TOS or NVDI here, the same machine on EmuTOS, reported as "stand-in"; the hub runs it
+  for real. The hub's own set per candidate (TEST-MATRIX.md, "Decided 10 Nov 2026"): a paired speed
+  run on his configuration, `ST-1:mono` for the accessory, one TT + MiNT + XaAES run; `acc_all`
+  monthly, not a gate.
+
   His TOS images and NVDI are his copies: never in git (nor a test's `hd`), never sent anywhere. EmuTOS
   stays for development and CI.
 - `gateway/` is a read-only copy of [AERA-Gateway](https://github.com/whomper/AERA-Gateway)'s
