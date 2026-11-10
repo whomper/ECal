@@ -652,7 +652,6 @@ static const MBAR_ITEM m_desk[] = {
 	{ 0, 0, 0 }
 };
 static const MBAR_ITEM m_file[] = {
-	{ "Add account or calendar...", 0, C_ADD },
 	{ "Import .ics...", 0, C_IMPORT },
 	{ "Contacts...", 0, C_CONTACTS },
 	{ "-", 0, 0 },
@@ -660,8 +659,7 @@ static const MBAR_ITEM m_file[] = {
 	{ "Refresh everything", "\x01^R", C_REFRESH_ALL },
 	{ "Download everything again...", 0, C_AGAIN },
 	{ "-", 0, 0 },
-	{ "Close", "^U", C_CLOSE },
-	{ "Quit", "^Q", C_QUIT },
+	{ "Quit", "^Q", C_QUIT },	/* alone: one window, and ^U quits too (D3) */
 	{ 0, 0, 0 }
 };
 static const MBAR_ITEM m_edit[] = {
@@ -693,11 +691,12 @@ static const MBAR_ITEM m_event[] = {
 	{ 0, 0, 0 }
 };
 static const MBAR_ITEM m_opts[] = {
+	{ "Add account or calendar...", 0, C_ADD },	/* accounts before Settings (D13) */
 	{ "Settings...", "^,", C_SET },
 	{ "Font...", 0, C_FONT },
 	{ "-", 0, 0 },
 	{ "Work offline", 0, C_OFFL },
-	{ "Direct connection (TLS)", 0, C_FALC },
+	{ "Direct connection", 0, C_FALC },
 	{ "Write a log", 0, C_LOG },
 	{ 0, 0, 0 }
 };
@@ -871,7 +870,8 @@ void cmd_menu(short x, short y)
 		const char *text;
 		short cmd;
 	} m[] = {
-		{ "  Add account or calendar...", C_ADD },
+		{ "  About ECal...", C_ABOUT },		/* first (1.3, MG16) */
+		{ "-", 0 },
 		{ "  Import .ics...", C_IMPORT },
 		{ "  New event            N", C_NEW },
 		{ "-", 0 },
@@ -886,13 +886,16 @@ void cmd_menu(short x, short y)
 		{ "-", 0 },
 		/* as EMail's Options menu */
 		{ "  Work offline", C_OFFL },
-		{ "  Direct connection (TLS)", C_FALC },
+		{ "  Direct connection", C_FALC },
 		{ "  Write a log", C_LOG },
 		{ "-", 0 },
+		{ "  Add account or calendar...", C_ADD },
 		{ "  Settings...         ^,", C_SET },
 		{ "  Font...", C_FONT },
-		{ "  Help...            Help", C_HELP },
-		{ "  About ECal...", C_ABOUT },
+		{ "-", 0 },
+		/* as the bar's Help menu (MD16) */
+		{ "  ECal help          Help", C_HELP },
+		{ "  Keys...", C_KEYS },
 		{ "-", 0 },
 		{ "  Quit                ^Q", C_QUIT },	/* the accessory: Close ^U */
 	};

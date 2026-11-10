@@ -841,14 +841,19 @@ static void draw_all_in(DLG *d, const GRECT *clip)
 				win_clear(&c);
 		}
 	}
-	frame(&box, 1);
+	frame(&box, 1);		/* one frame, as the AES's (D22, C4: the double frame went) */
 	{
+		/* the two rows inside it in the ground, as the inner frame
+		   was, so drawing in slices leaves nothing of what was under */
 		GRECT in = box;
-		in.x += 2;
-		in.y += 2;
-		in.w -= 4;
-		in.h -= 4;
-		frame(&in, 1);
+		short k;
+		for (k = 1; k <= 2; k++) {
+			in.x++;
+			in.y++;
+			in.w -= 2;
+			in.h -= 2;
+			frame(&in, bg ? bg : 0);
+		}
 	}
 	t.x = box.x + 3;
 	t.y = box.y + 3;
@@ -858,14 +863,14 @@ static void draw_all_in(DLG *d, const GRECT *clip)
 		/* the window's title bar names it */
 		hebrew_badge_right(vdi_h, t.x, t.y, t.w, t.h, 1);	/* the Hebrew keyboard's, while on */
 	} else {
-		short cols = (short)((box.w - 2 * pad) / cw), n;
+		short cols = (short)((t.w - cw) / cw), n;
 		fill(&t, 1);
 		snprintf(title, sizeof(title), "%s", d->title ? d->title : "");
 		n = (short)strlen(title);
-		/* centred to the nearest cell: on a byte (TX_CENTER puts it half
-		   a cell off when the room left is odd) */
-		text_at(box.x + pad + (n < cols ? (cols - n) / 2 : 0) * cw, t.y + 1, title, n, cols,
-			TX_INVERSE | TX_BOLD | (line_rtl(title, n) ? TX_RIGHT : TX_LTR));
+		/* the family's band (D22, C4): white on black, the text at the
+		   left after one space, not bold (te_color 0x1071's look) */
+		text_at(t.x + cw, t.y + 1, title, n, cols,
+			TX_INVERSE | (line_rtl(title, n) ? TX_RIGHT : TX_LTR));
 		hebrew_badge_right(vdi_h, t.x, t.y, t.w, t.h, 0);	/* white on the band */
 	}
 	if (frame_only) {
@@ -898,7 +903,7 @@ static void draw_some(DLG *d, unsigned long ms)
 	graf_mouse(M_OFF, 0);
 	on_box(1);
 	while (clear_y < bottom && pf_ms() - t0 < ms) {
-		/* the inside, inside the double frame, a band at a time */
+		/* the inside, within the frame's two rows, a band at a time */
 		GRECT c;
 		c.x = box.x + 3;
 		c.y = clear_y;
@@ -1525,18 +1530,22 @@ short dlg_run(DLG *d)
 					char tick[16][64];
 					const char *lab[16];
 					field_rect(f, &r);
-					/* over the button, the choice it shows ticked (the
-					   guidelines, 5.7); the popup draws over the dialog:
-					   it saves nothing, so redraw after */
+					/* popup_over (D27, C8): the ticked row over the
+					   button; its labels are the words, the ticked one
+					   "\x08" and the words (popup.h's new contract). It
+					   draws over the dialog and saves nothing: redraw after */
 					for (j = 0; j < f->nitems && j < 16; j++) {
-						lab[j] = f->items[j];
-						if (j == f->val && f->items[j][0] == ' ') {
-							str_copy(tick[j], f->items[j], sizeof(tick[j]));
+						const char *w = f->items[j];
+						while (*w == ' ')
+							w++;
+						lab[j] = w;
+						if (j == f->val) {
 							tick[j][0] = '\x08';
+							str_copy(tick[j] + 1, w, sizeof(tick[j]) - 1);
 							lab[j] = tick[j];
 						}
 					}
-					k = popup(r.x, r.y, lab, j);
+					k = popup_over(r.x, r.y, lab, j, f->val);
 					draw_all(d);
 					if (k >= 0 && k != f->val) {
 						f->val = k;

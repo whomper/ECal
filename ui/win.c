@@ -37,6 +37,12 @@ static const char *const blabel[NBUT] = {
 	" ", "\x04", "Today", "\x03", "Day", "Week", "Month", "Year", "+", "Refresh", "\xF0"
 };
 static GRECT r_title;
+/* the window's smallest, the same when it opens and when it is sized
+   (D38, W10): content-bound, the toolbar's buttons at their narrowest
+   (18 cells on the left, 30 on the right with "D" "W" "M" "Y") with the
+   margins and the Hebrew keyboard's badge, and a few rows of the view */
+#define MIN_COLS 52
+#define MIN_ROWS 14
 
 void win_title(void)
 {
@@ -1185,12 +1191,14 @@ void win_open(void)
 	y = opt.win_y;
 	w = opt.win_w;
 	h = opt.win_h;
-	if (w < 50 * cw || h < 16 * ch || x < desk_x || y < desk_y ||
+	if (w < MIN_COLS * cw || h < MIN_ROWS * ch || x < desk_x || y < desk_y ||
 	    x + w > desk_x + desk_w + 8 || y + h > desk_y + desk_h + 8) {
-		x = desk_x + (desk_w > 80 * cw ? desk_w / 20 : 0);
-		y = desk_y + (desk_h > 30 * ch ? ch : 0);
-		w = desk_w - 2 * (x - desk_x);
-		h = desk_h - 2 * (y - desk_y);
+		/* the first run (or a place that no longer fits): the whole
+		   desk, as every main window (D39, W11) */
+		x = desk_x;
+		y = desk_y;
+		w = desk_w;
+		h = desk_h;
 	}
 	{
 		/* snapped right, it must still end on the screen */
@@ -1377,7 +1385,7 @@ void win_message(short *msg)
 	}
 	case WM_SIZED:
 	case WM_MOVED: {
-		short w = msg[6] < 40 * cw ? 40 * cw : msg[6], h = msg[7] < 14 * ch ? 14 * ch : msg[7];
+		short w = msg[6] < MIN_COLS * cw ? MIN_COLS * cw : msg[6], h = msg[7] < MIN_ROWS * ch ? MIN_ROWS * ch : msg[7];
 		short sx = snap_x(msg[4], msg[5], w, h);
 		if (win_iconified) {	/* the icon goes where it is put, as it is */
 			wind_set(win_h, WF_CURRXYWH, msg[4], msg[5], msg[6], msg[7]);

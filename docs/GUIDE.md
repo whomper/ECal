@@ -224,7 +224,7 @@ and from then on the accessory has its fonts too.
 
 ## Adding calendars
 
-File > **Add account or calendar...** (in the accessory, the ≡ menu):
+Options > **Add account or calendar...** (in the accessory, the ≡ menu):
 
 - **iCloud**: your Apple ID and an **app-specific password** (see
   [App passwords](#app-passwords-icloud-fastmail-yahoo)); your normal
@@ -350,7 +350,7 @@ As in EMail, the Options menu (and the ≡ menu) has three ticks:
 - **Work offline**: no connections at all; the calendars stay as they
   are on the Atari, and Refresh says ECal is offline. The info line says
   "Working offline".
-- **Direct connection (TLS)**: the same as the tick in Settings > Connection.
+- **Direct connection**: the same as the tick in Settings > Connection.
 - **Write a log**: ECAL.LOG, the conversation with the servers.
 
 F10 switches the Hebrew keyboard on and off (it has no menu entry). While it is on, its badge, the letters ayin and bet
@@ -582,7 +582,7 @@ or Undo stops what ECal is waiting for from the server, at once rather
 than after the minute it would wait: the alert then says "stopped".
 Anything else you type meanwhile is kept for afterwards.
 
-Help (or Help > **ECal help**, or **Help...** in the ≡ menu) opens this guide in
+Help (or Help > **ECal help**, or **ECal help** in the ≡ menu) opens this guide in
 the viewer you named with `STGUIDE=` in the AES's environment (MiNT's
 `XAAES.CNF`, MagiC's `MAGX.INF`), else EHypView, ST-Guide or HypView,
 whichever is running (as an accessory, or as a program under MiNT or
