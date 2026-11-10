@@ -1563,7 +1563,7 @@ int win_key(short kstate, short key)
 		switch (scan) {
 		case 0x31: cmd_new_event(); return 1;		/* ^N */
 		case 0x13: cmd_refresh(kstate & (K_LSHIFT | K_RSHIFT)); return 1;	/* ^R */
-		case 0x21: dlg_find(); return 1;			/* ^F */
+		case 0x21: find_dialog(); return 1;			/* ^F */
 		case 0x22: dlg_goto(); return 1;			/* ^G */
 		case 0x16:					/* ^U: close (the guidelines, 3.2) */
 		case 0x10:					/* ^Q */

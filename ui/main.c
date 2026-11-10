@@ -153,6 +153,7 @@ static void warn_plain(const char *keyfile)
 void set_logging(void)
 {
 	conn_log_flush();
+	conn_log_size = pf_handle_size;	/* the log's cap (256 KB, then the .OLD file) from the open handle: conn.c */
 	if (opt.log)
 		path_join(conn_logfile, sizeof(conn_logfile), workdir, "ecal.log");
 	else
@@ -814,7 +815,7 @@ static void command(int c)
 	case C_YEAR: views_goto(cur_day, V_YEAR); break;
 	case C_TODAY: views_today(); break;
 	case C_GOTO: dlg_goto(); break;
-	case C_FIND: dlg_find(); break;
+	case C_FIND: find_dialog(); break;
 	case C_SIDE:
 		opt.sidebar = !opt.sidebar;
 		settings_later();
@@ -842,7 +843,7 @@ static void command(int c)
 	case C_SET: dlg_settings(); break;
 	case C_FONT: font_menu(); break;
 	case C_HELP: help_open(); break;
-	case C_KEYS: dlg_keys(); break;
+	case C_KEYS: keys_dialog(); break;
 	case C_CONTACTS: open_contacts(); break;
 	case C_IMPORT: {
 		char path[200];

@@ -246,12 +246,12 @@ int  dlg_calendar(int c);	/* name, colour, alarms of one calendar; 1 if changed 
 void dlg_settings(void);
 void dlg_connection(void);
 void dlg_goto(void);
-void dlg_find(void);
+void find_dialog(void);
 void no_memory(void);		/* the alert when a dialog finds no memory for itself */
 void dlg_about(void);
 void icon_today(char *s, int size);	/* "Oct 14" */
 void icon_window(GRECT *area);		/* the iconified window: icon and today */
-void dlg_keys(void);
+void keys_dialog(void);
 #include "help.h"		/* help_init (at start-up), help_show: common/ui */
 void help_open(void);		/* ECAL.HYP in EHypView or ST-Guide, or the keys */
 void font_apply(void);		/* opt.font_id/pt -> the VDI font, cw, ch */

@@ -784,7 +784,7 @@ void dlg_goto(void)
 	views_goto(days_from_civil(y, m, dd), cur_view == V_YEAR ? V_MONTH : cur_view);
 }
 
-void dlg_find(void)
+void find_dialog(void)
 {
 	static char what[60];
 	char (*lab)[64];
@@ -844,10 +844,10 @@ void dlg_find(void)
 void help_open(void)
 {
 	if (help_key(opt.workdir, "ecal.hyp", 0, "Keys"))
-		dlg_keys();
+		keys_dialog();
 }
 
-void dlg_keys(void)
+void keys_dialog(void)
 {
 	static const struct {
 		short row, col;		/* col 0: left pair, 1: right pair, -1: heading */
