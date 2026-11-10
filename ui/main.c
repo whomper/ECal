@@ -1862,6 +1862,15 @@ static void alert_heb(char *line, long n)
 		heb_font_map(line, n, opt.hebfont);
 }
 
+/* one step of quitting in ECAL.LOG, on the disk at once: if the machine
+   bombs after the window has gone (EFTP and EMail, Erez 10 Nov 2026), the
+   last line says where */
+static void quit_step(const char *what)
+{
+	conn_log("ECal", " -- quit: ", what, (long)strlen(what));
+	conn_log_flush();
+}
+
 /* ECal (the program) crashed and CRASH.LOG is written
    (common/atari/crash.c): say so and leave GEM tidy. Only the AES and
    VDI: the heap may be what went wrong */
@@ -2408,8 +2417,11 @@ int main(void)
 		}
 	}
 	win_close();			/* its steps on the info line, if still open */
+	quit_step("the window closed");
 	settings_flush();
+	quit_step("settings saved");
 	http_close_all();
+	quit_step("the connections closed");
 	{
 		/* where this session waited longest (common/atari/gem.c): Erez's
 		   own machine says it in the log (the guidelines, Speed) */
@@ -2420,13 +2432,20 @@ int main(void)
 			conn_log("ECal", "--", m, (long)strlen(m));
 		}
 	}
-	conn_log_flush();
-	crash_remove();
 	av_exit();
 	if (has_menu)
 		menu_bar(mb.tree, 0);
 	mbar_free(&mb);
 	v_clsvwk(vdi_h);
+	quit_step("menu bar and VDI given back");
+	crash_remove();
+	{
+		const char *o = crash_over();
+		char t[220];
+		snprintf(t, sizeof(t), "crash catcher off%s%s", *o ? "; hooked over it: " : "", o);
+		quit_step(t);
+	}
+	quit_step("out of the AES");
 	appl_exit();
 	return 0;
 }
