@@ -45,7 +45,7 @@ static const STEP *script;
 static short pre_keys[4], npre;		/* typed before the dialog came */
 static jmp_buf out;
 static int failed, checks;
-static int updates, update_low, mouse_off, cursor, ed_char_esc, bells, draws;
+static int updates, update_low, mouse_off, cursor, ed_char_esc, bells, draws, ed_init, ed_end, ed_moves;
 static int dial_start, dial_finish, blits, opened, closed, vwk_fails;
 static short planes = 1, blit_dir[2];
 /* the multitasking AES: its windows */
@@ -90,7 +90,7 @@ static void setup(void)
 		ted[i].te_txtlen = 20;
 		tree[F1 + i].ob_spec = (long)&ted[i];
 	}
-	updates = update_low = mouse_off = cursor = ed_char_esc = bells = draws = 0;
+	updates = update_low = mouse_off = cursor = ed_char_esc = bells = draws = ed_init = ed_end = ed_moves = 0;
 	dial_start = dial_finish = blits = opened = closed = vwk_fails = 0;
 	npre = 0;
 	planes = 1;
@@ -246,6 +246,19 @@ short appl_write(short id, short len, const void *buf)
 	return 1;
 }
 
+/* the menu bar's title shown normal (MD17) */
+static int tnormal_calls;
+static short tnormal_title, tnormal_normal;
+static OBJECT *tnormal_tree;
+short menu_tnormal(OBJECT *t, short title, short normal)
+{
+	tnormal_calls++;
+	tnormal_tree = t;
+	tnormal_title = title;
+	tnormal_normal = normal;
+	return 1;
+}
+
 /* the app's drawing over the tree: what dlg_cut lets it draw */
 static short cut[4], cut_ok, more_calls;
 static void more(short x, short y, short w, short h)
@@ -276,16 +289,21 @@ short wind_update(short mode)
 #include "click.h"
 static int fake_dbl, fake_track, tracks;
 static GRECT tracked;
+static void (*tracked_idle)(void);
 int press_double(short id, short x, short y) { (void)id, (void)x, (void)y; return fake_dbl; }
 int press_track(const GRECT *r, short x, short y, void (*idle)(void), void (*msg)(short *m), short *dx, short *dy)
 {
-	(void)x, (void)y, (void)idle, (void)msg, (void)dx, (void)dy;
+	(void)x, (void)y, (void)msg, (void)dx, (void)dy;
 	tracks++;
 	tracked = *r;
+	tracked_idle = idle;
 	return fake_track;
 }
 #endif
 static short asked_clicks;
+#ifdef DLG_CLICK
+static void idle_mark(void) { }
+#endif
 
 short evnt_multi_(short flags, short clicks, short mask, short state,
 		  unsigned long timer, short *msg, AEVENT *ev)
@@ -428,16 +446,23 @@ short objc_edit(OBJECT *t, short obj, short ch, short *idx, short kind)
 	if (kind == ED_INIT) {
 		*idx = (short)strlen(s);
 		cursor++;
+		ed_init++;
 	} else if (kind == ED_END) {
 		cursor--;
+		ed_end++;
 	} else if (kind == ED_CHAR) {
 		if (ch == KEY_ESC || (ch & 0xff) == 0x1b) {
 			ed_char_esc++;
 			s[0] = 0;		/* what TOS does with Esc in a field */
 			*idx = 0;
 		} else if (ch == 0x4b00) {	/* the cursor left */
+			ed_moves++;
 			if (*idx > 0)
 				(*idx)--;
+		} else if (ch == 0x4d00) {	/* the cursor right */
+			ed_moves++;
+			if (*idx < (short)strlen(s))
+				(*idx)++;
 		} else if ((ch & 0xff) >= ' ' && *idx < 30) {
 			s[(*idx)++] = (char)ch;
 			s[*idx] = 0;
@@ -486,6 +511,22 @@ short form_dial(short flag, short x, short y, short w, short h)
 	if (flag == FMD_FINISH)
 		dial_finish++;
 	return 1;
+}
+
+/* dlg_win_button's: the button's state now, and where it is let go */
+static short fake_mb, fake_watch, watches;
+short graf_mkstate(short *mx, short *my, short *mb, short *ks)
+{
+	*mx = *my = *ks = 0;
+	*mb = fake_mb;
+	return 1;
+}
+
+short graf_watchbox(OBJECT *t, short obj, short instate, short outstate)
+{
+	watches++;
+	t[obj].ob_state = fake_watch ? instate : outstate;
+	return fake_watch;
 }
 
 short graf_handle(short *wchar, short *hchar, short *wbox, short *hbox)
@@ -651,6 +692,26 @@ static void test_long_fields(void)
 	      "Left 30 times, then a letter: put in there; Undo cancels and the text stays");
 	check(ed_char_esc == 0 && cursor == 0, "... Undo never reached objc_edit");
 
+	/* the arrows inside the view: the cursor moves one place in the AES, it is not put at the end and
+	   walked back (the jump to the end and back on every arrow, Erez 8 Nov) */
+	setup();
+	ted[0].te_ptmplt = tmpl;
+	strcpy(big, TOKEN);
+	lf_init(&f, tree, F1, big, 99, 0);
+	n = 0;
+	for (i = 0; i < 6; i++)
+		s[n++] = (STEP)KEY(0x4b00);
+	for (i = 0; i < 3; i++)
+		s[n++] = (STEP)KEY(0x4d00);
+	s[n++] = (STEP)KEY(0x4b00);
+	s[n++] = (STEP)KEY(KEY_RETURN);
+	s[n] = (STEP)END;
+	r = run(F1, CANCEL, s);
+	check(r == OK && f.cur == 93 - 6 + 3 - 1 && !strcmp(big, TOKEN), "Left 6, Right 3, Left: the cursor in the right place, the text as it was");
+	check(ed_init == 1, "... the cursor put at the end once (when the dialog opened), not for every arrow");
+	check(ed_moves == 10, "... each arrow one move in the AES");
+	tidy("arrows in a long field");
+
 	/* Esc in a long field empties it, as GEM's fields; the dialog stays */
 	setup();
 	ted[0].te_ptmplt = tmpl;
@@ -752,10 +813,16 @@ void vq_color(short h, short index, short *rgb)
 	rgb[2] = tt_pal[index][2];
 }
 
+unsigned long tos_ms(void)
+{
+	return 0;
+}
+
 int main(void)
 {
 	short r;
 	setvbuf(stdout, 0, _IOLBF, 0);
+	dlg_find_own = 0;		/* this stand-in's objc_find answers from the script; dlg_find is tested in ../settings */
 
 	test_3d();
 
@@ -949,6 +1016,15 @@ int main(void)
 		setup();
 		run(0, CANCEL, s2);
 		check(tracks == 1, "... its release already waited for: nothing more to wait for");
+	}
+	setup();
+	{
+		static const STEP s[] = { CLICK(ROW), END };
+		fake_dbl = 0, fake_track = PRESS_IN, tracks = 0;
+		run(0, CANCEL, s);
+		check(dlg_touch_up_idle(idle_mark) == PRESS_IN && tracks == 1 && tracked_idle == idle_mark,
+		      "dlg_touch_up_idle: the release waited for now, idle() handed to press_track");
+		check(dlg_touch_up() == -1, "... and then nothing held");
 	}
 	setup();
 	{
@@ -1219,6 +1295,46 @@ int main(void)
 		tidy("kept messages");
 	}
 
+	/* MD17: a menu choice while a dialog window is open is dropped (not kept and run when the dialog closes), the title normal */
+	setup();
+	ap_count = -1;
+	{
+		static OBJECT bar[2];
+		static const STEP s[] = { MSG(MN_SELECTED, 3), MSG(0x4ae0, 0), MSG(MN_SELECTED, 5), KEY(KEY_RETURN), END };
+		script = s;
+		posts = 0;
+		tnormal_calls = 0;
+		dlg_menu = bar;
+		r = dlg_modal(tree, 0, CANCEL);
+		check(r == OK && tnormal_calls == 2 && tnormal_title == 5 && tnormal_normal == 1 && tnormal_tree == bar,
+		      "a menu choice while a dialog window waits: dropped, its title set normal again (menu_tnormal(bar, title, 1))");
+		check(posts == 1 && posted[0] == 0x4ae0,
+		      "... only the other message (a PEOPLE question) is given back when the dialog closes: the menu choices are not");
+		dlg_menu = 0;
+		tidy("menu choice dropped");
+	}
+	setup();
+	ap_count = -1;
+	{
+		static const STEP s[] = { MSG(MN_SELECTED, 3), KEY(KEY_RETURN), END };
+		script = s;
+		posts = 0;
+		tnormal_calls = 0;
+		dlg_menu = 0;
+		r = dlg_modal(tree, 0, CANCEL);
+		check(r == OK && posts == 0 && tnormal_calls == 0, "... with no menu bar known: dropped all the same, nothing given back");
+		tidy("menu choice dropped, no bar");
+	}
+	setup();
+	{
+		/* on TOS there is no such message: the stand-in sends one anyway and nothing of the window code runs */
+		static const STEP s[] = { KEY(KEY_RETURN), END };
+		script = s;
+		tnormal_calls = 0;
+		r = dlg_modal(tree, 0, CANCEL);
+		check(r == OK && tnormal_calls == 0, "over the screen (TOS): nothing to drop");
+	}
+
 	/* the app's own drawing in a dialog window */
 	setup();
 	ap_count = -1;
@@ -1268,6 +1384,21 @@ int main(void)
 	check(pen_nearest(1, 16, 1000, 1000, 500, 0) == 14, "pen_nearest: pale yellow, not for text: pen 14");
 	check(pen_nearest(1, 2, 1000, 0, 0, 1) == 1, "pen_nearest: two pens, text: black");
 	check(pen_nearest(1, 256, 0, 0, 1000, 1) == 4, "pen_nearest: 256 pens: only the first 16");
+	/* a window's button (dlg_win_button): taken only on a press let go over it */
+	setup();
+	fake_mb = 0, fake_watch = 1, watches = 0;
+	check(!dlg_win_button(tree, OK) && !watches, "dlg_win_button: the button already up: nothing (a selector's click)");
+	fake_mb = 1;
+	check(dlg_win_button(tree, OK) && watches == 1 && !(tree[OK].ob_state & SELECTED),
+	      "dlg_win_button: pressed and let go over it: taken, SELECTED off again");
+	fake_watch = 0;
+	check(!dlg_win_button(tree, OK), "dlg_win_button: let go elsewhere: nothing");
+	fake_watch = 1;
+	tree[OK].ob_state |= DISABLED;
+	check(!dlg_win_button(tree, OK), "dlg_win_button: a disabled button: nothing");
+	tree[OK].ob_state &= ~DISABLED;
+	check(!dlg_win_button(tree, TITLE) && !dlg_win_button(tree, -1), "dlg_win_button: not an EXIT object: nothing");
+	fake_mb = 0;
 printf("%d checks, %d failed\n", checks, failed);
 	return failed != 0;
 }

@@ -34,7 +34,7 @@ void (*tls_log)(const char *msg);
 int (*tls_rsa_accel)(unsigned char *x, size_t xlen, const unsigned char *n, size_t nlen,
 		     const unsigned char *e, size_t elen);
 
-char tls_ovl_path[200] = "TLS.OVL";
+char tls_ovl_path[200] = "tls.ovl";
 
 static const TLS_OVL *ov;
 static void *image;
@@ -80,7 +80,7 @@ int tls_ovl_load(char *err, int errlen)
 	cpu = get_cookie(0x5F435055L);		/* _CPU: 0, 10, 20, 30, 40, 60 */
 	if (cpu < 20) {
 		str_copy(err, "a Direct connection needs a 68020 or better (a TT, a Falcon): "
-			 "use the Raspberry Pi gateway", errlen);
+			 "use the Gateway", errlen);
 		return 0;
 	}
 	t0 = pf_ms();
