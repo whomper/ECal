@@ -24,8 +24,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: The m68k cross compiler
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-m68k-linux-gnu
+          # On 11 Nov 2026 the runners could not reach azure.archive.ubuntu.com or archive.ubuntu.com:
+          # kernel.org's mirror, over https (EPlay's finding), and apt retries
+          echo https://mirrors.edge.kernel.org/ubuntu | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y gcc-m68k-linux-gnu
       - name: Build the programs
         run: make
       - name: No odd stack access (68000)
