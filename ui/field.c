@@ -25,6 +25,7 @@
 #include <tos.h>
 #include "people_ask.h"
 #include "dialog.h"
+#include "dlgbuild.h"
 
 static GRECT box;		/* the dialog on screen */
 static short rh;		/* pixels per row */
@@ -654,20 +655,40 @@ static void draw_field(DLG *d, short i)
 		aes_button(f, &r, 0);
 		break;
 	case FT_CHECK: {
-		GRECT b;
-		b.x = FX(f);
-		b.y = FY(f) + 1;
-		b.w = 2 * cw - 4;
-		b.h = ch - 2;
-		fill(&b, 0);
-		frame(&b, dis ? grey_color() : 1);
-		if (f->val) {
-			line_col(b.x + 2, b.y + b.h / 2, b.x + b.w / 2 - 1, b.y + b.h - 3, 1);
-			line_col(b.x + b.w / 2 - 1, b.y + b.h - 3, b.x + b.w - 3, b.y + 2, 1);
-			line_col(b.x + 2, b.y + b.h / 2 + 1, b.x + b.w / 2 - 1, b.y + b.h - 2, 1);
-			line_col(b.x + b.w / 2 - 1, b.y + b.h - 2, b.x + b.w - 3, b.y + 3, 1);
+		/* the family's tick box (D23, C5): common's bitmaps (dlgbuild.c, EMail's 16 by 16, 8 rows on
+		   small fonts), white inside, drawn by the VDI from ST RAM (draw.c) */
+		MFDB src, dst;
+		short pxy[8], colors[2], rows;
+		unsigned short *bits = st_ram(32);
+		GRECT in;
+		db_tick_bits(ch);
+		rows = db_tick_on.bi_hl;
+		in.x = FX(f) + 2;
+		in.y = FY(f) + (ch - rows) / 2 + (rows == 16 ? 2 : 1);
+		in.w = 12;
+		in.h = rows - (rows == 16 ? 4 : 2);
+		fill(&in, 0);
+		if (bits) {
+			memcpy(bits, (f->val ? db_tick_on : db_tick_off).bi_pdata, rows * 2);
+			memset(&src, 0, sizeof(src));
+			memset(&dst, 0, sizeof(dst));
+			src.fd_addr = bits;
+			src.fd_w = 16;
+			src.fd_h = rows;
+			src.fd_wdwidth = 1;
+			src.fd_nplanes = 1;
+			pxy[0] = pxy[1] = 0;
+			pxy[2] = 15;
+			pxy[3] = rows - 1;
+			pxy[4] = FX(f);
+			pxy[5] = FY(f) + (ch - rows) / 2;
+			pxy[6] = pxy[4] + 15;
+			pxy[7] = pxy[5] + rows - 1;
+			colors[0] = dis ? grey_color() : 1;
+			colors[1] = 0;
+			vrt_cpyfm(vdi_h, 2, pxy, &src, &dst, colors);	/* transparent: the ground stays round it */
 		}
-		text_at(FX(f) + 2 * cw, FY(f), f->label, (long)strlen(f->label), f->w - 2, TX_LTR | dis);
+		text_at(FX(f) + 3 * cw, FY(f), f->label, (long)strlen(f->label), f->w - 3, TX_LTR | dis);
 		break;
 	}
 	case FT_CHOOSE:
@@ -1174,7 +1195,7 @@ static short field_at(DLG *d, short mx, short my)
 			return i;
 		field_rect(f, &r);
 		if (f->type == FT_CHECK) {
-			r.w = ((short)strlen(f->label) + 2) * cw + 4;
+			r.w = ((short)strlen(f->label) + 3) * cw + 4;
 		} else if (f->type == FT_COLOR) {
 			r.w = NCOLORS * 3 * cw;
 		}

@@ -659,7 +659,7 @@ static void settings(short first)
 	/* Contacts: EContact's file, for machines short of memory where it
 	   isn't loaded (the guidelines, 4.1) */
 	row = 3;
-	put(&f[P1], FT_CHECK, 0, CX, row, 52, "When EContact isn't loaded, read its contacts file");
+	put(&f[P1], FT_CHECK, 0, CX, row, 53, "When EContact isn't loaded, read its contacts file");
 	f[P1].val = opt.peoplefile;
 	row += 2;
 	put(&f[P2], FT_LABEL, 0, CX, row, 0, "EContact's folder:");
