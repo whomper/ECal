@@ -164,7 +164,7 @@ static void set_opt(const char *k, const char *v)
 	S(home_tz) S(view_tz) S(gate) S(folder) S(start) S(peopledir)
 	I(tzsupport) I(falcon) I(dsp) I(weekstart) I(h24) I(hebdates) I(view) I(daystart)
 	I(alarms) I(alarm_default) I(log) I(font_id) I(font_pt) I(hebfont) I(win_x) I(win_y)
-	I(win_w) I(win_h) I(sidebar) I(past_days) I(future_days) I(duration) I(refresh) I(sync_open) I(offline) I(heapkb) I(memkb)
+	I(win_w) I(win_h) I(sidebar) I(panes) I(past_days) I(future_days) I(duration) I(refresh) I(sync_open) I(offline) I(heapkb) I(memkb)
 	I(peoplefile)
 	if (!strcasecmp(k, "sync_closed")) {
 		opt.bgsync = (short)atoi(v);	/* (BGSYNC= before 2.7, off then: left behind) */
@@ -441,6 +441,7 @@ options2:
 	S("PEOPLEDIR", peopledir, "EContact's folder, e.g. C:\\ECONTACT")
 	I("VIEW", view, "the view: 0 day, 1 week, 2 month, 3 year")
 	I("SIDEBAR", sidebar, "show the calendar list")
+	I("PANES", panes, "the day view's details pane, its width in pixels; 0: two fifths of the view")
 	I("FONT_ID", font_id, "the font, as a GDOS id; 1: the system font")
 	I("FONT_PT", font_pt, "the font's size in points; 0: the system font's")
 	I("WIN_X", win_x, "the window's left edge, in pixels")

@@ -1508,6 +1508,22 @@ static short tip_on, tip_tried, hover_x = -1, hover_y = -1;
 static unsigned long hover_at;
 static GRECT tip_r;
 
+/* the flat hand over the day view's divider, while the window is on
+   top (WINDOWS 2.1); the arrow again off it */
+static short flat_shown;
+static void pointer_at(short x, short y)
+{
+	short on = 0, t, d;
+	if (views_divider_at(x, y) && wind_find(x, y) == win_h) {
+		wind_get(0, WF_TOP, &t, &d, &d, &d);
+		on = t == win_h;
+	}
+	if (on != flat_shown) {
+		flat_shown = on;
+		graf_mouse(on ? FLAT_HAND : ARROW, 0);
+	}
+}
+
 static void tip_hide(void)
 {
 	if (!tip_on)
@@ -2168,8 +2184,10 @@ int main(void)
 			which &= ~(MU_KEYBD | MU_BUTTON);
 		if (which & (MU_M1 | MU_KEYBD | MU_BUTTON | MU_MESAG)) {
 			short k;
-			if (which & MU_M1)
+			if (which & MU_M1) {
 				graf_mkstate(&hover_x, &hover_y, &k, &k);
+				pointer_at(hover_x, hover_y);
+			}
 			hover_at = pf_ms();
 			tip_tried = (which & (MU_KEYBD | MU_BUTTON)) != 0;
 			tip_hide();

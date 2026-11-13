@@ -116,6 +116,8 @@ void win_track_idle(void);	/* its look while held (main.c's ui_track) */
 short win_press_id(short mx, short my);	/* what a press is on, for press_double */
 short side_press_id(short mx, short my);
 short views_press_id(short mx, short my);
+int views_divider_at(short mx, short my);	/* over the day view's divider */
+int views_drag_divider(short mx, short my);	/* a press on it: dragged, 1 */
 int  ui_track(const GRECT *r, short x, short y);	/* main.c: a press held, PRESS_IN/OUT/DRAG (click.h) */
 int  win_mouse(short mx, short my, short button, short clicks, short kstate);
 int  win_key(short kstate, short key);

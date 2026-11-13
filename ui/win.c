@@ -1558,6 +1558,8 @@ int win_mouse(short mx, short my, short button, short clicks, short kstate)
 	}
 	if (r_side.w && rect_hit(&r_side, mx, my))
 		return side_click(mx, my, clicks, button);
+	if (!(button & 2) && views_divider_at(mx, my))
+		return views_drag_divider(mx, my);
 	if (rect_hit(&r_view, mx, my))
 		return views_click(mx, my, clicks, kstate, button);
 	return 0;

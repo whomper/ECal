@@ -75,6 +75,7 @@ typedef struct {
 	short font_id, font_pt, hebfont;
 	short win_x, win_y, win_w, win_h;
 	short sidebar;
+	short panes;		/* the day view's details pane, its width in pixels; 0: two fifths */
 	short past_days, future_days;	/* what is kept from the servers */
 	short duration;		/* default length of a new event, minutes */
 	short refresh;		/* minutes between automatic refreshes of all; 0 = by hand */

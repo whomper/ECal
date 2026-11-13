@@ -85,6 +85,7 @@ static short col_at(short x)
 
 #define COLW(c) (colx[(c) + 1] - colx[c])
 static GRECT detail;		/* day view: the selected event's details */
+#define DIV 4			/* its divider's width, at its left (WINDOWS 2.1) */
 static long glide_left;		/* a key's hour still to glide, pixels, up when negative (views_glide) */
 
 /* today, worked out once per drawing (see views_draw) */
@@ -556,6 +557,18 @@ static void layout_column(long day, GRECT *col)
 	}
 }
 
+/* the details pane's width kept to what both sides can live with: the
+   pane at least 20 cells, the hours at least their gutter and 20 */
+static short detail_width(short w)
+{
+	short lo = 20 * cw, hi = r_view.w - 7 * cw - 8 - 20 * cw;
+	if (w > hi)
+		w = hi;
+	if (w < lo)
+		w = lo;
+	return w;
+}
+
 static void layout_days(void)
 {
 	short c, line_h = ch + 2, lanes, maxl = 3;
@@ -569,8 +582,9 @@ static void layout_days(void)
 	grid.x = (r_view.x + gutter + 7) & ~7;	/* on a byte (the columns too: columns()) */
 	grid.w = r_view.x + r_view.w - grid.x;
 	if (cur_view == V_DAY && r_view.w > 70 * cw) {
-		/* the day view shows the selected event's details on the right */
-		detail.w = r_view.w * 2 / 5;
+		/* the day view shows the selected event's details on the right,
+		   two fifths of the view or as wide as its divider was dragged */
+		detail.w = detail_width(opt.panes > 0 ? opt.panes : r_view.w * 2 / 5);
 		detail.x = r_view.x + r_view.w - detail.w;
 		detail.y = r_view.y;
 		detail.h = r_view.h;
@@ -988,7 +1002,15 @@ static void draw_details(GRECT *clip)
 		return;
 	clip_on(&c);
 	fill(&r, 0);
-	vline(r.x, r.y, r.y + r.h - 1);
+	{
+		/* the divider (WINDOWS 2.1): DIV pixels, grey, dotted in mono */
+		GRECT dv = r;
+		dv.w = DIV;
+		if (ncolors >= 16)
+			fill(&dv, grey_color());
+		else
+			fill_pat(&dv, 1, 2, 4);
+	}
 	if (!sel_occ.ev) {
 		HDATE h;
 		char hs[60];
@@ -2217,12 +2239,82 @@ static void context_menu(short mx, short my, int it, long day, short minute)
 	}
 }
 
+/* the day view's divider under (mx, my): grabbed 3 pixels either side
+   of the drawn DIV (WINDOWS 2.1). As last laid out: no layout here, it
+   is asked as the mouse moves */
+int views_divider_at(short mx, short my)
+{
+	return cur_view == V_DAY && laid_out && detail.w && my >= r_view.y && my < r_view.y + r_view.h &&
+	       mx >= detail.x - 3 && mx < detail.x + DIV + 3;
+}
+
+/* Dragging the divider: a line follows the mouse (the pointer held,
+   polled every 10 ms), nothing moves until the button comes up; then the
+   pane takes its new width, kept in ECAL.INF (PANES=), and the view is
+   drawn again. The family's way (WINDOWS 2.1) */
+int views_drag_divider(short mx, short my)
+{
+	short x, y, b, k, off, lo, hi, nx;
+	GRECT ln;
+	layout();
+	if (!views_divider_at(mx, my))
+		return 0;
+	off = mx - detail.x;
+	/* where its left edge may go: the pane's widest to its narrowest */
+	lo = r_view.x + r_view.w - detail_width(r_view.w);
+	hi = r_view.x + r_view.w - detail_width(0);
+	wind_update(BEG_UPDATE);
+	wind_update(3);			/* the mouse is ours until the button comes up */
+	graf_mouse(FLAT_HAND, 0);
+	clip_on(&r_view);
+	ln.x = detail.x;
+	ln.y = r_view.y;
+	ln.w = 1;
+	ln.h = r_view.h;
+	graf_mouse(M_OFF, 0);
+	xor_fill(&ln);
+	graf_mouse(M_ON, 0);
+	for (;;) {
+		evnt_timer_(10);
+		graf_mkstate(&x, &y, &b, &k);
+		if (!(b & 1))
+			break;
+		nx = x - off;
+		if (nx < lo)
+			nx = lo;
+		if (nx > hi)
+			nx = hi;
+		if (nx != ln.x) {
+			graf_mouse(M_OFF, 0);
+			xor_fill(&ln);
+			ln.x = nx;
+			xor_fill(&ln);
+			graf_mouse(M_ON, 0);
+		}
+	}
+	graf_mouse(M_OFF, 0);
+	xor_fill(&ln);
+	graf_mouse(M_ON, 0);
+	clip_off();
+	wind_update(2);
+	wind_update(END_UPDATE);
+	if (ln.x != detail.x) {
+		opt.panes = r_view.x + r_view.w - ln.x;
+		settings_later();
+		laid_out = 0;
+		win_redraw(&r_view);
+	}
+	return 1;
+}
+
 /* what a press at (mx, my) is on, for press_double (win_press_id) */
 short views_press_id(short mx, short my)
 {
 	int it;
 	long day;
 	layout();
+	if (views_divider_at(mx, my))
+		return 51;
 	if (cur_view == V_DAY && detail.w && rect_hit(&detail, mx, my))
 		return 50;
 	it = item_at(mx, my);
