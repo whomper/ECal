@@ -2283,6 +2283,12 @@ static void context_menu(short mx, short my, int it, long day, short minute)
 	}
 }
 
+/* how many occurrences the view has (for the log) */
+int views_count(void)
+{
+	return occ_valid ? occ.n : 0;
+}
+
 /* the day view's divider under (mx, my): grabbed 3 pixels either side
    of the drawn DIV (WINDOWS 2.1). As last laid out: no layout here, it
    is asked as the mouse moves */

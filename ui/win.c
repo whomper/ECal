@@ -9,6 +9,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "ui.h"
+#include "conn.h"
 #include "bidi.h"
 #include "iconify.h"
 #include "av.h"
@@ -108,6 +109,7 @@ static struct {
 	GRECT tile[200];		/* the view's pieces (views_tiles) */
 	short nt, ti;			/* how many, the next to draw */
 	unsigned long t0;		/* begun when */
+	unsigned long prep_ms, draw_ms;	/* its time in the events (collect, layout) and in drawing */
 	short take, rows;		/* pieces of a row, or whole rows, to draw together next */
 	unsigned long row_ms, piece_ms;	/* the dearest row and piece drawn yet */
 	int mini;			/* the small month still to draw, after it */
@@ -813,8 +815,10 @@ void win_view_later(void)
 			side_redraw_mini();
 		return;
 	}
-	if (!vj.on)
+	if (!vj.on) {
 		vj.t0 = pf_ms();
+		vj.prep_ms = vj.draw_ms = 0;
+	}
 	vj.on = 1;
 	vj.ready = 0;
 	vj.later = 0;		/* (in the view drawn whole) */
@@ -894,7 +898,9 @@ int win_view_step(unsigned long ms)
 		unsigned long used = pf_ms() - t0, p0 = pf_ms();
 		if (used >= ms)
 			return 1;
-		if (!views_prepare(ms - used)) {
+		int more = views_prepare(ms - used);
+		vj.prep_ms += pf_ms() - p0;
+		if (!more) {
 			vj.ready = 1;
 			vj.nt = (short)views_tiles(vj.tile, 200);
 			vj.ti = 0;
@@ -961,6 +967,7 @@ int win_view_step(unsigned long ms)
 			wind_update(END_UPDATE);
 		}
 		took = pf_ms() - p0;
+		vj.draw_ms += took;
 		if (took < 5)
 			took = 5;
 		/* by the dearest row and piece yet (rows differ: a header is
@@ -997,8 +1004,8 @@ whole:
 #ifdef AES_PROFILE
 		unsigned long c0 = pf_ms();
 #endif
+		unsigned long k0 = pf_ms();
 		if (!vj.show) {	/* (a new window's: each band copied already) */
-			unsigned long k0 = pf_ms();
 			wind_update(BEG_UPDATE);
 			graf_mouse(M_OFF, 0);
 			if (rect_and(&full, &r_view))
@@ -1011,6 +1018,17 @@ whole:
 		vj.on = 0;
 		vj.mini = 1;		/* the small month, in the next slice */
 		vj.mini_from = -1;
+		{
+			/* with the log on, what each view cost on this machine
+			   (Erez's Falcon is slower than the emulator: the numbers
+			   from there say what to make faster). Numbers only */
+			char b[120];
+			static const char *const vname[] = { "day", "week", "month", "year" };
+			int n = snprintf(b, sizeof(b), "the %s drawn in %lu ms: the events %lu, drawing %lu, "
+					 "the copy %lu (%d shown)", vname[cur_view & 3], pf_ms() - vj.t0, vj.prep_ms, vj.draw_ms,
+					 pf_ms() - k0, views_count());
+			conn_log("ECal", " -- ", b, n);
+		}
 #ifdef AES_PROFILE
 		{
 			char b[64];
