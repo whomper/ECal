@@ -229,8 +229,16 @@ def double_check(r, m, where):
           ("    " if ok else "FAIL", where, "Calendar info opened" if ok else "nothing opened"), flush=True)
     m.rows.append(dict(action="a double click (%s)" % where, kind="key", limit=LIMIT["key"],
                        ms=0 if ok else 9999, gaps=[], background=[], where=[], picture=None))
-    r.key(K["ESC"])
-    time.sleep(2)
+    # Undo cancels a dialog; Esc only empties the text field that has the
+    # cursor (the guidelines 3.5): with Esc here Calendar info stayed open,
+    # its name emptied, and every row after it timed keys typed into it
+    pos = len(m.text())
+    r.key(0x61)
+    time.sleep(3)
+    if ok and "AESDONE" not in m.text()[pos:]:
+        print("  FAIL Calendar info still open after Undo: the rows after it are not to be trusted", flush=True)
+        m.rows.append(dict(action="Calendar info closed with Undo", kind="key", limit=LIMIT["key"],
+                           ms=9999, gaps=[], background=[], where=[], picture=None))
 
 
 def clicks(r, m):
