@@ -37,6 +37,11 @@ endif
 ifdef AESPROF
 CFLAGS  += -DAES_PROFILE=$(AESPROF)
 endif
+# make AESPROF=20 VIEWSLICE=0: with it, each slice of a view's work said
+# (VIEWSLICE <ms> <phase>; 90 ms and longer without)
+ifdef VIEWSLICE
+CFLAGS  += -DVIEWSLICE_MS=$(VIEWSLICE)
+endif
 LDFLAGS := -m68000 -nostdlib -static -no-pie -Wl,--emit-relocs -Wl,-T,common/atari/link.ld \
            -Wl,--build-id=none -Wl,-z,noexecstack -Wl,--no-warn-rwx-segments
 # each function and variable in a section of its own, and the linker

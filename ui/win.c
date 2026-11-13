@@ -822,9 +822,12 @@ void win_view_later(void)
 
 /* a slice of ms or so: 1 while there is more */
 #ifdef AES_PROFILE
+#ifndef VIEWSLICE_MS
+#define VIEWSLICE_MS 90
+#endif
 static void slice_said(const char *what, unsigned long t0)
 {
-	if (pf_ms() - t0 >= 90) {
+	if (pf_ms() - t0 >= VIEWSLICE_MS) {
 		char b[80];
 		snprintf(b, sizeof(b), "VIEWSLICE %lu ms %s\n", pf_ms() - t0, what);
 		nf_debug(b);

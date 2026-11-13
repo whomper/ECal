@@ -42,9 +42,10 @@ CLI = os.path.join(ROOT, "build", "cal-cli")
 LIMIT = dict(key=50, line=50, page=150, dialog=150, window=300, acc=500, start=2000, slice=100)   # slice: a step of a longer job (a key answered within 100 ms)
 
 
-def seed(hd, work, acc, font=None):
+def seed(hd, work, acc, font=None, big=False, side=True):
     """bigcal's four calendars and 24 events today, as installed:
-    ECAL.INF in the root of C:, FOLDER= naming C:\\ECAL"""
+    ECAL.INF in the root of C:, FOLDER= naming C:\\ECAL. big: bigcal --big
+    (about 1050 events, Erez's size); side: the calendar list shown"""
     folder = os.path.join(hd, "ecal")
     os.makedirs(folder, exist_ok=True)
     d = os.path.join(work, "seed")
@@ -54,7 +55,7 @@ def seed(hd, work, acc, font=None):
         subprocess.run([CLI, d] + list(a), check=True, stdout=subprocess.DEVNULL)
 
     ics = os.path.join(work, "ics")
-    subprocess.run([sys.executable, os.path.join(ROOT, "tests", "host", "bigcal.py"), ics],
+    subprocess.run([sys.executable, os.path.join(ROOT, "tests", "host", "bigcal.py"), ics] + (["--big"] if big else []),
                    check=True, stdout=subprocess.DEVNULL)
     cli("zone", "Asia/Jerusalem")
     for i, name in enumerate(("Work", "Home", "Family", "Subs")):
@@ -72,11 +73,13 @@ def seed(hd, work, acc, font=None):
         shutil.copy(os.path.join(machines.ci_path(d, "cache"), f), os.path.join(folder, "cache", f.lower()))
     with open(inf, newline="") as f:
         lines = [l for l in f.read().split("\r\n")
-                 if not l.upper().startswith(("START=", "SYNC_OPEN=", "ALARMS=") + (("FONT_ID=", "FONT_PT=") if font else ()))]
+                 if not l.upper().startswith(("START=", "SYNC_OPEN=", "ALARMS=") + (("FONT_ID=", "FONT_PT=") if font else ()) +
+                                             (() if side else ("SIDEBAR=",)))]
     i = next(k for k, l in enumerate(lines) if l.upper().startswith("FOLDER="))
     lines[i] = "FOLDER=C:\\ecal"
     # no reminders: their alerts would take the keys meant for the window
     lines[i + 1:i + 1] = ["START=5" if acc else "START=0", "SYNC_OPEN=0", "ALARMS=0"] + \
+        ([] if side else ["SIDEBAR=0"]) + \
         (["FONT_ID=%d" % font[0], "FONT_PT=%d" % font[1]] if font else [])
     with open(inf, "w", newline="") as f:
         f.write("\r\n".join(lines))
@@ -320,6 +323,8 @@ def main():
     ap.add_argument("--display", default=":99")
     ap.add_argument("--font", help="ID,PT: a GDOS font chosen in ECAL.INF (NVDI's Courier 14 as Erez runs it:"
                     " the guidelines' Speed); with AERA_WITH_NVDI=1")
+    ap.add_argument("--big", action="store_true", help="bigcal --big: about 1050 events, Erez's size")
+    ap.add_argument("--no-side", action="store_true", help="the calendar list hidden (SIDEBAR=0), the view the window's width")
     ap.add_argument("--again", action="store_true",
                     help="WORKDIR as an earlier run left it: the files ECal wrote then (its snapshots) kept")
     a = ap.parse_args()
@@ -331,7 +336,7 @@ def main():
     else:
         shutil.rmtree(a.work, ignore_errors=True)
         os.makedirs(hd)
-        seed(hd, a.work, a.acc, tuple(int(x) for x in a.font.split(",")) if a.font else None)
+        seed(hd, a.work, a.acc, tuple(int(x) for x in a.font.split(",")) if a.font else None, a.big, not a.no_side)
     if a.acc:
         shutil.copy(machines.ci_path(a.bin, "ecal.acc"), machines.ci_path(hd, "ecal.acc"))
         auto = None
