@@ -1303,7 +1303,42 @@ void win_scroll(const GRECT *a, short dy)
 		pxy[3] = pxy[1] + a->h - ady - 1;
 		pxy[5] = a->y + (dy > 0 ? 0 : ady);
 		pxy[7] = pxy[5] + a->h - ady - 1;
+		GRECT in = *a;		/* the strip that comes in */
+		in.h = ady;
+		if (dy > 0)
+			in.y = a->y + a->h - ady;
 		graf_mouse(M_OFF, 0);
+		if (off_screen() && rect_and(&in, &work)) {
+			/* drawn off the screen first, then the rows moved and the
+			   strip copied in at once: before, the rows were moved and
+			   the strip drawn after, and until it was the old rows
+			   showed in it a second time (Erez's video, 13 Nov 2026:
+			   "a previous drawing and only then the new one", plain
+			   on a Falcon in 256 colours) */
+			off_draw(&in);
+			clip_on(&strip);
+#ifdef AES_PROFILE
+			sc1 = pf_ms();
+#endif
+			scr_rows(vdi_h, pxy);
+#ifdef AES_PROFILE
+			sc2 = pf_ms();
+#endif
+			off_copy(&in);
+			graf_mouse(M_ON, 0);
+			wind_update(END_UPDATE);
+#ifdef AES_PROFILE
+			{
+				char b[80];
+				snprintf(b, sizeof(b), "SCROLLMS %dx%d by %d: strip first %lu, rows %lu, strip copied %lu\n",
+					 a->w, a->h, dy, sc1 - sc0, sc2 - sc1, pf_ms() - sc2);
+				nf_debug(b);
+			}
+#endif
+			if (!views_gliding())
+				win_sliders();
+			return;
+		}
 		/* the VDI clips raster copies to the last clip, TOS's as NVDI's:
 		   the area moved, not one left by the last thing drawn */
 		clip_on(&strip);
