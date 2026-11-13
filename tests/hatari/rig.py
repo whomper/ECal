@@ -258,5 +258,5 @@ class Rig:
         except Exception:
             self.proc.kill()
         self.machine.stop()
-        if self.xvfb:
-            self.xvfb.terminate()
+        machines.xvfb_stop(self.xvfb)   # (gone before a next rig asks for the display)
+        self.xvfb = None

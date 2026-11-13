@@ -318,7 +318,10 @@ the calendars on the Atari itself (On My Atari) stay as they are.
   a red line marks the time now. The day view shows the selected event's
   details on the right when the window is wide enough. Drag the grey line
   between the hours and the details to make the details wider or
-  narrower; ECal keeps the width for next time.
+  narrower; ECal keeps the width for next time. Notes longer than the
+  details have room for scroll: with the mouse over them, the up and down
+  arrow keys move them a line (with Shift, a page), or drag them up or
+  down; a small arrow at the side says there is more above or below.
 - **Year**: twelve months, days with events in bold. Click a month's name
   for that month, double-click a day for the day.
 

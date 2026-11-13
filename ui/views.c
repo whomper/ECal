@@ -86,6 +86,12 @@ static short col_at(short x)
 #define COLW(c) (colx[(c) + 1] - colx[c])
 static GRECT detail;		/* day view: the selected event's details */
 #define DIV 4			/* its divider's width, at its left (WINDOWS 2.1) */
+/* the details' notes scrolled (Erez, 13 Nov 2026): the first line shown,
+   of how many, and how many fit; for which event they were */
+static short det_top, det_lines, det_fit;
+static EVENT *det_ev;
+static CTIME det_start;
+#define DET_MAXL 400		/* notes wrapped at most this many lines */
 static long glide_left;		/* a key's hour still to glide, pixels, up when negative (views_glide) */
 
 /* today, worked out once per drawing (see views_draw) */
@@ -992,6 +998,18 @@ static void draw_month(GRECT *clip)
 	draw_items(clip, 1);
 }
 
+/* a small solid triangle in a text cell, pointing up or down: more of
+   the notes that way. Drawn, as the toolbar's arrows are (a GDOS font's
+   arrow glyphs are tiny) */
+static void more_mark(short x, short y, int up)
+{
+	short k, n = cw / 2, cx = x + cw / 2, y0 = y + (ch - n) / 2, c = grey_color();
+	for (k = 0; k < n; k++) {
+		short row = up ? y0 + k : y0 + n - 1 - k;
+		line_col(cx - k, row, cx + k, row, c);
+	}
+}
+
 static void draw_details(GRECT *clip)
 {
 	GRECT r = detail, c = *clip;
@@ -1043,7 +1061,7 @@ static void draw_details(GRECT *clip)
 		char t1[16], t2[16];
 		PEN p;
 		GRECT dot;
-		long br[40], nb, i;
+		long nb, i;
 		const char *title = e->summary ? e->summary : "New Event";
 		pen_of(e->cal, &p);
 		dot.x = x;
@@ -1104,17 +1122,43 @@ static void draw_details(GRECT *clip)
 		snprintf(line, sizeof(line), "Calendar: %s", cals[e->cal].name);
 		text_at(x, y, line, (long)strlen(line), w, TX_LTR | TX_GREY);
 		y += ch + ch / 2;
+		if (e != det_ev || sel_occ.start != det_start) {
+			det_ev = e;		/* another event: its notes from the top */
+			det_start = sel_occ.start;
+			det_top = 0;
+		}
+		det_lines = det_fit = 0;
 		if ((notes = ev_notes_text(e)) != 0) {
-			nb = wrap_text(notes, (long)strlen(notes), w, br, 40);
-			for (i = 0; i < nb && y + ch <= r.y + r.h; i++) {
-				long end = i + 1 < nb ? br[i + 1] : (long)strlen(notes);
-				while (end > br[i] && (notes[end - 1] == '\n' || notes[end - 1] == ' '))
-					end--;
-				text_at(x, y, notes + br[i], end - br[i], w, TX_RIGHT);
+			/* the notes from det_top, as many lines as fit; the URL after
+			   them is one line more. An arrow at the right of the first
+			   and the last line shown says there is more above or below
+			   (the arrow keys over the pane, or a drag in it, scroll) */
+			static long nbr[DET_MAXL];
+			short y0 = y, room = (short)((r.y + r.h - y) / ch), last;
+			long n = (long)strlen(notes);
+			nb = wrap_text(notes, n, w - 2, nbr, DET_MAXL);
+			det_lines = (short)nb + (e->url ? 1 : 0);
+			det_fit = room > 0 ? room : 0;
+			if (det_top > det_lines - det_fit)
+				det_top = det_lines - det_fit;
+			if (det_top < 0)
+				det_top = 0;
+			last = det_top + det_fit;
+			for (i = det_top; i < last && i < det_lines; i++) {
+				if (i < nb) {
+					long end = i + 1 < nb ? nbr[i + 1] : n;
+					while (end > nbr[i] && (notes[end - 1] == '\n' || notes[end - 1] == ' '))
+						end--;
+					text_at(x, y, notes + nbr[i], end - nbr[i], w - 2, TX_RIGHT);
+				} else
+					text_at(x, y, e->url, (long)strlen(e->url), w - 2, TX_LTR | TX_UNDER);
 				y += ch;
 			}
-		}
-		if (e->url && y + ch <= r.y + r.h)
+			if (det_top > 0)
+				more_mark(x + (w - 1) * cw, y0, 1);
+			if (last < det_lines)
+				more_mark(x + (w - 1) * cw, y0 + (det_fit - 1) * ch, 0);
+		} else if (e->url && y + ch <= r.y + r.h)
 			text_at(x, y, e->url, (long)strlen(e->url), w, TX_LTR | TX_UNDER);
 	}
 }
@@ -2307,6 +2351,46 @@ int views_drag_divider(short mx, short my)
 	return 1;
 }
 
+/* the details' notes scrolled by n lines (- up): 1 when they moved */
+static int details_scroll(short n)
+{
+	short top = det_top + n, max = det_lines - det_fit;
+	if (top > max)
+		top = max;
+	if (top < 0)
+		top = 0;
+	if (top == det_top)
+		return 0;
+	det_top = top;
+	win_redraw(&detail);
+	return 1;
+}
+
+/* the notes are longer than the pane and the mouse is over it */
+static int details_scrolls(short mx, short my)
+{
+	return cur_view == V_DAY && detail.w && sel_occ.ev && det_lines > det_fit &&
+	       rect_hit(&detail, mx, my) && !views_divider_at(mx, my);
+}
+
+/* a drag in the details: the notes follow the mouse a line at a time */
+static void details_drag(short my)
+{
+	short x, y, b, k, done = 0;
+	for (;;) {
+		short n;
+		graf_mkstate(&x, &y, &b, &k);
+		if (!(b & 1))
+			break;
+		n = (short)((my - y) / ch) - done;	/* up: further down the notes */
+		if (n) {
+			details_scroll(n);
+			done += n;
+		}
+		evnt_timer_(10);
+	}
+}
+
 /* what a press at (mx, my) is on, for press_double (win_press_id) */
 short views_press_id(short mx, short my)
 {
@@ -2353,8 +2437,11 @@ int views_click(short mx, short my, short clicks, short kstate, short button)
 		return 1;
 	}
 	if (cur_view == V_DAY && detail.w && rect_hit(&detail, mx, my)) {
-		if (ui_track(&detail, mx, my) == PRESS_IN && clicks == 2)
+		int t = ui_track(&detail, mx, my);
+		if (t == PRESS_IN && clicks == 2)
 			open_selected();
+		else if (t == PRESS_DRAG && details_scrolls(mx, my))
+			details_drag(my);
 		return 1;
 	}
 	if (it >= 0 && items[it].kind == IT_MORE) {
@@ -2680,6 +2767,17 @@ int views_key(short kstate, short key)
 		return 1;
 	case 0x48:		/* up */
 	case 0x50:		/* down */
+		{
+			/* over the details, with more notes than fit: they scroll,
+			   a line, with Shift a pane's worth */
+			short mx, my, b, k;
+			graf_mkstate(&mx, &my, &b, &k);
+			if (details_scrolls(mx, my)) {
+				short n = shift && det_fit > 1 ? det_fit - 1 : 1;
+				details_scroll(scan == 0x48 ? -n : n);
+				return 1;
+			}
+		}
 		if (cur_view == V_DAY || cur_view == V_WEEK) {
 			layout();
 			glide_key(scan == 0x48 ? -1 : 1);

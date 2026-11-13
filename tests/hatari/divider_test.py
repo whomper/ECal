@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 import ui_tour  # noqa: E402
 from rig import Rig, K, SCAN, add_machine, machines  # noqa: E402
 
-NOTES = ("The long notes of a meeting, " * 12).strip()
+NOTES = " ".join("Line %d of the long notes of a meeting." % i for i in range(1, 61))
 MOVE = 100
 fails = []
 
@@ -63,6 +63,14 @@ def divider_x(shot):
         if all(dotted(x + i) for i in range(4)) and not dotted(x - 1) and not dotted(x + 4):
             return x
     return None
+
+
+def notes_moved(a, b, x, h):
+    """the details pane's lower half differs between two screenshots"""
+    from PIL import Image, ImageChops
+    box = (x + 8, h // 2, Image.open(a).size[0] - 24, h - 30)
+    d = ImageChops.difference(Image.open(a).convert("L").crop(box), Image.open(b).convert("L").crop(box))
+    return d.getbbox() is not None
 
 
 def inf_value(top, key):
@@ -119,6 +127,26 @@ def main():
             x1 = divider_x(s)
             check("the divider moved %d to the left (now at x %s)" % (MOVE, x1),
                   x1 is not None and abs((x0 - x1) - MOVE) <= 2)
+            # the notes are longer than the pane: over it the arrow keys
+            # scroll them, and a drag in it does
+            r.move(x1 + 40, 100)      # over the pane, above the part compared
+            r.key(K["DOWN"])
+            r.key(K["DOWN"])
+            r.key(K["DOWN"])
+            r.wait(3)
+            s3 = r.shot("3-scrolled")
+            check("Down over the details scrolled the notes", notes_moved(s, s3, x1, h))
+            r.drag(w - 120, h - 60, w - 120, h - 60 - 4 * 16, secs=1.0)
+            r.move(x1 + 40, 100)
+            r.wait(3)
+            s4 = r.shot("4-dragged-notes")
+            check("a drag in the details scrolled them further", notes_moved(s3, s4, x1, h))
+            r.key(K["UP"], shift=True)
+            r.key(K["UP"], shift=True)
+            r.key(K["UP"], shift=True)
+            r.wait(3)
+            s5 = r.shot("5-top-again")
+            check("Shift+Up back to the top: as before the scrolling", not notes_moved(s, s5, x1, h))
         r.ctrl("q")
         r.wait(6)
     finally:
