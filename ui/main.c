@@ -1230,7 +1230,8 @@ static int settings_step(void)
 		if (no_vdi)
 			snprintf(m, sizeof(m), "no VDI workstation (too little memory at boot): no window");
 		else
-			snprintf(m, sizeof(m), "the window is drawn %s", win_drawing());
+			snprintf(m, sizeof(m), "the window is drawn %s%s", win_drawing(),
+				 !opt.offscreen ? "; OFFSCREEN=0: on the screen" : "");
 		conn_log("ECal", "--", m, (long)strlen(m));
 		if (*tos_clock())
 			conn_log("ECal", "--", tos_clock(), (long)strlen(tos_clock()));

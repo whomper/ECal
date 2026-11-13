@@ -520,7 +520,9 @@ void win_buffer_fonts(void)
 
 static int off_screen(void)
 {
-	return obuf && (bm_h || xbios_base(3) == xbios_base(2));
+	/* OFFSCREEN=0: everything drawn straight on the screen, as where
+	   there is no buffer (Erez's trial, 13 Nov 2026) */
+	return obuf && opt.offscreen && (bm_h || xbios_base(3) == xbios_base(2));
 }
 
 /* the screen under a dialog, kept in the buffer while it is up (below,
@@ -809,8 +811,18 @@ int win_view_busy(void)
 void win_view_later(void)
 {
 	if (win_h <= 0 || win_iconified || !off_screen()) {
+		unsigned long t0 = pf_ms();
 		vj.on = 0;
 		win_redraw(&r_view);
+		if (win_h > 0 && !win_iconified) {
+			/* with the log on, the time of the view drawn straight on
+			   the screen (OFFSCREEN=0), as the sliced one says it */
+			static const char *const vname[] = { "day", "week", "month", "year" };
+			char b[100];
+			int n = snprintf(b, sizeof(b), "the %s drawn on the screen in %lu ms (%d shown)",
+					 vname[cur_view & 3], pf_ms() - t0, views_count());
+			conn_log("ECal", " -- ", b, n);
+		}
 		if (win_h > 0)
 			side_redraw_mini();
 		return;
