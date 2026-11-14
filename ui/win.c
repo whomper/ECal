@@ -627,8 +627,9 @@ static void under_copy(const GRECT *r, int to_buf)
 		clip_off();
 		if (to_buf)
 			vro_cpyfm(vdi_h, 3, pxy, &scr, &obuf_mfdb);	/* S_ONLY */
-		else
-			vro_cpyfm(vdi_h, 3, pxy, &obuf_mfdb, &scr);
+		else if (!scr_put((const unsigned char *)obuf_mfdb.fd_addr,
+				  (long)obuf_mfdb.fd_wdwidth * 2 * obuf_mfdb.fd_nplanes, obuf_mfdb.fd_nplanes, pxy))
+			vro_cpyfm(vdi_h, 3, pxy, &obuf_mfdb, &scr);	/* (scr_put: off_copy's reason) */
 	}
 	graf_mouse(M_ON, 0);
 }
@@ -714,11 +715,20 @@ static void off_copy(GRECT *full)
 			pxy[1] = pxy[5] = d.y;
 			pxy[2] = pxy[6] = d.x + d.w - 1;
 			pxy[3] = pxy[7] = d.y + d.h - 1;
+			/* by the CPU a row at a time with all its planes,
+			   where it can (common's scr_put): TOS's and the
+			   BLiTTER's copy, a plane at a time, showed the old
+			   picture in other colours meanwhile (Erez's Falcon,
+			   14 Nov 2026) */
+			if (scr_put((const unsigned char *)obuf_mfdb.fd_addr, (long)obuf_mfdb.fd_wdwidth * 2 * obuf_mfdb.fd_nplanes,
+				    obuf_mfdb.fd_nplanes, pxy))
+				goto next;
 			/* the VDI clips raster copies to the last clip,
 			   TOS's as NVDI's: the piece's own */
 			clip_on(&d);
 			vro_cpyfm(vdi_h, 3, pxy, &obuf_mfdb, &scr);	/* S_ONLY */
 		}
+	next:
 		wind_get(win_h, WF_NEXTXYWH, &box.x, &box.y, &box.w, &box.h);
 	}
 	clip_off();
