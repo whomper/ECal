@@ -49,7 +49,7 @@ def run(work, machine, with_ovl):
         r.click(OPTIONS_X, 8)               # the Options menu
         time.sleep(1.5)
         r.shot("1-menu")
-        r.click(OPTIONS_X + 40, DIRECT_Y)   # Direct connection (TLS)
+        r.click(OPTIONS_X + 40, DIRECT_Y)   # Direct connection
         time.sleep(4)
         r.shot("2-ticked")
         r.key(K["RETURN"])                  # the alert's OK, if there is one
@@ -72,7 +72,9 @@ def run(work, machine, with_ovl):
 LOADED = re.compile(r"TLS\.OVL \d+\.\d+ loaded", re.I)
 
 # ECAL.PRG's menu bar on 640x480: Options, and its Direct connection line
-OPTIONS_X, DIRECT_Y = 300, 91
+# (a line lower since 2.47: Add account or calendar... came into Options
+# first, and 91 became Work offline)
+OPTIONS_X, DIRECT_Y = 300, 107
 
 
 def main():

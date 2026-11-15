@@ -28,6 +28,7 @@ Download `ECAL-x.y.zip` (or each file) from **[Releases](https://github.com/whom
 |---|---|
 | `ECAL.ACC` / `ECAL.PRG` | the accessory, or the same as a program, for every Atari |
 | `TLS.OVL`, `CACERT.PEM`, `ROOTS.DAT` | the Direct connection (TT, Falcon), loaded only when used |
+| `TLSFB.OVL` | the same for a FireBee, which ECal loads there in place of `TLS.OVL` |
 | `ECAL.HYP`, `ECAL.REF` | the guide, opened by the Help key |
 | `icons/` | ECal's desktop icon ([how](docs/GUIDE.md#the-desktop-icon)) |
 
@@ -55,7 +56,7 @@ Falcon or TT it is optional. Setting it up: the [Gateway's README](https://githu
 
 ```sh
 sudo apt install gcc gcc-m68k-linux-gnu python3 zip   # Debian/Ubuntu; no MiNTLib needed
-make                          # binary/: ECAL.ACC, ECAL.PRG, TLS.OVL, CACERT.PEM, ROOTS.DAT
+make                          # binary/: ECAL.ACC, ECAL.PRG, TLS.OVL, TLSFB.OVL, CACERT.PEM, ROOTS.DAT
 make test                     # the core's unit tests, the fuzz inputs, the gateway's tests
 make itest                    # against a local CalDAV server (Radicale)
 make dist HCP=/path/to/hcp    # dist/: a release's files and ECAL-x.y.zip

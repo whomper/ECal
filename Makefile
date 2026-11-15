@@ -82,11 +82,16 @@ HDRS    := $(wildcard src/*.h atari/*.h atari/include/*.h ui/*.h \
 # what goes onto the Atari: binary/ (built, never committed)
 BIN     := binary
 
-all: $(BIN)/ecal.acc $(BIN)/ecal.prg $(BIN)/tls.ovl $(BIN)/roots.dat
+all: $(BIN)/ecal.acc $(BIN)/ecal.prg $(BIN)/tls.ovl $(BIN)/tlsfb.ovl $(BIN)/roots.dat
 
 # TLS.OVL: the family's, built in AERA-Atari and taken with common/,
 # never built here (the guidelines, 7.4)
 $(BIN)/tls.ovl: common/tlsovl/tls.ovl | $(BIN)
+	cp $< $@
+
+# TLSFB.OVL: the same for a FireBee's ColdFire, common's too; tls_ovl.c
+# loads it instead of TLS.OVL where the _CF_ cookie is (Erez, 15 Nov 2026)
+$(BIN)/tlsfb.ovl: common/tlsovl/tlsfb.ovl | $(BIN)
 	cp $< $@
 
 # as 68000 code: no stores or loads joined into words (an odd address
@@ -235,7 +240,7 @@ $(BIN)/ecal.hyp: docs/GUIDE.md tools/guide2stg.py VERSION docs/front.json docs/h
 # a release's files: each one in dist/, and all of them in
 # dist/ecal-x.y.zip (the icons in icons/), for the release workflow.
 # Every name in lowercase, the icons' too (the guidelines, 6.6)
-DIST    := $(BIN)/ecal.acc $(BIN)/ecal.prg $(BIN)/tls.ovl $(BIN)/cacert.pem $(BIN)/roots.dat \
+DIST    := $(BIN)/ecal.acc $(BIN)/ecal.prg $(BIN)/tls.ovl $(BIN)/tlsfb.ovl $(BIN)/cacert.pem $(BIN)/roots.dat \
            $(BIN)/ecal.hyp $(BIN)/ecal.ref
 ICONS   := icons/ECAL.RSC icons/ECALNV.RSC icons/ECAL.ICN icons/ECALMK.ICN
 dist: all help
