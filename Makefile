@@ -50,6 +50,8 @@ LDFLAGS := -m68000 -nostdlib -static -no-pie -Wl,--emit-relocs -Wl,-T,common/ata
 # accessory otherwise (the hub's first-boot rule, 1 Nov 2026: 16 KB less)
 CFLAGS  += -ffunction-sections -fdata-sections
 LDFLAGS += -Wl,--gc-sections
+# the pads after grown shared files kept (atari/pad_*.S)
+PADS    := -Wl,-u,pad_ovl -Wl,-u,pad_tlsovl -Wl,-u,pad_tlsovl_ro
 
 # BearSSL 0.6: on the Atari only its MD5 (Digest logins), as 68000 code; the
 # TLS is TLS.OVL's (the guidelines, 7.4). The build machine's tests link it
@@ -66,8 +68,8 @@ HBSSLOBJ = $(patsubst $(BSSL)/src/%.c,$(OBJDIR)/hbssl/%.o,$(BSSLSRC))
 CORE    := util charset conn tls bidi secret futil ctime tz ics rrule xml inflate http caldav calstore alarms
 # on the Atari the TLS is TLS.OVL's: tls_ovl.c and ovl.c load it and hand
 # tls.h's calls on, dsp_ovl.c the DSP's (common/README.md, "TLS.OVL")
-ACORE   := $(filter-out tls,$(CORE)) ovl
-ATARI   := libc tos plat_tos net_tos sting gem tls_ovl
+ACORE   := $(filter-out tls,$(CORE)) ovl pad_ovl
+ATARI   := libc tos plat_tos net_tos sting gem tls_ovl pad_tlsovl
 UI      := main hebkey win draw popup dsp_ovl views sidebar editor dialogs field about font fontsel help av alert aboutbox iconify clip dd mbar twin busy bgwork accmem dialog av_people people_ask people_file notify aboutline text click dlgbuild
 STBSSL  := hash/md5 codec/dec32le codec/enc32le
 
@@ -145,10 +147,10 @@ $(OBJDIR)/fakecontact.o: tests/hatari/fakecontact.c common/atari/gem.h common/ui
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(OBJDIR)/cal.elf: $(OBJS) common/atari/link.ld
-	$(CC) $(LDFLAGS) -o $@ $(OBJS) -lgcc
+	$(CC) $(LDFLAGS) $(PADS) -o $@ $(OBJS) -lgcc
 PRGOBJS := $(filter-out $(OBJDIR)/dialog.o,$(OBJS)) $(OBJDIR)/dialog_cpu.o
 $(OBJDIR)/cal_prg.elf: $(PRGOBJS) common/atari/link.ld
-	$(CC) $(LDFLAGS) -o $@ $(PRGOBJS) -lgcc
+	$(CC) $(LDFLAGS) $(PADS) -o $@ $(PRGOBJS) -lgcc
 $(OBJDIR)/dialog_cpu.o: common/ui/dialog.c $(HDRS) | $(OBJDIR)
 	$(CC) $(CFLAGS) -DDLG_CPU -c -o $@ $<
 
@@ -177,6 +179,10 @@ $(OBJDIR)/sting_s.o: common/atari/sting.S | $(OBJDIR)
 $(OBJDIR)/nf.o: common/atari/nf.S | $(OBJDIR)
 	$(CC) -m68000 -c -o $@ $<
 $(OBJDIR)/crash_s.o: common/atari/crash.S | $(OBJDIR)
+	$(CC) -m68000 -c -o $@ $<
+# the pads that keep the code after a grown shared file where it was
+# (atari/pad_*.S; the guidelines' Speed, a row slower is put back first)
+$(OBJDIR)/pad_%.o: atari/pad_%.S | $(OBJDIR)
 	$(CC) -m68000 -c -o $@ $<
 
 $(OBJDIR) $(BIN):
