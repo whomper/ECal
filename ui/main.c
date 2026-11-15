@@ -1977,6 +1977,13 @@ int ui_track(const GRECT *r, short x, short y)
 	return store_gen != gen ? PRESS_OUT : k;	/* (a drag too: its row may be gone) */
 }
 
+#if defined(AES_PROFILE) || defined(STACK_PROBE)
+/* the profiled and stack-probe builds are the rigs' own: their NatFeats
+   lines always on (common's nf.S looks for NatFeats only when nf_on is
+   set; Erez, 15 Nov 2026). The release builds never call nf_debug */
+long nf_on = 1;
+#endif
+
 int main(void)
 {
 	short work_out[57], msg[8], d;
