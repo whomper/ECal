@@ -1143,6 +1143,55 @@ static void press_effect(DLG *d, short i)
 	graf_mouse(M_ON, 0);
 }
 
+/* a button clicked: pressed while held over it, its work on the release
+   over it, nothing elsewhere (C7, 5.8; was the press, a 90 ms flash).
+   1 when it was let go over it */
+static int press_hold(DLG *d, short i)
+{
+	GRECT r;
+	short mx, my, mb, ks, in = 1, now;
+	field_rect(&d->f[i], &r);
+	if (!clip_box(&box))
+		return 0;
+	for (;;) {
+		graf_mouse(M_OFF, 0);
+		if (d->f[i].type == FT_BUTTON)
+			aes_button(&d->f[i], &r, in);
+		else if (bg)
+			raised(&r, in);
+		else if (in) {
+			set_wrmode(3);
+			fill(&r, 1);
+			set_wrmode(1);
+		}
+		graf_mouse(M_ON, 0);
+		do {
+			evnt_timer_(10);
+			graf_mkstate(&mx, &my, &mb, &ks);
+			now = rect_hit(&r, mx, my);
+		} while ((mb & 1) && now == in);
+		if (d->f[i].type != FT_BUTTON && !bg && in) {
+			graf_mouse(M_OFF, 0);	/* (the inverse taken back) */
+			set_wrmode(3);
+			fill(&r, 1);
+			set_wrmode(1);
+			graf_mouse(M_ON, 0);
+		}
+		if (!(mb & 1))
+			break;
+		in = now;
+	}
+	if (in) {
+		graf_mouse(M_OFF, 0);
+		if (d->f[i].type == FT_BUTTON)
+			aes_button(&d->f[i], &r, 0);
+		else if (bg)
+			raised(&r, 0);
+		graf_mouse(M_ON, 0);
+	}
+	return in;
+}
+
 /* ^C ^X ^V (common/ui/clip.c). With nothing selected, the field, and in a
    field of several lines the line the cursor is in; nothing is copied out
    of a password. A paste goes in as far as the field takes it, its first
@@ -1680,7 +1729,8 @@ short dlg_run(DLG *d)
 					click_field(d, hit, e.mx, e.my);
 					break;
 				case FT_BUTTON:
-					press_effect(d, hit);
+					if (!press_hold(d, hit))
+						break;		/* let go elsewhere: nothing */
 					if (!(f->flags & FF_ACTION))
 						result = hit;
 					else if (d->changed)
@@ -1693,8 +1743,7 @@ short dlg_run(DLG *d)
 						d->changed(d, hit);
 					break;
 				case FT_CHOOSE:
-					press_effect(d, hit);
-					if (d->changed)
+					if (press_hold(d, hit) && d->changed)
 						d->changed(d, hit);
 					break;
 				case FT_POPUP:
