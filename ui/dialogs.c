@@ -481,7 +481,7 @@ static struct {
 
 static void zone_label(char *lab, const char *zone)
 {
-	snprintf(lab, 32, " %-29.29s", zone);
+	snprintf(lab, 32, " %-30.30s", zone);	/* (31 characters: set_value's w) */
 }
 
 /* a time zone: the list, at once (5.7); the label shows it */
@@ -570,7 +570,7 @@ static void page_refresh(SETTINGS *s, short x, short y, void *user)
 	t = set_popup(s, x + 20, set_y(s, 3), 21, start_words, start_words[4] ? 5 : 4, &sv.start);
 	if (!acc && t >= 0) {
 		short k;
-		for (k = 0; k < 5; k++)
+		for (k = 0; k < (start_words[4] ? 5 : 4); k++)
 			set_popup_enable(s, t, k, 0);
 	}
 	set_text(s, x, set_y(s, 5), "Keep on this Atari:");
@@ -600,14 +600,16 @@ static void page_secure(SETTINGS *s, short x, short y, void *user)
 	set_tick(s, x, set_y(s, 0), "Direct connection", &sv.falcon);
 	set_text(s, x + 3, set_y(s, 1), "TLS on this Atari (68020 or better)");
 	set_tick(s, x + 3, set_y(s, 2), "Check certificates on the DSP", &sv.dsp);
-	set_text(s, x + 3, set_y(s, 3), can_falcon ? "TLS.OVL, CACERT.PEM, ROOTS.DAT in ECal's folder"
+	/* (words under a setting: 38 characters at most, 6.1; the page's
+	   rows 0 to 7 fit its area at 17 rows high) */
+	set_text(s, x + 3, set_y(s, 3), can_falcon ? "Needs TLS.OVL, CACERT.PEM, ROOTS.DAT"
 						   : "Needs a 68020 or better (TT, Falcon)");
-	set_text(s, x, set_y(s, 5), "Through the Gateway:");
-	set_text(s, x + 2, set_y(s, 6), "Address");
-	set_long(s, x + 11, set_y(s, 6), sv.gate, 20, sizeof(sv.gate) - 1, 0);
-	set_text(s, x + 2, set_y(s, 7), "Port");
-	sv.f_port = set_field(s, x + 11, set_y(s, 7), sv.port, 5, '9');
-	set_text(s, x + 2, set_y(s, 8), "AERA-Gateway, on a Raspberry Pi");
+	set_text(s, x, set_y(s, 4), "Through the Gateway:");
+	set_text(s, x + 2, set_y(s, 5), "Address");
+	set_long(s, x + 11, set_y(s, 5), sv.gate, 20, sizeof(sv.gate) - 1, 0);
+	set_text(s, x + 2, set_y(s, 6), "Port");
+	sv.f_port = set_field(s, x + 11, set_y(s, 6), sv.port, 5, '9');
+	set_text(s, x + 2, set_y(s, 7), "AERA-Gateway, on a Raspberry Pi");
 }
 
 static void page_advanced(SETTINGS *s, short x, short y, void *user)
