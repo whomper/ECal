@@ -234,15 +234,9 @@ static void draw_text_field(FIELD *f, int focus)
 	char s[256];
 	field_rect(f, &r);
 	fill(&r, 0);
+	/* one line, as the AES's fields (C24): the cursor shows the focus,
+	   no second line round it */
 	frame(&r, (f->flags & FF_DISABLED) ? grey_color() : 1);
-	if (focus) {
-		GRECT r2 = r;
-		r2.x--;
-		r2.y--;
-		r2.w += 2;
-		r2.h += 2;
-		frame(&r2, 1);
-	}
 	if (f->type == FT_MULTI) {
 		long br[64], nl = multi_lines(f, br, 64), len = (long)strlen(f->buf), i, curl = 0;
 		for (i = 0; i < nl; i++)
@@ -483,15 +477,7 @@ static void draw_people(FIELD *f, int focus)
 	short k, dis = (f->flags & FF_DISABLED) ? TX_DIM : 0;
 	field_rect(f, &r);
 	fill(&r, 0);
-	frame(&r, dis ? grey_color() : 1);
-	if (focus) {
-		GRECT r2 = r;
-		r2.x++;
-		r2.y++;
-		r2.w -= 2;
-		r2.h -= 2;
-		frame(&r2, 1);
-	}
+	frame(&r, dis ? grey_color() : 1);	/* (one line, C24: the keys' ring shows the focus, D25) */
 	people_layout(f, &p);
 	if (p.back_r.w)
 		text_at(p.back_r.x, p.back_r.y, "\xAE", 1, 1, TX_LTR | dis);
@@ -650,7 +636,7 @@ static void draw_field(DLG *d, short i)
 {
 	FIELD *f = &d->f[i];
 	draw_field_only(d, i);
-	if (ring && d->focus == i && !typed_field(f) && f->type != FT_PEOPLE) {
+	if (ring && d->focus == i && !typed_field(f)) {
 		GRECT r;
 		ring_rect(f, &r);
 		frame(&r, 1);		/* the focus (D25): a thin ring round it */
@@ -727,12 +713,7 @@ static void draw_field_only(DLG *d, short i)
 		fill(&r, bg);
 		frame(&r, dis ? grey_color() : 1);
 		if (bg)
-			raised(&r, 0);	/* raised, as the AES's pop-ups */
-		else {
-			/* a shadow says "menu" */
-			line_col(r.x + 1, r.y + r.h, r.x + r.w, r.y + r.h, 1);
-			line_col(r.x + r.w, r.y + 1, r.x + r.w, r.y + r.h, 1);
-		}
+			raised(&r, 0);	/* raised, as the AES's pop-ups; flat a framed box (5.7, C24) */
 		while (*l == ' ')
 			l++;
 		/* (the text a cell in: on a byte where the box is, the
@@ -1510,7 +1491,8 @@ short dlg_run(DLG *d)
 	if (d->npages && (d->page < 1 || d->page > d->npages))
 		d->page = 1;
 	pad = cw + 2;
-	rh = ch + 6;
+	rh = ch + ch * 3 / 8;	/* the family's row with a framed field: a cell and 3/8 of one (C24; 22 pixels a
+				   row on a 16-pixel font as before, 11 on an 8-pixel one, was 14) */
 	/* a dialog taller than the desktop (the event's on a monochrome ST,
 	   400 lines) has its rows closer, so that its buttons show */
 	if (d->h * rh + 2 * pad > desk_h && d->h > 0) {
