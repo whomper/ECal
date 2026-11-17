@@ -307,6 +307,12 @@ int main(int argc, char **argv)
 		free(b);
 		return same && reads == ndat ? 0 : 1;
 	}
+	if (!strcmp(cmd, "save") && argc == 3) {
+		/* ECAL.INF saved as a quit saves it: written only if it changed
+		   (tests/inftest.sh) */
+		store_save_settings();
+		return 0;
+	}
 	if (!strcmp(cmd, "caldav") && argc == 7) {
 		ACCOUNT *a = acct_add(AK_CALDAV);
 		str_copy(a->name, argv[3], sizeof(a->name));

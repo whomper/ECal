@@ -235,6 +235,28 @@ static CALENDAR *si_c;
 static int si_open;		/* ECAL.INF still to be loaded */
 static int si_lent;		/* si_text is the caller's (store_init_text), not ours to free */
 
+/* ECAL.INF as last read or written: its length (-1 unknown) and two sums
+   of its bytes (store_write_text) */
+static long inf_len = -1;
+static unsigned long inf_s1, inf_s2;
+
+static void inf_sums(const char *t, long n, unsigned long *a, unsigned long *b)
+{
+	unsigned long x = 0x2545F491UL, y = 0;
+	while (n-- > 0) {
+		x = ((x << 5) | (x >> 27)) ^ (unsigned char)*t++;
+		y += x;
+	}
+	*a = x;
+	*b = y;
+}
+
+static void inf_read(const char *t, long n)
+{
+	inf_len = n;
+	inf_sums(t, n, &inf_s1, &inf_s2);
+}
+
 /* after store_init_begin: ECAL.INF's text already read, to take the
    settings from instead of the file (changed in place as it is read) */
 void store_init_text(char *text)
@@ -242,6 +264,7 @@ void store_init_text(char *text)
 	si_open = 0;
 	si_line = si_text = text;
 	si_lent = 1;
+	inf_read(text, (long)strlen(text));
 }
 
 void store_init_begin(const char *dir, const char *inf)
@@ -313,8 +336,11 @@ int store_init_step(void)
 		long len;
 		si_open = 0;
 		si_line = si_text = pf_load(inf_path, &len);
-		if (si_text)
+		if (si_text) {
+			inf_read(si_text, len);
 			return 1;
+		}
+		inf_len = -1;
 	}
 	for (k = 0; k < 16 && si_line && *si_line; k++) {
 		char *line = si_line, *nl = strchr(line, '\n');
@@ -490,11 +516,23 @@ accounts:
 #undef b
 }
 
-/* ECAL.INF written with that text (b freed) */
+/* ECAL.INF written with that text (b freed): only when it differs from
+   what was last read or written (guidelines 6.1, Erez 12 Nov 2026: no
+   open, no write, no rename when nothing changed; the file's date stays).
+   The text itself isn't kept, two sums of it and its length are */
 void store_write_text(SBUF *b)
 {
-	pf_save(inf_path, b->s, b->len);
-	store_mark();
+	unsigned long s1, s2;
+	inf_sums(b->s, b->len, &s1, &s2);
+	if (b->len != inf_len || s1 != inf_s1 || s2 != inf_s2) {
+		if (pf_save(inf_path, b->s, b->len) == 0) {
+			inf_len = b->len;
+			inf_s1 = s1;
+			inf_s2 = s2;
+		} else
+			inf_len = -1;	/* (unknown now: the next one writes) */
+		store_mark();
+	}
 	sb_free(b);
 	str_copy(http_cfg.gate, opt.gate, sizeof(http_cfg.gate));
 	http_cfg.gateport = opt.gateport;
@@ -512,8 +550,7 @@ void store_write_settings(void)
 
 void store_save_settings(void)
 {
-	store_write_settings();
-	store_mark();
+	store_write_settings();		/* (marked there, when it wrote) */
 }
 
 /* ---------------- accounts and calendars ---------------- */

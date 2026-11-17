@@ -337,6 +337,7 @@ test: $(OBJDIR)/unit $(addprefix $(OBJDIR)/replay_,$(FUZZERS)) $(OBJDIR)/cal-cli
 	$(OBJDIR)/rrjump
 	CLI=$(OBJDIR)/cal-cli tests/alarms.sh
 	CLI=$(OBJDIR)/cal-cli tests/snaptest.sh
+	CLI=$(OBJDIR)/cal-cli tests/inftest.sh
 	@for f in $(FUZZERS); do \
 	  $(OBJDIR)/replay_$$f tests/fuzz/seeds/$$f $$(ls -d tests/fuzz/found/$$f 2>/dev/null) || exit 1; \
 	done
