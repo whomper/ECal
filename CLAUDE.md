@@ -174,26 +174,29 @@ question for Erez. Every GEM release still passes the speed rig. When an item is
 hub one line with the commit (it ticks ECal's row in the guidelines' section-8 table). [hub] = waits for the
 shared code first; the hub says when it is in `common/`.
 
-1. File lists `Quit` alone in the program; the accessory's ≡ menu keeps Close (D3, MD7). S.
+1. File lists `Quit` alone in the program; the accessory's ≡ menu keeps Close (D3, MD7). S. Done 2.47 (4ce7333).
 2. ≡ menu: About first; help entry `ECal help  Help` and `Keys...`, as the bar (MG16, MD16). S. Adjust
-   `tests/hatari/font_acc.py`, which counts Font... from the end.
-3. `Direct connection` without `(TLS)` (D9, MD6). S.
-4. `Add account or calendar...` moves to Options, before Settings (D13, MD27). S.
-5. The event pop-up says `Copy event ^C`, the bar's words (D14, MD19). S.
+   `tests/hatari/font_acc.py`, which counts Font... from the end. Done 2.47 (4ce7333).
+3. `Direct connection` without `(TLS)` (D9, MD6). S. Done 2.47 (4ce7333).
+4. `Add account or calendar...` moves to Options, before Settings (D13, MD27). S. Done 2.47 (4ce7333).
+5. The event pop-up says `Copy event ^C`, the bar's words (D14, MD19). S. Done 2.47 (4ce7333).
 6. A black title band in dialogs that lack one; in a MiNT or MagiC window the window's title replaces it
-   (D22, C4). S.
-7. Tick boxes become bitmap ticks (D23, C5). S.
-8. One-of-several choices of four or fewer become radio buttons (D24, C5). [hub: the engine]
+   (D22, C4). S. Done 2.47 (4ce7333).
+7. Tick boxes become bitmap ticks (D23, C5). S. Done 2.47 (9010f41).
+8. One-of-several choices of four or fewer become radio buttons (D24, C5). Settings' Week starts on (e8bf4cb); Hebrew in font, Read calendars and the
+   event's repeat end asked of Erez (their words, a row).
 9. A pop-up opens with the choice ticked over its button (`ui/field.c:dlg_run`, FT_POPUP, into `popup()`)
-   (D27, C8). S. [hub]
+   (D27, C8). S. Done 2.47 (4ce7333, 65e6cb5).
 10. Window: one minimum for the open check (50 x 16 today) and `WM_SIZED` (40 x 14) (D38, W10); the first run
-    on the whole desk (D39, W11). S each.
-11. Insert opens the context menu (D17, MD20). H. Where the box opens is still open.
-12. Buttons act on the release over them (C7); keyboard reach: Space on ticks, arrows in lists (D25, C6). H. [hub]
+    on the whole desk (D39, W11). S each. Done 2.47 (4ce7333).
+11. Insert opens the context menu (D17, MD20). H. Done (Erez, 10 Nov: the selected event, else day, else the pointer).
+12. Buttons act on the release over them (C7); keyboard reach: Space on ticks, arrows in lists (D25, C6). H. Done: Settings by common's engine,
+    ECal's own dialogs in field.c.
 13. ECAL.INF: `WINDOW=x,y,w,h` and `FONT=name,points`, the old keys read once (D43, D44, W18). M. `SIDEBAR=`
-    stays.
+    stays. Done (tests/inftest.sh).
 14. The older FIELD dialogs to the AES look (rows, focus ring) (C24). M, several days.
-15. Tooltips on the toolbar, 0.7 s (D18). [hub] The event tips (700 ms) and dialog tips (500 ms) stay.
+15. Tooltips on the toolbar, 0.7 s (D18). Done: common's tooltip.c for the toolbar, the events and the dialogs
+    (0.7 s: Erez, 10 Nov).
 
 Still open, not to start: Find's words (D4); press and release for ticks and pop-ups (C7). Nothing to do: the
 out-of-range alerts (ECal is the model, D30), `Show|Later` (D51), the palette (D42), the toolbar's look (D33).
