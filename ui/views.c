@@ -2755,7 +2755,7 @@ void views_slider(long *size, long *pos)
 int views_key(short kstate, short key)
 {
 	short scan = KEY_SCAN(key);
-	int shift = (kstate & (K_LSHIFT | K_RSHIFT)) != 0;
+	int shift = key_shift(kstate, key);	/* (from the key's code too where the state was lost: gem.h) */
 	layout();
 	switch (scan) {
 	case 0x4b:		/* left */

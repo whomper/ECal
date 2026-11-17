@@ -985,8 +985,8 @@ static void inf_folder(char *out, int size)
 
 static void find_workdir(void)
 {
-	char path[160], old[200];
-	short drv = (short)Dgetdrv(), boot = boot_drive();
+	char old[200];
+	short boot = boot_drive();
 	snprintf(inf_file, sizeof(inf_file), "%c:\\ecal.inf", 'A' + boot);
 	if (is_acc) {
 		inf_folder(workdir, sizeof(workdir));
@@ -1002,9 +1002,11 @@ static void find_workdir(void)
 						   drive's root has no entry to find) */
 		return;
 	}
-	path[0] = 0;
-	Dgetpath(path, 0);
-	snprintf(workdir, sizeof(workdir), "%c:%s", 'A' + drv, path);
+	/* the program's own folder, from the command it was started with
+	   (app_dir, gem.c), never the current one: TOS 1.04 and 4.04 leave
+	   that at the desktop's for a program another starts (guidelines
+	   6.1, 28 Oct 2026) */
+	str_copy(workdir, app_dir(), sizeof(workdir));
 	if (strlen(workdir) > 3 && workdir[strlen(workdir) - 1] == '\\')
 		workdir[strlen(workdir) - 1] = 0;
 }
@@ -2000,6 +2002,7 @@ int main(void)
 	ap_id = appl_init();
 	if (ap_id < 0)
 		return 1;
+	key_state_init();	/* a Shift or Ctrl typed during the long start keeps its state (gem.h; guidelines 3.2) */
 	twin_init("ECAL");
 	if (!is_acc && twin_handover(av_command())) {
 		appl_exit();		/* ECAL.ACC runs, and has it */
