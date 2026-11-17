@@ -101,7 +101,7 @@ def main():
         for key, name in ((K["ESC"], "Esc"), (UNDO, "Undo")):
             r.ctrl(",")				# Settings
             r.wait(2)
-            r.click(325, 257)			# Show Hebrew dates: ticked or not, a change
+            r.click(225, 273)			# Show Hebrew dates (General, Falcon 640x480): ticked or not, a change
             r.wait(1)
             r.shot("3-settings-" + name)
             r.key(key)

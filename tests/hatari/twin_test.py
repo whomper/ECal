@@ -114,7 +114,7 @@ def main():
         r.shot("5-acc-chosen")
         r.ctrl(",")                     # Settings (no menu entry for Hebrew dates: Erez 7 Nov 2026)
         time.sleep(2)
-        r.click(325, 257)               # Show Hebrew dates (off), as esc_test
+        r.click(225, 273)               # Show Hebrew dates (off), as esc_test
         time.sleep(1)
         r.key(K["RETURN"])              # OK
         time.sleep(5)

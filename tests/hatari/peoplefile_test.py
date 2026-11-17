@@ -188,10 +188,10 @@ def main():
         r.wait(2)
         r.ctrl(",")                     # Settings
         r.wait(2)
-        r.click(100, 367)               # its Contacts section (Falcon 640x480)
+        r.click(140, 289)               # its Contacts page (Falcon 640x480)
         r.wait(2)
         r.shot("6-settings")
-        r.click(497, 257)               # Choose...: the file selector, in EContact's folder
+        r.click(505, 251)               # Choose...: the file selector, in EContact's folder
         r.wait(3)
         r.shot("7-choose")
         r.key(K["RETURN"])              # its OK: the folder stays
