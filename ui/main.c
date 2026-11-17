@@ -1555,8 +1555,10 @@ static void tip_repaint(const GRECT *r)
 	if (dlg_tip_repaint(r))
 		return;		/* (a dialog of ours open: field.c's) */
 	if (win_h > 0 && a.x >= work.x && a.y >= work.y && a.x + a.w <= work.x + work.w &&
-	    a.y + a.h <= work.y + work.h)
-		win_redraw(&a);
+	    a.y + a.h <= work.y + work.h) {
+		if (!win_show_buffer(&a))	/* (the picture under it, from the buffer) */
+			win_redraw(&a);
+	}
 	else
 		form_dial(FMD_FINISH, a.x, a.y, a.w, a.h);
 }

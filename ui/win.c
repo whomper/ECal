@@ -1129,6 +1129,25 @@ static int win_start(void)
 	return 1;
 }
 
+/* area shown again from the buffer, which holds the window's picture as
+   the screen had it before something of the screen's own went over it (a
+   tip's box): a copy, not the window drawn again (a tip's going cost an
+   ST 72 ms through win_redraw, on Tab and a toolbar button let go, 17 Nov
+   2026). 0 where the buffer can't say: none, a view or a redraw under way */
+int win_show_buffer(const GRECT *area)
+{
+	GRECT full = work;
+	int took;
+	if (win_h <= 0 || win_iconified || !off_screen() || vj.on || vj.later || !rect_and(&full, area))
+		return 0;
+	took = press_update_begin();
+	graf_mouse(M_OFF, 0);
+	off_copy(&full);
+	graf_mouse(M_ON, 0);
+	press_update_end(took);
+	return 1;
+}
+
 void win_redraw(GRECT *area)
 {
 	GRECT box, full;
