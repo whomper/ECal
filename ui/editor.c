@@ -971,16 +971,17 @@ static int edit_event(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 	ics_each_address(e->attendees, add_person, 0);
 	people_list(etx->invitees0, sizeof(etx->invitees0));
 	put(&x.f[L_INV], FT_LABEL, 0, 0, row, 0, "People:");
-	put(&x.f[F_INV], FT_PEOPLE, 0, 11, row, 37, 0);
+	put(&x.f[F_INV], FT_PEOPLE, 0, 11, row, 36, 0);
 	x.f[F_INV].h = 2;
 	x.f[F_INV].val = -1;
 	people_items(&x.f[F_INV]);
 	if (people_org) {
-		put(&x.f[B_INV], FT_LABEL, 0, 50, row, 0, "");
-		put(&x.f[B_UNINV], FT_LABEL, 0, 50, row + 1, 0, "");
+		put(&x.f[B_INV], FT_LABEL, 0, 48, row, 0, "");
+		put(&x.f[B_UNINV], FT_LABEL, 0, 48, row + 1, 0, "");
 	} else {
-		put(&x.f[B_INV], FT_BUTTON, 0, 50, row, 8, "Add...");	/* ends the dialog: invite() */
-		put(&x.f[B_UNINV], FT_BUTTON, FF_ACTION, 50, row + 1, 8, "Remove");
+		/* 10 wide, as every dialog button (D26), under OK's right edge */
+		put(&x.f[B_INV], FT_BUTTON, 0, 48, row, 10, "Add...");	/* ends the dialog: invite() */
+		put(&x.f[B_UNINV], FT_BUTTON, FF_ACTION, 48, row + 1, 10, "Remove");
 	}
 	people_buttons(&x);
 	row += 2;

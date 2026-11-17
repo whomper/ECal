@@ -924,6 +924,6 @@ void keys_dialog(void)
 		put(&f[n++], FT_LABEL, FF_LTR, kx, k[i].row, 0, k[i].key);
 		put(&f[n++], FT_LABEL, FF_LTR, dx, k[i].row, 0, k[i].does);
 	}
-	put(&f[n++], FT_BUTTON, FF_DEFAULT | FF_CANCEL, 62, 19, 10, "OK");
+	put(&f[n++], FT_BUTTON, FF_DEFAULT | FF_CANCEL, 61, 19, 10, "OK");	/* at W - 12 (CONTROLS) */
 	run("Keys", f, n, 73, 20, -1);
 }
