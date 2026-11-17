@@ -191,8 +191,8 @@ shared code first; the hub says when it is in `common/`.
 6. A black title band in dialogs that lack one; in a MiNT or MagiC window the window's title replaces it
    (D22, C4). S. Done 2.47 (4ce7333).
 7. Tick boxes become bitmap ticks (D23, C5). S. Done 2.47 (9010f41).
-8. One-of-several choices of four or fewer become radio buttons (D24, C5). Settings' Week starts on (e8bf4cb); Hebrew in font, Read calendars and the
-   event's repeat end asked of Erez (their words, a row).
+8. One-of-several choices of four or fewer become radio buttons (D24, C5). Done: Week starts on (e8bf4cb), Read calendars (1b4506b); the event's
+   repeat end stays a pop-up in its row (Erez, 17 Nov 2026); Hebrew in font removed (Erez).
 9. A pop-up opens with the choice ticked over its button (`ui/field.c:dlg_run`, FT_POPUP, into `popup()`)
    (D27, C8). S. Done 2.47 (4ce7333, 65e6cb5).
 10. Window: one minimum for the open check (50 x 16 today) and `WM_SIZED` (40 x 14) (D38, W10); the first run
@@ -202,7 +202,7 @@ shared code first; the hub says when it is in `common/`.
     ECal's own dialogs in field.c.
 13. ECAL.INF: `WINDOW=x,y,w,h` and `FONT=name,points`, the old keys read once (D43, D44, W18). M. `SIDEBAR=`
     stays. Done (tests/inftest.sh).
-14. The older FIELD dialogs to the AES look (rows, focus ring) (C24). M, several days.
+14. The older FIELD dialogs to the AES look (rows, focus ring) (C24). M. Done (4114b64; Erez, 17 Nov 2026).
 15. Tooltips on the toolbar, 0.7 s (D18). Done: common's tooltip.c for the toolbar, the events and the dialogs
     (0.7 s: Erez, 10 Nov).
 
