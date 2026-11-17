@@ -94,7 +94,8 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
   are; names from outside are used as they came. A rig reading ECal's files from the host uses
   `ci_path` (`common/tools/machines.py`).
 - Speed: `tests/hatari/speed_test.py` (a profiled build: `make OBJDIR=build/prof20 BIN=build/prof20/bin
-  AESPROF=20 all`) times the guidelines' actions on `ST:mono`, `ST:med` and `Falcon-4:16` (with
+  AESPROF=20 all`, linked at the shipped build's places modulo 256 by `common/tools/profpad.py`: the
+  shipped build in `build/` is made first) times the guidelines' actions on `ST:mono`, `ST:med` and `Falcon-4:16` (with
   `AERA_WITH_NVDI=1` too); `--acc` the accessory (on `ST-1` and `Falcon:16` only), `--again` a second start on the first's files (the
   snapshots). Its VIEWMS/REDRAWMS lines say where a view's time goes.
 - Before pushing: `make test` (the core, the fuzz inputs again, the
@@ -148,28 +149,28 @@ Erez's rule for the whole AERA session family:
 
 Messages to the hub session stay complete, with the evidence.
 
-## Maintenance mode (Erez, 1 Nov 2026)
+## Maintenance mode (Erez, 1 Nov 2026; changed 17 Nov 2026)
 
-ECal is in maintenance mode while EWeb, EPDF and EPlay go to 1.0 (AERA-Atari, ATARI-APP-GUIDELINES.md, section 8). Until Erez ends it:
-- No new features, speed rounds, clean-ups, or catching up with new or changed guidelines.
-- No sync of the shared code (`common/`, `xl/`, `gateway/`). Shared code moving is no reason to rebuild or release.
-- A release only for:
-  - a security or data-loss fault;
-  - a crash or breakage Erez reports;
-  - something outside that stops it working (a certificate, a server);
-  - something EWeb, EPDF or EPlay need from it.
-
-  Such a release takes only that fix (one change from AERA-Atari, not a sync), and its notes say why.
-- Work on `main` that isn't released stays unreleased.
+ECal is in maintenance mode while EWeb, EPDF and EPlay go to 1.0 (AERA-Atari, ATARI-APP-GUIDELINES.md, section 8):
+- No new features and no speed rounds of its own.
+- **Every family rule holds for ECal as for the focus apps** (Erez, 17 Nov 2026: "there needs to be a constant
+  behavior across all applications. In the future, all applications must adhere to family rules and be
+  notified. We will review whether they need to issue a release." and "Applications on maintenance does not
+  mean they contain faults"; AERA-Atari 8ddb463). The hub notifies ECal of each new or changed rule and each
+  shared fix: ECal adopts it, with the shared code it needs (`tools/sync-common.sh`), and the hub ticks its
+  row in section 8's "Where each app stands". Each ✗, ~ or ? in ECal's column there is work for this session.
+- Whether such a change needs a release of its own is reviewed with Erez through the hub; a fault fix always
+  gets one.
+- A release otherwise only for a security or data-loss fault, a crash or breakage, something outside that
+  stops it working (a certificate, a server), or something EWeb, EPDF or EPlay need from it.
 - Nothing runs in the background; the session waits for Erez or the hub.
-- Only Erez's explicit word ends this mode, for instance that every app is to take the latest shared code and release. The hub passes it on quoting him.
-- The one exception (Erez, 2 Nov 2026: "Start fresh, and roll it out to all apps"): file names in lowercase (guidelines 6.6), with the shared code it needs and a release. Nothing else rides along.
+- Only Erez's explicit word ends this mode. The hub passes it on quoting him.
 
 ## UI backlog (Erez's 54 decisions, 9 Nov 2026; AERA-Atari a261597, standards/ui)
 
-Nothing here starts on its own: maintenance mode stands. Take items with a release ECal makes anyway (a fault
-fix, or one Erez asked for), without growing that release's risk: the S items freely, H and M only when that
-release is otherwise untouched. Every GEM release still passes the speed rig. When an item is done, send the
+Part of the family rules above (Erez, 17 Nov 2026): every item is to be done, its words and looks as
+standards/ui/DECISIONS-2026-11-09.md has them; anything not decided there goes to the hub first, as a
+question for Erez. Every GEM release still passes the speed rig. When an item is done, send the
 hub one line with the commit (it ticks ECal's row in the guidelines' section-8 table). [hub] = waits for the
 shared code first; the hub says when it is in `common/`.
 
