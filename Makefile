@@ -153,7 +153,7 @@ ifneq ($(OBJDIR),$(SHIPDIR))
 # times the layout that ships (common/tools/profpad.py; the hub, 17 Nov
 # 2026): the objects AES_PROFILE changes are left out of the comparison,
 # and pads after them put the rest back. The shipped build is made first
-TIMED   := draw field gem main sidebar views win tos
+TIMED   := draw field gem main sidebar views win
 EXCL    := $(foreach o,$(TIMED),--exclude $(SHIPDIR)/$(o).o --exclude $(OBJDIR)/$(o).o)
 $(SHIPDIR)/cal.elf $(SHIPDIR)/cal_prg.elf &: FORCE
 	$(MAKE) OBJDIR=$(SHIPDIR) AESPROF= VIEWSLICE= STACKPROBE= $(SHIPDIR)/cal.elf $(SHIPDIR)/cal_prg.elf

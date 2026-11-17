@@ -38,15 +38,26 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
   GitHub Release. A normal build must leave every tracked file unchanged and shows the version in
   `VERSION` as it is (there is no `-dev` label). Don't
   commit built programs, help files or certificates (`binary/`, `dist/`). Never reuse a number.
-- **Only formal releases leave the build machine.** Erez gets vX.Y releases made by the Release workflow from `main`, nothing else: no test builds, no CI artifacts, no builds from a branch. Work lands on `main`; to try a fix on real hardware, release it. If a release doesn't work, roll back with a release: revert on `main`, release the next number, and run the Withdraw workflow (`.github/workflows/withdraw.yml`) on the bad one: it puts "Withdrawn: use vX.Y" at the top of its notes.
+- **Only formal releases leave the build machine.** Erez gets vX.Y releases made by the Release workflow from `main`, nothing else: no test builds, no CI artifacts, no builds from a branch. Work lands on `main`; to try a fix on real hardware, release it. A fault found in a release is fixed forward by the next number, before any other work (guidelines 1.2, 17 Nov 2026): the old release stays, with one line in the new one's notes saying what it fixes (no revert, no "withdrawn" notice).
 - **Releases go out without asking Erez** (his decision, 23 Oct 2026; guidelines 1.2). Release when
   work on `main` is ready:
-  - this repo's checks pass;
-  - the rigs on his TOS pass, where this file asks for them;
-  - the hub's family checks pass.
+  the candidate has passed **the regression gate** (Erez, 17 Nov 2026: "we need to be extra careful with
+  regression issues as there are users of our software. This means testing across all configurations" and
+  "make sure we don't loose performance"; guidelines 1.2, AERA-Atari a22574e), in this order:
+  1. this repo's checks (below);
+  2. its rigs on every row of `standards/TEST-MATRIX.md`'s gate table ECal runs on, on Erez's TOS images and
+     NVDI (EmuTOS is never the gate's evidence), each named in the report with `describe()`, a row ECal
+     can't run named with why;
+  3. the paired speed run against the last release on `Falcon-4:256` with NVDI, `Falcon-4:16` and `ST:mono`,
+     the timed build at the shipped layout: no row slower beyond a tick on any (098183d); a slower row is
+     fixed first, and only Erez accepts one;
+  4. the candidate commit and the results sent to the hub, which runs the family check and answers go or
+     the faults it found.
 
-  Then give Erez the link in one line, with anything he has to do, and send the hub the link. Roll
-  back a bad release the same way. Decisions that are his still go to him first.
+  Every fault a user reports becomes a case in ECal's rigs, in the release that fixes it.
+
+  Then give Erez the link in one line, with anything he has to do, and send the hub the link.
+  Decisions that are his still go to him first.
 - **Who decides what** (Erez, 31 Oct 2026; the guidelines' "Who decides what"). Erez's part, put
   to him before the work as a decision with a short context:
   - new programs and ideas, their core capabilities, and how they work with the other programs;
@@ -124,10 +135,7 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
   become one run on it, in place of `Falcon:16` with and without NVDI. That run takes the accessory on a
   4 MB machine (his configuration; the 4 Nov rule above is for the others). `edit_test.py`,
   `esc_test.py` and `ui_tour.py` stay on a Falcon without NVDI only where a different function needs
-  it. Without his TOS or NVDI here, the same machine on EmuTOS, reported as "stand-in"; the hub runs it
-  for real. The hub's own set per candidate (TEST-MATRIX.md, "Decided 10 Nov 2026"): a paired speed
-  run on his configuration, `ST-1:mono` for the accessory, one TT + MiNT + XaAES run; `acc_all`
-  monthly, not a gate.
+  it. The gate (above, 17 Nov 2026) adds the rest of TEST-MATRIX.md's rows.
 
   His TOS images and NVDI are his copies: never in git (nor a test's `hd`), never sent anywhere. EmuTOS
   stays for development and CI.
