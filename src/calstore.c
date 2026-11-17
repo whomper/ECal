@@ -134,6 +134,9 @@ static void window(CTIME *from, CTIME *to)
 
 /* ---------------- settings ---------------- */
 
+/* WINDOW= or FONT= read: the old keys after them ignored */
+static int new_window, new_font;
+
 static void defaults(void)
 {
 	str_copy(opt.home_tz, "Asia/Jerusalem", sizeof(opt.home_tz));
@@ -148,6 +151,8 @@ static void defaults(void)
 	opt.alarms = 1;
 	opt.alarm_default = -1;
 	opt.font_id = 1;
+	opt.font_name[0] = 0;
+	new_window = new_font = 0;
 	opt.sidebar = 1;
 	opt.offscreen = 1;
 	opt.past_days = 0;	/* from today: past events aren't copied */
@@ -164,9 +169,64 @@ static void set_opt(const char *k, const char *v)
 #define I(name) if (!strcasecmp(k, #name)) { opt.name = (short)atoi(v); return; }
 	S(home_tz) S(view_tz) S(gate) S(folder) S(start) S(peopledir)
 	I(tzsupport) I(falcon) I(dsp) I(weekstart) I(h24) I(hebdates) I(view) I(daystart)
-	I(alarms) I(alarm_default) I(log) I(font_id) I(font_pt) I(hebfont) I(win_x) I(win_y)
-	I(win_w) I(win_h) I(sidebar) I(panes) I(offscreen) I(past_days) I(future_days) I(duration) I(refresh) I(sync_open) I(offline) I(heapkb) I(memkb)
+	I(alarms) I(alarm_default) I(log) I(hebfont)
+	I(sidebar) I(panes) I(offscreen) I(past_days) I(future_days) I(duration) I(refresh) I(sync_open) I(offline) I(heapkb) I(memkb)
 	I(peoplefile)
+	/* WINDOW=x,y,w,h and FONT=name,points (D43); the old keys before
+	   them (WIN_X... and FONT_ID, FONT_PT) read once, the new ones
+	   winning and the only ones written (D44) */
+	if (!strcasecmp(k, "window")) {
+		short w[4];
+		const char *p = v;
+		int i;
+		for (i = 0; i < 4; i++) {
+			w[i] = (short)atoi(p);
+			if (i < 3 && !(p = strchr(p, ',')))
+				return;
+			p++;
+		}
+		opt.win_x = w[0];
+		opt.win_y = w[1];
+		opt.win_w = w[2];
+		opt.win_h = w[3];
+		new_window = 1;
+		return;
+	}
+	if (!strcasecmp(k, "font")) {
+		const char *c = strrchr(v, ',');
+		int n = c ? (int)(c - v) : (int)strlen(v);
+		if (n >= (int)sizeof(opt.font_name))
+			n = (int)sizeof(opt.font_name) - 1;
+		memcpy(opt.font_name, v, n);
+		opt.font_name[n] = 0;
+		opt.font_pt = c ? (short)atoi(c + 1) : 0;
+		opt.font_id = 0;		/* (found by its name: font.c) */
+		new_font = 1;
+		return;
+	}
+	if (!new_window && (!strcasecmp(k, "win_x") || !strcasecmp(k, "win_y") || !strcasecmp(k, "win_w") ||
+			    !strcasecmp(k, "win_h"))) {
+		short n = (short)atoi(v);
+		char c = k[4] | 0x20;
+		if (c == 'x')
+			opt.win_x = n;
+		else if (c == 'y')
+			opt.win_y = n;
+		else if (c == 'w')
+			opt.win_w = n;
+		else
+			opt.win_h = n;
+		return;
+	}
+	if (!new_font && !strcasecmp(k, "font_id")) {
+		opt.font_id = (short)atoi(v);
+		opt.font_name[0] = 0;	/* (its name from the VDI: font.c) */
+		return;
+	}
+	if (!new_font && !strcasecmp(k, "font_pt")) {
+		opt.font_pt = (short)atoi(v);
+		return;
+	}
 	if (!strcasecmp(k, "sync_closed")) {
 		opt.bgsync = (short)atoi(v);	/* (BGSYNC= before 2.7, off then: left behind) */
 		return;
@@ -471,12 +531,16 @@ options2:
 	I("OFFSCREEN", offscreen, "1: the views drawn off the screen and copied when whole; 0: straight on the screen\r\n"
 	  "; (Erez's trial, 13 Nov 2026: which feels faster on a real Falcon)")
 	I("PANES", panes, "the day view's details pane, its width in pixels; 0: two fifths of the view")
-	I("FONT_ID", font_id, "the font, as a GDOS id; 1: the system font")
-	I("FONT_PT", font_pt, "the font's size in points; 0: the system font's")
-	I("WIN_X", win_x, "the window's left edge, in pixels")
-	I("WIN_Y", win_y, "the window's top edge, in pixels")
-	I("WIN_W", win_w, "the window's width, in pixels")
-	I("WIN_H", win_h, "the window's height, in pixels")
+	sb_printf(&b, "; the window: its left and top edges, its width and height, in pixels\r\n"
+		  "WINDOW=%d,%d,%d,%d\r\n\r\n", opt.win_x, opt.win_y, opt.win_w, opt.win_h);
+	if (opt.font_name[0] || opt.font_id == 1)
+		sb_printf(&b, "; the font: its name and its size in points (the system font: 8 or 16, 0 the\r\n"
+			  "; screen's)\r\nFONT=%s,%d\r\n\r\n", opt.font_name[0] ? opt.font_name : "System", opt.font_pt);
+	else {
+		/* (its name not known yet: the old keys kept until it is) */
+		I("FONT_ID", font_id, "the font, as a GDOS id; 1: the system font")
+		I("FONT_PT", font_pt, "the font's size in points; 0: the system font's")
+	}
 #undef S
 #undef I
 	if (part == 2)

@@ -150,7 +150,7 @@ def main():
     with open(inf, "a") as f:
         f.write("alarms=0\r\n")
     if a.font_id or a.log:
-        drop = (("FONT_ID=",) if a.font_id else ()) + (("LOG=",) if a.log else ())
+        drop = (("FONT_ID=", "FONT=") if a.font_id else ()) + (("LOG=",) if a.log else ())
         with open(inf, newline="") as f:
             t = "".join(l for l in f.read().splitlines(True) if not l.upper().startswith(drop))
         with open(inf, "w", newline="") as f:
@@ -248,8 +248,8 @@ def main():
     root = machines.ci_path(hd, "ecal.inf")    # where the accessory keeps it (the INF location rule)
     used = root if os.path.exists(root) and not a.prg else machines.ci_path(folder, "ecal.inf")
     if os.path.exists(used):
-        ids = [l.strip() for l in open(used, errors="replace") if l.upper().startswith("FONT_ID=")]
-        print("  %s:" % ("C:\\ECAL.INF" if used == root else "ECAL.INF"), ids[0] if ids else "no FONT_ID=")
+        ids = [l.strip() for l in open(used, errors="replace") if l.upper().startswith(("FONT=", "FONT_ID="))]
+        print("  %s:" % ("C:\\ECAL.INF" if used == root else "ECAL.INF"), ids[0] if ids else "no FONT=")
     log = machines.ci_path(folder, "ecal.log")
     if a.log and os.path.exists(log):
         shutil.copy(log, os.path.join(work, "ecal.log"))

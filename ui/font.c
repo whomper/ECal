@@ -205,6 +205,49 @@ int font_gdos_loaded(void)
 	return gdos_fonts > 0;
 }
 
+/* the VDI's name of the font at index i (vqt_name), its spaces at the
+   end cut; its id */
+static short name_at(short i, char *name)
+{
+	short id = vqt_name(vdi_h, i, name), n;
+	name[32] = 0;
+	for (n = (short)strlen(name); n > 0 && name[n - 1] == ' '; n--)
+		name[n - 1] = 0;
+	return id;
+}
+
+/* FONT=name,points (D43): the id of the font with that name, 1 for the
+   system font ("System"), 0 when it isn't there; and the other way */
+static short id_named(const char *want)
+{
+	char name[34];
+	short i, n = gdos_fonts > 0 ? gdos_fonts : 0;
+	if (!strcasecmp(want, "System"))
+		return 1;
+	for (i = 1; i <= n + 1; i++) {
+		short id = name_at(i, name);
+		if (!strcasecmp(name, want))
+			return id;
+	}
+	return 0;
+}
+
+static void name_of(short id, char *out, int size)
+{
+	char name[34];
+	short i, n = gdos_fonts > 0 ? gdos_fonts : 0;
+	out[0] = 0;
+	if (id == 1) {
+		str_copy(out, "System", size);
+		return;
+	}
+	for (i = 2; i <= n + 1; i++)
+		if (name_at(i, name) == id) {
+			str_copy(out, name, size);
+			return;
+		}
+}
+
 void font_apply(void)
 {
 	if (sys_depth) {
@@ -215,6 +258,19 @@ void font_apply(void)
 		gdos_fonts = vst_load_fonts(vdi_h, 0);
 		win_buffer_fonts();
 	}
+	if (opt.font_id == 0) {
+		/* FONT= named it: its id on this Atari, the system font when it
+		   isn't here (the name kept, for when it is) */
+		opt.font_id = id_named(opt.font_name);
+		if (!opt.font_id) {
+			char m[80];
+			snprintf(m, sizeof(m), "font \"%.34s\" not here: the system font", opt.font_name);
+			conn_log("ECal", "--", m, (long)strlen(m));
+			opt.font_id = 1;
+		}
+	}
+	if (!opt.font_name[0])
+		name_of(opt.font_id, opt.font_name, sizeof(opt.font_name));	/* (FONT_ID= read, or a new choice) */
 	if (!set_font(opt.font_id, opt.font_pt)) {
 		/* the accessory without its fonts (one chosen since it
 		   started): the system font until the next boot, the choice
@@ -298,6 +354,7 @@ static void take(fontsel *s)
 {
 	opt.font_id = s->id;
 	opt.font_pt = s->pt;
+	opt.font_name[0] = 0;	/* (its name, for FONT=: font_apply) */
 	font_apply();
 	settings_later();
 	win_layout();

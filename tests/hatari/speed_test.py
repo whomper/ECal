@@ -73,7 +73,7 @@ def seed(hd, work, acc, font=None, big=False, side=True):
         shutil.copy(os.path.join(machines.ci_path(d, "cache"), f), os.path.join(folder, "cache", f.lower()))
     with open(inf, newline="") as f:
         lines = [l for l in f.read().split("\r\n")
-                 if not l.upper().startswith(("START=", "SYNC_OPEN=", "ALARMS=") + (("FONT_ID=", "FONT_PT=") if font else ()) +
+                 if not l.upper().startswith(("START=", "SYNC_OPEN=", "ALARMS=") + (("FONT=", "FONT_ID=", "FONT_PT=") if font else ()) +
                                              (() if side else ("SIDEBAR=",)))]
     i = next(k for k, l in enumerate(lines) if l.upper().startswith("FOLDER="))
     lines[i] = "FOLDER=C:\\ecal"

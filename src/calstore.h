@@ -72,7 +72,8 @@ typedef struct {
 	short alarms;		/* show reminders */
 	short alarm_default;	/* minutes before, for new events; -1 none */
 	short log;
-	short font_id, font_pt, hebfont;
+	short font_id, font_pt, hebfont;	/* font_id 0: not known yet, found by font_name */
+	char font_name[34];	/* FONT='s name (the VDI's, vqt_name); "": not known yet */
 	short win_x, win_y, win_w, win_h;
 	short sidebar;
 	short panes;		/* the day view's details pane, its width in pixels; 0: two fifths */

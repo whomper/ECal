@@ -21,4 +21,15 @@ cmp -s "$inf" "$W/before" || { echo "inftest: ECAL.INF changed"; exit 1; }
 [ "$(stat -c %Y "$inf")" != "$(date -d '2001-01-01 00:00' +%s)" ] ||
   { echo "inftest: a calendar added, ECAL.INF not written"; exit 1; }
 grep -q "NAME=Home" "$inf" || { echo "inftest: the new calendar is not in ECAL.INF"; exit 1; }
-echo "inftest: saved unchanged, ECAL.INF untouched; a calendar added, written"
+# the old keys read once, the new ones written in their place (D43, D44)
+sed -i 's/^WINDOW=.*$/WIN_X=10\r\nWIN_Y=20\r\nWIN_W=300\r\nWIN_H=200\r/; s/^FONT=.*$/FONT_ID=1\r\nFONT_PT=16\r/' "$inf"
+grep -q "^WIN_X=10" "$inf" && grep -q "^FONT_ID=1" "$inf" || { echo "inftest: the old keys not put in"; exit 1; }
+"$CLI" "$W/d" save >/dev/null
+grep -q "^WINDOW=10,20,300,200" "$inf" || { echo "inftest: WIN_X... not read into WINDOW="; exit 1; }
+grep -q "^FONT=System,16" "$inf" || { echo "inftest: FONT_ID= and FONT_PT= not read into FONT="; exit 1; }
+! grep -q "^WIN_\|^FONT_ID\|^FONT_PT" "$inf" || { echo "inftest: an old key written again"; exit 1; }
+# a new key wins over an old one after it
+sed -i 's/^FONT=System,16\r$/FONT=Courier,10\r\nFONT_ID=1\r/' "$inf"
+"$CLI" "$W/d" save >/dev/null
+grep -q "^FONT=Courier,10" "$inf" || { echo "inftest: FONT_ID= after FONT= won"; exit 1; }
+echo "inftest: saved unchanged, ECAL.INF untouched; a calendar added, written; WINDOW= and FONT= from the old keys"

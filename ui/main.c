@@ -2043,10 +2043,17 @@ int main(void)
 	busy_message = busy_msg;
 	if (is_acc) {
 		/* GDOS fonts now or not at all (font.c): under NVDI always, else as ECAL.INF says */
-		char f[8];
-		inf_value("font_id=", f, sizeof(f));
+		char f[40];
+		int want;
+		inf_value("font=", f, sizeof(f));	/* FONT=name,points (D43), else the old FONT_ID= */
+		if (f[0])
+			want = strncasecmp(f, "System,", 7) != 0;
+		else {
+			inf_value("font_id=", f, sizeof(f));
+			want = f[0] && atoi(f) != 1;
+		}
 		if (!no_vdi)
-			font_boot(f[0] && atoi(f) != 1);
+			font_boot(want);
 	}
 	st_ram_init();
 	if (!no_vdi)
