@@ -177,12 +177,14 @@ def text_width(shot, box, inverse=False):
 
 
 # where the editor's Add... button is on the Falcon's 640x480, and the
-# first line of its People field
+# first line of its People field, inside its border (the C24 look draws
+# the field's single line at x 174 and 466: inside the box it was taken
+# for the label's ink, 292 px)
 ADD_X, ADD_Y = 517, 125
-PEOPLE_BOX = (170, 117, 466, 134)
+PEOPLE_BOX = (176, 117, 464, 134)
 # and on an ST's 640x400 (peoplefile_test.py takes them from here)
 MONO_ADD = (517, 103)
-MONO_PEOPLE_BOX = (170, 95, 466, 112)
+MONO_PEOPLE_BOX = (176, 95, 464, 112)
 
 if __name__ == "__main__":
     sys.exit(main())
