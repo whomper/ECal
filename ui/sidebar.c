@@ -320,24 +320,24 @@ static void cal_menu(short mx, short my, int c)
 	const char *items[8];
 	short act[8], n = 0, k;
 	int kind = accts[cals[c].acct].kind;
-	items[n] = "  Show only this calendar";
+	items[n] = "Show only this calendar";
 	act[n++] = 1;
-	items[n] = "  Show all calendars";
+	items[n] = "Show all calendars";
 	act[n++] = 2;
 	items[n] = "-";
 	act[n++] = 0;
-	items[n] = "  Get info...";
+	items[n] = "Get info...";
 	act[n++] = 3;
 	if (kind != AK_LOCAL) {
-		items[n] = "  Refresh";
+		items[n] = "Refresh";
 		act[n++] = 4;
 	}
 	if (cal_writable(&cals[c])) {
-		items[n] = "  Import .ics file...";
+		items[n] = "Import .ics file...";
 		act[n++] = 5;
 	}
 	if (kind != AK_CALDAV) {
-		items[n] = kind == AK_SUBSCR ? "  Unsubscribe..." : "  Delete calendar...";
+		items[n] = kind == AK_SUBSCR ? "Unsubscribe..." : "Delete calendar...";
 		act[n++] = 6;
 	}
 	k = win_popup(mx, my, items, n);
@@ -387,8 +387,8 @@ static void cal_menu(short mx, short my, int c)
 
 static void acct_menu(short mx, short my, int a)
 {
-	static const char *const items[] = { "  Refresh", "  Account settings...", "-", "  Delete account..." };
-	static const char *const local_items[] = { "  New calendar...", "-", "  Delete account..." };
+	static const char *const items[] = { "Refresh", "Account settings...", "-", "Delete account..." };
+	static const char *const local_items[] = { "New calendar...", "-", "Delete account..." };
 	short k;
 	if (accts[a].kind == AK_LOCAL) {
 		k = win_popup(mx, my, local_items, 3);

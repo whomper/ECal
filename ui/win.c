@@ -1200,9 +1200,10 @@ void win_redraw(GRECT *area)
 		win_sliders();	/* (gliding: when it stops, views_glide; 45 ms a step on an ST) */
 }
 
+/* a context menu: its labels are the words, the margin popup_m's (D15) */
 short win_popup(short x, short y, const char *const *labels, short n)
 {
-	short k = popup(x, y, labels, n);
+	short k = popup_m(x, y, labels, n);
 	win_redraw(&popup_area);
 	return k;
 }
@@ -1595,6 +1596,33 @@ short win_press_id(short mx, short my)
 	if (rect_hit(&r_view, mx, my))
 		return views_press_id(mx, my);
 	return 0;
+}
+
+/* the toolbar's tip for the pointer at (x, y) (D18: a short sentence,
+   the key in brackets; the Keys dialog's keys): 1 with it in out */
+int win_tool_tip(short x, short y, char *out, int size)
+{
+	static const char *const period[] = { "day", "week", "month", "year" };
+	static const char *const view[] = { "The day view (D)", "The week view (W)", "The month view (M)",
+					     "The year view (Y)" };
+	const char *p = period[cur_view >= 0 && cur_view <= 3 ? cur_view : 1];
+	int i;
+	if (win_h <= 0 || win_iconified || !rect_hit(&r_tool, x, y))
+		return 0;
+	for (i = 0; i < NBUT && !rect_hit(&but[i], x, y); i++)
+		;
+	switch (i) {
+	case B_SIDE: snprintf(out, size, "Show or hide the calendar list (\x01^S)"); break;
+	case B_PREV: snprintf(out, size, "The %s before (Shift+\x04)", p); break;
+	case B_TODAY: snprintf(out, size, "Today (T)"); break;
+	case B_NEXT: snprintf(out, size, "The next %s (Shift+\x03)", p); break;
+	case B_DAY: case B_WEEK: case B_MONTH: case B_YEAR: snprintf(out, size, "%s", view[i - B_DAY]); break;
+	case B_NEW: snprintf(out, size, "A new event (N)"); break;
+	case B_REFRESH: snprintf(out, size, "Refresh the calendars (^R)|With Shift: everything again (Shift+^R)"); break;
+	case B_MENU: snprintf(out, size, "Every command, in a menu"); break;
+	default: return 0;
+	}
+	return 1;
 }
 
 int win_mouse(short mx, short my, short button, short clicks, short kstate)

@@ -2253,9 +2253,9 @@ void views_event(int what)
 
 static void context_menu(short mx, short my, int it, long day, short minute)
 {
-	static const char *const ev_items[] = { "  Open...", "  Copy event  ^C", "  Duplicate", "-", "  Delete..." };
-	static const char *const day_items[] = { "  New event...", "  New all-day event", "-",
-						 "  Show this day", "  Show this week", "  Today" };
+	static const char *const ev_items[] = { "Open...", "Copy event  ^C", "Duplicate", "-", "Delete..." };
+	static const char *const day_items[] = { "New event...", "New all-day event", "-",
+						 "Show this day", "Show this week", "Today" };
 	short k;
 	if (it >= 0 && items[it].kind == IT_EVENT) {
 		select_item(it);

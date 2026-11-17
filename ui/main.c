@@ -40,6 +40,7 @@
 #include "dialog.h"
 #include "../src/alarms.h"
 #include "notify.h"
+#include "tooltip.h"
 
 short vdi_h, cw, ch, scr_w, scr_h, desk_x, desk_y, desk_w, desk_h, planes;
 short gl_wchar, gl_hchar, ap_id, is_acc, ncolors, quit_now;
@@ -870,34 +871,34 @@ void cmd_menu(short x, short y)
 		const char *text;
 		short cmd;
 	} m[] = {
-		{ "  About ECal...", C_ABOUT },		/* first (1.3, MG16) */
+		{ "About ECal...", C_ABOUT },		/* first (1.3, MG16) */
 		{ "-", 0 },
-		{ "  Import .ics...", C_IMPORT },
-		{ "  New event            N", C_NEW },
+		{ "Import .ics...", C_IMPORT },
+		{ "New event            N", C_NEW },
 		{ "-", 0 },
-		{ "  Go to date...       ^G", C_GOTO },
-		{ "  Find...             ^F", C_FIND },
-		{ "  Today                T", C_TODAY },
-		{ "  Contacts...", C_CONTACTS },
+		{ "Go to date...       ^G", C_GOTO },
+		{ "Find...             ^F", C_FIND },
+		{ "Today                T", C_TODAY },
+		{ "Contacts...", C_CONTACTS },
 		{ "-", 0 },
-		{ "  Download everything again...", C_AGAIN },
+		{ "Download everything again...", C_AGAIN },
 		{ "-", 0 },
-		{ "  Calendar list      \x01^S", C_SIDE },
+		{ "Calendar list      \x01^S", C_SIDE },
 		{ "-", 0 },
 		/* as EMail's Options menu */
-		{ "  Work offline", C_OFFL },
-		{ "  Direct connection", C_FALC },
-		{ "  Write a log", C_LOG },
+		{ "Work offline", C_OFFL },
+		{ "Direct connection", C_FALC },
+		{ "Write a log", C_LOG },
 		{ "-", 0 },
-		{ "  Add account or calendar...", C_ADD },
-		{ "  Settings...         ^,", C_SET },
-		{ "  Font...", C_FONT },
+		{ "Add account or calendar...", C_ADD },
+		{ "Settings...         ^,", C_SET },
+		{ "Font...", C_FONT },
 		{ "-", 0 },
 		/* as the bar's Help menu (MD16) */
-		{ "  ECal help          Help", C_HELP },
-		{ "  Keys...", C_KEYS },
+		{ "ECal help          Help", C_HELP },
+		{ "Keys...", C_KEYS },
 		{ "-", 0 },
-		{ "  Quit                ^Q", C_QUIT },	/* the accessory: Close ^U */
+		{ "Quit                ^Q", C_QUIT },	/* the accessory: Close ^U */
 	};
 	enum { N = sizeof(m) / sizeof(m[0]) };
 	char ticked[N][40];
@@ -908,13 +909,12 @@ void cmd_menu(short x, short y)
 			 (m[i].cmd == C_FALC && opt.falcon) || (m[i].cmd == C_LOG && opt.log);
 		items[i] = m[i].text;
 		if (on) {
-			str_copy(ticked[i], m[i].text, sizeof(ticked[i]));
-			ticked[i][0] = '\x08';		/* the tick */
+			snprintf(ticked[i], sizeof(ticked[i]), "\x08%s", m[i].text);	/* the tick, in the margin (popup_m) */
 			items[i] = ticked[i];
 		}
 	}
 	if (is_acc)
-		items[N - 1] = "  Close               ^U";
+		items[N - 1] = "Close               ^U";
 	k = win_popup(x, y, items, n);
 	if (k == N - 1 && is_acc)
 		command(C_CLOSE);
@@ -1505,11 +1505,8 @@ static void wait_release(void)
 }
 
 
-/* the tooltip over an event: shown when the mouse rests on one, gone
-   when it moves, a key is pressed or the button clicked */
-static short tip_on, tip_tried, hover_x = -1, hover_y = -1;
-static unsigned long hover_at;
-static GRECT tip_r;
+/* where the pointer rests (the tips: common's tooltip.c) */
+static short hover_x = -1, hover_y = -1;
 
 /* the flat hand over the day view's divider, while the window is on
    top (WINDOWS 2.1); the arrow again off it */
@@ -1527,62 +1524,44 @@ static void pointer_at(short x, short y)
 	}
 }
 
-static void tip_hide(void)
+/* the tip for the pointer at (x, y) (common's tooltip.c, D18): the
+   toolbar's buttons, and the event under it, its title and its time
+   (a second line, dim); only over ECal's window on top */
+static int ecal_tip(short x, short y, char *out, int size)
 {
-	if (!tip_on)
-		return;
-	tip_on = 0;
-	win_redraw(&tip_r);
-}
-
-static void tip_show(void)
-{
-	char title[80], when[60];
-	short t, dd, n1, n2, n;
-	GRECT r;
-	tip_tried = 1;
-	if (win_h <= 0 || wind_find(hover_x, hover_y) != win_h)
-		return;
+	char title[80], when[60], *b;
+	short t, dd;
+	if (win_h <= 0 || win_iconified || win_view_busy() || wind_find(x, y) != win_h)
+		return 0;
 	wind_get(0, WF_TOP, &t, &dd, &dd, &dd);
 	if (t != win_h)
-		return;
-	t = (short)views_tip(hover_x, hover_y, title, sizeof(title), when, sizeof(when));
-	if (t < 0)
-		tip_tried = 0;	/* the view not laid out yet: tried again in a later turn */
-	if (t <= 0)
-		return;
-	n1 = (short)strlen(title);
-	n2 = (short)strlen(when);
-	if (n1 > 40)
-		n1 = 40;
-	n = n1 > n2 ? n1 : n2;
-	r.w = (n + 2) * cw;
-	r.h = 2 * ch + 6;
-	r.x = hover_x + cw;
-	r.y = hover_y + ch + 2;
-	/* inside the window: to the left or above the mouse at the edges */
-	if (r.x + r.w > work.x + work.w)
-		r.x = hover_x - r.w - cw / 2;
-	if (r.x < work.x)
-		r.x = work.x;
-	if (r.y + r.h > work.y + work.h)
-		r.y = hover_y - r.h - 2;
-	if (r.y < work.y)
-		r.y = work.y;
-	tip_r = r;
-	tip_r.w++;
-	tip_r.h++;
-	wind_update(BEG_UPDATE);
-	graf_mouse(M_OFF, 0);
-	clip_on(&work);
-	fill(&r, 0);
-	frame(&r, 1);
-	text_at(r.x + cw, r.y + 3, title, n1, n1, TX_BOLD | (line_rtl(title, n1) ? TX_RIGHT : 0));
-	text_at(r.x + cw, r.y + 3 + ch, when, n2, n2, TX_LTR);
-	clip_off();
-	graf_mouse(M_ON, 0);
-	wind_update(END_UPDATE);
-	tip_on = 1;
+		return 0;
+	if (win_tool_tip(x, y, out, size))
+		return 1;
+	if (views_tip(x, y, title, sizeof(title), when, sizeof(when)) <= 0)
+		return 0;
+	title[40] = 0;
+	while ((b = strchr(title, '|')) != 0)
+		*b = '/';		/* ('|' would split the tip's lines) */
+	snprintf(out, size, "%s|%s", title, when);
+	return 1;
+}
+
+/* the tip's box gone: the window under it drawn again; where it
+   reached past the window, the AES asked */
+static void tip_repaint(const GRECT *r)
+{
+	GRECT a = *r;
+	if (win_h > 0 && a.x >= work.x && a.y >= work.y && a.x + a.w <= work.x + work.w &&
+	    a.y + a.h <= work.y + work.h)
+		win_redraw(&a);
+	else
+		form_dial(FMD_FINISH, a.x, a.y, a.w, a.h);
+}
+
+static int tip_line_rtl(const char *s, short n)
+{
+	return line_rtl(s, n) != 0;
 }
 
 /* The accessory, its window closed: see work_step() */
@@ -2003,6 +1982,8 @@ int main(void)
 	if (ap_id < 0)
 		return 1;
 	key_state_init();	/* a Shift or Ctrl typed during the long start keeps its state (gem.h; guidelines 3.2) */
+	tip_init(tip_repaint);	/* (BubbleGEM's text where it can read it: taken now) */
+	tip_rtl = tip_line_rtl;
 	twin_init("ECAL");
 	if (!is_acc && twin_handover(av_command())) {
 		appl_exit();		/* ECAL.ACC runs, and has it */
@@ -2129,7 +2110,7 @@ int main(void)
 	crash_offer("ECal", "next to ECAL.PRG");
 
 	while (!quit_now) {
-		short flags = MU_MESAG | MU_TIMER, which, hovering, glided;
+		short flags = MU_MESAG | MU_TIMER, which, glided;
 		unsigned long wait = sync_pending ? 150 : 1000;
 		if (win_h > 0)
 			flags |= MU_KEYBD | MU_BUTTON;
@@ -2137,9 +2118,8 @@ int main(void)
 			flags |= MU_M1;	/* (not while a view is drawn: no tips then, and it came back each turn) */
 		/* the mouse moving away from where it was last seen */
 		evnt_set_m1(1, hover_x, hover_y, 1, 1);
-		hovering = win_h > 0 && !win_iconified && !tip_tried && hover_x >= 0;
-		if (hovering && wait > 100)
-			wait = 100;
+		if (win_h > 0 && !win_iconified)
+			wait = tip_wait(wait);	/* (sooner when a tip is due) */
 		wait = bg_timer(work_pending(), wait);
 		if (views_gliding() && win_h > 0 && wait > 20)
 			wait = 20;
@@ -2193,18 +2173,14 @@ int main(void)
 #endif
 		if (win_iconified)	/* an icon takes no keys or clicks (taken, not left for later) */
 			which &= ~(MU_KEYBD | MU_BUTTON);
-		if (which & (MU_M1 | MU_KEYBD | MU_BUTTON | MU_MESAG)) {
+		if (which & MU_M1) {
 			short k;
-			if (which & MU_M1) {
-				graf_mkstate(&hover_x, &hover_y, &k, &k);
-				pointer_at(hover_x, hover_y);
-			}
-			hover_at = pf_ms();
-			tip_tried = (which & (MU_KEYBD | MU_BUTTON)) != 0;
-			tip_hide();
-		} else if (hovering && pf_ms() - hover_at >= 700UL && !win_view_busy()) {
-			tip_show();
+			graf_mkstate(&hover_x, &hover_y, &k, &k);
+			pointer_at(hover_x, hover_y);
 		}
+		/* the tip: away at a move, key, click or message; shown when the
+		   pointer has rested 0.7 s (common's tooltip.c, D18) */
+		tip_tick(which, win_h > 0 && !win_iconified && !win_view_busy() ? hover_x : -1, hover_y, ecal_tip);
 		if ((which & MU_MESAG) && notify_message(msg))
 			which &= ~MU_MESAG;	/* BGEM.NG's: its answer, a button clicked */
 		if (which & MU_MESAG) {
