@@ -296,25 +296,34 @@ static int si_open;		/* ECAL.INF still to be loaded */
 static int si_lent;		/* si_text is the caller's (store_init_text), not ours to free */
 
 /* ECAL.INF as last read or written: its length (-1 unknown) and two sums
-   of its bytes (store_write_text) */
+   of its bytes (store_write_text): the bytes', and the running sums'
+   (each byte counted by its place, Fletcher's way). Two adds a byte: a
+   rotate by 27 cost a 68000 about 62 cycles a byte. Reading, each line
+   is summed as the steps take it (store_init_step), not the whole text
+   at once: 5 KB summed in one go was 50 ms more of an ST's boot step
+   (quiet_test on ST-1: 120 ms, 17 Nov 2026) */
 static long inf_len = -1;
 static unsigned long inf_s1, inf_s2;
+static long rd_n;			/* the text being read: its bytes so far */
+static unsigned long rd_s1, rd_s2;	/* and their sums */
 
-static void inf_sums(const char *t, long n, unsigned long *a, unsigned long *b)
+static void inf_sums_more(const char *t, long n, unsigned long *a, unsigned long *b)
 {
-	unsigned long x = 0x2545F491UL, y = 0;
+	const unsigned char *p = (const unsigned char *)t;
+	unsigned long x = *a, y = *b;
 	while (n-- > 0) {
-		x = ((x << 5) | (x >> 27)) ^ (unsigned char)*t++;
+		x += *p++;
 		y += x;
 	}
 	*a = x;
 	*b = y;
 }
 
-static void inf_read(const char *t, long n)
+static void inf_read_begin(void)
 {
-	inf_len = n;
-	inf_sums(t, n, &inf_s1, &inf_s2);
+	inf_len = -1;		/* (known once the last line is read) */
+	rd_n = 0;
+	rd_s1 = rd_s2 = 0;
 }
 
 /* after store_init_begin: ECAL.INF's text already read, to take the
@@ -324,7 +333,7 @@ void store_init_text(char *text)
 	si_open = 0;
 	si_line = si_text = text;
 	si_lent = 1;
-	inf_read(text, (long)strlen(text));
+	inf_read_begin();
 }
 
 void store_init_begin(const char *dir, const char *inf)
@@ -396,14 +405,15 @@ int store_init_step(void)
 		long len;
 		si_open = 0;
 		si_line = si_text = pf_load(inf_path, &len);
-		if (si_text) {
-			inf_read(si_text, len);
+		inf_read_begin();
+		if (si_text)
 			return 1;
-		}
-		inf_len = -1;
 	}
 	for (k = 0; k < 16 && si_line && *si_line; k++) {
 		char *line = si_line, *nl = strchr(line, '\n');
+		long n = nl ? (long)(nl - line) + 1 : (long)strlen(line);
+		inf_sums_more(line, n, &rd_s1, &rd_s2);	/* (as the file has it) */
+		rd_n += n;
 		if (nl)
 			*nl = 0;
 		if (nl && nl > line && nl[-1] == '\r')
@@ -414,6 +424,11 @@ int store_init_step(void)
 	}
 	if (si_line && *si_line)
 		return 1;
+	if (si_text) {
+		inf_len = rd_n;
+		inf_s1 = rd_s1;
+		inf_s2 = rd_s2;
+	}
 	if (!si_lent)
 		free(si_text);
 	si_text = si_line = 0;
@@ -585,8 +600,8 @@ accounts:
    The text itself isn't kept, two sums of it and its length are */
 void store_write_text(SBUF *b)
 {
-	unsigned long s1, s2;
-	inf_sums(b->s, b->len, &s1, &s2);
+	unsigned long s1 = 0, s2 = 0;
+	inf_sums_more(b->s, b->len, &s1, &s2);
 	if (b->len != inf_len || s1 != inf_s1 || s2 != inf_s2) {
 		if (pf_save(inf_path, b->s, b->len) == 0) {
 			inf_len = b->len;
