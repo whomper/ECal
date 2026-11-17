@@ -50,8 +50,6 @@ LDFLAGS := -m68000 -nostdlib -static -no-pie -Wl,--emit-relocs -Wl,-T,common/ata
 # accessory otherwise (the hub's first-boot rule, 1 Nov 2026: 16 KB less)
 CFLAGS  += -ffunction-sections -fdata-sections
 LDFLAGS += -Wl,--gc-sections
-# the pads after grown shared files kept (atari/pad_*.S)
-PADS    := -Wl,-u,pad_ovl -Wl,-u,pad_tlsovl -Wl,-u,pad_tlsovl_ro
 
 # BearSSL 0.6: on the Atari only its MD5 (Digest logins), as 68000 code; the
 # TLS is TLS.OVL's (the guidelines, 7.4). The build machine's tests link it
@@ -68,9 +66,9 @@ HBSSLOBJ = $(patsubst $(BSSL)/src/%.c,$(OBJDIR)/hbssl/%.o,$(BSSLSRC))
 CORE    := util charset conn tls bidi secret futil ctime tz ics rrule xml inflate http caldav calstore alarms
 # on the Atari the TLS is TLS.OVL's: tls_ovl.c and ovl.c load it and hand
 # tls.h's calls on, dsp_ovl.c the DSP's (common/README.md, "TLS.OVL")
-ACORE   := $(filter-out tls,$(CORE)) ovl pad_ovl
-ATARI   := libc tos plat_tos net_tos sting gem tls_ovl pad_tlsovl
-UI      := main hebkey win draw popup dsp_ovl views sidebar editor dialogs field about font fontsel help av alert aboutbox iconify clip dd mbar twin busy bgwork accmem dialog av_people people_ask people_file notify aboutline text click dlgbuild
+ACORE   := $(filter-out tls,$(CORE)) ovl
+ATARI   := libc tos plat_tos net_tos sting gem tls_ovl
+UI      := main hebkey win draw popup dsp_ovl views sidebar editor dialogs field about font fontsel help av alert aboutbox iconify clip dd mbar twin busy bgwork accmem dialog av_people people_ask people_file notify aboutline text click dlgbuild lfield eye
 STBSSL  := hash/md5 codec/dec32le codec/enc32le
 
 OBJDIR  := build
@@ -146,13 +144,41 @@ $(OBJDIR)/fakecontact.elf: $(FAKECONTACT_OBJS) common/atari/link.ld
 $(OBJDIR)/fakecontact.o: tests/hatari/fakecontact.c common/atari/gem.h common/ui/people_ask.h | $(OBJDIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(OBJDIR)/cal.elf: $(OBJS) common/atari/link.ld
-	$(CC) $(LDFLAGS) $(PADS) -o $@ $(OBJS) -lgcc
 PRGOBJS := $(filter-out $(OBJDIR)/dialog.o,$(OBJS)) $(OBJDIR)/dialog_cpu.o
+SHIPDIR := build
+ifneq ($(AESPROF),)
+ifneq ($(OBJDIR),$(SHIPDIR))
+# the timed build (make AESPROF=..., speed_test.py's) linked at the shipped
+# build's places modulo 256, as the 68030's caches see them, so the rig
+# times the layout that ships (common/tools/profpad.py; the hub, 17 Nov
+# 2026): the objects AES_PROFILE changes are left out of the comparison,
+# and pads after them put the rest back. The shipped build is made first
+TIMED   := draw field gem main sidebar views win tos
+EXCL    := $(foreach o,$(TIMED),--exclude $(SHIPDIR)/$(o).o --exclude $(OBJDIR)/$(o).o)
+$(SHIPDIR)/cal.elf $(SHIPDIR)/cal_prg.elf &: FORCE
+	$(MAKE) OBJDIR=$(SHIPDIR) AESPROF= VIEWSLICE= STACKPROBE= $(SHIPDIR)/cal.elf $(SHIPDIR)/cal_prg.elf
+$(OBJDIR)/cal.elf: $(OBJS) common/atari/link.ld $(SHIPDIR)/cal.elf common/tools/profpad.py common/atari/codepad.S
+	python3 common/tools/profpad.py --ship $(SHIPDIR)/cal.elf --out $@ --cpu=-m68000 --dir $(OBJDIR)/pads_acc \
+	    $(EXCL) -- $(CC) $(LDFLAGS) $(OBJS) -lgcc
+$(OBJDIR)/cal_prg.elf: $(PRGOBJS) common/atari/link.ld $(SHIPDIR)/cal_prg.elf common/tools/profpad.py common/atari/codepad.S
+	python3 common/tools/profpad.py --ship $(SHIPDIR)/cal_prg.elf --out $@ --cpu=-m68000 --dir $(OBJDIR)/pads_prg \
+	    $(EXCL) -- $(CC) $(LDFLAGS) $(PRGOBJS) -lgcc
+SHIPPED := 1
+endif
+endif
+ifndef SHIPPED
+# (the map beside each ELF: profpad.py reads where the read-only data starts)
+$(OBJDIR)/cal.elf: $(OBJS) common/atari/link.ld
+	$(CC) $(LDFLAGS) -Wl,-Map,$@.map -o $@ $(OBJS) -lgcc
 $(OBJDIR)/cal_prg.elf: $(PRGOBJS) common/atari/link.ld
-	$(CC) $(LDFLAGS) $(PADS) -o $@ $(PRGOBJS) -lgcc
+	$(CC) $(LDFLAGS) -Wl,-Map,$@.map -o $@ $(PRGOBJS) -lgcc
+endif
 $(OBJDIR)/dialog_cpu.o: common/ui/dialog.c $(HDRS) | $(OBJDIR)
 	$(CC) $(CFLAGS) -DDLG_CPU -c -o $@ $<
+# common's long fields (dlgbuild's db_long and db_pass), beside ECal's own
+# field.c (its FIELD dialogs): lfield.o, the name field.o being ECal's
+$(OBJDIR)/lfield.o: common/ui/field.c $(HDRS) | $(OBJDIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(OBJDIR)/%.o: src/%.c $(HDRS) | $(OBJDIR)
 	$(CC) $(CFLAGS) -c -o $@ $<

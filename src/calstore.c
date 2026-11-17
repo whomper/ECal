@@ -2964,14 +2964,6 @@ int sync_busy(void)
 	return sj.c != 0;
 }
 
-/* what the next step does (the profile build's label) */
-const char *sync_phase_name(void)
-{
-	static const char *const n[] = { "", "ctag", "list", "index", "compare", "gone", "fetch", "take",
-					 "write", "read", "end", "pack", "stamps" };
-	return sj.c && sj.phase > 0 && sj.phase <= SJ_MARK ? n[sj.phase] : "";
-}
-
 int sync_net_step(void)
 {
 	return sj.phase == SJ_CTAG || sj.phase == SJ_LIST || sj.phase == SJ_FETCH;
@@ -4793,4 +4785,14 @@ int cal_import(int ci, const char *path, int *count)
 	free(g.ev);
 	status_clear();
 	return ok;
+}
+
+/* what the next step does (the profile build's label): last in
+   the file, as only the timed build keeps it, so leaving it out moves
+   nothing in the shipped one (common/tools/profpad.py) */
+const char *sync_phase_name(void)
+{
+	static const char *const n[] = { "", "ctag", "list", "index", "compare", "gone", "fetch", "take",
+					 "write", "read", "end", "pack", "stamps" };
+	return sj.c && sj.phase > 0 && sj.phase <= SJ_MARK ? n[sj.phase] : "";
 }
