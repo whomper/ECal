@@ -601,7 +601,7 @@ static void page_secure(SETTINGS *s, short x, short y, void *user)
 	set_text(s, x + 3, set_y(s, 1), "TLS on this Atari (68020 or better)");
 	set_tick(s, x + 3, set_y(s, 2), "Check certificates on the DSP", &sv.dsp);
 	/* (words under a setting: 38 characters at most, 6.1; the page's
-	   rows 0 to 7 fit its area at 17 rows high) */
+	   rows 0 to 7 fit its area) */
 	set_text(s, x + 3, set_y(s, 3), can_falcon ? "Needs TLS.OVL, CACERT.PEM, ROOTS.DAT"
 						   : "Needs a 68020 or better (TT, Falcon)");
 	set_text(s, x, set_y(s, 4), "Through the Gateway:");
@@ -708,7 +708,7 @@ static void settings(short first)
 	d.title = "Settings";
 	d.pages = pages;
 	d.npages = NPAGES;
-	d.height = 17;
+	d.height = 20;		/* (seven pages in the list: 6.1 lets it grow, EWeb is 20) */
 	d.first = first;
 	d.check = settings_check;
 	settings_uncover = settings_under;
