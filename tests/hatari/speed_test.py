@@ -217,12 +217,52 @@ def human_double(r, x, y):
             time.sleep(0.12)
 
 
+def first_calendar(r):
+    """where the list's first calendar name is: right of its colour box
+    (a solid square, black on a mono screen), found on the screen. Its
+    place moves with the font (a GDOS font's taller rows: Erez's FreeMono
+    14 put the name below the system font's 114, and both rows read
+    9999). (60, 114), the system font's place, when no box is seen"""
+    from PIL import Image
+    img = Image.open(r.shot("_list")).convert("RGB")
+    w, h = img.size
+    px = img.load()
+
+    def solid(y):
+        # the longest run of one colour, not white, in x 12..44 of row y
+        best, run, last, start = (0, 0), 0, None, 0
+        for x in range(12, 45):
+            c = px[x, y]
+            if c == last and c != (255, 255, 255):
+                run += 1
+            else:
+                run, start = 1, x
+            last = c
+            if run > best[0]:
+                best = (run, start)
+        return best
+    rows = 0
+    for y in range(90, min(h, 300)):
+        n, x0 = solid(y)
+        if n >= 7:
+            rows += 1
+            if rows == 5:
+                top = y - 4
+                bot = top
+                while bot + 1 < h and solid(bot + 1)[0] >= 7:
+                    bot += 1
+                return x0 + n + 20, (top + bot) // 2
+        else:
+            rows = 0
+    return 60, 114
+
+
 def double_check(r, m, where):
     """the second release over a calendar's name opens Calendar info
     (the guidelines 5.8; one click asked for, press_double timing it)"""
     time.sleep(3)     # (idle first: a double click begun inside a stretch loses its second press, 5.8's cost)
     pos = len(m.text())
-    human_double(r, 60, 114)
+    human_double(r, *first_calendar(r))
     time.sleep(4)
     ok = "DLGMS" in m.text()[pos:]
     print("  %s a double click on a calendar's name (%s): %s" %
@@ -299,7 +339,7 @@ def clicks(r, m):
 
     press("Today pressed (mouse down: drawn pressed)", 100, 68)
     release("Today let go (mouse up: today shown)")
-    press("a calendar's name pressed (mouse down: chosen)", 60, 114)
+    press("a calendar's name pressed (mouse down: chosen)", *first_calendar(r))
     release("the calendar's name let go (mouse up: nothing more)")
     if size == (640, 400):             # (the small month is at the window's foot: its place on 400 lines)
         press("a day in the small month pressed (drawn pressed)", 63, 300)
