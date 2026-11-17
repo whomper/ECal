@@ -348,7 +348,8 @@ only this occurrence or this and all future ones, as the editor does.
 
 Double-click an empty day or hour for a new event there. Right-click an event to open,
 duplicate or delete it; right-click a day for a new event or to change
-the view.
+the view. **Insert** opens the same menu from the keyboard: for the selected event,
+else for the selected day.
 
 **Hebrew dates** (Settings > General > Show Hebrew dates) show next to each day: the day of the
 Hebrew month in each cell, the month's name on its first day, the full

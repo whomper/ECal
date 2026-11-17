@@ -881,6 +881,7 @@ void keys_dialog(void)
 		{ 15, 0, "^C", "copy the event" },
 		{ 15, 1, "^C ^X ^V", "in a dialog's field" },
 		{ 16, 0, "^,", "settings" },
+		{ 16, 1, "Insert", "the right-click menu" },
 		{ 17, 0, "Esc", "a field: empty it" },
 		{ 17, 1, "Undo", "cancel a dialog" },
 	};

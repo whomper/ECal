@@ -2283,6 +2283,32 @@ static void context_menu(short mx, short my, int it, long day, short minute)
 	}
 }
 
+/* Insert: the context menu from the keyboard (D17; Erez, 10 Nov 2026:
+   at the selected event, else the selected day, else the pointer) */
+static void insert_menu(void)
+{
+	short mx, my, b, k, minute = -1;
+	int i;
+	GRECT r;
+	if (sel_occ.ev)
+		for (i = 0; i < nitems; i++)
+			if (items[i].kind == IT_EVENT && occ.o[items[i].occ].ev == sel_occ.ev &&
+			    occ.o[items[i].occ].start == sel_occ.start) {
+				context_menu(items[i].r.x, items[i].r.y, i, cur_day, -1);
+				return;
+			}
+	if (day_box(cur_day, &r)) {
+		context_menu(r.x, r.y, -1, cur_day, -1);
+		return;
+	}
+	if (cur_view == V_DAY) {
+		context_menu(r_view.x, r_view.y, -1, cur_day, -1);
+		return;
+	}
+	graf_mkstate(&mx, &my, &b, &k);
+	context_menu(mx, my, item_at(mx, my), day_at(mx, my, &minute), minute);
+}
+
 /* how many occurrences the view has (for the log) */
 int views_count(void)
 {
@@ -2798,6 +2824,9 @@ int views_key(short kstate, short key)
 		return 1;
 	case 0x47:		/* Clr/Home */
 		views_today();
+		return 1;
+	case 0x52:		/* Insert: the context menu (D17) */
+		insert_menu();
 		return 1;
 	case 0x1c:		/* Return */
 	case 0x72:
