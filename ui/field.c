@@ -26,6 +26,7 @@
 #include "people_ask.h"
 #include "dialog.h"
 #include "dlgbuild.h"
+#include "tooltip.h"
 
 static GRECT box;		/* the dialog on screen */
 static short rh;		/* pixels per row */
@@ -564,53 +565,18 @@ static int people_key(DLG *d, short i, short key)
 }
 
 /* ---- a tip for what the mouse points at in a people field (the
-   address); taken away by drawing that part of the dialog again ---- */
-static GRECT tip_r;
-static int tip_up;
+   address): common's tooltip.c, 0.7 s as every tip (D18; Erez, 10 Nov
+   2026), its box taken away by dlg_tip_repaint ---- */
+static int tips_on;		/* a dialog with tips is open (cur_dlg) */
 
 static void draw_all_in(DLG *d, const GRECT *clip);
 
-static void tip_put(const char *s, short mx, short my)
+static int dlg_tip_text(short mx, short my, char *out, int size)
 {
-	GRECT r;
-	short n = (short)strlen(s);
-	if (n > 60)
-		n = 60;
-	r.w = (n + 2) * cw;
-	r.h = ch + 6;
-	r.x = mx + cw;
-	r.y = my + ch + 2;
-	if (r.x + r.w > box.x + box.w - 3)
-		r.x = box.x + box.w - 3 - r.w;
-	if (r.x < box.x + 3)
-		r.x = box.x + 3;
-	if (r.y + r.h > box.y + box.h - 3)
-		r.y = my - r.h - 2;
-	if (!clip_box(&box))
-		return;
-	graf_mouse(M_OFF, 0);
-	fill(&r, 0);
-	frame(&r, 1);
-	text_at(r.x + cw, r.y + 3, s, n, n, (line_rtl(s, n) ? TX_RIGHT : TX_LTR));
-	graf_mouse(M_ON, 0);
-	tip_r = r;
-	tip_r.w++;
-	tip_r.h++;
-	tip_up = 1;
-}
-
-static void tip_take(DLG *d)
-{
-	if (!tip_up)
-		return;
-	tip_up = 0;
-	draw_all_in(d, &tip_r);
-}
-
-/* the tip for what is under the mouse, if there is one */
-static int tip_for(DLG *d, short mx, short my)
-{
+	DLG *d = cur_dlg;
 	short i;
+	if (!d)
+		return 0;
 	for (i = 0; i < d->n; i++) {
 		FIELD *f = &d->f[i];
 		GRECT r;
@@ -622,11 +588,58 @@ static int tip_for(DLG *d, short mx, short my)
 			continue;
 		k = people_at(f, mx, my);
 		if (k >= 0 && f->tips[k] && *f->tips[k]) {
-			tip_put(f->tips[k], mx, my);
+			str_copy(out, f->tips[k], size);
 			return 1;
 		}
 	}
 	return 0;
+}
+
+/* the tip's box gone while a dialog is open: the dialog drawn again
+   where it was, and what the box covered outside it (the window under
+   it, else the AES); 0 when no dialog of ours has tips open */
+int dlg_tip_repaint(const GRECT *r)
+{
+	GRECT a = *r, p[4];
+	short n = 0, i;
+	if (!tips_on || !cur_dlg)
+		return 0;
+	if (rect_and(&a, &box))
+		draw_all_in(cur_dlg, &a);
+	/* above, below, left and right of the dialog */
+	if (r->y < box.y) {
+		p[n] = *r;
+		p[n++].h = box.y - r->y;
+	}
+	if (r->y + r->h > box.y + box.h) {
+		p[n] = *r;
+		p[n].y = box.y + box.h;
+		p[n++].h = r->y + r->h - (box.y + box.h);
+	}
+	a = *r;
+	if (a.y < box.y) {
+		a.h -= box.y - a.y;
+		a.y = box.y;
+	}
+	if (a.y + a.h > box.y + box.h)
+		a.h = box.y + box.h - a.y;
+	if (a.h > 0 && a.x < box.x) {
+		p[n] = a;
+		p[n++].w = box.x - a.x;
+	}
+	if (a.h > 0 && a.x + a.w > box.x + box.w) {
+		p[n] = a;
+		p[n].x = box.x + box.w;
+		p[n++].w = a.x + a.w - (box.x + box.w);
+	}
+	for (i = 0; i < n; i++)
+		if (p[i].w > 0 && p[i].h > 0) {
+			font_sys_pop();
+			win_redraw(&p[i]);
+			font_sys_push();
+			form_dial(FMD_FINISH, p[i].x, p[i].y, p[i].w, p[i].h);	/* (the desktop's part) */
+		}
+	return 1;
 }
 
 static void draw_field(DLG *d, short i)
@@ -1342,8 +1355,7 @@ static int close_box(const GRECT *b, int via_dlg)
 
 short dlg_run(DLG *d)
 {
-	short result = -2, i, mx, my, mb, ks, m[8], tips = 0, hx = -1, hy = -1, tip_tried = 1, via;
-	unsigned long hover_at = 0;
+	short result = -2, i, mx, my, mb, ks, m[8], tips = 0, hx = -1, hy = -1, via;
 	AEVENT e;
 	GRECT outer = box;		/* the dialog under this one, if any */
 	short outer_rh = rh, outer_pad = pad, outer_todo = todo, outer_clear = clear_y;
@@ -1421,23 +1433,18 @@ short dlg_run(DLG *d)
 			tips = 1;
 	if (tips)
 		graf_mkstate(&hx, &hy, &mb, &ks);
-	tip_up = 0;
+	tips_on = tips;
 	while (result == -2) {
 		if (tips) {
 			evnt_set_m1(1, hx, hy, 1, 1);
-			dlg_evnt(MU_KEYBD | MU_BUTTON | MU_M1 | MU_MESAG | MU_TIMER, 0x101, 3, 0, todo < d->n ? 0 : 100, m, &e);
+			dlg_evnt(MU_KEYBD | MU_BUTTON | MU_M1 | MU_MESAG | MU_TIMER, 0x101, 3, 0,
+				 todo < d->n ? 0 : tip_wait(1000), m, &e);
 			box_now();
-			if (e.which & (MU_KEYBD | MU_BUTTON | MU_M1))
-				tip_take(d);
 			if (e.which & MU_M1) {
 				hx = e.mx;
 				hy = e.my;
-				hover_at = pf_ms();
-				tip_tried = 0;
-			} else if (!(e.which & (MU_KEYBD | MU_BUTTON)) && !tip_tried && pf_ms() - hover_at >= 500UL) {
-				tip_tried = 1;
-				tip_for(d, hx, hy);
 			}
+			tip_tick(e.which, hx, hy, dlg_tip_text);
 		} else {
 			dlg_evnt(MU_KEYBD | MU_BUTTON | MU_MESAG | MU_TIMER, 0x101, 3, 0, todo < d->n ? 0 : 200, m, &e);
 			box_now();
@@ -1595,7 +1602,8 @@ short dlg_run(DLG *d)
 		if (result == -2 && todo < d->n)
 			draw_some(d, DRAW_SLICE_MS);
 	}
-	tip_take(d);
+	tip_hide();
+	tips_on = 0;
 	clip_off();
 	close_box(&box, via);
 	/* back to the dialog underneath: its place, and the caller repaints it */
