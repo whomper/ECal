@@ -642,7 +642,22 @@ int dlg_tip_repaint(const GRECT *r)
 	return 1;
 }
 
+static void draw_field_only(DLG *d, short i);
+static void ring_rect(const FIELD *f, GRECT *r);
+static short ring;	/* the keys' focus ring shown (D25): a key used since the last click */
+
 static void draw_field(DLG *d, short i)
+{
+	FIELD *f = &d->f[i];
+	draw_field_only(d, i);
+	if (ring && d->focus == i && !typed_field(f) && f->type != FT_PEOPLE) {
+		GRECT r;
+		ring_rect(f, &r);
+		frame(&r, 1);		/* the focus (D25): a thin ring round it */
+	}
+}
+
+static void draw_field_only(DLG *d, short i)
 {
 	FIELD *f = &d->f[i];
 	GRECT r;
@@ -994,6 +1009,84 @@ void dlg_redraw_field(DLG *d, short i)
 	draw_field(d, i);
 	on_box(0);
 	graf_mouse(M_ON, 0);
+}
+
+/* the keyboard reaches every control (D25, 5.10): Tab and Shift+Tab go
+   through the text fields, ticks, pop-ups, buttons and colours; Space
+   acts on the one with the focus. A thin ring shows that one, from the
+   first such key until the next click */
+static int reach(const FIELD *f)
+{
+	if (focusable(f))
+		return 1;
+	return shown_now(f) && !(f->flags & FF_DISABLED) &&
+	       (f->type == FT_CHECK || f->type == FT_POPUP || f->type == FT_BUTTON || f->type == FT_CHOOSE ||
+		f->type == FT_COLOR);
+}
+
+/* the ring's place: inside what dlg_redraw_field clears round the field */
+static void ring_rect(const FIELD *f, GRECT *r)
+{
+	if (f->type == FT_CHECK || f->type == FT_COLOR) {
+		r->x = FX(f) - 2;
+		r->y = FY(f) - 2;
+		r->w = (f->type == FT_COLOR ? NCOLORS * 3 - 1 : f->w ? f->w : (short)strlen(f->label)) * cw + 4;
+		r->h = ch + 4;
+		return;
+	}
+	field_rect(f, r);
+	r->x--;
+	r->y--;
+	r->w += 2;
+	r->h += 2;
+}
+
+static void open_popup(DLG *d, short i)
+{
+	FIELD *f = &d->f[i];
+	GRECT r;
+	short k, j;
+	char tick[16][64];
+	const char *lab[16];
+	field_rect(f, &r);
+	/* popup_over (D27, C8): the ticked row over the button; its labels
+	   are the words, the ticked one "\x08" and the words (popup.h's new
+	   contract). It draws over the dialog and saves nothing: redraw after */
+	for (j = 0; j < f->nitems && j < 16; j++) {
+		const char *w = f->items[j];
+		while (*w == ' ')
+			w++;
+		lab[j] = w;
+		if (j == f->val) {
+			tick[j][0] = '\x08';
+			str_copy(tick[j] + 1, w, sizeof(tick[j]) - 1);
+			lab[j] = tick[j];
+		}
+	}
+	k = popup_over(r.x, r.y, lab, j, f->val);
+	draw_all(d);
+	if (k >= 0 && k != f->val) {
+		f->val = k;
+		dlg_redraw_field(d, i);
+		if (d->changed)
+			d->changed(d, i);
+	}
+}
+
+/* the next control the keys reach, from `from` (-1: none yet) */
+static short next_reach(DLG *d, short from, short dir)
+{
+	short i = from, k;
+	for (k = 0; k < d->n; k++) {
+		i += dir;
+		if (i < 0)
+			i = d->n - 1;
+		if (i >= d->n)
+			i = 0;
+		if (reach(&d->f[i]))
+			return i;
+	}
+	return from;
 }
 
 static short next_focus(DLG *d, short from, short dir)
@@ -1434,6 +1527,7 @@ short dlg_run(DLG *d)
 	if (tips)
 		graf_mkstate(&hx, &hy, &mb, &ks);
 	tips_on = tips;
+	ring = 0;
 	while (result == -2) {
 		if (tips) {
 			evnt_set_m1(1, hx, hy, 1, 1);
@@ -1472,13 +1566,58 @@ short dlg_run(DLG *d)
 					f->cur = f->first = 0;
 					dlg_redraw_field(d, d->focus);
 				}
-			} else if (scan == 0x0f || ((scan == 0x48 || scan == 0x50) && (!f || f->type != FT_MULTI))) {
-				short dir = (scan == 0x48 || (scan == 0x0f && (e.kstate & (K_LSHIFT | K_RSHIFT)))) ? -1 : 1;
-				if (d->focus >= 0)
+			} else if (scan == 0x0f) {
+				/* Tab, Shift+Tab: every control (D25), the ring shown */
+				short dir = (e.kstate & (K_LSHIFT | K_RSHIFT)) || key_shift(e.kstate, e.kreturn) ? -1 : 1;
+				ring = 1;
+				set_focus(d, next_reach(d, d->focus, dir));
+			} else if ((scan == 0x48 || scan == 0x50) && (!f || f->type != FT_MULTI)) {
+				/* Up, Down: the next text field, as GEM's; from a tick, a
+				   pop-up or a button, the next control */
+				short dir = scan == 0x48 ? -1 : 1;
+				if (f && !typed_field(f) && f->type != FT_PEOPLE) {
+					ring = 1;
+					set_focus(d, next_reach(d, d->focus, dir));
+				} else if (d->focus >= 0)
 					set_focus(d, next_focus(d, d->focus, dir));
+			} else if (f && f->type == FT_COLOR && (scan == 0x4b || scan == 0x4d)) {
+				/* Left, Right: the colour before or after */
+				short k = (short)(f->val + (scan == 0x4b ? -1 : 1));
+				if (k >= 0 && k < NCOLORS) {
+					f->val = k;
+					dlg_redraw_field(d, d->focus);
+					if (d->changed)
+						d->changed(d, d->focus);
+				}
+			} else if (f && !typed_field(f) && f->type != FT_PEOPLE && scan == 0x39) {
+				/* Space: the control with the focus acts (D25) */
+				short at = d->focus;
+				switch (f->type) {
+				case FT_CHECK:
+					f->val = !f->val;
+					dlg_redraw_field(d, at);
+					if (d->changed)
+						d->changed(d, at);
+					break;
+				case FT_POPUP:
+					open_popup(d, at);
+					break;
+				case FT_BUTTON:
+					press_effect(d, at);
+					if (!(f->flags & FF_ACTION))
+						result = at;
+					else if (d->changed)
+						d->changed(d, at);
+					break;
+				case FT_CHOOSE:
+					press_effect(d, at);
+					if (d->changed)
+						d->changed(d, at);
+					break;
+				}
 			} else if (f && f->type == FT_PEOPLE && people_key(d, d->focus, e.kreturn)) {
 				/* chosen, or one to take away */
-			} else if (f && edit_key(d, f, e.kstate, e.kreturn)) {
+			} else if (f && typed_field(f) && edit_key(d, f, e.kstate, e.kreturn)) {
 				/* typed */
 			} else if (scan == 0x1c || scan == 0x72) {	/* Return */
 				short b = find_flag(d, FF_DEFAULT);
@@ -1514,6 +1653,12 @@ short dlg_run(DLG *d)
 					}
 				}
 			}
+		}
+		if ((e.which & MU_BUTTON) && ring) {
+			/* a click: the ring goes until the next key */
+			ring = 0;
+			if (d->focus >= 0 && !typed_field(&d->f[d->focus]))
+				dlg_redraw_field(d, d->focus);
 		}
 		if (e.which & MU_BUTTON) {
 			short hit = field_at(d, e.mx, e.my);
@@ -1552,37 +1697,9 @@ short dlg_run(DLG *d)
 					if (d->changed)
 						d->changed(d, hit);
 					break;
-				case FT_POPUP: {
-					GRECT r;
-					short k, j;
-					char tick[16][64];
-					const char *lab[16];
-					field_rect(f, &r);
-					/* popup_over (D27, C8): the ticked row over the
-					   button; its labels are the words, the ticked one
-					   "\x08" and the words (popup.h's new contract). It
-					   draws over the dialog and saves nothing: redraw after */
-					for (j = 0; j < f->nitems && j < 16; j++) {
-						const char *w = f->items[j];
-						while (*w == ' ')
-							w++;
-						lab[j] = w;
-						if (j == f->val) {
-							tick[j][0] = '\x08';
-							str_copy(tick[j] + 1, w, sizeof(tick[j]) - 1);
-							lab[j] = tick[j];
-						}
-					}
-					k = popup_over(r.x, r.y, lab, j, f->val);
-					draw_all(d);
-					if (k >= 0 && k != f->val) {
-						f->val = k;
-						dlg_redraw_field(d, hit);
-						if (d->changed)
-							d->changed(d, hit);
-					}
+				case FT_POPUP:
+					open_popup(d, hit);
 					break;
-				}
 				case FT_COLOR: {
 					short k = (e.mx - FX(f)) / (3 * cw);
 					if (k >= 0 && k < NCOLORS) {
@@ -1604,6 +1721,7 @@ short dlg_run(DLG *d)
 	}
 	tip_hide();
 	tips_on = 0;
+	ring = 0;
 	clip_off();
 	close_box(&box, via);
 	/* back to the dialog underneath: its place, and the caller repaints it */
