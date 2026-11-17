@@ -58,7 +58,6 @@ void vline(short x, short y1, short y2);
 void line_col(short x1, short y1, short x2, short y2, short color);
 long wrap_text(const char *s, long n, short width, long *breaks, long max);
 short line_rtl(const char *s, long n);
-void heb_font_map(char *s, long n, short where);
 int  rect_hit(const GRECT *r, short x, short y);
 int  rect_and(GRECT *a, const GRECT *b);	/* a = a & b; 0 if empty */
 void st_ram_init(void);		/* at start-up */
@@ -265,7 +264,7 @@ int  font_gdos_loaded(void);
 void font_menu(void);		/* the font selector (font.c) */
 void font_reselect(void);	/* the text font again, after drawing in another */
 /* how the text font gets its Hebrew letters */
-#define HM_MAP     0		/* where opt.hebfont says (system and bitmap fonts) */
+#define HM_MAP     0		/* the Atari codes (system and bitmap fonts) */
 #define HM_UNICODE 1		/* a vector font's own, found by Unicode (NVDI) */
 #define HM_SYSTEM  2		/* a vector font without them: the system font's */
 extern short font_cells;	/* how a GDOS font's runs are drawn (font.c, from EMail): */

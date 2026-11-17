@@ -451,21 +451,21 @@ int dlg_calendar(int ci)
 
 static const char *const week_words[] = { "Sunday", "Monday", "Saturday" };
 static const char *const hour_words[] = { "6:00", "7:00", "8:00", "9:00", "10:00" };
-static const char *const heb_words[] = { "Atari (standard)", "ISO-8859-8 font", "PC (code page 862)" };
 static const char *const len_words[] = { "15 minutes", "30 minutes", "1 hour", "90 minutes", "2 hours" };
 static const short len_min[] = { 15, 30, 60, 90, 120 };
 static const char *const alert_words[] = { "None", "At the time", "5 minutes before", "10 minutes before",
 					   "15 minutes before", "30 minutes before", "1 hour before" };
 static const short alert_min[] = { -1, 0, 5, 10, 15, 30, 60 };
 static const char *const refresh_words[] = { "Never", "Every 15 minutes", "Every hour", "Every day", "Every week" };
-static const char *start_words[5] = { "At start", "After a minute", "After 5 minutes", "When opened", 0 };
+/* Read calendars, four radio buttons (D24; Erez's words, 17 Nov 2026) */
+static const char *const start_words[4] = { "At start", "1 minute", "5 minutes", "Opened" };
 
 enum { P_GENERAL, P_EVENTS, P_ZONES, P_REFRESH, P_CONTACTS, P_SECURE, P_ADVANCED, NPAGES };
 
 /* the values while the dialog is open: the engine's (ticks and choices
    0..n-1, texts), taken at OK */
 static struct {
-	short week, hour, h24, hebdates, hebfont;
+	short week, hour, h24, hebdates;
 	short len, alert, alarms;
 	short tzsupport;
 	char hz[44], vz[44], hz_lab[32], vz_lab[32];
@@ -528,8 +528,6 @@ static void page_general(SETTINGS *s, short x, short y, void *user)
 	set_popup(s, x + SET_FX, set_y(s, 3), 8, hour_words, 5, &sv.hour);
 	set_tick(s, x, set_y(s, 4), "24-hour clock", &sv.h24);
 	set_tick(s, x, set_y(s, 5), "Show Hebrew dates", &sv.hebdates);
-	set_text(s, x, set_y(s, 7), "Hebrew in font:");
-	set_popup(s, x + 20, set_y(s, 7), 21, heb_words, 3, &sv.hebfont);
 }
 
 static void page_events(SETTINGS *s, short x, short y, void *user)
@@ -567,17 +565,19 @@ static void page_refresh(SETTINGS *s, short x, short y, void *user)
 	if (!acc && t >= 0)
 		set_tick_enable(s, t, 0);	/* (the accessory's) */
 	set_text(s, x, set_y(s, 3), "Read calendars:");
-	t = set_popup(s, x + 20, set_y(s, 3), 21, start_words, start_words[4] ? 5 : 4, &sv.start);
-	if (!acc && t >= 0) {
+	/* (START= another number of seconds, typed into ECAL.INF: none of
+	   the four chosen, and kept unless one is) */
+	t = set_radio(s, x, set_y(s, 4), 9, start_words, 4, &sv.start);
+	if (!acc && t > 0) {
 		short k;
-		for (k = 0; k < (start_words[4] ? 5 : 4); k++)
-			set_popup_enable(s, t, k, 0);
+		for (k = 0; k < 4; k++)
+			set_radio_enable(s, t, k, 0);	/* (the accessory's) */
 	}
 	set_text(s, x, set_y(s, 5), "Keep on this Atari:");
 	set_text(s, x + 2, set_y(s, 6), "Days back");
-	sv.f_past = set_field(s, x + 20, set_y(s, 6), sv.past, 5, '9');
-	set_text(s, x + 2, set_y(s, 7), "Days ahead");
-	sv.f_future = set_field(s, x + 20, set_y(s, 7), sv.future, 5, '9');
+	sv.f_past = set_field(s, x + 14, set_y(s, 6), sv.past, 5, '9');
+	set_text(s, x + 22, set_y(s, 6), "Days ahead");
+	sv.f_future = set_field(s, x + 34, set_y(s, 6), sv.future, 5, '9');
 }
 
 static void page_contacts(SETTINGS *s, short x, short y, void *user)
@@ -663,7 +663,6 @@ static void settings(short first)
 		{ "Refresh", page_refresh }, { "Contacts", page_contacts }, { "Secure", page_secure },
 		{ "Advanced", page_advanced }
 	};
-	static char other[30];
 	SET_DEF d;
 	long st;
 	short i;
@@ -673,7 +672,6 @@ static void settings(short first)
 	sv.hour = opt.daystart >= 6 && opt.daystart <= 10 ? opt.daystart - 6 : 2;
 	sv.h24 = opt.h24;
 	sv.hebdates = opt.hebdates;
-	sv.hebfont = opt.hebfont >= 0 && opt.hebfont <= 2 ? opt.hebfont : 0;
 	sv.len = 2;
 	for (i = 0; i < 5; i++)
 		if (len_min[i] == opt.duration)
@@ -694,12 +692,8 @@ static void settings(short first)
 	sv.bgsync = opt.bgsync;
 	st = bg_parse(opt.start);
 	sv.start = st == BG_NOW ? 0 : st == BG_OPENED ? 3 : st == 300 ? 2 : 1;
-	start_words[4] = 0;
-	if (st > 0 && st != 60 && st != 300) {
-		snprintf(other, sizeof(other), "After %ld s", st);
-		start_words[4] = other;
-		sv.start = 4;
-	}
+	if (st > 0 && st != 60 && st != 300)
+		sv.start = 4;		/* (another number of seconds: none chosen) */
 	snprintf(sv.past, sizeof(sv.past), "%d", opt.past_days);
 	snprintf(sv.future, sizeof(sv.future), "%d", opt.future_days);
 	sv.peoplefile = opt.peoplefile;
@@ -725,7 +719,6 @@ static void settings(short first)
 	opt.daystart = sv.hour + 6;
 	opt.h24 = sv.h24;
 	opt.hebdates = sv.hebdates;
-	opt.hebfont = sv.hebfont;
 	opt.duration = len_min[sv.len];
 	opt.alarm_default = alert_min[sv.alert];
 	opt.alarms = sv.alarms;

@@ -1858,13 +1858,6 @@ static void work_step(void)
 }
 
 
-/* alerts (common/ui/alert.c): Hebrew letters where the font has them */
-static void alert_heb(char *line, long n)
-{
-	if (opt.hebfont != HEB_ATARI)
-		heb_font_map(line, n, opt.hebfont);
-}
-
 /* one step of quitting in ECAL.LOG, on the disk at once: if the machine
    bombs after the window has gone (EFTP and EMail, Erez 10 Nov 2026), the
    last line says where */
@@ -2038,7 +2031,6 @@ int main(void)
 	find_workdir();
 	crash_install(workdir, "ECal", cal_version);	/* the program only */
 	crash_cleanup = crash_quit;
-	alert_hebrew = alert_heb;
 	crash_report = conn_log_append;	/* the report in ECAL.LOG too */
 	busy_message = busy_msg;
 	if (is_acc) {

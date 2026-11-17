@@ -169,7 +169,7 @@ static void set_opt(const char *k, const char *v)
 #define I(name) if (!strcasecmp(k, #name)) { opt.name = (short)atoi(v); return; }
 	S(home_tz) S(view_tz) S(gate) S(folder) S(start) S(peopledir)
 	I(tzsupport) I(falcon) I(dsp) I(weekstart) I(h24) I(hebdates) I(view) I(daystart)
-	I(alarms) I(alarm_default) I(log) I(hebfont)
+	I(alarms) I(alarm_default) I(log)
 	I(sidebar) I(panes) I(offscreen) I(past_days) I(future_days) I(duration) I(refresh) I(sync_open) I(offline) I(heapkb) I(memkb)
 	I(peoplefile)
 	/* WINDOW=x,y,w,h and FONT=name,points (D43); the old keys before
@@ -519,7 +519,6 @@ options2:
 	I("DAYSTART", daystart, "first hour shown in the day and week views")
 	I("H24", h24, "24-hour clock")
 	I("HEBDATES", hebdates, "Hebrew dates next to the civil ones")
-	I("HEBFONT", hebfont, "where the font has the Hebrew letters: 0 Atari, 1 ISO-8859-8, 2 DOS 862")
 	I("DURATION", duration, "minutes a new event lasts")
 	I("ALARM_DEFAULT", alarm_default, "a new event's alert, minutes before; -1 none")
 	I("ALARMS", alarms, "show alerts")

@@ -124,8 +124,7 @@ that says what to type.
 
 - **General**: the first day of the week (Sunday, Monday or Saturday),
   the first hour the day and week views show, the 24-hour clock, Hebrew
-  dates next to the civil ones, which character set your font has
-  Hebrew in.
+  dates next to the civil ones.
   Where the AES draws dialogs in 3D (TOS 4, MagiC, N.AES, XaAES, EmuTOS
   in colour), ECal's dialogs and alerts take that look with 16 colours or
   more: a grey ground, the AES's own raised buttons, white fields; on
@@ -147,8 +146,8 @@ that says what to type.
   with a Direct connection each new connection's TLS handshake holds the machine
   for a second or two, so it starts one only while you aren't working.)
   **Read calendars** (the accessory only): when it reads the calendars
-  kept on disk: **After a minute** (as at first), at once (**At start**),
-  after five minutes, or only **When opened**; its reminders come from
+  kept on disk: after **1 minute** (as at first), at once (**At start**),
+  after **5 minutes**, or only when **Opened**; its reminders come from
   the start either way (see [Reminders](#reminders)). **Keep on this Atari**: how many
   days back and ahead ECal keeps. It starts with 0 and 400: nothing from
   before today is copied, and repeating events show from today on. Fewer use

@@ -532,28 +532,6 @@ short line_rtl(const char *s, long n)
 	return bidi_has_rtl(s, (short)n) && bidi_is_rtl(s, (short)n);
 }
 
-/* Some fonts have the Hebrew letters where ISO-8859-8 or DOS 862 put
-   them; Settings says which, and the letters move there just before
-   drawing (from EMail). */
-static const unsigned char heb_order[27] = {
-	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 14, 16,
-	17, 18, 20, 22, 23, 24, 25, 26,
-	15, 10, 13, 19, 21
-};
-
-void heb_font_map(char *s, long n, short where)
-{
-	long i;
-	unsigned char base = where == HEB_ISO ? 0xE0 : 0x80;
-	if (where != HEB_ISO && where != HEB_DOS)
-		return;
-	for (i = 0; i < n; i++) {
-		unsigned char c = (unsigned char)s[i];
-		if (c >= 0xC2 && c <= 0xDC)
-			s[i] = (char)(base + heb_order[c - 0xC2]);
-	}
-}
-
 static int has_heb(const char *s, long n)
 {
 	long i;
@@ -613,7 +591,6 @@ static void runs_at(short x, short y, const char *s, short n)
 			vst_height(vdi_h, keep_ch >= 16 ? 13 : 6, &dw, &dh);
 			vst_alignment(vdi_h, 0, 5);
 			memcpy(c, s + i, j - i);
-			heb_font_map(c, j - i, opt.hebfont);
 			for (k = 0; k < j - i; k++)
 				v_gtext_n(vdi_h, x + (i + k) * keep_cw + (keep_cw - dw) / 2,
 					  y + (keep_ch - dh) / 2, c + k, 1);
@@ -716,12 +693,6 @@ void text_at(short x, short y, const char *s, long n, short cols, short flags)
 			runs_at(x + 1, y, out, (short)n);
 		}
 		return;
-	}
-	if (opt.hebfont != HEB_ATARI && has_heb(out, n)) {
-		if (out != vis)
-			memcpy(vis, out, n);
-		out = vis;
-		heb_font_map(vis, n, opt.hebfont);
 	}
 	/* black on white, in the system font on TOS's screen: straight into
 	   it, the cells' white with it, some three times the VDI's speed on

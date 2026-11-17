@@ -80,7 +80,6 @@ static void info_make(const char *s)
 	if (bidi_has_rtl(logical, n)) {
 		bidi_visual(logical, n, 0, info);
 		info[n] = 0;
-		heb_font_map(info, n, opt.hebfont);
 	} else {
 		str_copy(info, logical, sizeof(info));
 	}

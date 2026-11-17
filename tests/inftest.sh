@@ -32,4 +32,10 @@ grep -q "^FONT=System,16" "$inf" || { echo "inftest: FONT_ID= and FONT_PT= not r
 sed -i 's/^FONT=System,16\r$/FONT=Courier,10\r\nFONT_ID=1\r/' "$inf"
 "$CLI" "$W/d" save >/dev/null
 grep -q "^FONT=Courier,10" "$inf" || { echo "inftest: FONT_ID= after FONT= won"; exit 1; }
-echo "inftest: saved unchanged, ECAL.INF untouched; a calendar added, written; WINDOW= and FONT= from the old keys"
+# HEBFONT= (the Hebrew in font setting, gone: Erez, 17 Nov 2026) read once
+# and left out of the next ECAL.INF; ECal starts with it as with any key
+sed -i 's/^WINDOW=\(.*\)\r$/WINDOW=\1\r\nHEBFONT=1\r/' "$inf"
+grep -q "^HEBFONT=1" "$inf" || { echo "inftest: HEBFONT= not put in"; exit 1; }
+"$CLI" "$W/d" save >/dev/null
+! grep -qi "^HEBFONT" "$inf" || { echo "inftest: HEBFONT= written again"; exit 1; }
+echo "inftest: saved unchanged, ECAL.INF untouched; a calendar added, written; WINDOW= and FONT= from the old keys; HEBFONT= dropped"

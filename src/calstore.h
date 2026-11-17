@@ -72,7 +72,7 @@ typedef struct {
 	short alarms;		/* show reminders */
 	short alarm_default;	/* minutes before, for new events; -1 none */
 	short log;
-	short font_id, font_pt, hebfont;	/* font_id 0: not known yet, found by font_name */
+	short font_id, font_pt;	/* font_id 0: not known yet, found by font_name */
 	char font_name[34];	/* FONT='s name (the VDI's, vqt_name); "": not known yet */
 	short win_x, win_y, win_w, win_h;
 	short sidebar;
@@ -95,9 +95,6 @@ typedef struct {
 } OPT;
 
 enum { V_DAY, V_WEEK, V_MONTH, V_YEAR };
-#define HEB_ATARI 0	/* where the font has Hebrew (draw.c) */
-#define HEB_ISO   1
-#define HEB_DOS   2
 
 extern OPT opt;
 #define MAXACCT 12
