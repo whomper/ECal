@@ -502,7 +502,7 @@ void store_settings_text(SBUF *bp, int part)
 	I("TZSUPPORT", tzsupport, "time zone support: each event shows and edits its own zone")
 	I("FALCON", falcon, "Direct connection: TLS on this Atari (68020 or better, TLS.OVL in ECal's folder); 0: through the Gateway")
 	I("DSP", dsp, "check certificates on the Falcon's DSP56001")
-	S("GATE", gate, "the Gateway's address (Settings > Connection)")
+	S("GATE", gate, "the Gateway's address (Settings > Secure)")
 	sb_printf(&b, "; the Gateway's port\r\nGATEPORT=%u\r\n\r\n", opt.gateport);
 	I("OFFLINE", offline, "work offline: no connections at all (the menu > Work offline)")
 	I("LOG", log, "write the conversation with the servers to ECAL.LOG (passwords left out)")

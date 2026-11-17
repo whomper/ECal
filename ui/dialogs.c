@@ -101,7 +101,7 @@ static int connection_ready(const char *url)
 	URL u;
 	if (!url_parse(url, &u) || !u.tls || opt.falcon || opt.gate[0])
 		return 1;
-	if (alert(1, "[1][Calendar servers want a secure connection. Set up the Gateway, or a Direct connection, in Settings, Connection.][Settings|Cancel]") == 1)
+	if (alert(1, "[1][Calendar servers want a secure connection. Set up the Gateway, or a Direct connection, in Settings, Secure.][Settings|Cancel]") == 1)
 		dlg_connection();
 	return opt.falcon || opt.gate[0];
 }
@@ -188,11 +188,7 @@ static const char *const refresh_items[] = {
 };
 static const short refresh_min[] = { 0, 15, 60, 1440, 10080 };
 
-/* when the accessory reads the calendars (START=, common/ui/bgwork.h);
-   the last item is another number of seconds typed into ECAL.INF */
-static const char *start_items[5] = {
-	"  At start", "  After a minute", "  After 5 minutes", "  When opened", 0
-};
+/* when the accessory reads the calendars (START=, common/ui/bgwork.h) */
 static const char *const start_val[4] = { "now", "60", "300", "opened" };
 
 static int edit_subscription(ACCOUNT *a, CALENDAR *c, int is_new)
@@ -443,295 +439,324 @@ int dlg_calendar(int ci)
 	return 1;
 }
 
-/* ---------------- settings ---------------- */
-
-static const char *const week_items[] = { "  Sunday", "  Monday", "  Saturday" };
-static const char *const len_items[] = { "  15 minutes", "  30 minutes", "  1 hour", "  90 minutes", "  2 hours" };
-static const short len_min[] = { 15, 30, 60, 90, 120 };
-static const char *const alert_items[] = { "  None", "  At the time", "  5 minutes before", "  10 minutes before",
-					   "  15 minutes before", "  30 minutes before", "  1 hour before" };
-static const short alert_min[] = { -1, 0, 5, 10, 15, 30, 60 };
-static const char *const hour_items[] = { "  6:00", "  7:00", "  8:00", "  9:00", "  10:00" };
-static const char *const heb_items[] = { "  Atari (standard)", "  ISO-8859-8 font", "  PC (code page 862)" };
-
 /* ---------------- settings ----------------
- * As in EMail: a list of sections on the left (the chosen one in a black
- * bar) and that section's settings on the right, under its name. */
+ * The family's Settings dialog (guidelines 6.1; Erez, 9 Nov 2026), common's
+ * engine (common/ui/settings.c): the list of pages at the left, the page's
+ * name and a line over its settings, Cancel and OK at the bottom right;
+ * the radio buttons of up to four choices (D24), the keys that reach every
+ * control (D25), numbers out of their limits refused with an alert (D30).
+ * The pages in 6.1's order: General, ECal's own, Secure, Advanced. */
 
-enum { S_GENERAL = 1, S_EVENTS, S_ZONES, S_REFRESH, S_CONN, S_CONTACTS };
-static const char *const section_names[] = { "General", "Events", "Time zones", "Refresh", "Connection", "Contacts" };
+#include "settings.h"
 
-#define SIDE 12			/* the list's width */
-#define CX (SIDE + 2)		/* where a section's settings start */
-#define VX (CX + 17)		/* and their values */
-#define SW (VX + 40)		/* the dialog's width: the Direct connection line */
+static const char *const week_words[] = { "Sunday", "Monday", "Saturday" };
+static const char *const hour_words[] = { "6:00", "7:00", "8:00", "9:00", "10:00" };
+static const char *const heb_words[] = { "Atari (standard)", "ISO-8859-8 font", "PC (code page 862)" };
+static const char *const len_words[] = { "15 minutes", "30 minutes", "1 hour", "90 minutes", "2 hours" };
+static const short len_min[] = { 15, 30, 60, 90, 120 };
+static const char *const alert_words[] = { "None", "At the time", "5 minutes before", "10 minutes before",
+					   "15 minutes before", "30 minutes before", "1 hour before" };
+static const short alert_min[] = { -1, 0, 5, 10, 15, 30, 60 };
+static const char *const refresh_words[] = { "Never", "Every 15 minutes", "Every hour", "Every day", "Every week" };
+static const char *start_words[5] = { "At start", "After a minute", "After 5 minutes", "When opened", 0 };
 
-static void in(FIELD *f, short page)
+enum { P_GENERAL, P_EVENTS, P_ZONES, P_REFRESH, P_CONTACTS, P_SECURE, P_ADVANCED, NPAGES };
+
+/* the values while the dialog is open: the engine's (ticks and choices
+   0..n-1, texts), taken at OK */
+static struct {
+	short week, hour, h24, hebdates, hebfont;
+	short len, alert, alarms;
+	short tzsupport;
+	char hz[44], vz[44], hz_lab[32], vz_lab[32];
+	short refresh, sync_open, bgsync, start;
+	char past[6], future[6];
+	short peoplefile;
+	char people_dir[160];
+	short falcon, dsp;
+	char gate[64], port[6];
+	short log;
+	short f_past, f_future, f_port, f_people;	/* the fields' objects (check, Choose...) */
+} sv;
+
+static void zone_label(char *lab, const char *zone)
 {
-	f->page = page;
+	snprintf(lab, 32, " %-29.29s", zone);
+}
+
+/* a time zone: the list, at once (5.7); the label shows it */
+static void pick_zone(SETTINGS *s, void *user)
+{
+	char *zone = (char *)user;
+	const char *z = zone_pick(zone, 0);
+	(void)s;
+	if (z)
+		str_copy(zone, z, 44);
+	zone_label(zone == sv.hz ? sv.hz_lab : sv.vz_lab, zone);
 }
 
 /* Contacts: Choose... picks EContact's folder with the file selector */
-static char people_dir[160];
-
-static void settings_changed(DLG *d, short i)
+static void pick_people(SETTINGS *s, void *user)
 {
 	char path[200], name[20] = "", *e;
 	short button = 0;
-	if (d->f[i].type == FT_CHOOSE) {
-		/* a time zone: the list, at once (the guidelines, 5.7); the
-		   dialog's own copy, taken at OK */
-		char *zone = (char *)d->f[i].label;
-		const char *z = zone_pick(zone, 0);
-		if (z)
-			str_copy(zone, z, 44);
-		dlg_after_selector(d);	/* the window under the list too */
-		return;
-	}
-	if (d->f[i].type != FT_BUTTON)
-		return;
-	if (people_dir[0])
-		snprintf(path, sizeof(path), "%s\\*.*", people_dir);
+	LFIELD *f;
+	(void)user;
+	if (sv.people_dir[0])
+		snprintf(path, sizeof(path), "%s\\*.*", sv.people_dir);
 	else
 		snprintf(path, sizeof(path), "%c:\\*.*", 'A' + boot_drive());
-	if (fsel_exinput(path, name, &button, "EContact's folder: any file") && button) {
-		e = strrchr(path, '\\');
-		if (e)
-			*e = 0;
-		str_copy(people_dir, path, sizeof(people_dir));
-		d->f[i - 1].cur = (short)strlen(people_dir);
-		d->f[i - 1].first = 0;
+	if (!fsel_exinput(path, name, &button, "EContact's folder: any file") || !button)
+		return;
+	e = strrchr(path, '\\');
+	if (e)
+		*e = 0;
+	str_copy(sv.people_dir, path, sizeof(sv.people_dir));
+	if ((f = lf_of(set_tree(s), sv.f_people)) != 0) {
+		lf_end(f);
+		lf_view(f);
 	}
-	dlg_after_selector(d);
+}
+
+static void page_general(SETTINGS *s, short x, short y, void *user)
+{
+	(void)y;
+	(void)user;
+	set_text(s, x, set_y(s, 0), "Week starts on:");
+	set_radio(s, x, set_y(s, 1), 9, week_words, 3, &sv.week);
+	set_text(s, x, set_y(s, 3), "Day view from:");
+	set_popup(s, x + SET_FX, set_y(s, 3), 8, hour_words, 5, &sv.hour);
+	set_tick(s, x, set_y(s, 4), "24-hour clock", &sv.h24);
+	set_tick(s, x, set_y(s, 5), "Show Hebrew dates", &sv.hebdates);
+	set_text(s, x, set_y(s, 7), "Hebrew in font:");
+	set_popup(s, x + 20, set_y(s, 7), 21, heb_words, 3, &sv.hebfont);
+}
+
+static void page_events(SETTINGS *s, short x, short y, void *user)
+{
+	(void)y;
+	(void)user;
+	set_text(s, x, set_y(s, 0), "New events last:");
+	set_popup(s, x + 20, set_y(s, 0), 21, len_words, 5, &sv.len);
+	set_text(s, x, set_y(s, 1), "...with alert:");
+	set_popup(s, x + 20, set_y(s, 1), 21, alert_words, 7, &sv.alert);
+	set_tick(s, x, set_y(s, 2), "Show alerts", &sv.alarms);
+}
+
+static void page_zones(SETTINGS *s, short x, short y, void *user)
+{
+	(void)y;
+	(void)user;
+	set_text(s, x, set_y(s, 0), "The Atari's clock is in:");
+	set_value(s, x + 3, set_y(s, 1), 31, sv.hz_lab, pick_zone, sv.hz);
+	set_tick(s, x, set_y(s, 3), "Time zone support", &sv.tzsupport);
+	set_text(s, x, set_y(s, 4), "Show times in:");
+	set_value(s, x + 3, set_y(s, 5), 31, sv.vz_lab, pick_zone, sv.vz);
+}
+
+static void page_refresh(SETTINGS *s, short x, short y, void *user)
+{
+	short t;
+	int acc = is_acc;
+	(void)y;
+	(void)user;
+	set_text(s, x, set_y(s, 0), "Refresh all:");
+	set_popup(s, x + 20, set_y(s, 0), 21, refresh_words, 5, &sv.refresh);
+	set_tick(s, x, set_y(s, 1), "When the window opens", &sv.sync_open);
+	t = set_tick(s, x, set_y(s, 2), "Also with the window closed", &sv.bgsync);
+	if (!acc && t >= 0)
+		set_tick_enable(s, t, 0);	/* (the accessory's) */
+	set_text(s, x, set_y(s, 3), "Read calendars:");
+	t = set_popup(s, x + 20, set_y(s, 3), 21, start_words, start_words[4] ? 5 : 4, &sv.start);
+	if (!acc && t >= 0) {
+		short k;
+		for (k = 0; k < 5; k++)
+			set_popup_enable(s, t, k, 0);
+	}
+	set_text(s, x, set_y(s, 5), "Keep on this Atari:");
+	set_text(s, x + 2, set_y(s, 6), "Days back");
+	sv.f_past = set_field(s, x + 20, set_y(s, 6), sv.past, 5, '9');
+	set_text(s, x + 2, set_y(s, 7), "Days ahead");
+	sv.f_future = set_field(s, x + 20, set_y(s, 7), sv.future, 5, '9');
+}
+
+static void page_contacts(SETTINGS *s, short x, short y, void *user)
+{
+	(void)y;
+	(void)user;
+	set_tick(s, x, set_y(s, 0), "When EContact isn't loaded, read", &sv.peoplefile);
+	set_text(s, x + 3, set_y(s, 1), "its contacts file");
+	set_text(s, x, set_y(s, 3), "EContact's folder:");
+	sv.f_people = set_long(s, x, set_y(s, 4), sv.people_dir, 28, sizeof(sv.people_dir) - 1, 0);
+	set_button(s, x + 31, set_y(s, 4), 10, "Choose...", pick_people, 0);
+	set_text(s, x, set_y(s, 5), "CONTACTS.TXT, which EContact writes there");
+}
+
+static void page_secure(SETTINGS *s, short x, short y, void *user)
+{
+	int can_falcon = get_cookie(0x5F435055L) >= 20;	/* _CPU: 68020 or better, for TLS.OVL */
+	(void)y;
+	(void)user;
+	set_tick(s, x, set_y(s, 0), "Direct connection", &sv.falcon);
+	set_text(s, x + 3, set_y(s, 1), "TLS on this Atari (68020 or better)");
+	set_tick(s, x + 3, set_y(s, 2), "Check certificates on the DSP", &sv.dsp);
+	set_text(s, x + 3, set_y(s, 3), can_falcon ? "TLS.OVL, CACERT.PEM, ROOTS.DAT in ECal's folder"
+						   : "Needs a 68020 or better (TT, Falcon)");
+	set_text(s, x, set_y(s, 5), "Through the Gateway:");
+	set_text(s, x + 2, set_y(s, 6), "Address");
+	set_long(s, x + 11, set_y(s, 6), sv.gate, 20, sizeof(sv.gate) - 1, 0);
+	set_text(s, x + 2, set_y(s, 7), "Port");
+	sv.f_port = set_field(s, x + 11, set_y(s, 7), sv.port, 5, '9');
+	set_text(s, x + 2, set_y(s, 8), "AERA-Gateway, on a Raspberry Pi");
+}
+
+static void page_advanced(SETTINGS *s, short x, short y, void *user)
+{
+	(void)y;
+	(void)user;
+	set_tick(s, x, set_y(s, 0), "Write a log", &sv.log);
+	set_text(s, x + 3, set_y(s, 1), "ECAL.LOG: the conversation with the");
+	set_text(s, x + 3, set_y(s, 2), "servers, passwords left out");
+}
+
+/* OK: a number out of its limits is refused, the alert saying what to
+   type, the field kept as typed and the cursor in it (D30) */
+static int number_ok(SETTINGS *s, short page, short field, const char *v, long lo, long hi, const char *what)
+{
+	long n = atol(v);
+	if (*v && n >= lo && n <= hi)
+		return 1;
+	alert(1, "[1][%s %ld to %ld.|Please type a number|from %ld to %ld.][ OK ]", what, lo, hi, lo, hi);
+	set_show(s, page);
+	set_focus(s, field);
+	return 0;
+}
+
+static int settings_check(SETTINGS *s, void *user)
+{
+	(void)user;
+	return number_ok(s, P_REFRESH, sv.f_past, sv.past, 0, 3650, "Keep days back:") &&
+	       number_ok(s, P_REFRESH, sv.f_future, sv.future, 7, 3650, "Keep days ahead:") &&
+	       number_ok(s, P_SECURE, sv.f_port, sv.port, 1, 65535, "The Gateway's port:");
+}
+
+/* the window under the dialog drawn again (a pop-up or a file selector
+   over it, TOS) */
+static void settings_under(short x, short y, short w, short h)
+{
+	GRECT r;
+	r.x = x;
+	r.y = y;
+	r.w = w;
+	r.h = h;
+	font_sys_pop();
+	win_redraw(&r);
+	font_sys_push();
 }
 
 static void settings(short first)
 {
-	enum { L1, F1, L2, F2, F3, F4, L13, F13,
-	       L5, F5, L6, F6, F7,
-	       L8, F8, F9, L10, F10,
-	       L11, F11, F12, F17, L18, F18, H3, L15, F15, L16, F16,
-	       C1, C2, N1, L3, C3, L4, C4, N2, C7,
-	       P1, P2, P3, P4, P5,
-	       BCAN, BOK, N };
-	FIELD f[N];
-	DLG d;
-	static char hz[44], vz[44], gate[64], port[8], past[8], future[8];
-	short r, i, row;
-	int can_falcon = get_cookie(0x5F435055L) >= 20;	/* _CPU: 68020 or better, for TLS.OVL */
-	str_copy(hz, opt.home_tz, sizeof(hz));
-	str_copy(vz, opt.view_tz, sizeof(vz));
-	str_copy(gate, opt.gate, sizeof(gate));
-	snprintf(port, sizeof(port), "%u", opt.gateport);
-	snprintf(past, sizeof(past), "%d", opt.past_days);
-	snprintf(future, sizeof(future), "%d", opt.future_days);
+	static const SET_PAGE pages[NPAGES] = {
+		{ "General", page_general }, { "Events", page_events }, { "Time zones", page_zones },
+		{ "Refresh", page_refresh }, { "Contacts", page_contacts }, { "Secure", page_secure },
+		{ "Advanced", page_advanced }
+	};
+	static char other[30];
+	SET_DEF d;
+	long st;
+	short i;
 
-	/* General */
-	row = 3;
-	put(&f[L1], FT_LABEL, 0, CX, row, 0, "Week starts on:");
-	put(&f[F1], FT_POPUP, 0, VX, row, 14, 0);
-	f[F1].items = week_items;
-	f[F1].nitems = 3;
-	f[F1].val = opt.weekstart == 1 ? 1 : opt.weekstart == 6 ? 2 : 0;
-	row++;
-	put(&f[L2], FT_LABEL, 0, CX, row, 0, "Day view from:");
-	put(&f[F2], FT_POPUP, 0, VX, row, 10, 0);
-	f[F2].items = hour_items;
-	f[F2].nitems = 5;
-	f[F2].val = opt.daystart >= 6 && opt.daystart <= 10 ? opt.daystart - 6 : 2;
-	row++;
-	put(&f[F3], FT_CHECK, 0, VX, row, 24, "24-hour clock");
-	f[F3].val = opt.h24;
-	row++;
-	put(&f[F4], FT_CHECK, 0, VX, row, 24, "Show Hebrew dates");
-	f[F4].val = opt.hebdates;
-	row++;
-	put(&f[L13], FT_LABEL, 0, CX, row, 0, "Hebrew in font:");
-	put(&f[F13], FT_POPUP, 0, VX, row, 24, 0);
-	f[F13].items = heb_items;
-	f[F13].nitems = 3;
-	f[F13].val = opt.hebfont;
-	for (i = L1; i <= F13; i++)
-		in(&f[i], S_GENERAL);
-
-	/* Events */
-	row = 3;
-	put(&f[L5], FT_LABEL, 0, CX, row, 0, "New events last:");
-	put(&f[F5], FT_POPUP, 0, VX, row, 16, 0);
-	f[F5].items = len_items;
-	f[F5].nitems = 5;
-	f[F5].val = 2;
+	memset(&sv, 0, sizeof(sv));
+	sv.week = opt.weekstart == 1 ? 1 : opt.weekstart == 6 ? 2 : 0;
+	sv.hour = opt.daystart >= 6 && opt.daystart <= 10 ? opt.daystart - 6 : 2;
+	sv.h24 = opt.h24;
+	sv.hebdates = opt.hebdates;
+	sv.hebfont = opt.hebfont >= 0 && opt.hebfont <= 2 ? opt.hebfont : 0;
+	sv.len = 2;
 	for (i = 0; i < 5; i++)
 		if (len_min[i] == opt.duration)
-			f[F5].val = i;
-	row++;
-	put(&f[L6], FT_LABEL, 0, CX, row, 0, "...with alert:");
-	put(&f[F6], FT_POPUP, 0, VX, row, 22, 0);
-	f[F6].items = alert_items;
-	f[F6].nitems = 7;
+			sv.len = i;
 	for (i = 0; i < 7; i++)
 		if (alert_min[i] == opt.alarm_default)
-			f[F6].val = i;
-	row++;
-	put(&f[F7], FT_CHECK, 0, VX, row, 24, "Show alerts");
-	f[F7].val = opt.alarms;
-	for (i = L5; i <= F7; i++)
-		in(&f[i], S_EVENTS);
-
-	/* Time zones */
-	row = 3;
-	put(&f[L8], FT_LABEL, 0, CX, row, 0, "Atari clock in:");
-	put(&f[F8], FT_CHOOSE, 0, VX, row, 30, hz);
-	row++;
-	put(&f[F9], FT_CHECK, 0, VX, row, 30, "Time zone support");
-	f[F9].val = opt.tzsupport;
-	row++;
-	put(&f[L10], FT_LABEL, 0, CX, row, 0, "Show times in:");
-	put(&f[F10], FT_CHOOSE, 0, VX, row, 30, vz);
-	for (i = L8; i <= F10; i++)
-		in(&f[i], S_ZONES);
-
-	/* Refresh */
-	row = 3;
-	put(&f[L11], FT_LABEL, 0, CX, row, 0, "Refresh all:");
-	put(&f[F11], FT_POPUP, 0, VX, row, 22, 0);
-	f[F11].items = refresh_items;
-	f[F11].nitems = 5;
+			sv.alert = i;
+	sv.alarms = opt.alarms;
+	sv.tzsupport = opt.tzsupport;
+	str_copy(sv.hz, opt.home_tz, sizeof(sv.hz));
+	str_copy(sv.vz, opt.view_tz, sizeof(sv.vz));
+	zone_label(sv.hz_lab, sv.hz);
+	zone_label(sv.vz_lab, sv.vz);
 	for (i = 0; i < 5; i++)
 		if (refresh_min[i] == opt.refresh)
-			f[F11].val = i;
-	row++;
-	put(&f[F12], FT_CHECK, 0, VX, row, 30, "When the window opens");
-	f[F12].val = opt.sync_open;
-	row++;
-	put(&f[F17], FT_CHECK, is_acc ? 0 : FF_DISABLED, VX, row, 30, "Also with the window closed");
-	f[F17].val = opt.bgsync;
-	row++;
-	put(&f[L18], FT_LABEL, is_acc ? 0 : FF_DISABLED, CX, row, 0, "Read calendars:");
-	put(&f[F18], FT_POPUP, is_acc ? 0 : FF_DISABLED, VX, row, 22, 0);
-	{
-		static char other[30];
-		long st = bg_parse(opt.start);
-		f[F18].items = start_items;
-		f[F18].nitems = 4;
-		f[F18].val = st == BG_NOW ? 0 : st == BG_OPENED ? 3 : st == 300 ? 2 : 1;
-		if (st > 0 && st != 60 && st != 300) {
-			snprintf(other, sizeof(other), "  After %ld s", st);
-			start_items[4] = other;
-			f[F18].nitems = 5;
-			f[F18].val = 4;
-		}
+			sv.refresh = i;
+	sv.sync_open = opt.sync_open;
+	sv.bgsync = opt.bgsync;
+	st = bg_parse(opt.start);
+	sv.start = st == BG_NOW ? 0 : st == BG_OPENED ? 3 : st == 300 ? 2 : 1;
+	start_words[4] = 0;
+	if (st > 0 && st != 60 && st != 300) {
+		snprintf(other, sizeof(other), "After %ld s", st);
+		start_words[4] = other;
+		sv.start = 4;
 	}
-	row += 2;
-	put(&f[H3], FT_LABEL, 0, CX, row, 0, "Keep on this Atari:");
-	row++;
-	put(&f[L15], FT_LABEL, 0, CX + 2, row, 0, "Days back");
-	text(&f[F15], FF_LTR | FF_DIGITS, VX, row, 5, past, 5);
-	row++;
-	put(&f[L16], FT_LABEL, 0, CX + 2, row, 0, "Days ahead");
-	text(&f[F16], FF_LTR | FF_DIGITS, VX, row, 5, future, 5);
-	for (i = L11; i <= F16; i++)
-		in(&f[i], S_REFRESH);
-
-	/* Connection */
-	row = 3;
-	put(&f[C1], FT_CHECK, 0, CX, row, 58, "Direct connection: TLS on this Atari (68020 or better)");
-	f[C1].val = opt.falcon;
-	row++;
-	put(&f[C2], FT_CHECK, 0, CX + 3, row, 40, "Check certificates on the DSP");
-	f[C2].val = opt.dsp;
-	row++;
-	put(&f[N1], FT_LABEL, FF_LTR, CX + 3, row, 0, can_falcon ? "TLS.OVL, CACERT.PEM, ROOTS.DAT in ECal's folder"
-							  : "Needs a 68020 or better (TT, Falcon)");
-	row += 2;
-	put(&f[L3], FT_LABEL, 0, CX, row, 0, "Gateway:");
-	text(&f[C3], FF_LTR, CX + 12, row, 20, gate, sizeof(gate));
-	put(&f[L4], FT_LABEL, 0, CX + 34, row, 0, "Port:");
-	text(&f[C4], FF_LTR | FF_DIGITS, CX + 40, row, 6, port, 6);
-	row++;
-	put(&f[N2], FT_LABEL, FF_LTR, CX + 12, row, 0, "AERA-Gateway, on a Raspberry Pi");
-	row++;
-	put(&f[C7], FT_CHECK, 0, CX, row, 40, "Write a log (ECAL.LOG)");
-	f[C7].val = opt.log;
-	for (i = C1; i <= C7; i++)
-		in(&f[i], S_CONN);
-
-	/* Contacts: EContact's file, for machines short of memory where it
-	   isn't loaded (the guidelines, 4.1) */
-	row = 3;
-	put(&f[P1], FT_CHECK, 0, CX, row, 53, "When EContact isn't loaded, read its contacts file");
-	f[P1].val = opt.peoplefile;
-	row += 2;
-	put(&f[P2], FT_LABEL, 0, CX, row, 0, "EContact's folder:");
-	row++;
-	str_copy(people_dir, opt.peopledir, sizeof(people_dir));
-	text(&f[P3], FF_LTR, CX, row, 34, people_dir, sizeof(people_dir));
-	put(&f[P4], FT_BUTTON, FF_ACTION, CX + 36, row, 10, "Choose...");
-	row++;
-	put(&f[P5], FT_LABEL, FF_LTR, CX, row, 0, "CONTACTS.TXT, which EContact writes there");
-	for (i = P1; i <= P5; i++)
-		in(&f[i], S_CONTACTS);
-
-	/* on every section */
-	row = 11;
-	put(&f[BCAN], FT_BUTTON, FF_CANCEL, SW - 24, row, 10, "Cancel");
-	put(&f[BOK], FT_BUTTON, FF_DEFAULT, SW - 12, row, 10, "OK");
+	snprintf(sv.past, sizeof(sv.past), "%d", opt.past_days);
+	snprintf(sv.future, sizeof(sv.future), "%d", opt.future_days);
+	sv.peoplefile = opt.peoplefile;
+	str_copy(sv.people_dir, opt.peopledir, sizeof(sv.people_dir));
+	sv.falcon = opt.falcon;
+	sv.dsp = opt.dsp;
+	str_copy(sv.gate, opt.gate, sizeof(sv.gate));
+	snprintf(sv.port, sizeof(sv.port), "%u", opt.gateport);
+	sv.log = opt.log;
 
 	memset(&d, 0, sizeof(d));
 	d.title = "Settings";
-	d.f = f;
-	d.n = N;
-	d.w = SW;
-	d.h = row + 1;
-	d.focus = -1;
-	d.pages = section_names;
-	d.npages = 6;
-	d.changed = settings_changed;
-	d.side = SIDE;
-	d.page = first;
-	r = dlg_run(&d);
-	if (r != BOK)
+	d.pages = pages;
+	d.npages = NPAGES;
+	d.height = 17;
+	d.first = first;
+	d.check = settings_check;
+	settings_uncover = settings_under;
+	if (!settings_dialog(&d))
 		return;
 
-	opt.weekstart = f[F1].val == 1 ? 1 : f[F1].val == 2 ? 6 : 0;
-	opt.daystart = f[F2].val + 6;
-	opt.h24 = f[F3].val;
-	opt.hebdates = f[F4].val;
-	opt.hebfont = f[F13].val;
-	opt.duration = len_min[f[F5].val];
-	opt.alarm_default = alert_min[f[F6].val];
-	opt.alarms = f[F7].val;
-	opt.tzsupport = f[F9].val;
-	opt.refresh = refresh_min[f[F11].val];
-	opt.sync_open = f[F12].val;
-	opt.bgsync = f[F17].val;
-	if (f[F18].val < 4)
-		str_copy(opt.start, start_val[f[F18].val], sizeof(opt.start));
-	/* 0 days back: from today; at most ten years either way */
-	opt.past_days = (short)(atoi(past) < 0 ? 0 : atoi(past) > 3650 ? 3650 : atoi(past));
-	opt.future_days = (short)(atoi(future) < 7 ? 400 : atoi(future) > 3650 ? 3650 : atoi(future));
-	str_copy(opt.home_tz, hz, sizeof(opt.home_tz));
-	if (strcmp(vz, opt.view_tz)) {
-		str_copy(opt.view_tz, vz, sizeof(opt.view_tz));
+	opt.weekstart = sv.week == 1 ? 1 : sv.week == 2 ? 6 : 0;
+	opt.daystart = sv.hour + 6;
+	opt.h24 = sv.h24;
+	opt.hebdates = sv.hebdates;
+	opt.hebfont = sv.hebfont;
+	opt.duration = len_min[sv.len];
+	opt.alarm_default = alert_min[sv.alert];
+	opt.alarms = sv.alarms;
+	opt.tzsupport = sv.tzsupport;
+	opt.refresh = refresh_min[sv.refresh];
+	opt.sync_open = sv.sync_open;
+	opt.bgsync = sv.bgsync;
+	if (sv.start < 4)
+		str_copy(opt.start, start_val[sv.start], sizeof(opt.start));
+	opt.past_days = (short)atoi(sv.past);
+	opt.future_days = (short)atoi(sv.future);
+	str_copy(opt.home_tz, sv.hz, sizeof(opt.home_tz));
+	if (strcmp(sv.vz, opt.view_tz)) {
+		str_copy(opt.view_tz, sv.vz, sizeof(opt.view_tz));
 		opt.tzsupport = 1;	/* a zone to show times in: support on */
 	}
 	if (!opt.tzsupport)
 		str_copy(opt.view_tz, opt.home_tz, sizeof(opt.view_tz));
-	str_copy(opt.gate, gate, sizeof(opt.gate));
-	opt.gateport = (unsigned short)(atoi(port) > 0 ? atoi(port) : 8180);
-	opt.dsp = f[C2].val;
-	opt.log = f[C7].val;
-	opt.peoplefile = f[P1].val;
-	str_trim(people_dir);
+	str_copy(opt.gate, sv.gate, sizeof(opt.gate));
+	opt.gateport = (unsigned short)atol(sv.port);
+	opt.dsp = sv.dsp;
+	opt.log = sv.log;
+	opt.peoplefile = sv.peoplefile;
+	str_trim(sv.people_dir);
 	{
-		long l = (long)strlen(people_dir);
-		if (l > 3 && people_dir[l - 1] == '\\')
-			people_dir[l - 1] = 0;		/* C:\ECONTACT\ as C:\ECONTACT */
+		long l = (long)strlen(sv.people_dir);
+		if (l > 3 && sv.people_dir[l - 1] == '\\')
+			sv.people_dir[l - 1] = 0;	/* C:\ECONTACT\ as C:\ECONTACT */
 	}
-	str_copy(opt.peopledir, people_dir, sizeof(opt.peopledir));
+	str_copy(opt.peopledir, sv.people_dir, sizeof(opt.peopledir));
 	people_setup();
-	if (f[C1].val != opt.falcon)
-		falcon_mode_set(f[C1].val);
+	if (sv.falcon != opt.falcon)
+		falcon_mode_set(sv.falcon);
 	falcon_dsp_init();
 	falcon_dsp_ec_init();
 	http_close_all();
@@ -742,13 +767,13 @@ static void settings(short first)
 
 void dlg_settings(void)
 {
-	settings(S_GENERAL);
+	settings(P_GENERAL);
 }
 
-/* Settings at its Connection section */
+/* Settings at its Secure page */
 void dlg_connection(void)
 {
-	settings(S_CONN);
+	settings(P_SECURE);
 }
 
 void dlg_goto(void)

@@ -112,9 +112,13 @@ stay as they are.
 ## Settings
 
 Options > **Settings...** (^,), or the ≡ menu (the button at the right
-of the toolbar) in the accessory. As
-in EMail, the sections are listed on the left; click one for its
-settings. **OK** keeps the changes in all of them, **Cancel** none.
+of the toolbar) in the accessory. As in every AERA program, the pages
+are listed on the left; click one for its settings. From the keyboard,
+Tab and Shift+Tab go through the settings and the list, Space ticks a
+tick or opens a pop-up, the arrow keys choose among radio buttons and,
+in the list, the page. **OK** keeps the changes in all of them,
+**Cancel** none. A number out of its limits is refused with an alert
+that says what to type.
 
 ![Settings](settings.png)
 
@@ -149,8 +153,14 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
   days back and ahead ECal keeps. It starts with 0 and 400: nothing from
   before today is copied, and repeating events show from today on. Fewer use
   less memory and sync faster.
-- **Connection**: how ECal reaches the servers:
-  - **Gateway**: the Gateway's address (`PI_IP`) and port 8180. Any Atari
+- **Contacts**: for a machine short of memory, where EContact runs now and
+  then as a program instead of as an accessory. Tick **When EContact
+  isn't loaded, read its contacts file** and give **EContact's folder**
+  (Choose... finds it): EContact writes `CONTACTS.TXT` there, and ECal
+  reads names from it while EContact isn't loaded. It is off unless you
+  tick it.
+- **Secure**: how ECal reaches the servers:
+  - **Through the Gateway**: the Gateway's address (`PI_IP`) and port 8180. Any Atari
     can use it, and a Falcon can too, to save time. Set the Gateway up on a
     Raspberry Pi from AERA-Gateway's own repository, typing on it. On a new Raspberry Pi, every
     AERA gateway for your Atari in one line, ECal's among them (e-mail's
@@ -177,7 +187,7 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
 
     Then type `PI_IP` and port 8180 here. See
     [gateway/README.md](../gateway/README.md).
-  - **Direct connection: TLS on this Atari (68020 or better)**: ECal
+  - **Direct connection** (TLS on this Atari, 68020 or better): ECal
     makes the secure connections itself. Needs a TT or Falcon, and
     `TLS.OVL`, `CACERT.PEM` and `ROOTS.DAT` in ECal's folder (on a
     FireBee `TLSFB.OVL` in place of `TLS.OVL`, which ECal picks by itself:
@@ -190,20 +200,14 @@ settings. **OK** keeps the changes in all of them, **Cancel** none.
     ("X25519 on the DSP, 70 ms").
   - A server on your home network that speaks plain `http://` (a Radicale
     or Nextcloud without TLS) needs neither.
-  - **Write a log**: `ECAL.LOG` in ECal's folder, the conversation
-    with the servers (passwords left out) when something doesn't work.
-    Every line starts with the time of day ("14:05:31.27"), so the log
-    shows where a sync spends its time.
-- **Contacts**: for a machine short of memory, where EContact runs now and
-  then as a program instead of as an accessory. Tick **When EContact
-  isn't loaded, read its contacts file** and give **EContact's folder**
-  (Choose... finds it): EContact writes `CONTACTS.TXT` there, and ECal
-  reads names from it while EContact isn't loaded. It is off unless you
-  tick it.
   - **Speed with a Direct connection**: the 68030 decrypts every byte and doesn't
     read from the network meanwhile, so the two take turns (about
     13 KB/s in EMail's measurements, against 37 KB/s through the Gateway). A
     bigger TCP receive window in STinG's configuration lets them overlap.
+- **Advanced**: **Write a log**: `ECAL.LOG` in ECal's folder, the conversation
+  with the servers (passwords left out) when something doesn't work.
+  Every line starts with the time of day ("14:05:31.27"), so the log
+  shows where a sync spends its time.
 
 **Font...** in the Options menu (or the ≡ menu) picks the font for the window, as in EMail: the
 system font in its two sizes, and with a GDOS (NVDI, SpeedoGDOS,
@@ -360,7 +364,7 @@ As in EMail, the Options menu (and the ≡ menu) has three ticks:
 - **Work offline**: no connections at all; the calendars stay as they
   are on the Atari, and Refresh says ECal is offline. The info line says
   "Working offline".
-- **Direct connection**: the same as the tick in Settings > Connection.
+- **Direct connection**: the same as the tick in Settings > Secure.
 - **Write a log**: ECAL.LOG, the conversation with the servers.
 
 F10 switches the Hebrew keyboard on and off (it has no menu entry). While it is on, its badge, the letters ayin and bet
@@ -670,7 +674,7 @@ for icon editors. For EmuTOS, `tools/icon/add_to_emuicon.py` adds it to
   a Direct connection the clock must be right to check certificates.
 - An **!** next to an account in the sidebar: its last refresh failed; the
   calendar's info (double-click) shows why.
-- `ECAL.LOG` (Settings > Connection > Write a log) has the details.
+- `ECAL.LOG` (Settings > Advanced > Write a log) has the details.
 - **A crash**: if ECal itself goes wrong (what would be 2 to 8 bombs),
   it says so, writes what happened to `CRASH.LOG` next to `ECAL.PRG` and
   quits, leaving the Atari running. A crash in the system or a driver
