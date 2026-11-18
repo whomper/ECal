@@ -2903,6 +2903,28 @@ static int file_sink(void *ud, const char *data, long n)
 	return 1;
 }
 
+/* the write buffer taken before the download, while the memory is still
+   there to take it in one piece (the hub, 18 Nov 2026): taken at the
+   first piece, a 1 MB ST's heap had under 2 KB left by then and the feed
+   went to the disk a network piece at a time, 28 opens for 18 KB
+   (acc_files on ST-1). As big as leaves keep free for the connection
+   (its own buffer falls back to 4 KB); none, as before, where it can't */
+static void fs_buffer(FSINK *f, long keep)
+{
+	long want;
+	for (want = CW_FLUSH; !f->b.cap && want >= 2048; want /= 2) {
+		void *t;
+		if (!sb_reserve(&f->b, want))
+			continue;
+		if ((t = malloc((size_t)keep)) != 0) {
+			free(t);
+			break;
+		}
+		sb_free(&f->b);
+		sb_init(&f->b);
+	}
+}
+
 /* the rest written: 0 if the disk refused */
 static int fs_close(FSINK *f)
 {
@@ -2950,6 +2972,7 @@ static int sync_subscription(CALENDAR *c, int force)
 		rq.pass = accts[c->acct].pass;
 	}
 	sb_init(&errbody);
+	fs_buffer(&fs, 8192L);	/* (the connection: 4 KB and its own) */
 	status("%s: downloading...", c->name);
 	ok = http_request(&rq, &rs, &errbody, cal_err, sizeof(cal_err));
 	sb_free(&errbody);
