@@ -204,7 +204,16 @@ def budget(j, piece, why=None):
     return opens, looks + 3
 
 
-def report(tr, label, piece, timeline=False):
+# Erez, 18 Nov 2026 ("Raise budget to 45"): a 1 MB ST's boot with this rig's
+# data (460 events, a 120-event feed) may open its files up to 45 times.
+# ECal from 2.54 has about 9 KB less heap there (the new Settings, the tips,
+# the keyboard reach, WINDOW= and FONT=) and at its peak about 3 KB to spare:
+# the snapshots then go to the disk in more, smaller pieces than the
+# counted budget's
+BOOT_1MB_OPENS = 45
+
+
+def report(tr, label, piece, timeline=False, one_mb=False):
     print("\n== %s" % label)
     over = []
     for job, j in tr.jobs.items():
@@ -222,6 +231,8 @@ def report(tr, label, piece, timeline=False):
                 print("        %7.1f s  %-8s %s" % (t, call, name))
         why = [] if timeline else None
         bo, bl = budget(j, piece, why)
+        if one_mb and job.startswith("boot"):
+            bo = max(bo, BOOT_1MB_OPENS)
         for w in why or []:
             print("        budget: " + w)
         o, l = c.get("Fopen", 0) + c.get("Fcreate", 0), c.get("Fsfirst", 0)
@@ -399,7 +410,8 @@ def main():
         for p in procs:
             p.terminate()
     time.sleep(2)
-    over = report(tr, label, 16384 if rig.is_st(a.machine) else 32768, a.timeline)
+    over = report(tr, label, 16384 if rig.is_st(a.machine) else 32768, a.timeline,
+                  a.machine.split(":")[0] == "ST-1")
     log = open(os.path.join(work, "ecalgate.log"), errors="replace").read()
     print("  (the gateway: %d requests)" % len(re.findall(r" -> \d+", log)))
     print("acc_files:", "within budget" if not over else "over budget: " + "; ".join(over))
