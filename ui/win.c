@@ -943,9 +943,9 @@ void win_warm_step(void)
 	if (w > 0 && rect_and(&r, &r_view))
 		off_draw(&r);
 	t1 = pf_ms() - t0;
-	if (t1 > 60 && vj.warm_n > 1)
+	if (t1 > 50 && vj.warm_n > 1)
 		vj.warm_n /= 2;
-	else if (t1 < 25 && vj.warm_n < 32)
+	else if (t1 < 20 && vj.warm_n < 32)
 		vj.warm_n *= 2;
 	vj.warm = next ? (short)(next + 1) : 0;
 }
@@ -1235,7 +1235,7 @@ static int win_start_as(int fresh)
 	vj.show = fresh ? vj.on : 0;	/* each band shown as it is drawn, or all at the end */
 	if (fresh && bm_h) {
 		vj.warm = 1;	/* (its letters drawn ahead, once the window is whole) */
-		vj.warm_n = 2;
+		vj.warm_n = 1;
 	}
 	return 1;
 }
