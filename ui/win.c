@@ -168,7 +168,7 @@ void win_layout(void)
 		x -= (i == B_DAY || i == B_NEW || i == B_MENU) ? cw : 0;
 	}
 	r_title.w = but[B_DAY].x - cw - r_title.x;
-	views_invalidate();
+	views_relayout();	/* (the occurrences kept: they don't depend on the layout) */
 	if (vj.on)
 		vj.ready = 0;		/* a view being drawn: from the top, in its new place */
 }
@@ -758,7 +758,7 @@ static void rate_from(unsigned long ms, const GRECT *r)
 		draw_rate = ms * 1000UL * 1024UL / (unsigned long)px;
 }
 
-static int win_start(void);
+static int win_start_as(int fresh);
 
 /* area (NULL: all of it) drawn again would be a stretch over 300 ms:
    half the window or more, by the rate measured */
@@ -766,7 +766,13 @@ static int redraw_big(const GRECT *area)
 {
 	GRECT f = work;
 	long px;
-	if (!draw_rate || win_redraw_at_once || (area && !rect_and(&f, area)))
+	static int cpu = -1;
+	if (cpu < 0)
+		cpu = get_cookie(0x5F435055L) >= 20;	/* _CPU: a 68020 or better */
+	/* an 8 MHz ST: whole, the pieces' turns would make it slower by far
+	   (the family's rule, Erez, 19 Nov 2026: ST:mono, the window drawn
+	   whole 1060 ms, in pieces 4555 ms to the last) */
+	if (!cpu || !draw_rate || win_redraw_at_once || (area && !rect_and(&f, area)))
 		return 0;
 	px = (long)f.w * f.h;
 	if (px * 2 < (long)work.w * work.h)
@@ -1127,10 +1133,15 @@ void win_view_finish(void)
    once, then the toolbar in three pieces and the list in three, a piece
    a slice, and the view in bands, each on the screen as it is drawn, as
    EContact's. 0 where it can't be: drawn whole as before */
-static int win_start(void)
+/* fresh: a new window's, each band of the view shown as it is drawn;
+   else a big redraw's (redraw_big): the toolbar and the list in two
+   pieces each, the view off the screen in slices and shown in one copy
+   (the window in bands took a Falcon twice its whole time: 1200 ms
+   against 540 on Falcon-4:256 with NVDI) */
+static int win_start_as(int fresh)
 {
 	GRECT box, r;
-	short k, n = 0;
+	short k, n = 0, sides = fresh ? 3 : 2;
 	if (win_h <= 0 || win_iconified)
 		return 0;
 	win_layout();
@@ -1158,6 +1169,10 @@ static int win_start(void)
 		x[2] = but[B_DAY].x;
 		x[4] = r_tool.x + r_tool.w;
 		x[3] = x[2] + (x[4] - x[2]) / 2;
+		if (!fresh) {
+			x[1] = x[2];	/* (two pieces: up to the view buttons, the rest) */
+			x[3] = x[4];
+		}
 		for (k = 0; k < 4; k++) {
 			if (x[k + 1] <= x[k])
 				continue;
@@ -1167,17 +1182,22 @@ static int win_start(void)
 			vj.st_r[n++] = r;
 		}
 	}
-	for (k = 0; k < 3 && r_side.w > 0; k++) {
+	for (k = 0; k < sides && r_side.w > 0; k++) {
 		r = r_side;
-		r.y = r_side.y + (short)((long)r_side.h * k / 3);
-		r.h = r_side.y + (short)((long)r_side.h * (k + 1) / 3) - r.y;
+		r.y = r_side.y + (short)((long)r_side.h * k / sides);
+		r.h = r_side.y + (short)((long)r_side.h * (k + 1) / sides) - r.y;
 		vj.st_r[n++] = r;
 	}
 	vj.st_n = n;
 	vj.st_i = 0;
 	win_view_later();	/* the view after them, off the screen in slices, */
-	vj.show = vj.on;	/* each band shown as it is drawn */
+	vj.show = fresh ? vj.on : 0;	/* each band shown as it is drawn, or all at the end */
 	return 1;
+}
+
+static int win_start(void)
+{
+	return win_start_as(1);
 }
 
 /* area shown again from the buffer, which holds the window's picture as
@@ -1209,8 +1229,8 @@ void win_redraw(GRECT *area)
 		icon_window(area);	/* over the small window, not the old work area */
 		return;
 	}
-	if (off_screen() && !vj.inside && redraw_big(area) && win_start())
-		return;		/* in pieces: white at once, then the toolbar, the list and the view */
+	if (off_screen() && !vj.inside && redraw_big(area) && win_start_as(0))
+		return;		/* in pieces: white at once, the toolbar and the list, the view in one copy */
 	if (vj.on && !vj.inside) {
 		GRECT v = r_view;
 		if (!area || rect_and(&v, area))

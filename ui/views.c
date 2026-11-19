@@ -120,6 +120,16 @@ void views_scroll_to(short hour)
 	laid_out = 0;		/* the event boxes were placed for the old hour */
 }
 
+/* the window's layout changed: the boxes laid out again, the occurrences
+   kept (they don't depend on it: the list hidden or shown took an ST's
+   week view 345 ms of collecting for nothing, 800 with the month's kept) */
+void views_relayout(void)
+{
+	busy_known = 0;
+	laid_out = 0;
+	yg_forget();
+}
+
 void views_invalidate(void)
 {
 	occ_valid = 0;
@@ -222,7 +232,11 @@ static int collect_for(unsigned long ms)
 	b = (from + n) * MIN_PER_DAY;
 	if (occ_valid && occ.from == a && occ.to == b)
 		return 1;
-	if (cur_view != V_YEAR) {
+	/* the month's kept where a page moves (or for the month view, whose
+	   own it is); the same range collected again (the events changed) is
+	   collected alone: a week from the month's took an ST 800 ms, alone
+	   345 */
+	if (cur_view != V_YEAR && (cur_view == V_MONTH || wide_valid || occ.from != a || occ.to != b)) {
 		long wf, wn;
 		CTIME wa, wb;
 		month_grid(cur_day, &wf, &wn);
