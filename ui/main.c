@@ -76,6 +76,7 @@ static long shown_today = -1;
    or quitting writes them at once */
 static int settings_dirty;
 static unsigned long settings_at;
+static int about_readied;	/* the About box's icon map made (its first timer event) */
 
 void settings_later(void)
 {
@@ -2129,6 +2130,8 @@ int main(void)
 		wait = bg_timer(work_pending(), wait);
 		if (views_gliding() && win_h > 0 && wait > 20)
 			wait = 20;
+		if (win_warm_pending() && !work_pending() && wait > 20)
+			wait = 20;	/* (a GDOS font's letters ahead, a few a turn: win.c) */
 		if (win_view_busy())
 			wait = 0;	/* the next slice of a view at once, keys first */	/* the hours gliding, a step a turn */
 		/* a click comes at once (one asked for); press_double says if it
@@ -2302,6 +2305,10 @@ int main(void)
 		}
 		if (which & (MU_KEYBD | MU_BUTTON | MU_MESAG))
 			menu_update();
+		if ((which & MU_TIMER) && !about_readied) {
+			about_readied = 1;
+			about_ready();	/* (its first timer event: the About box's icon map) */
+		}
 		if ((which & MU_TIMER) && settings_dirty && pf_ms() - settings_at >= 3000UL) {
 			if (is_acc && win_h <= 0) {
 				settings_dirty = 0;
@@ -2327,6 +2334,10 @@ int main(void)
 				idx_q = idx_contents();
 				idx_gen = store_gen;
 			}
+		}
+		if (!(which & (MU_MESAG | MU_KEYBD | MU_BUTTON)) && !work_pending() && win_warm_pending()) {
+			aes_profile_tag("work: a font's letters ahead");
+			win_warm_step();
 		}
 		if (win_view_busy()) {
 			/* a view being drawn, a slice a turn (not after a key, click

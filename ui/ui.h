@@ -145,7 +145,11 @@ int  dlg_tip_repaint(const GRECT *r);	/* field.c: the tip's box gone over an ope
 int  views_tip(short mx, short my, char *title, int tn, char *when, int wn);	/* the event under the mouse: 1, none 0, -1 not laid out yet */
 void views_copy(void);				/* ^C: the event chosen, to the clipboard */
 void views_invalidate(void);	/* events changed: collect again */
-void views_relayout(void);	/* the window's layout changed: lay out again, the occurrences kept */
+void views_relayout(void);
+void about_ready(void);	/* the About box's icon map made ahead, while idle */
+int win_warm_pending(void);	/* a GDOS font's letters still to draw ahead (F5) */
+void win_warm_step(void);
+int font_warm(short x, short y, int i, int n, short *w);	/* a GDOS font's letters drawn once ahead: the next, 0 done */	/* the window's layout changed: lay out again, the occurrences kept */
 void views_draw(GRECT *clip);
 void views_now_moved(void);		/* the minute's tick: the "now" line */
 int  views_gliding(void);		/* a key's hour still gliding: */

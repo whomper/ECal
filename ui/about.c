@@ -36,6 +36,16 @@ void icon_window(GRECT *area)
 	icon_redraw(win_h, area, icon_bits, icon16_px, s);
 }
 
+/* the 256-colour icon's map made while ECal is idle, once, from its
+   first timer event (common a769b86: the About box then opens without
+   making it, 36 ms of the first opening on Erez's Falcon) */
+void about_ready(void)
+{
+	ABOUT a = { "ECal", cal_version, "", { 0, 0, 0 }, { 0, 0, 0 },
+		    icon_bits, icon16_px, icon16_rgb, icon256_px, icon256_rgb };
+	about_prepare(&a);
+}
+
 /* The About box's status lines in the family's words (the guidelines,
  * 1.3; Erez, 27 Oct 2026): the connection, what ECal holds, the memory */
 void dlg_about(void)

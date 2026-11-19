@@ -136,6 +136,8 @@ static int set_font(short id, short pt)
 	return set_font_on(id, pt, 1);
 }
 
+static short m_id = -1, m_pt, m_cells, m_adv;	/* the last GDOS font measured (set_font_on) */
+
 static int set_font_on(short id, short pt, int probe)
 {
 	short w, h;
@@ -147,15 +149,28 @@ static int set_font_on(short id, short pt, int probe)
 		if (vst_font(vdi_h, id) != id)
 			return 0;
 		vst_point(vdi_h, pt, &w, &h);
-		adv = vqt_width(vdi_h, 'M');
+		adv = id == m_id && pt == m_pt ? m_adv : vqt_width(vdi_h, 'M');
 		if (adv > w)
 			w = adv;	/* the cell holds a whole character */
+		m_adv = adv;
 	}
 	if (w < 4 || h < 6)
 		return 0;
 	cw = w;
 	ch = h;
-	font_cells = id == 1 ? FC_RUNS : cells_mode();
+	/* how the font draws a run, measured once a font and size: each
+	   slice of a view chose the font again on the window's bitmap, and
+	   measuring it there each time was 5.8 ms a slice under NVDI with
+	   FreeMono 14, 133 ms of a week view (F5: Erez, 19 Nov 2026) */
+	if (id == 1)
+		font_cells = FC_RUNS;
+	else if (id != m_id || pt != m_pt) {
+		font_cells = cells_mode();
+		m_id = id;
+		m_pt = pt;
+		m_cells = font_cells;
+	} else
+		font_cells = m_cells;
 	vst_alignment(vdi_h, 0, 5);
 	cur_id = id;
 	cur_pt = pt;
@@ -163,6 +178,41 @@ static int set_font_on(short id, short pt, int probe)
 	if (probe)
 		probe_hebrew(id);
 	return 1;
+}
+
+/* the letters of the window's GDOS font drawn once at x, y on the
+   workstation now set (win.c: the window's bitmap, that piece drawn
+   again after): a vector font's letters are made the first time each is
+   drawn, and the views after the start paid it (FreeMono 14 under NVDI:
+   week 1445 ms, 570 with them made; F5: Erez, 19 Nov 2026). Letters i
+   to i + n - 1 of the printable ones, then the Hebrew ones; the next i,
+   0 when all are done. *w: the piece's width */
+int font_warm(short x, short y, int i, int n, short *w)
+{
+	static const char all[] = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_"
+				  "`abcdefghijklmnopqrstuvwxyz{|}~";
+	short na = (short)(sizeof(all) - 1);
+	*w = 0;
+	if (cur_id == 1)
+		return 0;
+	if (i < na) {
+		if (i + n > na)
+			n = na - i;
+		v_gtext_n(vdi_h, x, y, all + i, (short)n);
+		*w = (short)(n * cw + cw);
+		return i + n < na || heb_mode == HM_UNICODE ? i + n : 0;
+	}
+	if (heb_mode == HM_UNICODE && i - na < 27) {
+		short k = (short)(i - na);
+		if (k + n > 27)
+			n = 27 - k;
+		vst_map_mode(vdi_h, 0);
+		v_gtext_w(vdi_h, x, y, heb_idx + k, (short)n);
+		vst_map_mode(vdi_h, 1);
+		*w = (short)(n * cw + cw);
+		return k + n < 27 ? i + n : 0;
+	}
+	return 0;
 }
 
 /* back to the text font after drawing in another */

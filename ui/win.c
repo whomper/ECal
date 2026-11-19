@@ -117,6 +117,8 @@ static struct {
 	GRECT later_r[4];
 	short st_n, st_i;		/* a new window's toolbar and list, a piece a slice */
 	int show;			/* each piece of the view copied when drawn (a new window's) */
+	short warm;			/* a GDOS font's letters drawn ahead: the next one + 1, 0 none (F5) */
+	short warm_n;			/* letters a turn: as many as fit in about 60 ms */
 	GRECT st_r[8];
 } vj;
 static int start_fresh;		/* the window just opened: its first redraw in slices */
@@ -909,6 +911,45 @@ static void slice_said(const char *what, unsigned long t0)
 #define slice_said(w, t)
 #endif
 
+/* a GDOS font's letters still to draw ahead (F5): while nothing else
+   is to do, a few a turn (main.c's loop, after the background's work) */
+int win_warm_pending(void)
+{
+	return vj.warm > 0 && bm_h && win_h > 0 && !win_iconified && !win_view_busy();
+}
+
+void win_warm_step(void)
+{
+	unsigned long t0 = pf_ms();
+	/* the font's next letters drawn on the bitmap, that piece of it
+	   drawn again at once (nothing on the screen); as many a turn as
+	   the last turn's time says fit in 60 ms */
+	short keep = vdi_h, w;
+	GRECT r;
+	unsigned long t1;
+	int next;
+	if (!win_warm_pending())
+		return;
+	vdi_h = bm_h;
+	draw_forget();
+	font_reselect();
+	next = font_warm(r_view.x, r_view.y + ch, (short)(vj.warm - 1), vj.warm_n, &w);
+	vdi_h = keep;
+	draw_forget();
+	r.x = r_view.x;
+	r.y = r_view.y;
+	r.w = w;
+	r.h = 3 * ch;
+	if (w > 0 && rect_and(&r, &r_view))
+		off_draw(&r);
+	t1 = pf_ms() - t0;
+	if (t1 > 60 && vj.warm_n > 1)
+		vj.warm_n /= 2;
+	else if (t1 < 25 && vj.warm_n < 32)
+		vj.warm_n *= 2;
+	vj.warm = next ? (short)(next + 1) : 0;
+}
+
 int win_view_step(unsigned long ms)
 {
 	unsigned long t0 = pf_ms();
@@ -1192,6 +1233,10 @@ static int win_start_as(int fresh)
 	vj.st_i = 0;
 	win_view_later();	/* the view after them, off the screen in slices, */
 	vj.show = fresh ? vj.on : 0;	/* each band shown as it is drawn, or all at the end */
+	if (fresh && bm_h) {
+		vj.warm = 1;	/* (its letters drawn ahead, once the window is whole) */
+		vj.warm_n = 2;
+	}
 	return 1;
 }
 
