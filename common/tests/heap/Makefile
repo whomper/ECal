@@ -4,12 +4,12 @@
 # Twice: here with ASan and UBSan, and as 68000 code under QEMU, where
 # sizes and pointers are four bytes, as on the Atari (QEMU lets odd
 # addresses pass; tests/heap/run.py has a real 68000, in Hatari).
-CFLAGS := -O2 -Wall -Wextra -Wno-sign-compare -DHEAP_TEST -Istub
+CFLAGS := -O2 -Wall -Wextra -Wno-sign-compare -DHEAP_TEST -DLIBC_ZONES -Istub
 M68K   ?= m68k-linux-gnu-gcc
 QEMU   ?= qemu-m68k-static
 SRC    := test_heap.c ../../atari/libc.c
 B      := build
-CASES  := fixed accearly grain frag grow trim limited tos1 st1 maxblocks exact bins dv1 dv2
+CASES  := zone fixed accearly grain frag grow trim limited tos1 st1 maxblocks exact bins dv1 dv2
 
 $(B)/test_heap: $(SRC) stub/tos.h | $(B)
 	cc $(CFLAGS) -fsanitize=address,undefined -fno-sanitize-recover=undefined -o $@ $(SRC)

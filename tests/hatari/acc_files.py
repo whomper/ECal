@@ -231,7 +231,7 @@ def report(tr, label, piece, timeline=False, one_mb=False):
                 print("        %7.1f s  %-8s %s" % (t, call, name))
         why = [] if timeline else None
         bo, bl = budget(j, piece, why)
-        if one_mb and job.startswith("boot"):
+        if one_mb and "boot" in job:
             bo = max(bo, BOOT_1MB_OPENS)
         for w in why or []:
             print("        budget: " + w)
