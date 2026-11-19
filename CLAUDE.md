@@ -173,6 +173,14 @@ ECal is in maintenance mode while EWeb, EPDF and EPlay go to 1.0 (AERA-Atari, AT
   stops it working (a certificate, a server), or something EWeb, EPDF or EPlay need from it.
 - Nothing runs in the background; the session waits for Erez or the hub.
 - Only Erez's explicit word ends this mode. The hub passes it on quoting him.
+- **Lifted for one list (Erez, 19 Nov 2026, choosing "Work on 1, 2 and 3"; the hub's AERA-Atari
+  PERF-REVISIT):** (1) redraws: 300 ms or less in one piece, longer in pieces of at most 100 ms (the
+  section-8 speed row); (2) the speed round F2-F5 of the 17 Nov report (the occurrences kept for a wider
+  range, date work per day, the clock read per batch, a GDOS font's letters rendered ahead), with a view's
+  slice and the screen copy never in the same turn; (3) F1: the whole page drawn off the screen and shown
+  in one copy (a change he will see, approved); (4) D4, his words: "Edit > Find event...", ^F as before.
+  His 31 Oct exception stays (the ST's line scroll at 115-155 ms). Every release of it passes the gate,
+  the pairs against 2.54 included. When the list is done, maintenance mode comes back.
 
 ## UI backlog (Erez's 54 decisions, 9 Nov 2026; AERA-Atari a261597, standards/ui)
 
@@ -206,5 +214,6 @@ shared code first; the hub says when it is in `common/`.
 15. Tooltips on the toolbar, 0.7 s (D18). Done: common's tooltip.c for the toolbar, the events and the dialogs
     (0.7 s: Erez, 10 Nov).
 
-Still open, not to start: Find's words (D4); press and release for ticks and pop-ups (C7). Nothing to do: the
+Still open, not to start: press and release for ticks and pop-ups (C7). Find's words (D4): Edit > Find
+event... (Erez, 19 Nov 2026; the lift above). Nothing to do: the
 out-of-range alerts (ECal is the model, D30), `Show|Later` (D51), the palette (D42), the toolbar's look (D33).

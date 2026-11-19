@@ -888,7 +888,7 @@ void keys_dialog(void)
 		{ 8, 0, "Shift+Tab", "the one before" },
 		{ 8, 1, "Esc", "nothing selected" },
 		{ 9, -1, "Commands", 0 },
-		{ 10, 0, "^F", "find" },
+		{ 10, 0, "^F", "find an event" },
 		{ 10, 1, "^G", "go to a date" },
 		{ 11, 0, "^R", "refresh" },
 		{ 11, 1, "Shift+^R", "everything again" },

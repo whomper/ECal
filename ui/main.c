@@ -665,6 +665,8 @@ static const MBAR_ITEM m_file[] = {
 };
 static const MBAR_ITEM m_edit[] = {
 	{ "Copy event", "^C", C_COPY },
+	{ "-", 0, 0 },
+	{ "Find event...", "^F", C_FIND },	/* in Edit (D4; Erez, 19 Nov 2026) */
 	{ 0, 0, 0 }
 };
 static const MBAR_ITEM m_view[] = {
@@ -675,7 +677,6 @@ static const MBAR_ITEM m_view[] = {
 	{ "-", 0, 0 },
 	{ "Today", "^T", C_TODAY },
 	{ "Go to date...", "^G", C_GOTO },
-	{ "Find...", "^F", C_FIND },
 	{ "-", 0, 0 },
 	{ "Calendar list", "\x01^S", C_SIDE },
 	{ 0, 0, 0 }
@@ -877,7 +878,7 @@ void cmd_menu(short x, short y)
 		{ "New event            N", C_NEW },
 		{ "-", 0 },
 		{ "Go to date...       ^G", C_GOTO },
-		{ "Find...             ^F", C_FIND },
+		{ "Find event...       ^F", C_FIND },
 		{ "Today                T", C_TODAY },
 		{ "Contacts...", C_CONTACTS },
 		{ "-", 0 },

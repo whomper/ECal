@@ -428,7 +428,7 @@ ECal keeps what it doesn't edit: other programs' settings, attachments,
 exceptions made on an iPhone all stay as they were when it saves an
 event, and so do the answers of the people invited.
 
-**Find** (^F) looks through titles, places and notes, from as far back as
+**Find event...** (Edit, ^F) looks through titles, places and notes, from as far back as
 ECal keeps to two years ahead.
 
 ## Inviting people
@@ -566,7 +566,7 @@ instance).
 | Esc                 | in a text field: empty it               |
 | Undo                | in a dialog or alert: Cancel            |
 | N, ^N               | new event                               |
-| ^F                  | find                                    |
+| ^F                  | find an event                           |
 | ^G                  | go to a date                            |
 | ^C                  | copy the selected event                 |
 | ^C ^X ^V            | in a dialog: copy, cut, paste a field   |
