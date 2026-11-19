@@ -652,7 +652,9 @@ static void settings_under(short x, short y, short w, short h)
 	r.w = w;
 	r.h = h;
 	font_sys_pop();
+	win_redraw_at_once++;
 	win_redraw(&r);
+	win_redraw_at_once--;
 	font_sys_push();
 }
 

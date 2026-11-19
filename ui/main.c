@@ -1922,7 +1922,9 @@ static void redraw_under(const short *m)
 {
 	short mm[8], k = font_sys_suspend();
 	memcpy(mm, m, sizeof(mm));
+	win_redraw_at_once++;	/* (a dialog over it: no slices until it closes) */
 	win_message(mm);
+	win_redraw_at_once--;
 	font_sys_resume(k);
 }
 

@@ -117,7 +117,6 @@ static struct {
 	GRECT later_r[4];
 	short st_n, st_i;		/* a new window's toolbar and list, a piece a slice */
 	int show;			/* each piece of the view copied when drawn (a new window's) */
-	unsigned long copy_ms;		/* the last copy of the whole view's time */
 	GRECT st_r[8];
 } vj;
 static int start_fresh;		/* the window just opened: its first redraw in slices */
@@ -700,7 +699,13 @@ void win_clear(GRECT *r)
 }
 
 /* the buffer's full copied to each visible piece of the window */
-static void off_copy(GRECT *full)
+/* the buffer's full copied to each visible piece of the window: planar,
+   by the CPU with each 16 pixels' planes together where it can (a
+   picture that moves: a scroll, the strip coming in); else, and for a
+   whole new page, by the VDI's copy (F1: Erez, 19 Nov 2026; TOS's and
+   NVDI's copy took a Falcon a third of the CPU's time: today's page 655
+   -> 505 ms on Falcon-4:256 with NVDI, 912 -> 625 on Falcon-4:16) */
+static void off_copy_as(GRECT *full, int planar)
 {
 	GRECT box;
 	MFDB scr;
@@ -719,8 +724,8 @@ static void off_copy(GRECT *full)
 			   BLiTTER's copy, a plane at a time, showed the old
 			   picture in other colours meanwhile (Erez's Falcon,
 			   14 Nov 2026) */
-			if (scr_put((const unsigned char *)obuf_mfdb.fd_addr, (long)obuf_mfdb.fd_wdwidth * 2 * obuf_mfdb.fd_nplanes,
-				    obuf_mfdb.fd_nplanes, pxy))
+			if (planar && scr_put((const unsigned char *)obuf_mfdb.fd_addr,
+					      (long)obuf_mfdb.fd_wdwidth * 2 * obuf_mfdb.fd_nplanes, obuf_mfdb.fd_nplanes, pxy))
 				goto next;
 			/* the VDI clips raster copies to the last clip,
 			   TOS's as NVDI's: the piece's own */
@@ -731,6 +736,42 @@ static void off_copy(GRECT *full)
 		wind_get(win_h, WF_NEXTXYWH, &box.x, &box.y, &box.w, &box.h);
 	}
 	clip_off();
+}
+
+static void off_copy(GRECT *full)
+{
+	off_copy_as(full, 1);
+}
+
+/* how long drawing off the screen takes, microseconds per 1024 pixels:
+   from the last view drawn and the last big redraw. A redraw it says is
+   over 300 ms goes in pieces, as a new window's first (the guidelines'
+   redraw row: 300 ms or less in one piece, longer in pieces of at most
+   100 ms; Erez, 19 Nov 2026) */
+static unsigned long draw_rate;
+int win_redraw_at_once;		/* (set: a dialog's own redraw under it, which can't wait for slices) */
+
+static void rate_from(unsigned long ms, const GRECT *r)
+{
+	long px = (long)r->w * r->h;
+	if (px >= 4096)
+		draw_rate = ms * 1000UL * 1024UL / (unsigned long)px;
+}
+
+static int win_start(void);
+
+/* area (NULL: all of it) drawn again would be a stretch over 300 ms:
+   half the window or more, by the rate measured */
+static int redraw_big(const GRECT *area)
+{
+	GRECT f = work;
+	long px;
+	if (!draw_rate || win_redraw_at_once || (area && !rect_and(&f, area)))
+		return 0;
+	px = (long)f.w * f.h;
+	if (px * 2 < (long)work.w * work.h)
+		return 0;
+	return draw_rate * (unsigned long)(px / 1024) / 1000UL > 300UL;
 }
 
 /* ---- the view drawn in slices ----
@@ -943,8 +984,13 @@ int win_view_step(unsigned long ms)
 	   whole rows of pieces together where they fit (each draw has its
 	   cost whatever its size), a row's pieces a few at a time where one
 	   row is too much; one piece at least */
+	{
+	/* the clock read twice a piece, before and after it (a read is a
+	   trap to the OS: 4 a piece were 15 ms of a view on Falcon-4:256,
+	   F4: Erez, 19 Nov 2026) */
+	unsigned long now = pf_ms();
 	while (vj.ti < vj.nt) {
-		unsigned long p0 = pf_ms(), took, half = ms / 2;
+		unsigned long p0 = now, took, half = ms / 2;
 		GRECT r = vj.tile[vj.ti];
 		short k = 1, rows = 0, inrow = 1, j;
 		for (j = vj.ti + 1; j < vj.nt && vj.tile[j].y == r.y; j++)
@@ -973,7 +1019,7 @@ int win_view_step(unsigned long ms)
 		}
 		/* not begun when the dearest yet says it would end past the
 		   slice (one drawn already: each slice draws one at least) */
-		if (drawn && pf_ms() - t0 + (rows ? vj.row_ms * rows : vj.piece_ms * k) > ms)
+		if (drawn && p0 - t0 + (rows ? vj.row_ms * rows : vj.piece_ms * k) > ms)
 			break;
 		drawn = 1;
 		vj.ti += k;
@@ -983,11 +1029,12 @@ int win_view_step(unsigned long ms)
 			   EContact's (Erez, 31 Oct 2026) */
 			wind_update(BEG_UPDATE);
 			graf_mouse(M_OFF, 0);
-			off_copy(&r);
+			off_copy_as(&r, 0);	/* (a new picture: F1) */
 			graf_mouse(M_ON, 0);
 			wind_update(END_UPDATE);
 		}
-		took = pf_ms() - p0;
+		now = pf_ms();
+		took = now - p0;
 		vj.draw_ms += took;
 		if (took < 5)
 			took = 5;
@@ -1005,8 +1052,9 @@ int win_view_step(unsigned long ms)
 		if (vj.piece_ms < 1)
 			vj.piece_ms = 1;
 		vj.take = (short)(half / vj.piece_ms > 1 ? half / vj.piece_ms : 1);
-		if (pf_ms() - t0 + took > ms)
+		if (now - t0 + took > ms)
 			break;		/* (one more like it would not end inside the slice) */
+	}
 	}
 #ifdef AES_PROFILE
 	{
@@ -1015,9 +1063,12 @@ int win_view_step(unsigned long ms)
 		slice_said(w, t0);
 	}
 #endif
-	if (vj.ti >= vj.nt && !vj.show && pf_ms() - t0 + (vj.copy_ms ? vj.copy_ms : ms / 2) > ms) {
+	if (vj.ti >= vj.nt && !vj.show && drawn) {
+		/* the copy in a turn of its own, never with the last pieces
+		   (the hub, 17 Nov 2026: the two in one turn moved the rows
+		   20-45 ms by where the slices fell) */
 		vj.inside = 0;
-		return 1;	/* the copy in the next slice, where it fits */
+		return 1;
 	}
 whole:
 	if (vj.ti >= vj.nt) {
@@ -1030,13 +1081,13 @@ whole:
 			wind_update(BEG_UPDATE);
 			graf_mouse(M_OFF, 0);
 			if (rect_and(&full, &r_view))
-				off_copy(&full);
+				off_copy_as(&full, 0);	/* the whole page at once, the VDI's copy (F1) */
 			graf_mouse(M_ON, 0);
 			wind_update(END_UPDATE);
-			vj.copy_ms = pf_ms() - k0;	/* (what the next one is judged by) */
 		}
 		vj.show = 0;
 		vj.on = 0;
+		rate_from(vj.draw_ms, &r_view);	/* (the next big redraw judged by it) */
 		vj.mini = 1;		/* the small month, in the next slice */
 		vj.mini_from = -1;
 		{
@@ -1158,6 +1209,8 @@ void win_redraw(GRECT *area)
 		icon_window(area);	/* over the small window, not the old work area */
 		return;
 	}
+	if (off_screen() && !vj.inside && redraw_big(area) && win_start())
+		return;		/* in pieces: white at once, then the toolbar, the list and the view */
 	if (vj.on && !vj.inside) {
 		GRECT v = r_view;
 		if (!area || rect_and(&v, area))
@@ -1176,13 +1229,11 @@ void win_redraw(GRECT *area)
 	}
 	if (off_screen()) {
 		/* all of it off the screen, then each visible piece copied */
-#ifdef AES_PROFILE
 		unsigned long t0 = pf_ms(), t1;
-#endif
 		off_draw(&full);
-#ifdef AES_PROFILE
 		t1 = pf_ms();
-#endif
+		if ((long)full.w * full.h * 4 >= (long)work.w * work.h)
+			rate_from(t1 - t0, &full);	/* (a big one: what the next is judged by) */
 		off_copy(&full);
 #ifdef AES_PROFILE
 		if (pf_ms() - t0 >= 20) {

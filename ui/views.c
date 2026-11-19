@@ -33,6 +33,13 @@ static OCCLIST occ;
 static int occ_valid;
 static int occ_partial;		/* a collect begun in slices (views_prepare), not finished; 2: but
 				   its days (oday_fill) */
+/* the month's grid of occurrences, kept: a week's or a day's inside it
+   taken from it, not every event expanded again (F2: Erez, 19 Nov 2026;
+   the collect was 270 ms of each view on Falcon-4:256 with NVDI). Not
+   for the year view, whose list a 1 MB ST hasn't the room to keep twice */
+static OCCLIST wide;
+static int wide_valid;
+static OCCLIST *occ_tgt;		/* the list the collect under way fills */
 static int busy_known;
 static void yg_forget(void);
 static int laid_out;
@@ -116,6 +123,7 @@ void views_scroll_to(short hour)
 void views_invalidate(void)
 {
 	occ_valid = 0;
+	wide_valid = 0;
 	occ_partial = 0;	/* a collect under way begins again */
 	busy_known = 0;
 	laid_out = 0;
@@ -164,6 +172,45 @@ static void range(long *from, long *n)
 
 static void oday_fill(void);
 
+/* the month view's range for day d: whole weeks round its month */
+static void month_grid(long d, long *from, long *n)
+{
+	int y, m, dd;
+	long first;
+	civil_from_days(d, &y, &m, &dd);
+	first = days_from_civil(y, m, 1);
+	*from = week_start(first);
+	*n = ((first - *from) + days_in_month(y, m) + 6) / 7 * 7;
+}
+
+/* occ: the occurrences of wide that meet a..b, in wide's order (the
+   collect's own test: rrule.c's emit). 0 without the memory */
+static int occ_from_wide(CTIME a, CTIME b)
+{
+	int i, k = 0;
+	for (i = 0; i < wide.n; i++) {
+		const OCC *o = &wide.o[i];
+		if (o->start < b && (o->end > a || (o->end == o->start && o->start >= a)))
+			k++;
+	}
+	if (k > occ.max) {
+		OCC *n = realloc(occ.o, (size_t)(k + 16) * sizeof(OCC));
+		if (!n)
+			return 0;
+		occ.o = n;
+		occ.max = k + 16;
+	}
+	occ.n = 0;
+	for (i = 0; i < wide.n; i++) {
+		const OCC *o = &wide.o[i];
+		if (o->start < b && (o->end > a || (o->end == o->start && o->start >= a)))
+			occ.o[occ.n++] = *o;
+	}
+	occ.from = a;
+	occ.to = b;
+	return 1;
+}
+
 /* the range's occurrences: 1 when they are there, 0 when a collect is
    (re)begun or goes on, for ms (0: to the end) */
 static int collect_for(unsigned long ms)
@@ -175,9 +222,36 @@ static int collect_for(unsigned long ms)
 	b = (from + n) * MIN_PER_DAY;
 	if (occ_valid && occ.from == a && occ.to == b)
 		return 1;
-	if (!occ_partial || occ.from != a || occ.to != b) {
+	if (cur_view != V_YEAR) {
+		long wf, wn;
+		CTIME wa, wb;
+		month_grid(cur_day, &wf, &wn);
+		wa = wf * MIN_PER_DAY;
+		wb = (wf + wn) * MIN_PER_DAY;
+		if (!(wide_valid && wide.from <= a && b <= wide.to)) {
+			if (!occ_partial || occ_tgt != &wide || wide.from != wa || wide.to != wb) {
+				wide_valid = occ_valid = 0;
+				occ_collect_begin(&wide, wa, wb);
+				occ_tgt = &wide;
+				occ_partial = 1;
+			}
+			if (occ_collect_step(&wide, ms ? ms : 0xffffffffUL))
+				return 0;
+			occ_partial = 0;
+			wide_valid = 1;
+		}
+		if (occ_from_wide(a, b))
+			goto got;
+		occ_free(&wide);	/* (no room for both: the range's own, as before) */
+		wide_valid = 0;
+	} else if (wide.o) {
+		occ_free(&wide);	/* (the year's own list: not two) */
+		wide_valid = 0;
+	}
+	if (!occ_partial || occ_tgt != &occ || occ.from != a || occ.to != b) {
 		occ_valid = 0;
 		occ_collect_begin(&occ, a, b);
+		occ_tgt = &occ;
 		occ_partial = 1;
 	}
 	if (occ_partial == 1) {
@@ -190,6 +264,7 @@ static int collect_for(unsigned long ms)
 			return 0;
 		}
 	}
+got:
 	occ_partial = 0;
 	oday_fill();
 	busy_known = 0;
