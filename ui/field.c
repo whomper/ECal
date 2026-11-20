@@ -621,9 +621,7 @@ int dlg_tip_repaint(const GRECT *r)
 	for (i = 0; i < n; i++)
 		if (p[i].w > 0 && p[i].h > 0) {
 			font_sys_pop();
-			win_redraw_at_once++;
 			win_redraw(&p[i]);
-			win_redraw_at_once--;
 			font_sys_push();
 			form_dial(FMD_FINISH, p[i].x, p[i].y, p[i].w, p[i].h);	/* (the desktop's part) */
 		}

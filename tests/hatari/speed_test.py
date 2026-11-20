@@ -187,9 +187,9 @@ def run_prg(r, m, st):
     m.act("next month (right arrow in year/month: a page)", "page", lambda: k(K["RIGHT"], shift=True))
     m.act("back to today", "window", lambda: k(K["HOME"]))
     m.act("week view again", "window", lambda: k(SCAN["w"]))
-    # the whole window drawn again (the layout changed): the guidelines'
-    # redraw row, 300 ms or less in one piece, longer in pieces of at most
-    # 100 ms (Erez, 19 Nov 2026); twice, the list back as it was
+    # the whole window drawn again (the layout changed), in one piece as
+    # 2.55 (Erez, 20 Nov 2026: pieces finished it later); twice, the list
+    # back as it was
     m.act("the calendar list hidden (Shift+^S: the whole window)", "window",
           lambda: k(SCAN["s"], shift=True, ctrl=True))
     m.act("the calendar list shown again (Shift+^S)", "window", lambda: k(SCAN["s"], shift=True, ctrl=True))

@@ -180,7 +180,10 @@ ECal is in maintenance mode while EWeb, EPDF and EPlay go to 1.0 (AERA-Atari, AT
   slice and the screen copy never in the same turn; (3) F1: the whole page drawn off the screen and shown
   in one copy (a change he will see, approved); (4) D4, his words: "Edit > Find event...", ^F as before.
   His 31 Oct exception stays (the ST's line scroll at 115-155 ms). Every release of it passes the gate,
-  the pairs against 2.54 included. When the list is done, maintenance mode comes back.
+  the pairs against 2.54 included. When the list is done, maintenance mode comes back. Then (Erez, 20 Nov
+  2026): "we must not increase delays and latency": no row slower than the last release, the background
+  letters of (2) excepted (45 -> 85 ms with FreeMono under NVDI, accepted); and the whole window redrawn
+  in one piece as 2.55, not in pieces (in pieces it finished at 900 ms against 490 on Falcon-4:16).
 
 ## UI backlog (Erez's 54 decisions, 9 Nov 2026; AERA-Atari a261597, standards/ui)
 
