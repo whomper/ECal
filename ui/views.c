@@ -194,21 +194,18 @@ static void month_grid(long d, long *from, long *n)
 }
 
 /* occ: the occurrences of wide that meet a..b, in wide's order (the
-   collect's own test: rrule.c's emit). 0 without the memory */
+   collect's own test: rrule.c's emit), in one pass: room for all of
+   wide's first (two passes, counting then copying, were an ST's next
+   week slice 75 -> 85 ms). 0 without the memory */
 static int occ_from_wide(CTIME a, CTIME b)
 {
-	int i, k = 0;
-	for (i = 0; i < wide.n; i++) {
-		const OCC *o = &wide.o[i];
-		if (o->start < b && (o->end > a || (o->end == o->start && o->start >= a)))
-			k++;
-	}
-	if (k > occ.max) {
-		OCC *n = realloc(occ.o, (size_t)(k + 16) * sizeof(OCC));
+	int i;
+	if (wide.n > occ.max) {
+		OCC *n = realloc(occ.o, (size_t)(wide.n + 16) * sizeof(OCC));
 		if (!n)
 			return 0;
 		occ.o = n;
-		occ.max = k + 16;
+		occ.max = wide.n + 16;
 	}
 	occ.n = 0;
 	for (i = 0; i < wide.n; i++) {
