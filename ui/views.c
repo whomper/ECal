@@ -253,6 +253,9 @@ static int collect_for(unsigned long ms)
 				return 0;
 			occ_partial = 0;
 			wide_valid = 1;
+			if (ms)
+				return 0;	/* sliced: the range's own and its
+						   days in a slice of their own */
 		}
 		if (occ_from_wide(a, b))
 			goto got;
