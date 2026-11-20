@@ -2333,7 +2333,7 @@ int main(void)
 				idx_gen = store_gen;
 			}
 		}
-		if (!(which & (MU_MESAG | MU_KEYBD | MU_BUTTON)) && !work_pending() && win_warm_pending()) {
+		if (!(which & (MU_MESAG | MU_KEYBD | MU_BUTTON)) && win_warm_pending() && !work_pending()) {
 			aes_profile_tag("work: a font's letters ahead");
 			win_warm_step();
 		}
