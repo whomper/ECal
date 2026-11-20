@@ -221,6 +221,8 @@ extern short aes_double;	/* the last press evnt_multi_ gave came as the second o
 short aes_count(void);		/* global[1]: 1 on TOS, -1 on a multitasking AES */
 short appl_getinfo(short type, short *o1, short *o2, short *o3, short *o4);	/* 0: not known, or no appl_getinfo (AES < 4.0 without ?AGI or MagiC) */
 short fsel_exinput(char *path, char *name, short *button, const char *title);
+/* while it gives 1, fsel_exinput lets the screen go (wind_update) while the selector is up: dialog.c sets it */
+extern int (*gem_screen_held)(void);
 short form_do(OBJECT *tree, short start);
 short form_keybd(OBJECT *tree, short obj, short next, short ch, short *onext, short *och);
 short form_button(OBJECT *tree, short obj, short clicks, short *onext);

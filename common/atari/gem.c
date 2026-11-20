@@ -659,10 +659,19 @@ static int aes_multi(void)
 	return k;
 }
 
-/* the GEM file selector; the titled version needs AES 1.4 (TOS 1.04) */
+/* set by dialog.c while a dialog in a window holds the screen (wind_update): the file selector is then the AES's
+   own window, dragged by the user, and with the screen held nobody gave back what it uncovered (a tester's V4SA,
+   EUpdate's "Where its files go", 19 Nov 2026). 0: nothing held */
+int (*gem_screen_held)(void);
+
+/* the GEM file selector; the titled version needs AES 1.4 (TOS 1.04). The screen let go while it is up where a
+   dialog window holds it (gem_screen_held) */
 short fsel_exinput(char *path, char *name, short *button, const char *title)
 {
 	short r;
+	int held = gem_screen_held && gem_screen_held();
+	if (held)
+		wind_update(END_UPDATE);
 	addrin[0] = path;
 	addrin[1] = name;
 	if (aes_version() >= 0x0104) {
@@ -672,6 +681,8 @@ short fsel_exinput(char *path, char *name, short *button, const char *title)
 		r = aes(90, 0, 2, 2, 0);
 	}
 	*button = aintout[1];
+	if (held)
+		wind_update(BEG_UPDATE);
 	return r;
 }
 
