@@ -173,8 +173,8 @@ ECal is in maintenance mode while EWeb, EPDF and EPlay go to 1.0 (AERA-Atari, AT
   stops it working (a certificate, a server), or something EWeb, EPDF or EPlay need from it.
 - Nothing runs in the background; the session waits for Erez or the hub.
 - Only Erez's explicit word ends this mode. The hub passes it on quoting him.
-- **Lifted for one list (Erez, 19 Nov 2026, choosing "Work on 1, 2 and 3"; the hub's AERA-Atari
-  PERF-REVISIT):** (1) redraws: 300 ms or less in one piece, longer in pieces of at most 100 ms (the
+- **Done in 2.56, maintenance back:** the list below (Erez, 19 Nov 2026, choosing "Work on 1, 2 and 3"; the hub's AERA-Atari
+  PERF-REVISIT): (1) redraws: 300 ms or less in one piece, longer in pieces of at most 100 ms (the
   section-8 speed row); (2) the speed round F2-F5 of the 17 Nov report (the occurrences kept for a wider
   range, date work per day, the clock read per batch, a GDOS font's letters rendered ahead), with a view's
   slice and the screen copy never in the same turn; (3) F1: the whole page drawn off the screen and shown
