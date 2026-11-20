@@ -183,7 +183,10 @@ ECal is in maintenance mode while EWeb, EPDF and EPlay go to 1.0 (AERA-Atari, AT
   the pairs against 2.54 included. When the list is done, maintenance mode comes back. Then (Erez, 20 Nov
   2026): "we must not increase delays and latency": no row slower than the last release, the background
   letters of (2) excepted (45 -> 85 ms with FreeMono under NVDI, accepted); and the whole window redrawn
-  in one piece as 2.55, not in pieces (in pieces it finished at 900 ms against 490 on Falcon-4:16).
+  in one piece as 2.55, not in pieces (in pieces it finished at 900 ms against 490 on Falcon-4:16). For
+  2.56 he accepted three Falcon-4:16 rows 5-10 ms behind 2.55 (next month's picture 1240 -> 1250 ms,
+  the year view's longest stretch 65 -> 70-75, the start's picture 1105 -> 1115), the build's layout
+  rather than a change ("Release as it is", 20 Nov 2026).
 
 ## UI backlog (Erez's 54 decisions, 9 Nov 2026; AERA-Atari a261597, standards/ui)
 
