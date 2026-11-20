@@ -997,8 +997,7 @@ int win_view_step(unsigned long ms)
 	{
 	/* the clock read twice a piece, before and after it (a read is a
 	   trap to the OS: 4 a piece were 15 ms of a view on Falcon-4:256,
-	   F4: Erez, 19 Nov 2026); before it afresh, not the last piece's end:
-	   with that, Falcon-4:16's year view had slices of 75 ms, 2.55's 65 */
+	   F4: Erez, 19 Nov 2026) */
 	unsigned long now = pf_ms();
 	while (vj.ti < vj.nt) {
 		unsigned long p0 = now, took, half = ms / 2;
@@ -1030,7 +1029,7 @@ int win_view_step(unsigned long ms)
 		}
 		/* not begun when the dearest yet says it would end past the
 		   slice (one drawn already: each slice draws one at least) */
-		if (drawn && (p0 = pf_ms()) - t0 + (rows ? vj.row_ms * rows : vj.piece_ms * k) > ms)
+		if (drawn && p0 - t0 + (rows ? vj.row_ms * rows : vj.piece_ms * k) > ms)
 			break;
 		drawn = 1;
 		vj.ti += k;
