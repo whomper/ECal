@@ -232,11 +232,25 @@ static int collect_for(unsigned long ms)
 	b = (from + n) * MIN_PER_DAY;
 	if (occ_valid && occ.from == a && occ.to == b)
 		return 1;
-	/* the month's kept where a page moves (or for the month view, whose
-	   own it is); the same range collected again (the events changed) is
+	if (occ_partial == 2 && occ_tgt == &occ && occ.from == a && occ.to == b)
+		goto got;	/* (taken from the month's: its days in a slice of their own) */
+	/* the month view's own list, whole, is the month's for a week or a day
+	   in it: handed over, not copied */
+	if (cur_view != V_YEAR && cur_view != V_MONTH && !wide_valid && occ_valid &&
+	    occ.from <= a && b <= occ.to && occ.to - occ.from <= 42L * MIN_PER_DAY) {
+		OCCLIST t = wide;
+		wide = occ;
+		occ = t;
+		wide_valid = 1;
+		occ_valid = 0;
+	}
+	/* the month's kept where a page moves; the month view collects its
+	   own, as before (from the month's a copy: an ST's month pages 30-50
+	   ms later); the same range collected again (the events changed) is
 	   collected alone: a week from the month's took an ST 800 ms, alone
 	   345 */
-	if (cur_view != V_YEAR && (cur_view == V_MONTH || wide_valid || occ.from != a || occ.to != b)) {
+	if (cur_view != V_YEAR && ((wide_valid && wide.from <= a && b <= wide.to) ||
+				   (cur_view != V_MONTH && (wide_valid || occ.from != a || occ.to != b)))) {
 		long wf, wn;
 		CTIME wa, wb;
 		month_grid(cur_day, &wf, &wn);
@@ -257,11 +271,17 @@ static int collect_for(unsigned long ms)
 				return 0;	/* sliced: the range's own and its
 						   days in a slice of their own */
 		}
-		if (occ_from_wide(a, b))
+		if (occ_from_wide(a, b)) {
+			if (ms) {
+				occ_tgt = &occ;	/* (sliced: the days in the next) */
+				occ_partial = 2;
+				return 0;
+			}
 			goto got;
+		}
 		occ_free(&wide);	/* (no room for both: the range's own, as before) */
 		wide_valid = 0;
-	} else if (wide.o) {
+	} else if (cur_view == V_YEAR && wide.o) {
 		occ_free(&wide);	/* (the year's own list: not two) */
 		wide_valid = 0;
 	}
