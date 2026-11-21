@@ -284,6 +284,23 @@ short evnt_multi_(short flags, short clicks, short mask, short state,
 /* VDI */
 short v_opnvwk_(short phys, short *work_out);
 void v_clsvwk(short h);
+/* a physical workstation (a printer, a file driver): its handle, 0 if none; v_updwk prints the page, v_clrwk
+   starts the next, v_clswk ends it (common/ui/print.c) */
+short v_opnwk(const short *work_in, short *work_out);
+void v_clswk(short h);
+void v_clrwk(short h);
+void v_updwk(short h);
+/* WDIALOG's print dialog and NVDI 5's printer opened with its settings (PRN_SETTINGS, opaque) */
+void *pdlg_create(short flags);
+short pdlg_delete(void *dlg);
+void *pdlg_new_settings(void *dlg);
+short pdlg_free_settings(void *set);
+short pdlg_dflt_settings(void *dlg, void *set);
+short pdlg_validate_settings(void *dlg, void *set);
+short pdlg_use_settings(void *dlg, void *set);
+short pdlg_save_default_settings(void *dlg, void *set);
+short pdlg_do(void *dlg, void *set, const char *name, short options);
+short v_opnprn(short base, void *set, short *work_out);
 void vs_clip(short h, short on, const short *pxy);
 void vswr_mode(short h, short mode);
 void vsf_interior(short h, short style);
