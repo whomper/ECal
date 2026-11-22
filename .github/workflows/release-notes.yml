@@ -1,0 +1,32 @@
+name: Release notes
+
+# A published release's notes replaced, nothing else (files and tag as
+# they are): Actions > Release notes > Run workflow, on main, with the
+# tag and the whole new notes.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The release's tag (vX.Y)"
+        required: true
+        type: string
+      notes:
+        description: "Its notes, whole (Markdown)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  notes:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Edit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          printf '%s\n' "$NOTES" > "$RUNNER_TEMP/notes.md"
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file "$RUNNER_TEMP/notes.md"
