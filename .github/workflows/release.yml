@@ -80,8 +80,9 @@ jobs:
           gh release create "$TAG" "dist/ecal-$V-firebee.zip" --target "$GITHUB_SHA" --title "ECal $V" \
             --notes-file "$RUNNER_TEMP/notes.md"
           gh release upload "$TAG" "dist/ecal-$V.zip"
-          ORDER=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq '[.assets | sort_by(.id) | .[].name] | join(" ")')
-          echo "assets, in upload order: $ORDER"
+          # the order as the API returns it (by name), which an old EUpdate unpacks in: no sorting here
+          ORDER=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq '[.assets[].name] | join(" ")')
+          echo "assets, as the API lists them: $ORDER"
           if [ "$ORDER" != "ecal-$V-firebee.zip ecal-$V.zip" ]; then
             echo "::error::the assets are $ORDER: the FireBee zip first and ecal-$V.zip last, nothing else"
             exit 1
