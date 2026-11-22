@@ -191,10 +191,13 @@ ECal is in maintenance mode while EWeb, EPDF and EPlay go to 1.0 (AERA-Atari, AT
   the year view's longest stretch 65 -> 70-75, the start's picture 1105 -> 1115), the build's layout
   rather than a change ("Release as it is", 20 Nov 2026).
 
-- **Lifted for one item (Erez, 22 Nov 2026: "Make the other apps native on the FireBee too"; the
-  guidelines 7.4, AERA-Atari b89dd31):** the FireBee package (Erez: "two packages... Same names", AERA-Atari
-  cc13e75), each package's alert naming the other's (his words, ui/cpualert.c), the core under qemu-m68k -cpu cfv4e (`make core-cf`), the gate for the 68000 files.
-  Maintenance comes back after its release.
+- **Done in 2.57, maintenance back:** the one item lifted on 22 Nov 2026 (Erez: "Make the other apps native
+  on the FireBee too"; the guidelines 7.4, AERA-Atari b89dd31): the FireBee package (Erez: "two packages...
+  Same names", AERA-Atari cc13e75), each package's alert naming the other's (his words, ui/cpualert.c), the
+  core under qemu-m68k -cpu cfv4e (`make core-cf`). For 2.57 he accepted two Falcon month pictures 25-30 ms
+  behind 2.56 (Falcon-4:16, the month again 1140 -> 1170 ms; Falcon-4:256 with NVDI, the month drawn whole
+  695 -> 722), no drawing code changed and 2.56's layout not bringing it back ("Release as it is", 22 Nov
+  2026).
 
 ## UI backlog (Erez's 54 decisions, 9 Nov 2026; AERA-Atari a261597, standards/ui)
 
