@@ -22,20 +22,19 @@ CalDAV server.
 
 ## Getting started
 
-Download `ECAL-x.y.zip` (or each file) from **[Releases](https://github.com/whomper/ECal/releases/latest)**:
+Download from **[Releases](https://github.com/whomper/ECal/releases/latest)** the package for your Atari:
+`ECAL-x.y.zip` for an ST, STE, TT or Falcon (its files are also there one by one), or
+`ECAL-x.y-FIREBEE.ZIP` for a FireBee. Both hold the same names:
 
 | File | What it is |
 |---|---|
-| `ECAL.ACC` / `ECAL.PRG` | the accessory, or the same as a program, for the ST, STE, TT and Falcon |
-| `ECALFB.ACC` / `ECALFB.PRG` | the same for the FireBee, as ColdFire code |
-| `TLS.OVL`, `CACERT.PEM`, `ROOTS.DAT` | the Direct connection (TT, Falcon), loaded only when used |
-| `TLSFB.OVL` | the same for a FireBee, which ECal loads there in place of `TLS.OVL` |
+| `ECAL.ACC` / `ECAL.PRG` | the accessory, or the same as a program (the FireBee's made for its ColdFire) |
+| `TLS.OVL` (the FireBee's: `TLSFB.OVL`), `CACERT.PEM`, `ROOTS.DAT` | the Direct connection (TT, Falcon, FireBee), loaded only when used |
 | `ECAL.HYP`, `ECAL.REF` | the guide, opened by the Help key |
 | `icons/` | ECal's desktop icon ([how](docs/GUIDE.md#the-desktop-icon)) |
 
-1. Copy `ECAL.ACC` to the root of the boot drive, the rest to a folder of its own (it asks where). On a
-   FireBee copy `ECALFB.ACC` there instead, in its place, never beside it: a FireBee loads every `.ACC`
-   in the root. Each edition says so if it finds itself on the other machine.
+1. Copy `ECAL.ACC` to the root of the boot drive, the rest to a folder of its own (it asks where). Each
+   package says so if it finds itself on the other machine.
 2. On an ST or STE, set up the Gateway on a Raspberry Pi ([steps](docs/GUIDE.md#settings)).
 3. Reboot, choose **ECal** in the Desk menu; in **Settings...** give the Gateway or tick **Direct
    connection**, and the clock's time zone.
@@ -60,7 +59,7 @@ Falcon or TT it is optional. Setting it up: the [Gateway's README](https://githu
 ```sh
 sudo apt install gcc gcc-m68k-linux-gnu python3 zip   # Debian/Ubuntu; no MiNTLib needed
 make                          # binary/: ECAL.ACC, ECAL.PRG, TLS.OVL, TLSFB.OVL, CACERT.PEM, ROOTS.DAT
-make firebee                  # binary/: ECALFB.PRG, ECALFB.ACC (ColdFire code, common's mkfirebee.py)
+make firebee                  # binary/firebee/: the FireBee's ECAL.PRG and ECAL.ACC (common's mkfirebee.py)
 make test                     # the core's unit tests, the fuzz inputs, the gateway's tests
 make itest                    # against a local CalDAV server (Radicale)
 make dist HCP=/path/to/hcp    # dist/: a release's files and ECAL-x.y.zip

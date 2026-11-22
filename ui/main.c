@@ -1964,7 +1964,7 @@ int ui_track(const GRECT *r, short x, short y)
 long nf_on = 1;
 #endif
 
-/* (main() is common's atari/cpucheck.c, cpucheck_cf.S in ECALFB: the
+/* (main() is common's atari/cpucheck.c, cpucheck_cf.S in the FireBee package: the
    alert of ui/cpualert.c where this edition is the other machine's) */
 int app_main(void)
 {

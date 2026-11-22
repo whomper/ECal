@@ -94,8 +94,9 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
 
 ## ECal
 
-- **A release** carries `ecal.acc`, `ecal.prg`, the FireBee edition `ecalfb.acc` and `ecalfb.prg` (`make
-  firebee`, common's mkfirebee.py; guidelines 7.4, Erez 22 Nov 2026), `tls.ovl` (common's, never built here; guidelines
+- **A release** carries two packages (guidelines 7.4, Erez 22 Nov 2026): `ecal-x.y.zip` for the ST, TT
+  and Falcon, its files also loose, and `ecal-x.y-firebee.zip` with the same names (`make firebee`, common's
+  mkfirebee.py: binary/firebee/), `tlsfb.ovl` in place of `tls.ovl`. The standard one: `ecal.acc`, `ecal.prg`, `tls.ovl` (common's, never built here; guidelines
   7.4), `ecal.hyp` and `.ref` (hcp from `common/tools/build-hcp.sh`), `cacert.pem`, `roots.dat` and
   the icon, all in `ecal-x.y.zip` too. The icons are committed in
   `icons/` (`make icons`).
@@ -190,9 +191,8 @@ ECal is in maintenance mode while EWeb, EPDF and EPlay go to 1.0 (AERA-Atari, AT
   rather than a change ("Release as it is", 20 Nov 2026).
 
 - **Lifted for one item (Erez, 22 Nov 2026: "Make the other apps native on the FireBee too"; the
-  guidelines 7.4, AERA-Atari b89dd31):** the FireBee edition, ECALFB.PRG and ECALFB.ACC, each edition's
-  alert naming the other (their words Erez's, through the hub), the accessory in place of ECAL.ACC and
-  never beside it, the core under qemu-m68k -cpu cfv4e (`make core-cf`), the gate for the 68000 files.
+  guidelines 7.4, AERA-Atari b89dd31):** the FireBee package (Erez: "two packages... Same names", AERA-Atari
+  cc13e75), each package's alert naming the other's (his words, ui/cpualert.c), the core under qemu-m68k -cpu cfv4e (`make core-cf`), the gate for the 68000 files.
   Maintenance comes back after its release.
 
 ## UI backlog (Erez's 54 decisions, 9 Nov 2026; AERA-Atari a261597, standards/ui)

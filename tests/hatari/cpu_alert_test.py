@@ -3,7 +3,8 @@
 # Copyright (C) 2026 AERA | Erez Yaary
 """Each edition on the other's machine (the guidelines, 7.4; Erez, 22 Nov
 2026): ECAL.PRG and ECAL.ACC on the FireBee stand-in (FireTOS's _CF_
-cookie), ECALFB.PRG and ECALFB.ACC on an ST and a Falcon. A program shows
+cookie), the FireBee package's on an ST and a Falcon (binary/firebee/, the
+same names; the guidelines 7.4, two packages). A program shows
 its alert (ui/cpualert.c) at once; an accessory nothing at boot, its
 "  ECal" in the Desk menu, the alert when that is chosen (common's
 cpucheck, the guidelines 2.2). OK gives the desktop back, its menu bar up
@@ -22,13 +23,14 @@ sys.path.insert(0, os.path.dirname(__file__))
 from rig import Rig, K, machines  # noqa: E402
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
+BIN = os.path.join(ROOT, "binary")
 # name, machine, file, as an accessory
 CASES = [
     ("prg_on_firebee", "FireBee:16", "ecal.prg", False),
     ("acc_on_firebee", "FireBee:16", "ecal.acc", True),
-    ("fbprg_on_st", "ST:mono", "ecalfb.prg", False),
-    ("fbacc_on_st1", "ST-1:mono", "ecalfb.acc", True),
-    ("fbacc_on_falcon", "Falcon:16", "ecalfb.acc", True),
+    ("fbprg_on_st", "ST:mono", "firebee/ecal.prg", False),
+    ("fbacc_on_st1", "ST-1:mono", "firebee/ecal.acc", True),
+    ("fbacc_on_falcon", "Falcon:16", "firebee/ecal.acc", True),
 ]
 
 # the Desk menu's first accessory line ("  ECal", under Desktop info... and
@@ -76,9 +78,10 @@ def run(work, name, machine, prog, acc):
     shutil.rmtree(d, ignore_errors=True)
     hd = os.path.join(d, "hd")
     os.makedirs(hd)
-    shutil.copy(machines.ci_path(os.path.join(ROOT, "binary"), prog), os.path.join(hd, prog))
-    print("%s: %s on %s" % (name, prog.upper(), machine), flush=True)
-    r = Rig(d, machine, auto=None if acc else "C:\\" + prog, tls_ovl=False)
+    sub, f = os.path.split(prog)
+    shutil.copy(machines.ci_path(os.path.join(BIN, sub), f), os.path.join(hd, f))
+    print("%s: %s on %s" % (name, prog, machine), flush=True)
+    r = Rig(d, machine, auto=None if acc else "C:\\" + f, tls_ovl=False)
     try:
         print("  " + r.machine.describe(), flush=True)
         time.sleep(30 if acc else 25)
@@ -118,7 +121,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("work")
     ap.add_argument("--only")
+    ap.add_argument("--bin", default=os.path.join(ROOT, "binary"), help="the built files (binary/)")
     a = ap.parse_args()
+    global BIN
+    BIN = a.bin
     for name, machine, prog, acc in CASES:
         if a.only and a.only != name:
             continue

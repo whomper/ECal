@@ -116,14 +116,17 @@ $(BIN)/ecal.acc: $(OBJDIR)/cal.elf common/tools/elf2tos.py | $(BIN)
 $(BIN)/ecal.prg: $(OBJDIR)/cal_prg.elf common/tools/elf2tos.py | $(BIN)
 	PRGFLAGS=7 python3 common/tools/elf2tos.py $< $@
 
-# the FireBee edition (the guidelines, 7.4; Erez, 22 Nov 2026): the same
-# sources as ColdFire code, by common's mkfirebee.py from the rules above
-# (cpucheck.c becomes cpucheck_cf.S, -lgcc ll64.c). ECALFB.ACC goes in
-# ECAL.ACC's place, never beside it: a FireBee loads every .ACC
-firebee: $(BIN)/ecalfb.prg $(BIN)/ecalfb.acc
-$(BIN)/ecalfb.prg: $(OBJDIR)/cal_prg.elf common/tools/mkfirebee.py | $(BIN)
+# the FireBee package (the guidelines, 7.4; Erez, 22 Nov 2026: two
+# packages, the same names inside): the same sources as ColdFire code, by
+# common's mkfirebee.py from the rules above (cpucheck.c becomes
+# cpucheck_cf.S, -lgcc ll64.c), in $(BIN)/firebee/
+FBBIN   := $(BIN)/firebee
+firebee: $(FBBIN)/ecal.prg $(FBBIN)/ecal.acc
+$(FBBIN)/ecal.prg: $(OBJDIR)/cal_prg.elf common/tools/mkfirebee.py
+	@mkdir -p $(FBBIN)
 	python3 common/tools/mkfirebee.py --elf $(OBJDIR)/cal_prg.elf --outdir $(OBJDIR)/cf/ $@
-$(BIN)/ecalfb.acc: $(OBJDIR)/cal.elf common/tools/mkfirebee.py | $(BIN)
+$(FBBIN)/ecal.acc: $(OBJDIR)/cal.elf common/tools/mkfirebee.py
+	@mkdir -p $(FBBIN)
 	python3 common/tools/mkfirebee.py --elf $(OBJDIR)/cal.elf --outdir $(OBJDIR)/cfacc/ $@
 
 # ECal's icon for the desktop: icons/, ui/icon*.h and docs/icon*.png, from
@@ -284,19 +287,28 @@ $(BIN)/ecal.hyp: docs/GUIDE.md tools/guide2stg.py VERSION docs/front.json docs/h
 # a release's files: each one in dist/, and all of them in
 # dist/ecal-x.y.zip (the icons in icons/), for the release workflow.
 # Every name in lowercase, the icons' too (the guidelines, 6.6)
-DIST    := $(BIN)/ecal.acc $(BIN)/ecal.prg $(BIN)/ecalfb.acc $(BIN)/ecalfb.prg $(BIN)/tls.ovl $(BIN)/tlsfb.ovl $(BIN)/cacert.pem $(BIN)/roots.dat \
+# Two packages (the guidelines, 7.4; Erez, 22 Nov 2026): ecal-x.y.zip for
+# the ST, TT and Falcon, its files also loose (the release's assets), and
+# ecal-x.y-firebee.zip with the same names, its ECAL.PRG and ECAL.ACC the
+# FireBee's (make firebee) and TLSFB.OVL in place of TLS.OVL
+DIST    := $(BIN)/ecal.acc $(BIN)/ecal.prg $(BIN)/tls.ovl $(BIN)/cacert.pem $(BIN)/roots.dat \
+           $(BIN)/ecal.hyp $(BIN)/ecal.ref
+FBDIST  := $(FBBIN)/ecal.acc $(FBBIN)/ecal.prg $(BIN)/tlsfb.ovl $(BIN)/cacert.pem $(BIN)/roots.dat \
            $(BIN)/ecal.hyp $(BIN)/ecal.ref
 ICONS   := icons/ECAL.RSC icons/ECALNV.RSC icons/ECAL.ICN icons/ECALMK.ICN
 dist: all firebee help
 	rm -rf dist
-	mkdir -p dist/zip/icons
+	mkdir -p dist/zip/icons dist/fbzip/icons
 	cp $(DIST) dist/
 	cp $(DIST) dist/zip/
+	cp $(FBDIST) dist/fbzip/
 	for f in $(ICONS); do b=$$(basename $$f | tr A-Z a-z); \
-		cp $$f dist/$$b; cp $$f dist/zip/icons/$$b; done
+		cp $$f dist/$$b; cp $$f dist/zip/icons/$$b; cp $$f dist/fbzip/icons/$$b; done
 	cd dist/zip && zip -q -9 -r ../ecal-$(VERSION_STR).zip .
-	rm -rf dist/zip
-	@if ls dist | grep -q '[A-Z]' || unzip -Z1 dist/ecal-$(VERSION_STR).zip | grep -q '[A-Z]'; then \
+	cd dist/fbzip && zip -q -9 -r ../ecal-$(VERSION_STR)-firebee.zip .
+	rm -rf dist/zip dist/fbzip
+	@if ls dist | grep -q '[A-Z]' || unzip -Z1 dist/ecal-$(VERSION_STR).zip | grep -q '[A-Z]' || \
+	    unzip -Z1 dist/ecal-$(VERSION_STR)-firebee.zip | grep -q '[A-Z]'; then \
 		echo "dist: a name with capitals (the guidelines, 6.6)"; exit 1; fi
 
 # ---- fuzzing (the AERA guidelines, 7.1): what servers send, from
@@ -382,7 +394,7 @@ clean:
 # ---- the core as ColdFire code (the FireBee edition, guidelines 7.4) ----
 # tests/rrjump.c (the parser, a series' occurrences, the time zones) and
 # tests/corecheck.c built with -mcpu=5475 against common's atari/libc.c,
-# ECALFB's own, run under qemu-m68k -cpu cfv4e (tests/coldfire/cfrun.c:
+# the FireBee package's own, run under qemu-m68k -cpu cfv4e (tests/coldfire/cfrun.c:
 # GEMDOS's memory calls stood in for); their output must be the host's,
 # byte for byte
 CFT     := common/tests/coldfire
