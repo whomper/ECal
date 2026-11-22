@@ -75,7 +75,9 @@ OBJDIR  := build
 OBJS0   := $(OBJDIR)/crt0.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o $(OBJDIR)/crash.o $(OBJDIR)/crash_s.o \
            $(addprefix $(OBJDIR)/,$(addsuffix .o,$(ACORE) $(ATARI) $(UI))) \
            $(addprefix $(OBJDIR)/st/,$(addsuffix .o,$(notdir $(STBSSL))))
-OBJS    := $(OBJS0) $(OBJDIR)/version.o
+# (cpucheck.c, the start that says which edition belongs on the machine,
+# and ECal's alerts last: the code before them where 2.56 had it)
+OBJS    := $(OBJS0) $(OBJDIR)/version.o $(OBJDIR)/cpualert.o $(OBJDIR)/cpucheck.o
 HDRS    := $(wildcard src/*.h atari/*.h atari/include/*.h ui/*.h \
            common/src/*.h common/atari/*.h common/atari/include/*.h common/ui/*.h common/dsp/*.h)
 
@@ -113,6 +115,21 @@ $(BIN)/ecal.acc: $(OBJDIR)/cal.elf common/tools/elf2tos.py | $(BIN)
 	PRGFLAGS=7 python3 common/tools/elf2tos.py $< $@
 $(BIN)/ecal.prg: $(OBJDIR)/cal_prg.elf common/tools/elf2tos.py | $(BIN)
 	PRGFLAGS=7 python3 common/tools/elf2tos.py $< $@
+
+# the FireBee edition (the guidelines, 7.4; Erez, 22 Nov 2026): the same
+# sources as ColdFire code, by common's mkfirebee.py from the rules above
+# (cpucheck.c becomes cpucheck_cf.S, -lgcc ll64.c). ECALFB.ACC goes in
+# ECAL.ACC's place, never beside it: a FireBee loads every .ACC.
+# --emac-ok caldav.o: its EMAC "instruction" is no instruction, the low word
+# of a lea's address (0x5a5cf) after a switch's table, where the
+# disassembler loses its place (no Line-A in ECal: common 13a4971)
+FBARGS  := --emac-ok build/caldav.o
+firebee: $(BIN)/ecalfb.prg $(BIN)/ecalfb.acc
+MKFB    ?= common/tools/mkfirebee.py
+$(BIN)/ecalfb.prg: $(OBJDIR)/cal_prg.elf $(MKFB) | $(BIN)
+	python3 $(MKFB) --elf $(OBJDIR)/cal_prg.elf --outdir $(OBJDIR)/cf/ $(FBARGS) $@
+$(BIN)/ecalfb.acc: $(OBJDIR)/cal.elf $(MKFB) | $(BIN)
+	python3 $(MKFB) --elf $(OBJDIR)/cal.elf --outdir $(OBJDIR)/cfacc/ $(FBARGS) $@
 
 # ECal's icon for the desktop: icons/, ui/icon*.h and docs/icon*.png, from
 # its drawing in common/icons/ECAL.txt (the guidelines, 5.5), committed; a
@@ -345,6 +362,8 @@ test: $(OBJDIR)/unit $(addprefix $(OBJDIR)/replay_,$(FUZZERS)) $(OBJDIR)/cal-cli
 	python3 -m unittest discover -s gateway -p 'test_ecalgate.py'
 	@if command -v $(CC) >/dev/null; then $(MAKE) --no-print-directory oddaccess; \
 	else echo "oddaccess: no $(CC) here, left to CI's Atari build"; fi
+	@if command -v $(CC) >/dev/null && command -v qemu-m68k >/dev/null; then $(MAKE) --no-print-directory core-cf; \
+	else echo "core-cf: no $(CC) or qemu-m68k here (the core as ColdFire code)"; fi
 
 # a word or long at an odd stack offset: an address error on a 68000
 # (common/tools/oddaccess.py), in every 68000 program built here
@@ -364,3 +383,55 @@ clean:
 	rm -rf $(OBJDIR) $(BIN) dist
 
 .PHONY: icons fakeguide fakecontact all help dist test itest fuzz clean profile rrjump-m68k oddaccess FORCE
+
+# ---- the core as ColdFire code (the FireBee edition, guidelines 7.4) ----
+# tests/rrjump.c (the parser, a series' occurrences, the time zones) and
+# tests/corecheck.c built with -mcpu=5475 against common's atari/libc.c,
+# ECALFB's own, run under qemu-m68k -cpu cfv4e (tests/coldfire/cfrun.c:
+# GEMDOS's memory calls stood in for); their output must be the host's,
+# byte for byte
+CFT     := common/tests/coldfire
+CFFLAGS := -mcpu=5475 -O2 -fomit-frame-pointer -ffreestanding -fno-builtin -fno-pic -fno-pie \
+           -fno-tree-loop-distribute-patterns -w -DCAL_TOS -nostdinc -isystem $(GCCINC) \
+           -Iatari/include -Icommon/atari/include -Isrc -Icommon/src -I$(CFT)
+CFCORE  := src/rrule.c src/ics.c common/src/ctime.c common/src/tz.c common/src/util.c common/src/charset.c \
+           common/atari/libc.c
+CFD     := $(OBJDIR)/corecf
+CFLD    := $(CC) -mcpu=5475 -nostdlib -static -no-pie -Wl,-z,noexecstack
+$(CFD)/%.o: %.c $(HDRS)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFFLAGS) -c -o $@ $<
+$(CFD)/rt.o: $(CFT)/rt.S
+	@mkdir -p $(dir $@)
+	$(CC) -mcpu=5475 -c -o $@ $<
+$(CFD)/tests/%.cf.o: tests/%.c $(HDRS)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFFLAGS) -Dmain=cf_main -Dprintf=cf_printf -c -o $@ $<
+$(CFD)/ll64.o: common/atari/ll64.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFFLAGS) -c -o $@ $<
+# (no -lgcc, which is 68020 code: common's ll64.c, as tools/mkfirebee.py)
+CFOBJS  := $(addprefix $(CFD)/,$(CFCORE:.c=.o)) $(CFD)/tests/coldfire/cfrun.o $(CFD)/$(CFT)/gemdos.o $(CFD)/rt.o \
+           $(CFD)/ll64.o
+$(CFD)/%-cf: $(CFD)/tests/%.cf.o $(CFOBJS)
+	$(CFLD) -o $@ $^
+# the calendars corecheck reads, as C strings: bigcal.py's (a fixed day) and the fuzz seeds
+CORECALS := $(wildcard tests/fuzz/seeds/ics/*)
+$(CFD)/corecal.h: tests/coldfire/mkcorecal.py tests/host/bigcal.py $(CORECALS)
+	@mkdir -p $(CFD)/cal
+	python3 tests/host/bigcal.py $(CFD)/cal 20261122 --big
+	python3 tests/coldfire/mkcorecal.py $@ $(CFD)/cal/FAMILY.ICS $(CFD)/cal/HOME.ICS \
+	    $(CFD)/cal/SUBS.ICS $(CFD)/cal/WORK.ICS $(CORECALS)
+$(CFD)/tests/corecheck.cf.o: $(CFD)/corecal.h
+$(CFD)/tests/corecheck.cf.o: CFFLAGS += -I$(CFD)
+CORECHECK_SRC := tests/corecheck.c src/rrule.c src/ics.c common/src/ctime.c common/src/tz.c common/src/util.c \
+                 common/src/charset.c tests/host/plat_posix.c tests/host/version_host.c
+$(OBJDIR)/corecheck: $(CORECHECK_SRC) $(CFD)/corecal.h $(HDRS) | $(OBJDIR)
+	$(HOSTCC) $(HOSTCFLAGS) -I$(CFD) -o $@ $(CORECHECK_SRC)
+core-cf: $(OBJDIR)/rrjump $(CFD)/rrjump-cf $(OBJDIR)/corecheck $(CFD)/corecheck-cf
+	@for t in rrjump corecheck; do \
+	  $(OBJDIR)/$$t > $(CFD)/$$t.host || exit 1; \
+	  qemu-m68k -cpu cfv4e $(CFD)/$$t-cf > $(CFD)/$$t.cf || { echo "$$t-cf failed"; exit 1; }; \
+	  cmp $(CFD)/$$t.host $(CFD)/$$t.cf || exit 1; \
+	  echo "$$t, ColdFire as the host: $$(tail -n 1 $(CFD)/$$t.cf)"; \
+	done
