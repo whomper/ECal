@@ -7,9 +7,11 @@ folder, then with it. Without it an alert says so, the tick stays off
 and ECAL.INF keeps FALCON=0; with it TLS.OVL is loaded at once (the
 log says "TLS.OVL 1.2 loaded", whatever its version), the tick is on and
 FALCON=1 is written.
-No crash either way.
+No crash either way. --firebee: the FireBee package's (binary/firebee/
+ecal.prg, common's tlsfb.ovl as its tls.ovl: the guidelines, 7.4, Erez
+22 Nov 2026) on the FireBee stand-in, which loads tls.ovl as named.
 
-    tests/hatari/tlsovl_test.py WORK [--machine Falcon|TT|...]
+    tests/hatari/tlsovl_test.py WORK [--machine Falcon|TT|...] [--firebee]
 """
 import argparse
 import os
@@ -31,11 +33,16 @@ def check(what, ok):
         fails.append(what)
 
 
-def run(work, machine, with_ovl):
+def run(work, machine, with_ovl, firebee=False):
     shutil.rmtree(work, ignore_errors=True)
     hd = os.path.join(work, "hd")
     os.makedirs(hd)
-    shutil.copy(machines.ci_path(os.path.join(ui_tour.ROOT, "binary"), "ecal.prg"), os.path.join(hd, "ecal.prg"))
+    b = os.path.join(ui_tour.ROOT, "binary")
+    shutil.copy(machines.ci_path(os.path.join(b, "firebee") if firebee else b, "ecal.prg"),
+                os.path.join(hd, "ecal.prg"))
+    if firebee and with_ovl:
+        # the FireBee package's tls.ovl (the Rig leaves one that is there)
+        shutil.copy(machines.ci_path(b, "tlsfb.ovl"), os.path.join(hd, "tls.ovl"))
     shutil.copy(machines.ci_path(os.path.join(ui_tour.ROOT, "binary"), "cacert.pem"), os.path.join(hd, "cacert.pem"))
     ui_tour.seed(hd, english=True)
     inf = os.path.join(hd, "ecal.inf")
@@ -81,14 +88,18 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("work")
     add_machine(ap, "Falcon")
+    ap.add_argument("--firebee", action="store_true",
+                    help="the FireBee package's ECAL.PRG and TLS.OVL (on FireBee:16 unless --machine)")
     a = ap.parse_args()
+    if a.firebee and a.machine == "Falcon":
+        a.machine = "FireBee:16"
     work = os.path.abspath(a.work)
-    t, log, crash, shots = run(os.path.join(work, "without"), a.machine, False)
+    t, log, crash, shots = run(os.path.join(work, "without"), a.machine, False, a.firebee)
     check("without TLS.OVL: FALCON=0 kept", "\r\nFALCON=0" in t)
     check("without TLS.OVL: nothing loaded", not LOADED.search(log))
     check("without TLS.OVL: no crash (CRASH.LOG)", not crash)
     print("  (the alert: %s)" % os.path.join(shots, "2-ticked.png"))
-    t, log, crash, shots = run(os.path.join(work, "with"), a.machine, True)
+    t, log, crash, shots = run(os.path.join(work, "with"), a.machine, True, a.firebee)
     check("with TLS.OVL: loaded at once (%s)" % next((l.strip() for l in log.splitlines() if "tls.ovl" in l.lower()), "no log line"),
           bool(LOADED.search(log)))
     check("with TLS.OVL: FALCON=1 written", "\r\nFALCON=1" in t)
