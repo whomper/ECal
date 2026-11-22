@@ -10,10 +10,14 @@ choose it.
 |-------------------|------------------|---------------------------------|
 | Falcon, TT        | `ECAL.ACC`       | by itself (Direct connection, with `TLS.OVL`) or through the Gateway |
 | ST, STE, Mega ST  | `ECAL.ACC`       | through the Gateway             |
-| FireBee           | `ECAL.ACC`       | by itself (Direct connection, with `TLSFB.OVL`) or through the Gateway |
+| FireBee           | `ECALFB.ACC`     | by itself (Direct connection, with `TLSFB.OVL`) or through the Gateway |
 
-One program for every Atari: an ST never loads `TLS.OVL`, so it can
-leave it out. Before 2.25 an ST had `ECALST.ACC`: delete it.
+One program for the ST, STE, TT and Falcon: an ST never loads
+`TLS.OVL`, so it can leave it out. Before 2.25 an ST had `ECALST.ACC`:
+delete it. The FireBee has an edition of its own, `ECALFB.ACC` (and
+`ECALFB.PRG`), made for its ColdFire: copy it in place of `ECAL.ACC`,
+never beside it, as a FireBee loads every `.ACC` in the root. Each
+edition says so if it finds itself on the other machine.
 
 The settings are in `ECAL.INF` in the root of the boot drive, next to
 the accessory, where it can always find them. Everything else is in

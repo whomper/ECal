@@ -289,10 +289,10 @@ $(BIN)/ecal.hyp: docs/GUIDE.md tools/guide2stg.py VERSION docs/front.json docs/h
 # a release's files: each one in dist/, and all of them in
 # dist/ecal-x.y.zip (the icons in icons/), for the release workflow.
 # Every name in lowercase, the icons' too (the guidelines, 6.6)
-DIST    := $(BIN)/ecal.acc $(BIN)/ecal.prg $(BIN)/tls.ovl $(BIN)/tlsfb.ovl $(BIN)/cacert.pem $(BIN)/roots.dat \
+DIST    := $(BIN)/ecal.acc $(BIN)/ecal.prg $(BIN)/ecalfb.acc $(BIN)/ecalfb.prg $(BIN)/tls.ovl $(BIN)/tlsfb.ovl $(BIN)/cacert.pem $(BIN)/roots.dat \
            $(BIN)/ecal.hyp $(BIN)/ecal.ref
 ICONS   := icons/ECAL.RSC icons/ECALNV.RSC icons/ECAL.ICN icons/ECALMK.ICN
-dist: all help
+dist: all firebee help
 	rm -rf dist
 	mkdir -p dist/zip/icons
 	cp $(DIST) dist/

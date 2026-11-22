@@ -26,20 +26,23 @@ Download `ECAL-x.y.zip` (or each file) from **[Releases](https://github.com/whom
 
 | File | What it is |
 |---|---|
-| `ECAL.ACC` / `ECAL.PRG` | the accessory, or the same as a program, for every Atari |
+| `ECAL.ACC` / `ECAL.PRG` | the accessory, or the same as a program, for the ST, STE, TT and Falcon |
+| `ECALFB.ACC` / `ECALFB.PRG` | the same for the FireBee, as ColdFire code |
 | `TLS.OVL`, `CACERT.PEM`, `ROOTS.DAT` | the Direct connection (TT, Falcon), loaded only when used |
 | `TLSFB.OVL` | the same for a FireBee, which ECal loads there in place of `TLS.OVL` |
 | `ECAL.HYP`, `ECAL.REF` | the guide, opened by the Help key |
 | `icons/` | ECal's desktop icon ([how](docs/GUIDE.md#the-desktop-icon)) |
 
-1. Copy `ECAL.ACC` to the root of the boot drive, the rest to a folder of its own (it asks where).
+1. Copy `ECAL.ACC` to the root of the boot drive, the rest to a folder of its own (it asks where). On a
+   FireBee copy `ECALFB.ACC` there instead, in its place, never beside it: a FireBee loads every `.ACC`
+   in the root. Each edition says so if it finds itself on the other machine.
 2. On an ST or STE, set up the Gateway on a Raspberry Pi ([steps](docs/GUIDE.md#settings)).
 3. Reboot, choose **ECal** in the Desk menu; in **Settings...** give the Gateway or tick **Direct
    connection**, and the clock's time zone.
 4. **Add account or calendar...** with an [app password](docs/GUIDE.md#app-passwords-icloud-fastmail-yahoo).
 5. Press **Help** for the [guide](docs/GUIDE.md).
 
-**Needs:** TOS 1.04 to 4.x, EmuTOS, MagiC or MiNT; ST medium or high, TT or Falcon resolution; 1 MB
+**Needs:** TOS 1.04 to 4.x, EmuTOS, FireTOS, MagiC or MiNT; ST medium or high, TT or Falcon resolution; 1 MB
 (2 MB for big calendars); STinG or MiNTnet. On a 1 MB ST, ECal's accessory or EContact's, not both.
 Under TOS, `FOLDR100.PRG` first in `AUTO`; STinG's Delay set to the machine ([why](docs/GUIDE.md#installing)).
 
@@ -57,6 +60,7 @@ Falcon or TT it is optional. Setting it up: the [Gateway's README](https://githu
 ```sh
 sudo apt install gcc gcc-m68k-linux-gnu python3 zip   # Debian/Ubuntu; no MiNTLib needed
 make                          # binary/: ECAL.ACC, ECAL.PRG, TLS.OVL, TLSFB.OVL, CACERT.PEM, ROOTS.DAT
+make firebee                  # binary/: ECALFB.PRG, ECALFB.ACC (ColdFire code, common's mkfirebee.py)
 make test                     # the core's unit tests, the fuzz inputs, the gateway's tests
 make itest                    # against a local CalDAV server (Radicale)
 make dist HCP=/path/to/hcp    # dist/: a release's files and ECAL-x.y.zip
@@ -75,7 +79,8 @@ docs/     the user guide (ECAL.HYP's source); the rest of the tree in DEVELOPING
 
 ## Tests
 
-`make test`: dates, zones, iCalendar, every RFC 5545 repeat example, XML; the rest in [docs/DEVELOPING.md](docs/DEVELOPING.md#tests).
+`make test`: dates, zones, iCalendar, every RFC 5545 repeat example, XML, and the core as ColdFire code under
+qemu-m68k against the host's; the rest in [docs/DEVELOPING.md](docs/DEVELOPING.md#tests).
 
 ## Licence
 
