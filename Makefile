@@ -119,17 +119,12 @@ $(BIN)/ecal.prg: $(OBJDIR)/cal_prg.elf common/tools/elf2tos.py | $(BIN)
 # the FireBee edition (the guidelines, 7.4; Erez, 22 Nov 2026): the same
 # sources as ColdFire code, by common's mkfirebee.py from the rules above
 # (cpucheck.c becomes cpucheck_cf.S, -lgcc ll64.c). ECALFB.ACC goes in
-# ECAL.ACC's place, never beside it: a FireBee loads every .ACC.
-# --emac-ok caldav.o: its EMAC "instruction" is no instruction, the low word
-# of a lea's address (0x5a5cf) after a switch's table, where the
-# disassembler loses its place (no Line-A in ECal: common 13a4971)
-FBARGS  := --emac-ok build/caldav.o
+# ECAL.ACC's place, never beside it: a FireBee loads every .ACC
 firebee: $(BIN)/ecalfb.prg $(BIN)/ecalfb.acc
-MKFB    ?= common/tools/mkfirebee.py
-$(BIN)/ecalfb.prg: $(OBJDIR)/cal_prg.elf $(MKFB) | $(BIN)
-	python3 $(MKFB) --elf $(OBJDIR)/cal_prg.elf --outdir $(OBJDIR)/cf/ $(FBARGS) $@
-$(BIN)/ecalfb.acc: $(OBJDIR)/cal.elf $(MKFB) | $(BIN)
-	python3 $(MKFB) --elf $(OBJDIR)/cal.elf --outdir $(OBJDIR)/cfacc/ $(FBARGS) $@
+$(BIN)/ecalfb.prg: $(OBJDIR)/cal_prg.elf common/tools/mkfirebee.py | $(BIN)
+	python3 common/tools/mkfirebee.py --elf $(OBJDIR)/cal_prg.elf --outdir $(OBJDIR)/cf/ $@
+$(BIN)/ecalfb.acc: $(OBJDIR)/cal.elf common/tools/mkfirebee.py | $(BIN)
+	python3 common/tools/mkfirebee.py --elf $(OBJDIR)/cal.elf --outdir $(OBJDIR)/cfacc/ $@
 
 # ECal's icon for the desktop: icons/, ui/icon*.h and docs/icon*.png, from
 # its drawing in common/icons/ECAL.txt (the guidelines, 5.5), committed; a

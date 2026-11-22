@@ -3,10 +3,11 @@
 # Copyright (C) 2026 AERA | Erez Yaary
 """Each edition on the other's machine (the guidelines, 7.4; Erez, 22 Nov
 2026): ECAL.PRG and ECAL.ACC on the FireBee stand-in (FireTOS's _CF_
-cookie), ECALFB.PRG and ECALFB.ACC on an ST and a Falcon. Each shows its
-alert (ui/cpualert.c) at once; OK gives the desktop back, its menu bar
-up and the Desk menu opening (an accessory that went quiet, not one
-holding the machine); no CRASH.LOG. The screens are kept in WORK/CASE/shots
+cookie), ECALFB.PRG and ECALFB.ACC on an ST and a Falcon. A program shows
+its alert (ui/cpualert.c) at once; an accessory nothing at boot, its
+"  ECal" in the Desk menu, the alert when that is chosen (common's
+cpucheck, the guidelines 2.2). OK gives the desktop back, its menu bar up
+and the Desk menu opening; no CRASH.LOG. The screens are kept in WORK/CASE/shots
 for the report.
 
     tests/hatari/cpu_alert_test.py WORK [--only CASE]
@@ -29,6 +30,10 @@ CASES = [
     ("fbacc_on_st1", "ST-1:mono", "ecalfb.acc", True),
     ("fbacc_on_falcon", "Falcon:16", "ecalfb.acc", True),
 ]
+
+# the Desk menu's first accessory line ("  ECal", under Desktop info... and
+# the rule), as EmuTOS and TOS 1.04 and 4.04 draw it
+ACC_Y = 59
 
 fails = []
 
@@ -77,6 +82,16 @@ def run(work, name, machine, prog, acc):
     try:
         print("  " + r.machine.describe(), flush=True)
         time.sleep(30 if acc else 25)
+        if acc:
+            # nothing at boot (the guidelines, 2.2): the desktop, ECal in the
+            # Desk menu (its first accessory line), the alert when chosen
+            boot = gray(r.shot("0-boot"))
+            check(name + ": no alert at boot, the desktop up", menu_bar(boot) and not alert_box(boot))
+            r.click(30, 8)
+            time.sleep(2)
+            r.shot("0-desk-menu")
+            r.click(60, ACC_Y)
+            time.sleep(4)
         first = gray(r.shot("1-alert"))
         check(name + ": the alert is up", alert_box(first))
         r.key(K["RETURN"])               # OK

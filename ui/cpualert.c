@@ -6,8 +6,13 @@
  * atari/cpucheck.c (ECAL.PRG, ECAL.ACC) and cpucheck_cf.S (ECALFB.PRG,
  * ECALFB.ACC) come first and show the alert where the other edition
  * belongs; one string for the program and the accessory, which are one
- * program (the accessory goes quiet after it, the program quits).
+ * program (the program quits after it; the accessory, chosen from the Desk
+ * menu, shows it there and stays, nothing at boot).
  */
+/* the accessory on the wrong machine: its Desk entry, the alert when it is
+   chosen (nothing at boot, the guidelines 2.2) */
+const char cpu_acc_name[] = "  ECal";
+
 #ifdef __mcoldfire__
 /* ECALFB on an ST, a TT or a Falcon (no _CF_ cookie) */
 const char cpu_alert[] = "[3][This ECal is for the FireBee.|On this machine use ECAL.PRG|or ECAL.ACC.][ OK ]";
