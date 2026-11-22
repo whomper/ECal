@@ -667,7 +667,7 @@ static const MBAR_ITEM m_file[] = {
 static const MBAR_ITEM m_edit[] = {
 	{ "Copy event", "^C", C_COPY },
 	{ "-", 0, 0 },
-	{ "Find event...", "^F", C_FIND },	/* in Edit (D4; Erez, 19 Nov 2026) */
+	{ "Find event...", "^F", C_FIND },	/* in Edit (D4; decided 19 Nov 2026) */
 	{ 0, 0, 0 }
 };
 static const MBAR_ITEM m_view[] = {
@@ -683,7 +683,7 @@ static const MBAR_ITEM m_view[] = {
 	{ 0, 0, 0 }
 };
 /* the commands on events, New among them, in their own menu (the
-   guidelines, 3.1; a tester, Erez 27 Oct 2026) */
+   guidelines, 3.1; a tester, 27 Oct 2026) */
 static const MBAR_ITEM m_event[] = {
 	{ "New event", "^N", C_NEW },
 	{ "New all-day event", 0, C_NEW_ALLDAY },
@@ -1400,7 +1400,7 @@ static void open_window(void)
 	bg_opened();			/* the user is here: work may go on */
 	/* the arrow: the desktop shows the bee while it starts a program, and
 	   the calendars, read in the background since 2.32, no longer end
-	   with busy(0) to take it away (a tester, Erez 28 Oct 2026) */
+	   with busy(0) to take it away (a tester, 28 Oct 2026) */
 	if (first)
 		graf_mouse(ARROW, 0);
 	if (first && sync_busy()) {
@@ -1863,7 +1863,7 @@ static void work_step(void)
 
 
 /* one step of quitting in ECAL.LOG, on the disk at once: if the machine
-   bombs after the window has gone (EFTP and EMail, Erez 10 Nov 2026), the
+   bombs after the window has gone (EFTP and EMail, 10 Nov 2026), the
    last line says where */
 static void quit_step(const char *what)
 {
@@ -1960,7 +1960,7 @@ int ui_track(const GRECT *r, short x, short y)
 #if defined(AES_PROFILE) || defined(STACK_PROBE)
 /* the profiled and stack-probe builds are the rigs' own: their NatFeats
    lines always on (common's nf.S looks for NatFeats only when nf_on is
-   set; Erez, 15 Nov 2026). The release builds never call nf_debug */
+   set; 15 Nov 2026). The release builds never call nf_debug */
 long nf_on = 1;
 #endif
 
@@ -2130,6 +2130,8 @@ int app_main(void)
 		wait = bg_timer(work_pending(), wait);
 		if (views_gliding() && win_h > 0 && wait > 20)
 			wait = 20;
+		if (win_scroll_pending())
+			wait = 0;	/* a glide's step half done: the rest at once (win.c) */
 		if (win_warm_pending() && !work_pending() && wait > 20)
 			wait = 20;	/* (a GDOS font's letters ahead, a few a turn: win.c) */
 		if (win_view_busy())
@@ -2179,6 +2181,13 @@ int app_main(void)
 				str_copy(tag, which & MU_M1 ? "mouse" : "tick", sizeof(tag));
 			aes_profile_tag(tag);	/* (common's AESGAP lines print the last tag set) */
 		}
+#endif
+		/* a glide's step half done last turn: on the screen before anything
+		   is answered (win.c) */
+		win_scroll_turn();
+		win_scroll_finish();
+#ifdef AES_PROFILE
+		views_glide_check();
 #endif
 		if (win_iconified)	/* an icon takes no keys or clicks (taken, not left for later) */
 			which &= ~(MU_KEYBD | MU_BUTTON);
@@ -2323,6 +2332,11 @@ int app_main(void)
 			views_glide();	/* (a turn that answered a key glided a step already) */
 			glided = 1;
 		}
+		if (!(which & (MU_MESAG | MU_KEYBD | MU_BUTTON)))
+			win_scroll_sliders();	/* (a glide's end: its sliders, a turn of their own) */
+#ifdef AES_PROFILE
+		views_glide_check();
+#endif
 		bg_tick();
 		if (which & MU_TIMER) {
 			prg_runs();		/* ECAL.PRG ended: what it changed is read again */
@@ -2448,8 +2462,8 @@ int app_main(void)
 	http_close_all();
 	quit_step("the connections closed");
 	{
-		/* where this session waited longest (common/atari/gem.c): Erez's
-		   own machine says it in the log (the guidelines, Speed) */
+		/* where this session waited longest (common/atari/gem.c): a real
+		   machine says it in the log (the guidelines, Speed) */
 		const char *w = aes_slowest();
 		char m[200];
 		if (w[0]) {

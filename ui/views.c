@@ -34,7 +34,7 @@ static int occ_valid;
 static int occ_partial;		/* a collect begun in slices (views_prepare), not finished; 2: but
 				   its days (oday_fill) */
 /* the month's grid of occurrences, kept: a week's or a day's inside it
-   taken from it, not every event expanded again (F2: Erez, 19 Nov 2026;
+   taken from it, not every event expanded again (F2, decided 19 Nov 2026;
    the collect was 270 ms of each view on Falcon-4:256 with NVDI). Not
    for the year view, whose list a 1 MB ST hasn't the room to keep twice */
 static OCCLIST wide;
@@ -93,7 +93,7 @@ static short col_at(short x)
 #define COLW(c) (colx[(c) + 1] - colx[c])
 static GRECT detail;		/* day view: the selected event's details */
 #define DIV 4			/* its divider's width, at its left (WINDOWS 2.1) */
-/* the details' notes scrolled (Erez, 13 Nov 2026): the first line shown,
+/* the details' notes scrolled (13 Nov 2026): the first line shown,
    of how many, and how many fit; for which event they were */
 static short det_top, det_lines, det_fit;
 static EVENT *det_ev;
@@ -2121,7 +2121,7 @@ static void redraw_occ(const OCC *o)
 /* the chosen day moved from day0 (and the chosen event from was, unless
    same): in the month and the week only the two days' cells or heads (the
    whole view laid out and drawn again took a Falcon 445 ms, an ST 1.1 s; a
-   tester, Erez 28 Oct 2026: "takes a second to highlight"), the new day
+   tester, 28 Oct 2026: "takes a second to highlight"), the new day
    now, the old one and the small month in the turns after */
 static void day_moved(long day0, const OCC *was, int same)
 {
@@ -2392,7 +2392,7 @@ static void context_menu(short mx, short my, int it, long day, short minute)
 	}
 }
 
-/* Insert: the context menu from the keyboard (D17; Erez, 10 Nov 2026:
+/* Insert: the context menu from the keyboard (D17; decided 10 Nov 2026:
    at the selected event, else the selected day, else the pointer) */
 static void insert_menu(void)
 {
@@ -2789,6 +2789,8 @@ void views_glide(void)
 	long step, left = glide_left < 0 ? -glide_left : glide_left;
 	if (!left)
 		return;
+	if (win_scroll_done())
+		return;		/* (a step's second half had this turn: the next step the next) */
 	if (cur_view != V_DAY && cur_view != V_WEEK) {
 		glide_left = 0;
 		return;
@@ -2806,15 +2808,34 @@ void views_glide(void)
 		glide_left = 0;		/* the top or the bottom */
 	else
 		glide_left += glide_left < 0 ? step : -step;
-	if (!glide_left)
-		win_sliders();		/* (not at each step: win_redraw) */
+	if (!glide_left && !win_scroll_pending())
+		win_sliders();		/* (not at each step: win_redraw; a step in two turns: win.c's, after it) */
 }
+
+#ifdef AES_PROFILE
+static unsigned long glide_t0;	/* the key that started the glide */
+
+/* the speed rig's GLIDEMS: from the key to the last step on the screen */
+void views_glide_check(void)
+{
+	char b[48];
+	if (!glide_t0 || glide_left || win_scroll_step_waits())
+		return;		/* (the last rows on the screen; the sliders after them not counted) */
+	snprintf(b, sizeof(b), "GLIDEMS %lu\n", pf_ms() - glide_t0);
+	nf_debug(b);
+	glide_t0 = 0;
+}
+#endif
 
 static void glide_key(int dir)
 {
 	if (!glide_left || (glide_left < 0) != (dir < 0)) {
 		glide_left = 0;
 		glide_last = pf_ms() - 40;
+#ifdef AES_PROFILE
+		if (!glide_t0)
+			glide_t0 = pf_ms();
+#endif
 	}
 	/* a key held (repeated) goes on gliding, no more than two hours ahead */
 	if ((glide_left < 0 ? -glide_left : glide_left) < 2L * hour_h)

@@ -18,12 +18,12 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
 
   When a change touches one of these, do it the guideline's way, even if the old code here did it
   differently.
-- **Speed is set by the stock machines** (Erez, 26 Oct 2026; the guidelines' "Speed"): an 8 MHz ST
+- **Speed is set by the stock machines** (decided 26 Oct 2026; the guidelines' "Speed"): an 8 MHz ST
   and a stock Falcon (`ST`, `ST-1`, `Falcon-4`), not the DFB1. Design and code for them: draw only
   what changed, keep the 68000's slow operations out of inner loops, do work once. A change to
   drawing, a loop over the data or the start gives its `AESGAP` stretches on `ST` and `Falcon-4`,
   before and after, in its commit message. A GEM release passes the speed rig within the
-  guidelines' times. One exception, Erez's (31 Oct 2026): scrolling the hours a line keeps its
+  guidelines' times. One exception, the owner's (31 Oct 2026): scrolling the hours a line keeps its
   speed, an ST's glide steps of 115 to 155 ms (the copy 40-50, the strip coming in 40-95), not
   smaller steps that would keep each under 100 ms and scroll slower.
 - **Shared code lives in [AERA-Atari](https://github.com/whomper/AERA-Atari).** Files under `common/` come from it. Change them
@@ -38,27 +38,27 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
   GitHub Release. A normal build must leave every tracked file unchanged and shows the version in
   `VERSION` as it is (there is no `-dev` label). Don't
   commit built programs, help files or certificates (`binary/`, `dist/`). Never reuse a number.
-- **Only formal releases leave the build machine.** Erez gets vX.Y releases made by the Release workflow from `main`, nothing else: no test builds, no CI artifacts, no builds from a branch. Work lands on `main`; to try a fix on real hardware, release it. A fault found in a release is fixed forward by the next number, before any other work (guidelines 1.2, 17 Nov 2026): the old release stays, with one line in the new one's notes saying what it fixes (no revert, no "withdrawn" notice).
-- **Releases go out without asking Erez** (his decision, 23 Oct 2026; guidelines 1.2). Release when
+- **Only formal releases leave the build machine.** The owner gets vX.Y releases made by the Release workflow from `main`, nothing else: no test builds, no CI artifacts, no builds from a branch. Work lands on `main`; to try a fix on real hardware, release it. A fault found in a release is fixed forward by the next number, before any other work (guidelines 1.2, 17 Nov 2026): the old release stays, with one line in the new one's notes saying what it fixes (no revert, no "withdrawn" notice).
+- **Releases go out without asking the owner** (his decision, 23 Oct 2026; guidelines 1.2). Release when
   work on `main` is ready:
-  the candidate has passed **the regression gate** (Erez, 17 Nov 2026: "we need to be extra careful with
+  the candidate has passed **the regression gate** (decided 17 Nov 2026: "we need to be extra careful with
   regression issues as there are users of our software. This means testing across all configurations" and
   "make sure we don't loose performance"; guidelines 1.2, AERA-Atari a22574e), in this order:
   1. this repo's checks (below);
-  2. its rigs on every row of `standards/TEST-MATRIX.md`'s gate table ECal runs on, on Erez's TOS images and
+  2. its rigs on every row of `standards/TEST-MATRIX.md`'s gate table ECal runs on, on the owner's TOS images and
      NVDI (EmuTOS is never the gate's evidence), each named in the report with `describe()`, a row ECal
      can't run named with why;
   3. the paired speed run against the last release on `Falcon-4:256` with NVDI, `Falcon-4:16` and `ST:mono`,
      the timed build at the shipped layout: no row slower beyond a tick on any (098183d); a slower row is
-     fixed first, and only Erez accepts one;
+     fixed first, and only the owner accepts one;
   4. the candidate commit and the results sent to the hub, which runs the family check and answers go or
      the faults it found.
 
   Every fault a user reports becomes a case in ECal's rigs, in the release that fixes it.
 
-  Then give Erez the link in one line, with anything he has to do, and send the hub the link.
+  Then give the owner the link in one line, with anything he has to do, and send the hub the link.
   Decisions that are his still go to him first.
-- **Who decides what** (Erez, 31 Oct 2026; the guidelines' "Who decides what"). Erez's part, put
+- **Who decides what** (decided 31 Oct 2026; the guidelines' "Who decides what"). The owner's part, put
   to him before the work as a decision with a short context:
   - new programs and ideas, their core capabilities, and how they work with the other programs;
   - the user experience: the look, the layout, the way through a task, the words, the icons, the
@@ -72,7 +72,7 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
 
   How it is made is the team's, without asking: code, structure, shared code, tests, measurements,
   fixes, docs and releases inside an approved phase.
-- **No test with another AERA program or accessory** (Erez, 8 Nov 2026; guidelines 1.2, AERA-Atari
+- **No test with another AERA program or accessory** (decided 8 Nov 2026; guidelines 1.2, AERA-Atari
   76417f7): `make test`, `make itest`, the Hatari rigs, the speed rig and session checks run ECal alone;
   nothing AERA is loaded beside it, started by it or fetched for it (no `getrelease.py`). What ECal does
   with another program is tested against a stand-in this repo owns: `fakecontact.c` (ECONTACT.ACC,
@@ -94,14 +94,14 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
 
 ## ECal
 
-- **A release** carries two packages (guidelines 7.4, Erez 22 Nov 2026): `ecal-x.y.zip` for the ST, TT
+- **A release** carries two packages (guidelines 7.4, decided 22 Nov 2026): `ecal-x.y.zip` for the ST, TT
   and Falcon, and `ecal-x.y-firebee.zip` with the same names, uploaded first (the standard zip last: EUpdate up to 2.14 keeps the last one unpacked) (`make firebee`, common's
-  mkfirebee.py: binary/firebee/; common's `tlsfb.ovl` as `tls.ovl`), and no files loose (Erez, 22 Nov 2026:
+  mkfirebee.py: binary/firebee/; common's `tlsfb.ovl` as `tls.ovl`), and no files loose (decided 22 Nov 2026:
   "just have two ZIP files, one for each platform"). The standard one: `ecal.acc`, `ecal.prg`, `tls.ovl` (common's, never built here; guidelines
   7.4), `ecal.hyp` and `.ref` (hcp from `common/tools/build-hcp.sh`), `cacert.pem`, `roots.dat` and
   the icon, all in `ecal-x.y.zip` too. The icons are committed in
   `icons/` (`make icons`).
-- **File names in lowercase** (guidelines 6.6, Erez, 2 Nov 2026): every file and folder ECal opens,
+- **File names in lowercase** (guidelines 6.6, decided 2 Nov 2026): every file and folder ECal opens,
   creates, looks for, renames or deletes by a name of its own is written in lowercase in the code
   (`ecal.inf`, `cache\cal00001.dat`, `tls.ovl`...), and `make dist` checks the release has no capital.
   AES names (`ECAL    `), the clipboard's `SCRAP.*` and names in texts, alerts and help stay as they
@@ -129,10 +129,10 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
   - `acc_test.py`, `acc_files.py` and `quiet_test.py` on `ST-1` (TOS 1.04);
   - `edit_test.py`, `esc_test.py` and `ui_tour.py` on `Falcon:16`; `Falcon:256` when drawing changes.
 
-  The accessory isn't tested on the 4 MB machines, `ST` and `Falcon-4` (Erez, 4 Nov 2026; AERA-Atari
+  The accessory isn't tested on the 4 MB machines, `ST` and `Falcon-4` (decided 4 Nov 2026; AERA-Atari
   21ba998): `ST-1`, `TT` and `Falcon` only. ECAL.PRG on its own stays tested on `ST` and `Falcon-4`.
 
-  **From the next release (Erez, 10 Nov 2026; AERA-Atari 148df17):** his configuration,
+  **From the next release (decided 10 Nov 2026; AERA-Atari 148df17):** his configuration,
   `Falcon-4:256` with `AERA_WITH_NVDI=1` (`machines.ERZ_MACHINE`, `machines.erz_env()`), replaces one
   Falcon run, not added to them: `acc_test.py` and `font_acc.py` (accessory, `--prg`, `--font-id`)
   become one run on it, in place of `Falcon:16` with and without NVDI. That run takes the accessory on a
@@ -150,9 +150,9 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
   runs its joint rigs (PEOPLE, quiet start and sync with ECal) against
   ECal's releases.
 
-## Talking with Erez
+## Talking with the owner
 
-Erez's rule for the whole AERA session family:
+The owner's rule for the whole AERA session family:
 
 - No progress or in-between messages. Write to him only when he has to decide something: a short
   context, then the decision.
@@ -160,30 +160,30 @@ Erez's rule for the whole AERA session family:
 
 Messages to the hub session stay complete, with the evidence.
 
-## Maintenance mode (Erez, 1 Nov 2026; changed 17 Nov 2026)
+## Maintenance mode (decided 1 Nov 2026; changed 17 Nov 2026)
 
 ECal is in maintenance mode while EWeb, EPDF and EPlay go to 1.0 (AERA-Atari, ATARI-APP-GUIDELINES.md, section 8):
 - No new features and no speed rounds of its own.
-- **Every family rule holds for ECal as for the focus apps** (Erez, 17 Nov 2026: "there needs to be a constant
+- **Every family rule holds for ECal as for the focus apps** (decided 17 Nov 2026: "there needs to be a constant
   behavior across all applications. In the future, all applications must adhere to family rules and be
   notified. We will review whether they need to issue a release." and "Applications on maintenance does not
   mean they contain faults"; AERA-Atari 8ddb463). The hub notifies ECal of each new or changed rule and each
   shared fix: ECal adopts it, with the shared code it needs (`tools/sync-common.sh`), and the hub ticks its
   row in section 8's "Where each app stands". Each ✗, ~ or ? in ECal's column there is work for this session.
-- Whether such a change needs a release of its own is reviewed with Erez through the hub; a fault fix always
+- Whether such a change needs a release of its own is reviewed with the owner through the hub; a fault fix always
   gets one.
 - A release otherwise only for a security or data-loss fault, a crash or breakage, something outside that
   stops it working (a certificate, a server), or something EWeb, EPDF or EPlay need from it.
-- Nothing runs in the background; the session waits for Erez or the hub.
-- Only Erez's explicit word ends this mode. The hub passes it on quoting him.
-- **Done in 2.56, maintenance back:** the list below (Erez, 19 Nov 2026, choosing "Work on 1, 2 and 3"; the hub's AERA-Atari
+- Nothing runs in the background; the session waits for the owner or the hub.
+- Only the owner's explicit word ends this mode. The hub passes it on quoting him.
+- **Done in 2.56, maintenance back:** the list below (decided 19 Nov 2026, choosing "Work on 1, 2 and 3"; the hub's AERA-Atari
   PERF-REVISIT): (1) redraws: 300 ms or less in one piece, longer in pieces of at most 100 ms (the
   section-8 speed row); (2) the speed round F2-F5 of the 17 Nov report (the occurrences kept for a wider
   range, date work per day, the clock read per batch, a GDOS font's letters rendered ahead), with a view's
   slice and the screen copy never in the same turn; (3) F1: the whole page drawn off the screen and shown
   in one copy (a change he will see, approved); (4) D4, his words: "Edit > Find event...", ^F as before.
   His 31 Oct exception stays (the ST's line scroll at 115-155 ms). Every release of it passes the gate,
-  the pairs against 2.54 included. When the list is done, maintenance mode comes back. Then (Erez, 20 Nov
+  the pairs against 2.54 included. When the list is done, maintenance mode comes back. Then (the owner, 20 Nov
   2026): "we must not increase delays and latency": no row slower than the last release, the background
   letters of (2) excepted (45 -> 85 ms with FreeMono under NVDI, accepted); and the whole window redrawn
   in one piece as 2.55, not in pieces (in pieces it finished at 900 ms against 490 on Falcon-4:16). For
@@ -191,19 +191,26 @@ ECal is in maintenance mode while EWeb, EPDF and EPlay go to 1.0 (AERA-Atari, AT
   the year view's longest stretch 65 -> 70-75, the start's picture 1105 -> 1115), the build's layout
   rather than a change ("Release as it is", 20 Nov 2026).
 
-- **Done in 2.57, maintenance back:** the one item lifted on 22 Nov 2026 (Erez: "Make the other apps native
-  on the FireBee too"; the guidelines 7.4, AERA-Atari b89dd31): the FireBee package (Erez: "two packages...
+- **Done in 2.57, maintenance back:** the one item lifted on 22 Nov 2026 (the owner: "Make the other apps native
+  on the FireBee too"; the guidelines 7.4, AERA-Atari b89dd31): the FireBee package (the owner: "two packages...
   Same names", AERA-Atari cc13e75), each package's alert naming the other's (his words, ui/cpualert.c), the
   core under qemu-m68k -cpu cfv4e (`make core-cf`). For 2.57 he accepted two Falcon month pictures 25-30 ms
   behind 2.56 (Falcon-4:16, the month again 1140 -> 1170 ms; Falcon-4:256 with NVDI, the month drawn whole
   695 -> 722), no drawing code changed and 2.56's layout not bringing it back ("Release as it is", 22 Nov
   2026).
 
-## UI backlog (Erez's 54 decisions, 9 Nov 2026; AERA-Atari a261597, standards/ui)
+- **Lifted for one item (decided 22 Nov 2026):** the Falcon's line scroll over its 50 ms. A glide's step goes
+  in two turns (the strip drawn off the screen, then the rows moved and the strip copied in) on a 68020 or
+  better, and only where the rows' last move took 40 ms or less (the owner's decision, 22 Nov 2026): on
+  Falcon-4:16 the longest stretch 55-70 -> 45 ms; in 256 colours under NVDI the rows alone take 55-60 ms,
+  a step in one turn there as in 2.57; the ST as before (the 31 Oct exception). Maintenance comes back after
+  its release.
 
-Part of the family rules above (Erez, 17 Nov 2026): every item is to be done, its words and looks as
+## UI backlog (the owner's 54 decisions, 9 Nov 2026; AERA-Atari a261597, standards/ui)
+
+Part of the family rules above (decided 17 Nov 2026): every item is to be done, its words and looks as
 standards/ui/DECISIONS-2026-11-09.md has them; anything not decided there goes to the hub first, as a
-question for Erez. Every GEM release still passes the speed rig. When an item is done, send the
+question for the owner. Every GEM release still passes the speed rig. When an item is done, send the
 hub one line with the commit (it ticks ECal's row in the guidelines' section-8 table). [hub] = waits for the
 shared code first; the hub says when it is in `common/`.
 
@@ -217,20 +224,20 @@ shared code first; the hub says when it is in `common/`.
    (D22, C4). S. Done 2.47 (4ce7333).
 7. Tick boxes become bitmap ticks (D23, C5). S. Done 2.47 (9010f41).
 8. One-of-several choices of four or fewer become radio buttons (D24, C5). Done: Week starts on (e8bf4cb), Read calendars (1b4506b); the event's
-   repeat end stays a pop-up in its row (Erez, 17 Nov 2026); Hebrew in font removed (Erez).
+   repeat end stays a pop-up in its row (decided 17 Nov 2026); Hebrew in font removed (the owner).
 9. A pop-up opens with the choice ticked over its button (`ui/field.c:dlg_run`, FT_POPUP, into `popup()`)
    (D27, C8). S. Done 2.47 (4ce7333, 65e6cb5).
 10. Window: one minimum for the open check (50 x 16 today) and `WM_SIZED` (40 x 14) (D38, W10); the first run
     on the whole desk (D39, W11). S each. Done 2.47 (4ce7333).
-11. Insert opens the context menu (D17, MD20). H. Done (Erez, 10 Nov: the selected event, else day, else the pointer).
+11. Insert opens the context menu (D17, MD20). H. Done (the owner, 10 Nov: the selected event, else day, else the pointer).
 12. Buttons act on the release over them (C7); keyboard reach: Space on ticks, arrows in lists (D25, C6). H. Done: Settings by common's engine,
     ECal's own dialogs in field.c.
 13. ECAL.INF: `WINDOW=x,y,w,h` and `FONT=name,points`, the old keys read once (D43, D44, W18). M. `SIDEBAR=`
     stays. Done (tests/inftest.sh).
-14. The older FIELD dialogs to the AES look (rows, focus ring) (C24). M. Done (4114b64; Erez, 17 Nov 2026).
+14. The older FIELD dialogs to the AES look (rows, focus ring) (C24). M. Done (4114b64; decided 17 Nov 2026).
 15. Tooltips on the toolbar, 0.7 s (D18). Done: common's tooltip.c for the toolbar, the events and the dialogs
-    (0.7 s: Erez, 10 Nov).
+    (0.7 s: the owner, 10 Nov).
 
 Still open, not to start: press and release for ticks and pop-ups (C7). Find's words (D4): Edit > Find
-event... (Erez, 19 Nov 2026; the lift above). Nothing to do: the
+event... (decided 19 Nov 2026; the lift above). Nothing to do: the
 out-of-range alerts (ECal is the model, D30), `Show|Later` (D51), the palette (D42), the toolbar's look (D33).

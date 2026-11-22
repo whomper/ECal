@@ -521,7 +521,7 @@ void win_buffer_fonts(void)
 static int off_screen(void)
 {
 	/* OFFSCREEN=0: everything drawn straight on the screen, as where
-	   there is no buffer (Erez's trial, 13 Nov 2026) */
+	   there is no buffer (a trial, 13 Nov 2026) */
 	return obuf && opt.offscreen && (bm_h || xbios_base(3) == xbios_base(2));
 }
 
@@ -704,7 +704,7 @@ void win_clear(GRECT *r)
 /* the buffer's full copied to each visible piece of the window: planar,
    by the CPU with each 16 pixels' planes together where it can (a
    picture that moves: a scroll, the strip coming in); else, and for a
-   whole new page, by the VDI's copy (F1: Erez, 19 Nov 2026; TOS's and
+   whole new page, by the VDI's copy (F1, decided 19 Nov 2026; TOS's and
    NVDI's copy took a Falcon a third of the CPU's time: today's page 655
    -> 505 ms on Falcon-4:256 with NVDI, 912 -> 625 on Falcon-4:16) */
 static void off_copy_as(GRECT *full, int planar)
@@ -724,7 +724,7 @@ static void off_copy_as(GRECT *full, int planar)
 			/* by the CPU a row at a time with all its planes,
 			   where it can (common's scr_put): TOS's and the
 			   BLiTTER's copy, a plane at a time, showed the old
-			   picture in other colours meanwhile (Erez's Falcon,
+			   picture in other colours meanwhile (a real Falcon,
 			   14 Nov 2026) */
 			if (planar && scr_put((const unsigned char *)obuf_mfdb.fd_addr,
 					      (long)obuf_mfdb.fd_wdwidth * 2 * obuf_mfdb.fd_nplanes, obuf_mfdb.fd_nplanes, pxy))
@@ -997,7 +997,7 @@ int win_view_step(unsigned long ms)
 	{
 	/* the clock read twice a piece, before and after it (a read is a
 	   trap to the OS: 4 a piece were 15 ms of a view on Falcon-4:256,
-	   F4: Erez, 19 Nov 2026) */
+	   F4, decided 19 Nov 2026) */
 	unsigned long now = pf_ms();
 	while (vj.ti < vj.nt) {
 		unsigned long p0 = now, took, half = ms / 2;
@@ -1036,7 +1036,7 @@ int win_view_step(unsigned long ms)
 		off_draw(&r);
 		if (vj.show) {
 			/* a new window: the band on the screen at once, as
-			   EContact's (Erez, 31 Oct 2026) */
+			   EContact's (decided 31 Oct 2026) */
 			wind_update(BEG_UPDATE);
 			graf_mouse(M_OFF, 0);
 			off_copy_as(&r, 0);	/* (a new picture: F1) */
@@ -1101,7 +1101,7 @@ whole:
 		vj.mini_from = -1;
 		{
 			/* with the log on, what each view cost on this machine
-			   (Erez's Falcon is slower than the emulator: the numbers
+			   (a real Falcon is slower than the emulator: the numbers
 			   from there say what to make faster). Numbers only */
 			char b[120];
 			static const char *const vname[] = { "day", "week", "month", "year" };
@@ -1131,7 +1131,7 @@ void win_view_finish(void)
 		;
 }
 
-/* the first redraw of a window just opened, in slices (Erez, 31 Oct
+/* the first redraw of a window just opened, in slices (31 Oct
    2026: drawn whole it was one stretch of 575 ms on an ST): white at
    once, then the toolbar in three pieces and the list in three, a piece
    a slice, and the view in bands, each on the screen as it is drawn, as
@@ -1380,6 +1380,111 @@ void win_close(void)
 /* the content of a (in the view) moves up by dy pixels, down when dy <
    0: copied on the screen when all of a shows, then only the strip that
    comes in is drawn; otherwise a is drawn again */
+/* a glide's step in two turns (22 Nov 2026, the Falcon's line scroll
+   over its 50 ms): the strip that comes in drawn off the screen in one,
+   the rows moved and the strip copied in at the start of the next, before
+   anything else is answered (main.c). On a Falcon in 16 colours a step was
+   one stretch of 55-70 ms (strip 15-30, rows 30, copy 5) */
+static struct {
+	short on, pxy[8];
+	GRECT a, in, strip;
+} sc_wait;
+static int sc_done;		/* the second half ran this turn: no new step in it */
+static int sc_sliders;		/* the glide over: the sliders in a turn of their own */
+/* 68020 or better (the _CPU cookie, asked once): an ST keeps a step in one
+   turn, as the exception decided on 31 Oct 2026 has it (115-155 ms steps, the
+   scroll's speed kept): in two its glide took 435-480 ms, not 330-375 */
+static signed char sc_split = -1;
+/* and only where the step's second half then fits the line's 50 ms (decided
+   22 Nov 2026): the rows' last move, measured.
+   In 256 colours under NVDI the rows alone took 55-60 ms on Falcon-4:256,
+   a step in one turn there, its glide's time kept */
+#define SC_ROWS_FIT 40
+static unsigned long sc_rows_ms;
+
+int win_scroll_step_waits(void)
+{
+	return sc_wait.on;
+}
+
+int win_scroll_pending(void)
+{
+	return sc_wait.on || sc_sliders;
+}
+
+/* the sliders where the glide ended, a turn after its last rows (with
+   them it was one stretch of 55 ms on Falcon-4:16) */
+void win_scroll_sliders(void)
+{
+	if (!sc_sliders || sc_done || sc_wait.on)
+		return;
+	sc_sliders = 0;
+	if (!views_gliding())
+		win_sliders();
+}
+
+int win_scroll_done(void)
+{
+	return sc_done;
+}
+
+void win_scroll_turn(void)
+{
+	sc_done = 0;
+}
+
+/* the rows moved and the strip copied in; drawn again instead when
+   another window came over this one meanwhile. 1 when there was one */
+int win_scroll_finish(void)
+{
+	GRECT box;
+	short whole = 0;
+#ifdef AES_PROFILE
+	unsigned long t0 = pf_ms(), t1;
+#endif
+	if (!sc_wait.on)
+		return 0;
+	sc_wait.on = 0;
+	sc_done = 1;
+	if (win_h <= 0 || win_iconified)
+		return 1;
+	wind_update(BEG_UPDATE);
+	wind_get(win_h, WF_FIRSTXYWH, &box.x, &box.y, &box.w, &box.h);
+	while (box.w && box.h && !whole) {
+		whole = box.x <= sc_wait.a.x && box.y <= sc_wait.a.y && box.x + box.w >= sc_wait.a.x + sc_wait.a.w &&
+			box.y + box.h >= sc_wait.a.y + sc_wait.a.h;
+		wind_get(win_h, WF_NEXTXYWH, &box.x, &box.y, &box.w, &box.h);
+	}
+	if (!whole) {
+		wind_update(END_UPDATE);
+		win_redraw(&sc_wait.a);
+		return 1;
+	}
+	graf_mouse(M_OFF, 0);
+	clip_on(&sc_wait.strip);
+	{
+		unsigned long r0 = pf_ms();
+		scr_rows(vdi_h, sc_wait.pxy);
+		sc_rows_ms = pf_ms() - r0;
+	}
+#ifdef AES_PROFILE
+	t1 = pf_ms();
+#endif
+	off_copy(&sc_wait.in);
+	graf_mouse(M_ON, 0);
+	wind_update(END_UPDATE);
+#ifdef AES_PROFILE
+	{
+		char b[64];
+		snprintf(b, sizeof(b), "SCROLLMS the next turn: rows %lu, strip copied %lu\n", t1 - t0, pf_ms() - t1);
+		nf_debug(b);
+	}
+#endif
+	if (!views_gliding())
+		sc_sliders = 1;		/* (win_scroll_sliders, the next turn) */
+	return 1;
+}
+
 void win_scroll(const GRECT *a, short dy)
 {
 	GRECT box, strip = *a;
@@ -1389,6 +1494,7 @@ void win_scroll(const GRECT *a, short dy)
 #endif
 	if (win_h <= 0 || win_iconified)
 		return;
+	win_scroll_finish();	/* (a step still waiting: on the screen first) */
 	win_view_finish();	/* (what is on the screen is moved: the view whole) */
 	under_kept = 0;		/* (moved on the screen, not in the buffer) */
 	wind_update(BEG_UPDATE);
@@ -1417,15 +1523,40 @@ void win_scroll(const GRECT *a, short dy)
 			/* drawn off the screen first, then the rows moved and the
 			   strip copied in at once: before, the rows were moved and
 			   the strip drawn after, and until it was the old rows
-			   showed in it a second time (Erez's video, 13 Nov 2026:
+			   showed in it a second time (a video from a real Falcon, 13 Nov 2026:
 			   "a previous drawing and only then the new one", plain
 			   on a Falcon in 256 colours) */
 			off_draw(&in);
+			if (sc_split < 0)
+				sc_split = get_cookie(0x5F435055L) >= 20;	/* _CPU */
+			if (sc_split && sc_rows_ms <= SC_ROWS_FIT && views_gliding()) {
+				/* the rest at the start of the next turn */
+				sc_wait.on = 1;
+				memcpy(sc_wait.pxy, pxy, sizeof(pxy));
+				sc_wait.a = *a;
+				sc_wait.in = in;
+				sc_wait.strip = strip;
+				graf_mouse(M_ON, 0);
+				wind_update(END_UPDATE);
+#ifdef AES_PROFILE
+				{
+					char b[64];
+					snprintf(b, sizeof(b), "SCROLLMS %dx%d by %d: strip first %lu, the rest next turn\n",
+						 a->w, a->h, dy, pf_ms() - sc0);
+					nf_debug(b);
+				}
+#endif
+				return;
+			}
 			clip_on(&strip);
 #ifdef AES_PROFILE
 			sc1 = pf_ms();
 #endif
-			scr_rows(vdi_h, pxy);
+			{
+				unsigned long r0 = pf_ms();
+				scr_rows(vdi_h, pxy);
+				sc_rows_ms = pf_ms() - r0;	/* (a split's measure: above) */
+			}
 #ifdef AES_PROFILE
 			sc2 = pf_ms();
 #endif

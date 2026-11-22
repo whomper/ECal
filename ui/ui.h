@@ -100,6 +100,15 @@ void win_buffer_fonts(void);	/* GDOS fonts loaded later: on the bitmap too */
 const char *win_drawing(void);	/* how the window is drawn, for the log */
 void draw_forget(void);		/* the VDI attributes set again at the next use */
 void win_scroll(const GRECT *a, short dy);	/* a's content up by dy pixels */
+#ifdef AES_PROFILE
+void views_glide_check(void);	/* GLIDEMS when a glide has ended */
+#endif
+int win_scroll_pending(void);	/* a glide's step waiting for its second half */
+int win_scroll_step_waits(void);	/* only the step's second half (not the sliders) */
+int win_scroll_finish(void);	/* that half: the rows moved, the strip copied in */
+int win_scroll_done(void);	/* it ran this turn */
+void win_scroll_turn(void);	/* a new turn */
+void win_scroll_sliders(void);	/* the sliders a turn after a glide's end */
 void win_message(short *msg);
 void win_status(const char *s);	/* the info line */
 void win_status_later(const char *s);	/* win_status in the next turn */
