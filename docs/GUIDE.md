@@ -10,13 +10,13 @@ choose it.
 |-------------------|------------------|---------------------------------|
 | Falcon, TT        | `ECAL.ACC`       | by itself (Direct connection, with `TLS.OVL`) or through the Gateway |
 | ST, STE, Mega ST  | `ECAL.ACC`       | through the Gateway             |
-| FireBee           | `ECAL.ACC` (the FireBee package's) | by itself (Direct connection, with `TLSFB.OVL`) or through the Gateway |
+| FireBee           | `ECAL.ACC` (the FireBee package's) | by itself (Direct connection, with its package's `TLS.OVL`) or through the Gateway |
 
 One program for the ST, STE, TT and Falcon: an ST never loads
 `TLS.OVL`, so it can leave it out. Before 2.25 an ST had `ECALST.ACC`:
 delete it. The FireBee has a package of its own, `ECAL-x.y-FIREBEE.ZIP`,
-with the same names, its `ECAL.PRG` and `ECAL.ACC` made for its
-ColdFire and `TLSFB.OVL` for the Direct connection. Each package says
+with the same names, its `ECAL.PRG`, `ECAL.ACC` and `TLS.OVL` made
+for its ColdFire. Each package says
 so if it finds itself on the other machine.
 
 The settings are in `ECAL.INF` in the root of the boot drive, next to
@@ -34,7 +34,6 @@ F:\...\ECAL.APP\          ECal's folder, wherever you keep it (this one is an ex
     ALARMS.IDX            the coming reminders, for a quick start
     ECAL.FNT              which GDOS fonts are fixed-width (made by Font...)
     TLS.OVL               Direct connection: the TLS, loaded when first needed (copy it here)
-    TLSFB.OVL             the same on a FireBee (its package's), in place of TLS.OVL
     CACERT.PEM            Direct connection: root certificates (copy them here)
     ROOTS.DAT             Direct connection: the same, decoded ahead of time
     SEED.DAT              Direct connection: the random seed, kept between sessions
@@ -193,8 +192,7 @@ that says what to type.
   - **Direct connection** (TLS on this Atari, 68020 or better): ECal
     makes the secure connections itself. Needs a TT or Falcon, and
     `TLS.OVL`, `CACERT.PEM` and `ROOTS.DAT` in ECal's folder (on a
-    FireBee `TLSFB.OVL`, in its package, in place of `TLS.OVL`: not
-    tested on a FireBee here). ECal loads
+    FireBee its package's `TLS.OVL`: not tested on a FireBee here). ECal loads
     TLS.OVL (about 140 KB) when you tick it, and says at once if it is
     missing or the Atari has no 68020; the accessory takes that memory
     from its own (MEMKB= then counts it). **Check certificates on the DSP** lets the Falcon's

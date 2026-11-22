@@ -23,13 +23,13 @@ CalDAV server.
 ## Getting started
 
 Download from **[Releases](https://github.com/whomper/ECal/releases/latest)** the package for your Atari:
-`ECAL-x.y.zip` for an ST, STE, TT or Falcon (its files are also there one by one), or
+`ECAL-x.y.zip` for an ST, STE, TT or Falcon, or
 `ECAL-x.y-FIREBEE.ZIP` for a FireBee. Both hold the same names:
 
 | File | What it is |
 |---|---|
 | `ECAL.ACC` / `ECAL.PRG` | the accessory, or the same as a program (the FireBee's made for its ColdFire) |
-| `TLS.OVL` (the FireBee's: `TLSFB.OVL`), `CACERT.PEM`, `ROOTS.DAT` | the Direct connection (TT, Falcon, FireBee), loaded only when used |
+| `TLS.OVL`, `CACERT.PEM`, `ROOTS.DAT` | the Direct connection (TT, Falcon, FireBee), loaded only when used |
 | `ECAL.HYP`, `ECAL.REF` | the guide, opened by the Help key |
 | `icons/` | ECal's desktop icon ([how](docs/GUIDE.md#the-desktop-icon)) |
 
@@ -58,7 +58,7 @@ Falcon or TT it is optional. Setting it up: the [Gateway's README](https://githu
 
 ```sh
 sudo apt install gcc gcc-m68k-linux-gnu python3 zip   # Debian/Ubuntu; no MiNTLib needed
-make                          # binary/: ECAL.ACC, ECAL.PRG, TLS.OVL, TLSFB.OVL, CACERT.PEM, ROOTS.DAT
+make                          # binary/: ECAL.ACC, ECAL.PRG, TLS.OVL, TLSFB.OVL (the FireBee's TLS.OVL), CACERT.PEM, ROOTS.DAT
 make firebee                  # binary/firebee/: the FireBee's ECAL.PRG and ECAL.ACC (common's mkfirebee.py)
 make test                     # the core's unit tests, the fuzz inputs, the gateway's tests
 make itest                    # against a local CalDAV server (Radicale)

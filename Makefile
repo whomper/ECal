@@ -12,7 +12,7 @@
 #                   server (Radicale) directly and through the Pi gateway.
 #   make help       binary/ecal.hyp, the guide for ST-Guide (needs hcp:
 #                   common/tools/build-hcp.sh builds it)
-#   make dist       a release's files in dist/: each file, and ecal-x.y.zip
+#   make dist       a release in dist/: ecal-x.y.zip and ecal-x.y-firebee.zip
 #
 # binary/ is what make builds, never committed: releases carry the
 # programs (.github/workflows/release.yml, on a tag vX.Y).
@@ -91,8 +91,10 @@ all: $(BIN)/ecal.acc $(BIN)/ecal.prg $(BIN)/tls.ovl $(BIN)/tlsfb.ovl $(BIN)/root
 $(BIN)/tls.ovl: common/tlsovl/tls.ovl | $(BIN)
 	cp $< $@
 
-# TLSFB.OVL: the same for a FireBee's ColdFire, common's too; tls_ovl.c
-# loads it instead of TLS.OVL where the _CF_ cookie is (Erez, 15 Nov 2026)
+# tlsfb.ovl: the same for a FireBee's ColdFire, common's too; the FireBee
+# package carries it as tls.ovl, the name tls_ovl.c loads (the guidelines,
+# 7.4; Erez, 22 Nov 2026: "rename all other FB files into their standard
+# filename")
 $(BIN)/tlsfb.ovl: common/tlsovl/tlsfb.ovl | $(BIN)
 	cp $< $@
 
@@ -284,26 +286,25 @@ $(BIN)/ecal.hyp: docs/GUIDE.md tools/guide2stg.py VERSION docs/front.json docs/h
 	python3 common/tools/helpfront.py page docs/front.json $(OBJDIR)/ECAL.STG $(OBJDIR)/ECAL.STG
 	$(HCP) -o $@ $(OBJDIR)/ECAL.STG
 
-# a release's files: each one in dist/, and all of them in
-# dist/ecal-x.y.zip (the icons in icons/), for the release workflow.
-# Every name in lowercase, the icons' too (the guidelines, 6.6)
-# Two packages (the guidelines, 7.4; Erez, 22 Nov 2026): ecal-x.y.zip for
-# the ST, TT and Falcon, its files also loose (the release's assets), and
-# ecal-x.y-firebee.zip with the same names, its ECAL.PRG and ECAL.ACC the
-# FireBee's (make firebee) and TLSFB.OVL in place of TLS.OVL
+# a release: two packages and nothing else (the guidelines, 7.4; Erez,
+# 22 Nov 2026: "two ZIP files, one for each platform"), dist/ecal-x.y.zip
+# for the ST, TT and Falcon and dist/ecal-x.y-firebee.zip for the FireBee,
+# the same names in both (the icons in icons/): the FireBee's ECAL.PRG and
+# ECAL.ACC (make firebee) and TLS.OVL, common's ColdFire build (tlsfb.ovl)
+# under the standard name. Every name in lowercase (the guidelines, 6.6)
 DIST    := $(BIN)/ecal.acc $(BIN)/ecal.prg $(BIN)/tls.ovl $(BIN)/cacert.pem $(BIN)/roots.dat \
            $(BIN)/ecal.hyp $(BIN)/ecal.ref
-FBDIST  := $(FBBIN)/ecal.acc $(FBBIN)/ecal.prg $(BIN)/tlsfb.ovl $(BIN)/cacert.pem $(BIN)/roots.dat \
+FBDIST  := $(FBBIN)/ecal.acc $(FBBIN)/ecal.prg $(BIN)/cacert.pem $(BIN)/roots.dat \
            $(BIN)/ecal.hyp $(BIN)/ecal.ref
 ICONS   := icons/ECAL.RSC icons/ECALNV.RSC icons/ECAL.ICN icons/ECALMK.ICN
 dist: all firebee help
 	rm -rf dist
 	mkdir -p dist/zip/icons dist/fbzip/icons
-	cp $(DIST) dist/
 	cp $(DIST) dist/zip/
 	cp $(FBDIST) dist/fbzip/
+	cp $(BIN)/tlsfb.ovl dist/fbzip/tls.ovl
 	for f in $(ICONS); do b=$$(basename $$f | tr A-Z a-z); \
-		cp $$f dist/$$b; cp $$f dist/zip/icons/$$b; cp $$f dist/fbzip/icons/$$b; done
+		cp $$f dist/zip/icons/$$b; cp $$f dist/fbzip/icons/$$b; done
 	cd dist/zip && zip -q -9 -r ../ecal-$(VERSION_STR).zip .
 	cd dist/fbzip && zip -q -9 -r ../ecal-$(VERSION_STR)-firebee.zip .
 	rm -rf dist/zip dist/fbzip

@@ -34,7 +34,7 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
   the GEM side changed.
 - **Versions and releases:** `VERSION` changes only in a release commit. A release: `tools/bump.py`,
   commit, push, then run the Release workflow on `main` with the notes (or push a tag `vX.Y` made with
-  `git tag -a`); it tests, builds, tags vX.Y and publishes each file and the zip as a
+  `git tag -a`); it tests, builds, tags vX.Y and publishes the two zips as a
   GitHub Release. A normal build must leave every tracked file unchanged and shows the version in
   `VERSION` as it is (there is no `-dev` label). Don't
   commit built programs, help files or certificates (`binary/`, `dist/`). Never reuse a number.
@@ -95,8 +95,9 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
 ## ECal
 
 - **A release** carries two packages (guidelines 7.4, Erez 22 Nov 2026): `ecal-x.y.zip` for the ST, TT
-  and Falcon, its files also loose, and `ecal-x.y-firebee.zip` with the same names (`make firebee`, common's
-  mkfirebee.py: binary/firebee/), `tlsfb.ovl` in place of `tls.ovl`. The standard one: `ecal.acc`, `ecal.prg`, `tls.ovl` (common's, never built here; guidelines
+  and Falcon, and `ecal-x.y-firebee.zip` with the same names (`make firebee`, common's
+  mkfirebee.py: binary/firebee/; common's `tlsfb.ovl` as `tls.ovl`), and no files loose (Erez, 22 Nov 2026:
+  "just have two ZIP files, one for each platform"). The standard one: `ecal.acc`, `ecal.prg`, `tls.ovl` (common's, never built here; guidelines
   7.4), `ecal.hyp` and `.ref` (hcp from `common/tools/build-hcp.sh`), `cacert.pem`, `roots.dat` and
   the icon, all in `ecal-x.y.zip` too. The icons are committed in
   `icons/` (`make icons`).
