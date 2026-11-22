@@ -160,6 +160,12 @@ The owner's rule for the whole AERA session family:
 
 Messages to the hub session stay complete, with the evidence.
 
+Only a decision the owner made himself counts (the family's rule, 22 Nov 2026). After a question put to
+him, look at the answer's permission_decision: source `user_temporary` or `user_permanent` is his;
+`config` / `mode`, or no sign he chose, is not answered: don't act on it, send the question to the hub.
+No release rests on an acceptance or a design choice until it is his; report each decision to the hub
+with its time.
+
 ## Maintenance mode (decided 1 Nov 2026; changed 17 Nov 2026)
 
 ECal is in maintenance mode while EWeb, EPDF and EPlay go to 1.0 (AERA-Atari, ATARI-APP-GUIDELINES.md, section 8):
