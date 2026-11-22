@@ -73,5 +73,16 @@ jobs:
           else
             printf '%s\n' "$NOTES" > "$RUNNER_TEMP/notes.md"
           fi
-          gh release create "$TAG" dist/ecal-*.zip --target "$GITHUB_SHA" --title "ECal $(cat VERSION)" \
+          # the FireBee zip first, the standard one last, one upload each, and the order checked
+          # (the guidelines, 7.4: every EUpdate up to 2.14 unpacks each zip of a release, the
+          # last one winning, so the ST, TT and Falcon one must be last)
+          V=$(cat VERSION)
+          gh release create "$TAG" "dist/ecal-$V-firebee.zip" --target "$GITHUB_SHA" --title "ECal $V" \
             --notes-file "$RUNNER_TEMP/notes.md"
+          gh release upload "$TAG" "dist/ecal-$V.zip"
+          ORDER=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq '[.assets | sort_by(.id) | .[].name] | join(" ")')
+          echo "assets, in upload order: $ORDER"
+          if [ "$ORDER" != "ecal-$V-firebee.zip ecal-$V.zip" ]; then
+            echo "::error::the assets are $ORDER: the FireBee zip first and ecal-$V.zip last, nothing else"
+            exit 1
+          fi

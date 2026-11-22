@@ -95,7 +95,7 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
 ## ECal
 
 - **A release** carries two packages (guidelines 7.4, Erez 22 Nov 2026): `ecal-x.y.zip` for the ST, TT
-  and Falcon, and `ecal-x.y-firebee.zip` with the same names (`make firebee`, common's
+  and Falcon, and `ecal-x.y-firebee.zip` with the same names, uploaded first (the standard zip last: EUpdate up to 2.14 keeps the last one unpacked) (`make firebee`, common's
   mkfirebee.py: binary/firebee/; common's `tlsfb.ovl` as `tls.ovl`), and no files loose (Erez, 22 Nov 2026:
   "just have two ZIP files, one for each platform"). The standard one: `ecal.acc`, `ecal.prg`, `tls.ovl` (common's, never built here; guidelines
   7.4), `ecal.hyp` and `.ref` (hcp from `common/tools/build-hcp.sh`), `cacert.pem`, `roots.dat` and
