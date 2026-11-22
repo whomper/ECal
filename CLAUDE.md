@@ -199,12 +199,13 @@ ECal is in maintenance mode while EWeb, EPDF and EPlay go to 1.0 (AERA-Atari, AT
   695 -> 722), no drawing code changed and 2.56's layout not bringing it back ("Release as it is", 22 Nov
   2026).
 
-- **Lifted for one item (decided 22 Nov 2026):** the Falcon's line scroll over its 50 ms. A glide's step goes
+- **Done in 2.58, maintenance back (decided 22 Nov 2026):** the Falcon's line scroll over its 50 ms. A glide's step goes
   in two turns (the strip drawn off the screen, then the rows moved and the strip copied in) on a 68020 or
   better, and only where the rows' last move took 40 ms or less (the owner's decision, 22 Nov 2026): on
   Falcon-4:16 the longest stretch 55-70 -> 45 ms; in 256 colours under NVDI the rows alone take 55-60 ms,
-  a step in one turn there as in 2.57; the ST as before (the 31 Oct exception). Maintenance comes back after
-  its release.
+  a step in one turn there as in 2.57; the ST as before (the 31 Oct exception). The start's rows came
+  out 10 ms (its longest stretch) to 35-60 ms (its picture) behind 2.57 on the Falcons, the calendar list's
+  drawing moved in memory, not new code: accepted (22 Nov 2026).
 
 ## UI backlog (the owner's 54 decisions, 9 Nov 2026; AERA-Atari a261597, standards/ui)
 
