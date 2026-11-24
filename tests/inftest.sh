@@ -1,7 +1,7 @@
 #!/bin/bash
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright (C) 2026 AERA | Erez Yaary
-# ECAL.INF is written only when a setting changed (guidelines 6.1, Erez
+# ECAL.INF is written only when a setting changed (guidelines 6.1, decided
 # 12 Nov 2026): saved with nothing different, the file keeps its date
 # and its bytes; with a change, it is written once.
 set -euo pipefail
@@ -32,7 +32,7 @@ grep -q "^FONT=System,16" "$inf" || { echo "inftest: FONT_ID= and FONT_PT= not r
 sed -i 's/^FONT=System,16\r$/FONT=Courier,10\r\nFONT_ID=1\r/' "$inf"
 "$CLI" "$W/d" save >/dev/null
 grep -q "^FONT=Courier,10" "$inf" || { echo "inftest: FONT_ID= after FONT= won"; exit 1; }
-# HEBFONT= (the Hebrew in font setting, gone: Erez, 17 Nov 2026) read once
+# HEBFONT= (the Hebrew in font setting, gone: decided 17 Nov 2026) read once
 # and left out of the next ECAL.INF; ECal starts with it as with any key
 sed -i 's/^WINDOW=\(.*\)\r$/WINDOW=\1\r\nHEBFONT=1\r/' "$inf"
 grep -q "^HEBFONT=1" "$inf" || { echo "inftest: HEBFONT= not put in"; exit 1; }

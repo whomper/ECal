@@ -74,7 +74,7 @@ FALCON=1 make itest          # rest, changes from elsewhere, subscriptions, impo
 
 `tests/hatari/` runs the real accessory in the [Hatari](https://hatari.tuxfamily.org/) emulator with
 [EmuTOS](https://emutos.sourceforge.io/) 1.4, driven by Xvfb and xdotool. The machine is one of the
-family's test machines from `common/tools/machines.py`, named with `--machine`: `ST` (Erez's 1040 ST,
+family's test machines from `common/tools/machines.py`, named with `--machine`: `ST` (a 1040 ST,
 4 MB) and `ST-1` (1 MB), each with `:mono` or `:med`; `TT` and `Falcon` (`:16` or `:256` colours),
 where the Direct connection rigs run. The program is ECAL.ACC or ECAL.PRG on all of them; the rigs put
 `binary/TLS.OVL` in ECal's folder. Each rig has a default, and prints the machine and TOS it
@@ -148,7 +148,7 @@ The network tests use the family's `FAKESTNG.PRG`, which carries the emulated At
 serial port to `serial_bridge.py` (both in `common/tools/fakesting`, started by `machines.py`); it's
 for the emulator only, never for a real Atari.
 
-ECal's tests run ECal alone (the family's guidelines, 1.2, Erez 8 Nov 2026): no other AERA program or
+ECal's tests run ECal alone (the family's guidelines, 1.2, decided 8 Nov 2026): no other AERA program or
 accessory is loaded beside it, started by it or fetched for it. What ECal does with another program is
 tested against a stand-in from this repository that plays the other side: `ECONTACT.ACC`
 (`tests/hatari/fakecontact.c`, `make fakecontact`) answers PEOPLE as EContact, `ST-GUIDE.ACC`

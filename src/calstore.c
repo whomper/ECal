@@ -543,7 +543,7 @@ options2:
 	I("VIEW", view, "the view: 0 day, 1 week, 2 month, 3 year")
 	I("SIDEBAR", sidebar, "show the calendar list")
 	I("OFFSCREEN", offscreen, "1: the views drawn off the screen and copied when whole; 0: straight on the screen\r\n"
-	  "; (Erez's trial, 13 Nov 2026: which feels faster on a real Falcon)")
+	  "; (a trial: which feels faster on a real Falcon)")
 	I("PANES", panes, "the day view's details pane, its width in pixels; 0: two fifths of the view")
 	sb_printf(&b, "; the window: its left and top edges, its width and height, in pixels\r\n"
 		  "WINDOW=%d,%d,%d,%d\r\n\r\n", opt.win_x, opt.win_y, opt.win_w, opt.win_h);
@@ -595,7 +595,7 @@ accounts:
 }
 
 /* ECAL.INF written with that text (b freed): only when it differs from
-   what was last read or written (guidelines 6.1, Erez 12 Nov 2026: no
+   what was last read or written (guidelines 6.1, decided 12 Nov 2026: no
    open, no write, no rename when nothing changed; the file's date stays).
    The text itself isn't kept, two sums of it and its length are */
 void store_write_text(SBUF *b)

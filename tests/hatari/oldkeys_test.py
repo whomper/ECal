@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright (C) 2026 AERA | Erez Yaary
-"""An ECAL.INF of an older ECal (D43, D44; Erez, 17 Nov 2026), in Hatari:
+"""An ECAL.INF of an older ECal (D43, D44; decided 17 Nov 2026), in Hatari:
 
     tests/hatari/oldkeys_test.py WORK [--machine ST:mono|Falcon-4:256|...]
 

@@ -161,7 +161,7 @@ static int set_font_on(short id, short pt, int probe)
 	/* how the font draws a run, measured once a font and size: each
 	   slice of a view chose the font again on the window's bitmap, and
 	   measuring it there each time was 5.8 ms a slice under NVDI with
-	   FreeMono 14, 133 ms of a week view (F5: Erez, 19 Nov 2026) */
+	   FreeMono 14, 133 ms of a week view (F5: decided 19 Nov 2026) */
 	if (id == 1)
 		font_cells = FC_RUNS;
 	else if (id != m_id || pt != m_pt) {
@@ -184,7 +184,7 @@ static int set_font_on(short id, short pt, int probe)
    workstation now set (win.c: the window's bitmap, that piece drawn
    again after): a vector font's letters are made the first time each is
    drawn, and the views after the start paid it (FreeMono 14 under NVDI:
-   week 1445 ms, 570 with them made; F5: Erez, 19 Nov 2026). Letters i
+   week 1445 ms, 570 with them made; F5: decided 19 Nov 2026). Letters i
    to i + n - 1 of the printable ones, then the Hebrew ones; the next i,
    0 when all are done. *w: the piece's width */
 int font_warm(short x, short y, int i, int n, short *w)

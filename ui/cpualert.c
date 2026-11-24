@@ -3,12 +3,12 @@
 /*
  * cpualert.c - which machine this ECal is for (the guidelines, 7.4: two
  * packages, the standard one for the ST, TT and Falcon and the FireBee's,
- * the same names inside; Erez, 22 Nov 2026). common's atari/cpucheck.c
+ * the same names inside; decided 22 Nov 2026). common's atari/cpucheck.c
  * (the standard ECAL.PRG and ECAL.ACC) and cpucheck_cf.S (the FireBee's)
  * come first and show the alert where the other package belongs: the
  * program at once, then it quits; the accessory nothing at boot, its Desk
- * entry (cpu_acc_name) showing it when chosen. Erez's words, a line 30
- * characters at most.
+ * entry (cpu_acc_name) showing it when chosen. The words decided 22 Nov 2026, a line
+ * of 30 characters at most.
  */
 const char cpu_acc_name[] = "  ECal";
 

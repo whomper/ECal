@@ -5,7 +5,7 @@
 through a "gateway" that takes the connection and never answers, as a
 server can. Esc while the busy bee shows must end the wait at once, not
 after the 60 s timeout, and ECal must carry on: a key typed meanwhile
-(Ctrl+N, a new event) is not lost. Erez's TOS gives that key with the
+(Ctrl+N, a new event) is not lost. TOS 1.04 and 4.04 give that key with the
 kstate of when ECal reads it, without Control, which key_ctrl() makes
 up for (the guidelines 3.2); EmuTOS keeps Control with the key, so
 there it passes either way.

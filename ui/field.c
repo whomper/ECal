@@ -83,7 +83,7 @@ static int clip_box(const GRECT *in)
 }
 
 /* an exit button is the AES's own G_BUTTON (the guidelines, 5.6; a
-   tester, Erez 27 Oct 2026), drawn by objc_draw with dlg_3d's flags, so
+   tester's report, 27 Oct 2026), drawn by objc_draw with dlg_3d's flags, so
    that it looks as every other program's buttons do on that AES: flat
    on TOS 1 to 3, raised on TOS 4, MagiC and XaAES */
 static void aes_button(const FIELD *f, const GRECT *r, int pressed)
@@ -104,7 +104,7 @@ static void aes_button(const FIELD *f, const GRECT *r, int pressed)
 	   pixels (a default one's thicker, raised on TOS 4): the object inset
 	   by that, so what is drawn keeps within its field's place and clear
 	   of the fields above and below (the New Event dialog's Add and Remove
-	   reached into Location and Calendar; a tester, Erez 28 Oct 2026) */
+	   reached into Location and Calendar; a tester's report, 28 Oct 2026) */
 	t[1].ob_x = r->x + 2;
 	t[1].ob_y = r->y + 3;
 	t[1].ob_width = r->w - 4;
@@ -551,7 +551,7 @@ static int people_key(DLG *d, short i, short key)
 }
 
 /* ---- a tip for what the mouse points at in a people field (the
-   address): common's tooltip.c, 0.7 s as every tip (D18; Erez, 10 Nov
+   address): common's tooltip.c, 0.7 s as every tip (D18; decided 10 Nov
    2026), its box taken away by dlg_tip_repaint ---- */
 static int tips_on;		/* a dialog with tips is open (cur_dlg) */
 

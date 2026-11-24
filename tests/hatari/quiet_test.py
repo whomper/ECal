@@ -15,7 +15,7 @@ stretch over 50 ms on a Falcon or TT (100 ms on an ST).
 
     make profile && tests/hatari/quiet_test.py WORKDIR [--machine Falcon|TT|ST-1:mono|...] [--big] [--secs 150]
 
---big seeds about 1050 events (bigcal.py --big), as Erez's calendars hold.
+--big seeds about 1050 events (bigcal.py --big), a large calendar.
 """
 import argparse
 import os
@@ -69,7 +69,7 @@ def main():
     ap.add_argument("work")
     add_machine(ap, "Falcon")
     ap.add_argument("--secs", type=int, default=150, help="how long to watch after boot")
-    ap.add_argument("--big", action="store_true", help="about 1050 events (bigcal.py --big), as Erez's calendars")
+    ap.add_argument("--big", action="store_true", help="a large calendar, about 1050 events (bigcal.py --big)")
     a = ap.parse_args()
     limit = 100 if is_st(a.machine) else 50
     hd = os.path.join(a.work, "hd")

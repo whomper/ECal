@@ -18,7 +18,7 @@ EmuTOS only (AERA_TOS=emutos): ECAL.PRG is started by double-clicking
 where EmuTOS's desktop puts drive C and the folder's icons; TOS 1.04 and
 4.04 put them elsewhere, and --auto would start the program before the
 accessory was opened. EContact's twin_test covers the same common twin.c
-on Erez's TOS 1.04 and 4.04.
+on TOS 1.04 and 4.04.
 """
 import argparse
 import os
@@ -112,7 +112,7 @@ def main():
         r.click(60, r.ecal_row())     # its first accessory: ECAL.ACC
         time.sleep(5)
         r.shot("5-acc-chosen")
-        r.ctrl(",")                     # Settings (no menu entry for Hebrew dates: Erez 7 Nov 2026)
+        r.ctrl(",")                     # Settings (no menu entry for Hebrew dates: decided 7 Nov 2026)
         time.sleep(2)
         r.click(225, 273)               # Show Hebrew dates (off), as esc_test
         time.sleep(1)

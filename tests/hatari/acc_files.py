@@ -204,7 +204,7 @@ def budget(j, piece, why=None):
     return opens, looks + 3
 
 
-# Erez, 18 Nov 2026 ("Raise budget to 45"): a 1 MB ST's boot with this rig's
+# decided 18 Nov 2026, the budget raised to 45: a 1 MB ST's boot with this rig's
 # data (460 events, a 120-event feed) may open its files up to 45 times.
 # ECal from 2.54 has about 9 KB less heap there (the new Settings, the tips,
 # the keyboard reach, WINDOW= and FONT=) and at its peak about 3 KB to spare:

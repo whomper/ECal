@@ -770,13 +770,13 @@ static void test_invitees(void)
 		"DTSTART:20261020T090000Z\r\nDTEND:20261020T100000Z\r\nSUMMARY:Lunch\r\n"
 		"ORGANIZER;CN=\"Dana Levi\":mailto:dana@example.org\r\n"
 		"ATTENDEE;CN=\"Dana Levi\";PARTSTAT=ACCEPTED:mailto:dana@example.org\r\n"
-		"ATTENDEE;CN=\"Erez Yaary\";PARTSTAT=NEEDS-ACTION:mailto:erez@example.com\r\n"
+		"ATTENDEE;CN=\"Avi Ben-David\";PARTSTAT=NEEDS-ACTION:mailto:avi@example.com\r\n"
 		"END:VEVENT\r\nEND:VCALENDAR\r\n";
 	EVENT *e = ev_new(), *r;
 	EVS s;
 	char *text, *t2;
 	long len, len2;
-	str_copy(ics_me, "erez@example.com", sizeof(ics_me));
+	str_copy(ics_me, "noa@example.com", sizeof(ics_me));
 	ics_people = 1;		/* as the editor reads them */
 	ics_now_utc = ct_make(2026, 10, 10, 12, 0);
 	e->uid = strdup("new-inv@atari");
@@ -790,8 +790,8 @@ static void test_invitees(void)
 	text = ics_build(e, 0, 0, &len);
 	unfold(text);
 	len = (long)strlen(text);
-	CHECK(strstr(text, "ORGANIZER:mailto:erez@example.com\r\n") != 0);
-	CHECK(strstr(text, "ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=CHAIR;PARTSTAT=ACCEPTED:mailto:erez@example.com") != 0);
+	CHECK(strstr(text, "ORGANIZER:mailto:noa@example.com\r\n") != 0);
+	CHECK(strstr(text, "ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=CHAIR;PARTSTAT=ACCEPTED:mailto:noa@example.com") != 0);
 	CHECK(strstr(text, "ATTENDEE;CN=\"Maya Carter\";CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:maya@pixelpress.example") != 0);
 	CHECK(strstr(text, "CN=\"Smith, Hannah\"") != 0);
 	CHECK(strstr(text, "RSVP=TRUE:mailto:sam@example.net") != 0);
@@ -801,7 +801,7 @@ static void test_invitees(void)
 	if (s.n) {
 		r = s.ev[0];
 		CHECK(r->attendees && strstr(r->attendees, "Maya Carter <maya@pixelpress.example>"));
-		CHECK(r->organizer && !strcmp(r->organizer, "erez@example.com"));
+		CHECK(r->organizer && !strcmp(r->organizer, "noa@example.com"));
 		CHECK(!ev_invited(r));
 		/* a change that leaves the invitees alone keeps them as they were */
 		ev_set(&r->summary, "Atari meet, moved");
@@ -841,8 +841,8 @@ static void test_invitees(void)
 		static const char mine[] =
 			"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:inv-2\r\n"
 			"DTSTART:20261020T090000Z\r\nDTEND:20261020T100000Z\r\nSUMMARY:Meet\r\n"
-			"ORGANIZER;CN=Erez:mailto:erez@example.com\r\n"
-			"ATTENDEE;ROLE=CHAIR;PARTSTAT=ACCEPTED:mailto:erez@example.com\r\n"
+			"ORGANIZER;CN=Noa:mailto:noa@example.com\r\n"
+			"ATTENDEE;ROLE=CHAIR;PARTSTAT=ACCEPTED:mailto:noa@example.com\r\n"
 			"ATTENDEE;CN=\"Dana Levi\";PARTSTAT=ACCEPTED;SCHEDULE-STATUS=2.0:mailto:\r\n dana@example.org\r\n"
 			"ATTENDEE;CN=Sam;PARTSTAT=DECLINED:mailto:sam@example.net\r\n"
 			"END:VEVENT\r\nEND:VCALENDAR\r\n";
@@ -861,7 +861,7 @@ static void test_invitees(void)
 			CHECK(strstr(t2, "PARTSTAT=ACCEPTED;SCHEDULE-STATUS=2.0:mailto:dana@example.org") != 0);
 			CHECK(strstr(t2, "sam@example.net") == 0);
 			CHECK(strstr(t2, "PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:kim@example.net") != 0);
-			o = strstr(t2, "ORGANIZER;CN=Erez");
+			o = strstr(t2, "ORGANIZER;CN=Noa");
 			CHECK(o && !strstr(o + 1, "ORGANIZER"));
 			o = strstr(t2, "ROLE=CHAIR");
 			CHECK(o && !strstr(o + 1, "ROLE=CHAIR"));

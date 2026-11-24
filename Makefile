@@ -93,8 +93,7 @@ $(BIN)/tls.ovl: common/tlsovl/tls.ovl | $(BIN)
 
 # tlsfb.ovl: the same for a FireBee's ColdFire, common's too; the FireBee
 # package carries it as tls.ovl, the name tls_ovl.c loads (the guidelines,
-# 7.4; Erez, 22 Nov 2026: "rename all other FB files into their standard
-# filename")
+# 7.4; decided 22 Nov 2026: the FireBee's files under their standard names)
 $(BIN)/tlsfb.ovl: common/tlsovl/tlsfb.ovl | $(BIN)
 	cp $< $@
 
@@ -118,7 +117,7 @@ $(BIN)/ecal.acc: $(OBJDIR)/cal.elf common/tools/elf2tos.py | $(BIN)
 $(BIN)/ecal.prg: $(OBJDIR)/cal_prg.elf common/tools/elf2tos.py | $(BIN)
 	PRGFLAGS=7 python3 common/tools/elf2tos.py $< $@
 
-# the FireBee package (the guidelines, 7.4; Erez, 22 Nov 2026: two
+# the FireBee package (the guidelines, 7.4; decided 22 Nov 2026: two
 # packages, the same names inside): the same sources as ColdFire code, by
 # common's mkfirebee.py from the rules above (cpucheck.c becomes
 # cpucheck_cf.S, -lgcc ll64.c), in $(BIN)/firebee/
@@ -286,8 +285,8 @@ $(BIN)/ecal.hyp: docs/GUIDE.md tools/guide2stg.py VERSION docs/front.json docs/h
 	python3 common/tools/helpfront.py page docs/front.json $(OBJDIR)/ECAL.STG $(OBJDIR)/ECAL.STG
 	$(HCP) -o $@ $(OBJDIR)/ECAL.STG
 
-# a release: two packages and nothing else (the guidelines, 7.4; Erez,
-# 22 Nov 2026: "two ZIP files, one for each platform"), dist/ecal-x.y.zip
+# a release: two packages and nothing else (the guidelines, 7.4; decided
+# 22 Nov 2026: two zip files, one for each platform), dist/ecal-x.y.zip
 # for the ST, TT and Falcon and dist/ecal-x.y-firebee.zip for the FireBee,
 # the same names in both (the icons in icons/): the FireBee's ECAL.PRG and
 # ECAL.ACC (make firebee) and TLS.OVL, common's ColdFire build (tlsfb.ovl)

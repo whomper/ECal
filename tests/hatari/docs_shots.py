@@ -6,7 +6,7 @@ events, Hebrew dates off and a New York clock:
 
     TZ=America/New_York tests/hatari/docs_shots.py WORK [--update]
 
-On the Falcon in 256 colours (Erez, 28 Oct 2026: every app picture
+On the Falcon in 256 colours (decided 28 Oct 2026: every app picture
 the 256-colour one, as it looks best), and st-mono.png on an ST in
 mono, under EmuTOS (as anyone building ECal would take them). The
 people invited in new-event.png come from a contacts file as EContact

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright (C) 2026 AERA | Erez Yaary
-"""Each edition on the other's machine (the guidelines, 7.4; Erez, 22 Nov
+"""Each edition on the other's machine (the guidelines, 7.4; decided 22 Nov
 2026): ECAL.PRG and ECAL.ACC on the FireBee stand-in (FireTOS's _CF_
 cookie), the FireBee package's on an ST and a Falcon (binary/firebee/, the
 same names; the guidelines 7.4, two packages). A program shows

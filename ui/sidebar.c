@@ -293,7 +293,7 @@ void side_draw(GRECT *clip)
 			}
 			if (s->cal == side_sel) {
 				/* the chosen one: its name in a black bar, as Settings'
-				   sections (Erez, 1 Nov 2026); the tick box beside it on
+				   sections (decided 1 Nov 2026); the tick box beside it on
 				   white, where a black one still shows */
 				GRECT bar;
 				side_name_rect(s, &bar);
@@ -500,7 +500,7 @@ int side_click(short mx, short my, short clicks, short button)
 		if (mx >= r_side.x + 3 * cw) {
 			/* its name: chosen on the press, nothing more on the release;
 			   shown or hidden by its tick box only; a double click's
-			   release, Calendar info (the guidelines 5.8, Erez 1 Nov
+			   release, Calendar info (the guidelines 5.8, decided 1 Nov
 			   2026). Let go elsewhere, the one chosen before is again
 			   (5.8, 3a60b0d) */
 			short was = side_sel;

@@ -440,7 +440,7 @@ int dlg_calendar(int ci)
 }
 
 /* ---------------- settings ----------------
- * The family's Settings dialog (guidelines 6.1; Erez, 9 Nov 2026), common's
+ * The family's Settings dialog (guidelines 6.1; decided 9 Nov 2026), common's
  * engine (common/ui/settings.c): the list of pages at the left, the page's
  * name and a line over its settings, Cancel and OK at the bottom right;
  * the radio buttons of up to four choices (D24), the keys that reach every
@@ -457,7 +457,7 @@ static const char *const alert_words[] = { "None", "At the time", "5 minutes bef
 					   "15 minutes before", "30 minutes before", "1 hour before" };
 static const short alert_min[] = { -1, 0, 5, 10, 15, 30, 60 };
 static const char *const refresh_words[] = { "Never", "Every 15 minutes", "Every hour", "Every day", "Every week" };
-/* Read calendars, four radio buttons (D24; Erez's words, 17 Nov 2026) */
+/* Read calendars, four radio buttons (D24; the words decided 17 Nov 2026) */
 static const char *const start_words[4] = { "At start", "1 minute", "5 minutes", "Opened" };
 
 enum { P_GENERAL, P_EVENTS, P_ZONES, P_REFRESH, P_CONTACTS, P_SECURE, P_ADVANCED, NPAGES };

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright (C) 2026 AERA | Erez Yaary
 """A GDOS font chosen in ECal's accessory (or, with --prg, the program),
-as Erez did under NVDI on 19 Oct 2026 with 2.14: the window should redraw
+as under NVDI on 19 Oct 2026 with 2.14: the window should redraw
 in the new font, and the accessory, closed and opened again, should draw.
 
     tests/hatari/font_acc.py WORK [--machine Falcon] [--prg]

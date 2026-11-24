@@ -98,8 +98,8 @@ zone the clock is in.
 **STinG's Delay.** With STinG, set the Delay in `STING.CPX` to suit the
 machine: 10 on a Falcon or TT, 25 to 50 on an ST, as STinG's manual says.
 STinG looks at the network card that often, so it sets the speed of every
-STinG program, ECal's refreshes among them (on Erez's Falcon with a
-NetUSBee, Delay 10 took EFTP's downloads from 40 to 75 KB/s).
+STinG program, ECal's refreshes among them (on a Falcon with a
+NetUSBee, Delay 10 about doubles a download's speed).
 
 **FOLDR100.PRG.** Under TOS, put Atari's `FOLDR100.PRG` first in `AUTO`,
 renamed for more room (`FOLDR400.PRG`). TOS keeps an entry in a small

@@ -19,7 +19,7 @@ With the calendars of tests/host/bigcal.py (580 events) and a day of
 opens and closes a dialog, an alert and the event editor, types in a
 field; with --acc, ECAL.ACC boots and is opened from the Desk menu
 (on ST-1 or a Falcon with 14 MB: the accessory isn't tested on the 4 MB
-machines, ST and Falcon-4, Erez 4 Nov 2026).
+machines, ST and Falcon-4, decided 4 Nov 2026).
 
     tests/hatari/speed_test.py WORKDIR [--machine ST:mono] [--acc] [--json OUT]
 """
@@ -45,7 +45,7 @@ LIMIT = dict(key=50, line=50, page=150, dialog=150, window=300, acc=500, start=2
 def seed(hd, work, acc, font=None, big=False, side=True):
     """bigcal's four calendars and 24 events today, as installed:
     ECAL.INF in the root of C:, FOLDER= naming C:\\ECAL. big: bigcal --big
-    (about 1050 events, Erez's size); side: the calendar list shown"""
+    (a large calendar, about 1050 events); side: the calendar list shown"""
     folder = os.path.join(hd, "ecal")
     os.makedirs(folder, exist_ok=True)
     d = os.path.join(work, "seed")
@@ -188,7 +188,7 @@ def run_prg(r, m, st):
     m.act("back to today", "window", lambda: k(K["HOME"]))
     m.act("week view again", "window", lambda: k(SCAN["w"]))
     # the whole window drawn again (the layout changed), in one piece as
-    # 2.55 (Erez, 20 Nov 2026: pieces finished it later); twice, the list
+    # 2.55 (decided 20 Nov 2026: pieces finished it later); twice, the list
     # back as it was
     m.act("the calendar list hidden (Shift+^S: the whole window)", "window",
           lambda: k(SCAN["s"], shift=True, ctrl=True))
@@ -226,7 +226,7 @@ def human_double(r, x, y):
 def first_calendar(r):
     """where the list's first calendar name is: right of its colour box
     (a solid square, black on a mono screen), found on the screen. Its
-    place moves with the font (a GDOS font's taller rows: Erez's FreeMono
+    place moves with the font (a GDOS font's taller rows: FreeMono
     14 put the name below the system font's 114, and both rows read
     9999). (60, 114), the system font's place, when no box is seen"""
     from PIL import Image
@@ -375,9 +375,9 @@ def main():
     ap.add_argument("--bin", default=os.path.join(ROOT, "build", "prof20", "bin"))
     ap.add_argument("--json", help="the rows, for the table")
     ap.add_argument("--display", default=":99")
-    ap.add_argument("--font", help="ID,PT: a GDOS font chosen in ECAL.INF (NVDI's Courier 14 as Erez runs it:"
+    ap.add_argument("--font", help="ID,PT: a GDOS font chosen in ECAL.INF (NVDI's Courier 14:"
                     " the guidelines' Speed); with AERA_WITH_NVDI=1")
-    ap.add_argument("--big", action="store_true", help="bigcal --big: about 1050 events, Erez's size")
+    ap.add_argument("--big", action="store_true", help="bigcal --big: a large calendar, about 1050 events")
     ap.add_argument("--no-side", action="store_true", help="the calendar list hidden (SIDEBAR=0), the view the window's width")
     ap.add_argument("--again", action="store_true",
                     help="WORKDIR as an earlier run left it: the files ECal wrote then (its snapshots) kept")

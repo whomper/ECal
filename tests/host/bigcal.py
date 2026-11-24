@@ -8,7 +8,7 @@ subscription, around today, with series, exceptions and alerts.
 
     bigcal.py OUTDIR [YYYYMMDD] [--big]   writes WORK.ICS HOME.ICS FAMILY.ICS SUBS.ICS
 
---big: about 1050 events, as many as Erez's calendars hold, Work 500,
+--big: a large calendar, about 1050 events, Work 500,
 Home 350 and Family 200, the added ones spread over the year ahead with
 alerts on most (the reminders' queue, sorted at the start, grows with
 them).

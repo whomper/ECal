@@ -2,7 +2,7 @@ name: Release
 
 # Builds ECal and publishes it as a GitHub Release: two packages and
 # nothing else, ecal-x.y.zip (ST, TT, Falcon) and ecal-x.y-firebee.zip
-# (the guidelines, 7.4; Erez, 22 Nov 2026). Two ways to start it:
+# (the guidelines, 7.4; decided 22 Nov 2026). Two ways to start it:
 # - Actions > Release > Run workflow, on main, with the notes: it tags
 #   main's commit vX.Y, from VERSION;
 # - push a tag vX.Y that matches VERSION: the tag's message
