@@ -240,6 +240,33 @@ def main():
             text = cache_text(hd)
             check("a rule typed into the Rule line", "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=TH" in text)
             r.shot("15-month-after")
+            # 6. the month under a date field (decided 24 Nov 2026): a click
+            #    opens it, Esc closes it, typing goes to the field, the arrows
+            #    and Return take a day
+            r.key(SCAN["n"])
+            r.wait(2)
+            for at, key, want in (((215, 190), 0x4d, "11.03"), ((215, 213), 0x50, "17.03")):
+                r.click(*at)                   # the picker opens
+                r.wait(1.5)
+                r.key(K["ESC"])                # closed, the field keeps the cursor
+                r.wait(0.5)
+                empty(r)
+                r.type("10.03.2027")
+                r.click(*at)                   # March 2027, the 10th chosen
+                r.wait(1.5)
+                r.shot("16-picker-" + want)
+                r.key(key)                     # a day, a week ahead
+                r.key(K["RETURN"])             # taken
+                r.wait(1)
+            r.shot("17-picked")
+            r.click(360, 81)
+            r.type("Picked")
+            r.key(K["RETURN"])
+            r.wait(4)
+            text = cache_text(hd)
+            picked = [p for p in text.split("\nR ") if "SUMMARY:Picked" in p]
+            check("dates taken from the picker: the 11th to the 17th of March 2027",
+                  bool(picked) and ":20270311T" in picked[0] and ":20270317T" in picked[0])
     finally:
         r.stop()
     print("screenshots in", os.path.join(a.work, "shots"))

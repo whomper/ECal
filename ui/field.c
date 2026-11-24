@@ -631,6 +631,7 @@ int dlg_tip_repaint(const GRECT *r)
 static void draw_field_only(DLG *d, short i);
 static void ring_rect(const FIELD *f, GRECT *r);
 static short ring;	/* the keys' focus ring shown (D25): a key used since the last click */
+static short key_again, ks_again;	/* a key the date picker closed on: the loop's next */
 
 static void draw_field(DLG *d, short i)
 {
@@ -1476,6 +1477,34 @@ static int close_box(const GRECT *b, int via_dlg)
 	return back;
 }
 
+/* a click in a date field: the month under it (FF_DATE, datepick.c) */
+static void open_date(DLG *d, short i)
+{
+	FIELD *f = &d->f[i];
+	GRECT r;
+	long day;
+	short ks = 0, key = 0, mx, my, mb, k;
+	int res;
+	field_rect(f, &r);
+	if (!parse_date(f->buf, &day))
+		day = ct_days(now_view());
+	do
+		graf_mkstate(&mx, &my, &mb, &k);
+	while (mb & 3);
+	res = date_pick(r.x - 2, r.y + r.h + 2, r.y - 2, &day, &ks, &key);
+	if (res & 4)
+		draw_all(d);
+	if ((res & 3) == 1) {
+		fmt_date(day, f->buf, f->max);
+		f->cur = (short)strlen(f->buf);
+		f->first = 0;
+		dlg_redraw_field(d, i);
+	} else if ((res & 3) == 2) {
+		key_again = key;
+		ks_again = ks;
+	}
+}
+
 short dlg_run(DLG *d)
 {
 	short result = -2, i, mx, my, mb, ks, m[8], tips = 0, hx = -1, hy = -1, via;
@@ -1560,7 +1589,12 @@ short dlg_run(DLG *d)
 	tips_on = tips;
 	ring = 0;
 	while (result == -2) {
-		if (tips) {
+		if (key_again) {
+			e.which = MU_KEYBD;
+			e.kreturn = key_again;
+			e.kstate = ks_again;
+			key_again = 0;
+		} else if (tips) {
 			evnt_set_m1(1, hx, hy, 1, 1);
 			dlg_evnt(MU_KEYBD | MU_BUTTON | MU_M1 | MU_MESAG | MU_TIMER, 0x101, 3, 0,
 				 todo < d->n ? 0 : tip_wait(1000), m, &e);
@@ -1709,6 +1743,8 @@ short dlg_run(DLG *d)
 						break;
 					}
 					click_field(d, hit, e.mx, e.my);
+					if (f->flags & FF_DATE)
+						open_date(d, hit);
 					break;
 				case FT_BUTTON:
 					if (!press_hold(d, hit))

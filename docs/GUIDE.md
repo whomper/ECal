@@ -384,7 +384,11 @@ date as the title. Reminders still come while it is iconified.
   English. Text is laid out right to left when it starts in Hebrew.
 - **People**: who is invited (see [Inviting people](#inviting-people)).
 - **Starts / Ends**: dates as day.month.year (`12.10.2026`, `12.10`,
-  `12/10/26`), times as `9:30`, `930` or `9:30pm`.
+  `12/10/26`), times as `9:30`, `930` or `9:30pm`. A click in a date
+  opens its month under it: click a day to take it, or move with the
+  arrow keys and press **Return**; the arrows at its top go a month back
+  or ahead, the dot to today. **Esc** or a click outside closes it, and
+  typing goes on in the date as before.
 - **all-day** for birthdays, holidays, trips.
 - **Calendar**: which calendar it goes in (only those you can change).
 - **Zone** (with time zone support on): the event's time zone. The

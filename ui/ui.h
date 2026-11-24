@@ -200,6 +200,7 @@ enum { FT_LABEL, FT_TEXT, FT_PASS, FT_BUTTON, FT_CHECK, FT_POPUP, FT_MULTI, FT_H
 #define FF_SHOWN   32	/* a password field shown in clear (its eye clicked) */
 #define FF_DIGITS  64	/* a number field: only digits can be typed */
 #define FF_ACTION 128	/* a button that acts in the dialog (changed()), leaving it open */
+#define FF_DATE   256	/* a date (12.10.2026): a click opens the month under it (datepick.c) */
 typedef struct {
 	short type, flags;
 	short x, y, w, h;	/* in characters */
@@ -251,6 +252,13 @@ void  people_setup(void);	/* EContact's file as Settings > Contacts says (main.c
 /* a list to pick from (a calendar, a zone): index or -1 */
 short dlg_pick(const char *title, const char *const *items, short n, short sel);
 int   dlg_ask(const char *title, const char *label, char *buf, short len);
+/* the month under a date field (datepick.c): at (x, y), above alt_y where
+   it doesn't fit below. 1 a day taken (*day), 2 a key that types (*kstate,
+   *key: the field's), 0 closed; | 4: the screen under it not kept */
+int   date_pick(short x, short y, short alt_y, long *day, short *kstate, short *key);
+/* dates as typed: 12.10.2026, 12/10/26, 12.10 (editor.c) */
+void  fmt_date(long day, char *out, int size);
+int   parse_date(const char *s, long *day);
 
 /* ---- the dialogs (dialogs.c, editor.c) ---- */
 int  editor_open(EVENT *e, CTIME occ_start, CTIME orig);	/* 1 if changed; orig: OCC.orig */

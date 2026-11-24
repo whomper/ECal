@@ -21,14 +21,14 @@ static short last_cal = -1;	/* new events go where the last one went */
 
 /* ---- dates and times as typed: 12.10.2026, 12/10/26, 12.10; 9:30, 930, 9pm ---- */
 
-static void fmt_date(long day, char *out, int size)
+void fmt_date(long day, char *out, int size)
 {
 	int y, m, d;
 	civil_from_days(day, &y, &m, &d);
 	snprintf(out, size, "%02d.%02d.%04d", d, m, y);
 }
 
-static int parse_date(const char *s, long *day)
+int parse_date(const char *s, long *day)
 {
 	int v[3] = { 0, 0, 0 }, n = 0, y, m, d;
 	DT now;
@@ -1004,7 +1004,7 @@ static int edit_event(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 	x.f[F_CAL].nitems = x.ncal;
 	row++;
 	put(&x.f[L_START], FT_LABEL, 0, 0, row, 0, "Starts:");
-	put(&x.f[F_SDATE], FT_TEXT, FF_LTR, 11, row, 10, 0);
+	put(&x.f[F_SDATE], FT_TEXT, FF_LTR | FF_DATE, 11, row, 10, 0);
 	x.f[F_SDATE].buf = etx->sdate;
 	x.f[F_SDATE].max = 12;
 	put(&x.f[F_STIME], FT_TEXT, FF_LTR, 23, row, 7, 0);
@@ -1018,7 +1018,7 @@ static int edit_event(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 		x.f[F_TZ].type = FT_LABEL, x.f[F_TZ].label = "";
 	row++;
 	put(&x.f[L_END], FT_LABEL, 0, 0, row, 0, "Ends:");
-	put(&x.f[F_EDATE], FT_TEXT, FF_LTR, 11, row, 10, 0);
+	put(&x.f[F_EDATE], FT_TEXT, FF_LTR | FF_DATE, 11, row, 10, 0);
 	x.f[F_EDATE].buf = etx->edate;
 	x.f[F_EDATE].max = 12;
 	put(&x.f[F_ETIME], FT_TEXT, FF_LTR, 23, row, 7, 0);
