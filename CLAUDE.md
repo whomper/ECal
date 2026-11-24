@@ -41,9 +41,8 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
 - **Only formal releases leave the build machine.** The owner gets vX.Y releases made by the Release workflow from `main`, nothing else: no test builds, no CI artifacts, no builds from a branch. Work lands on `main`; to try a fix on real hardware, release it. A fault found in a release is fixed forward by the next number, before any other work (guidelines 1.2, 17 Nov 2026): the old release stays, with one line in the new one's notes saying what it fixes (no revert, no "withdrawn" notice).
 - **Releases go out without asking the owner** (his decision, 23 Oct 2026; guidelines 1.2). Release when
   work on `main` is ready:
-  the candidate has passed **the regression gate** (decided 17 Nov 2026: "we need to be extra careful with
-  regression issues as there are users of our software. This means testing across all configurations" and
-  "make sure we don't loose performance"; guidelines 1.2, AERA-Atari a22574e), in this order:
+  the candidate has passed **the regression gate** (decided 17 Nov 2026: extra care with regressions, as the software has
+  users: testing across all configurations, and no loss of performance; guidelines 1.2, AERA-Atari a22574e), in this order:
   1. this repo's checks (below);
   2. its rigs on every row of `standards/TEST-MATRIX.md`'s gate table ECal runs on, on the owner's TOS images and
      NVDI (EmuTOS is never the gate's evidence), each named in the report with `describe()`, a row ECal
@@ -89,6 +88,9 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
   - real addresses from the owner's network: use `192.168.1.x`, `PI_IP`, `ATARI_IP`
   - passwords, session keys, `.KEY` / `.INF` files from a test run
   - photos that still carry EXIF/GPS data
+  - anything the owner provides (decided 24 Nov 2026; AERA-Atari standards/GITHUB-IDENTITY.md, Commits): his files,
+    calendars, logs, screenshots, share links or file IDs, his messages and words, his machine's settings; no commit,
+    test or note quotes him: write "decided <date>: <what>". A fault he reports becomes a case made from scratch.
 - **README:** keep the section order from the template (Highlights, Getting started, How it reaches the
   servers, Building, Source, Tests, Licence, family footer). Use British English.
 
@@ -97,7 +99,7 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
 - **A release** carries two packages (guidelines 7.4, decided 22 Nov 2026): `ecal-x.y.zip` for the ST, TT
   and Falcon, and `ecal-x.y-firebee.zip` with the same names, uploaded first (the standard zip last: EUpdate up to 2.14 keeps the last one unpacked) (`make firebee`, common's
   mkfirebee.py: binary/firebee/; common's `tlsfb.ovl` as `tls.ovl`), and no files loose (decided 22 Nov 2026:
-  "just have two ZIP files, one for each platform"). The standard one: `ecal.acc`, `ecal.prg`, `tls.ovl` (common's, never built here; guidelines
+  two zip files, one for each platform). The standard one: `ecal.acc`, `ecal.prg`, `tls.ovl` (common's, never built here; guidelines
   7.4), `ecal.hyp` and `.ref` (hcp from `common/tools/build-hcp.sh`), `cacert.pem`, `roots.dat` and
   the icon, all in `ecal-x.y.zip` too. The icons are committed in
   `icons/` (`make icons`).
@@ -170,10 +172,9 @@ with its time.
 
 ECal is in maintenance mode while EWeb, EPDF and EPlay go to 1.0 (AERA-Atari, ATARI-APP-GUIDELINES.md, section 8):
 - No new features and no speed rounds of its own.
-- **Every family rule holds for ECal as for the focus apps** (decided 17 Nov 2026: "there needs to be a constant
-  behavior across all applications. In the future, all applications must adhere to family rules and be
-  notified. We will review whether they need to issue a release." and "Applications on maintenance does not
-  mean they contain faults"; AERA-Atari 8ddb463). The hub notifies ECal of each new or changed rule and each
+- **Every family rule holds for ECal as for the focus apps** (decided 17 Nov 2026: the same behaviour across all
+  applications; every application follows the family rules and is notified of them, and whether one needs a
+  release is reviewed; an application in maintenance is not one with faults; AERA-Atari 8ddb463). The hub notifies ECal of each new or changed rule and each
   shared fix: ECal adopts it, with the shared code it needs (`tools/sync-common.sh`), and the hub ticks its
   row in section 8's "Where each app stands". Each ✗, ~ or ? in ECal's column there is work for this session.
 - Whether such a change needs a release of its own is reviewed with the owner through the hub; a fault fix always
@@ -182,27 +183,27 @@ ECal is in maintenance mode while EWeb, EPDF and EPlay go to 1.0 (AERA-Atari, AT
   stops it working (a certificate, a server), or something EWeb, EPDF or EPlay need from it.
 - Nothing runs in the background; the session waits for the owner or the hub.
 - Only the owner's explicit word ends this mode. The hub passes it on quoting him.
-- **Done in 2.56, maintenance back:** the list below (decided 19 Nov 2026, choosing "Work on 1, 2 and 3"; the hub's AERA-Atari
+- **Done in 2.56, maintenance back:** the list below (decided 19 Nov 2026: items 1, 2 and 3; the hub's AERA-Atari
   PERF-REVISIT): (1) redraws: 300 ms or less in one piece, longer in pieces of at most 100 ms (the
   section-8 speed row); (2) the speed round F2-F5 of the 17 Nov report (the occurrences kept for a wider
   range, date work per day, the clock read per batch, a GDOS font's letters rendered ahead), with a view's
   slice and the screen copy never in the same turn; (3) F1: the whole page drawn off the screen and shown
-  in one copy (a change he will see, approved); (4) D4, his words: "Edit > Find event...", ^F as before.
+  in one copy (a change he will see, approved); (4) D4: the menu item Edit > Find event..., ^F as before.
   His 31 Oct exception stays (the ST's line scroll at 115-155 ms). Every release of it passes the gate,
   the pairs against 2.54 included. When the list is done, maintenance mode comes back. Then (the owner, 20 Nov
-  2026): "we must not increase delays and latency": no row slower than the last release, the background
+  2026: no added delay or latency): no row slower than the last release, the background
   letters of (2) excepted (45 -> 85 ms with FreeMono under NVDI, accepted); and the whole window redrawn
   in one piece as 2.55, not in pieces (in pieces it finished at 900 ms against 490 on Falcon-4:16). For
   2.56 he accepted three Falcon-4:16 rows 5-10 ms behind 2.55 (next month's picture 1240 -> 1250 ms,
   the year view's longest stretch 65 -> 70-75, the start's picture 1105 -> 1115), the build's layout
-  rather than a change ("Release as it is", 20 Nov 2026).
+  rather than a change (accepted, 20 Nov 2026).
 
-- **Done in 2.57, maintenance back:** the one item lifted on 22 Nov 2026 (the owner: "Make the other apps native
-  on the FireBee too"; the guidelines 7.4, AERA-Atari b89dd31): the FireBee package (the owner: "two packages...
-  Same names", AERA-Atari cc13e75), each package's alert naming the other's (his words, ui/cpualert.c), the
+- **Done in 2.57, maintenance back:** the one item lifted on 22 Nov 2026 (decided 22 Nov 2026: the apps native
+  on the FireBee too; the guidelines 7.4, AERA-Atari b89dd31): the FireBee package (two packages with the same
+  names, AERA-Atari cc13e75), each package's alert naming the other's (ui/cpualert.c), the
   core under qemu-m68k -cpu cfv4e (`make core-cf`). For 2.57 he accepted two Falcon month pictures 25-30 ms
   behind 2.56 (Falcon-4:16, the month again 1140 -> 1170 ms; Falcon-4:256 with NVDI, the month drawn whole
-  695 -> 722), no drawing code changed and 2.56's layout not bringing it back ("Release as it is", 22 Nov
+  695 -> 722), no drawing code changed and 2.56's layout not bringing it back (accepted, 22 Nov
   2026).
 
 - **Done in 2.58, maintenance back (decided 22 Nov 2026):** the Falcon's line scroll over its 50 ms. A glide's step goes
@@ -213,11 +214,11 @@ ECal is in maintenance mode while EWeb, EPDF and EPlay go to 1.0 (AERA-Atari, AT
   out 10 ms (its longest stretch) to 35-60 ms (its picture) behind 2.57 on the Falcons, the calendar list's
   drawing moved in memory, not new code: accepted (22 Nov 2026).
 
-- **Lifted 24 Nov 2026, the date picker** (the owner: "a small calendar picker ... similar to the Mac calendar app
-  picker"; how it opens his choice, "Click the date opens it", 24 Nov 2026): a click in the event's Starts or Ends
-  date opens the month under it (ui/datepick.c, FF_DATE in field.c). Whether a new start moves the end with it
-  is put to him through the hub (his answer here came from the mode, not from him); until then the end stays, as
-  typing does. Maintenance comes back with the release that carries it.
+- **Lifted 24 Nov 2026, the date picker** (decided 24 Nov 2026: a small month to pick the event's dates from, as the
+  Mac's Calendar has, opened by a click in the date): a click in the event's Starts or Ends date opens the month
+  under it (ui/datepick.c, FF_DATE in field.c). Whether a new start moves the end with it is with the owner through
+  the hub (the answer here came from the mode, not from him); until then the end stays, as typing does.
+  Maintenance comes back with the release that carries it.
 
 ## UI backlog (the owner's 54 decisions, 9 Nov 2026; AERA-Atari a261597, standards/ui)
 
