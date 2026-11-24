@@ -50,6 +50,9 @@ LDFLAGS := -m68000 -nostdlib -static -no-pie -Wl,--emit-relocs -Wl,-T,common/ata
 # accessory otherwise (the hub's first-boot rule, 1 Nov 2026: 16 KB less)
 CFLAGS  += -ffunction-sections -fdata-sections
 LDFLAGS += -Wl,--gc-sections
+# the pads that keep the code after a grown file at 2.58's places
+# (atari/pad_*.S), kept by -u as the link drops unused sections
+LDFLAGS += $(foreach s,pad_editor pad_field pad_field_bss pad_datepick_ro pad_datepick_str,-Wl,-u,$(s))
 
 # BearSSL 0.6: on the Atari only its MD5 (Digest logins), as 68000 code; the
 # TLS is TLS.OVL's (the guidelines, 7.4). The build machine's tests link it
@@ -68,7 +71,7 @@ CORE    := util charset conn tls bidi secret futil ctime tz ics rrule xml inflat
 # tls.h's calls on, dsp_ovl.c the DSP's (common/README.md, "TLS.OVL")
 ACORE   := $(filter-out tls,$(CORE)) ovl
 ATARI   := libc tos plat_tos net_tos sting gem tls_ovl
-UI      := main hebkey win draw popup dsp_ovl views sidebar editor dialogs field about font fontsel help av alert aboutbox iconify clip dd mbar twin busy bgwork accmem dialog av_people people_ask people_file notify aboutline text click dlgbuild lfield eye tooltip settings datepick
+UI      := main hebkey win draw popup dsp_ovl views sidebar editor pad_editor dialogs field pad_field about font fontsel help av alert aboutbox iconify clip dd mbar twin busy bgwork accmem dialog av_people people_ask people_file notify aboutline text click dlgbuild lfield eye tooltip settings
 STBSSL  := hash/md5 codec/dec32le codec/enc32le
 
 OBJDIR  := build
@@ -76,8 +79,9 @@ OBJS0   := $(OBJDIR)/crt0.o $(OBJDIR)/sting_s.o $(OBJDIR)/nf.o $(OBJDIR)/crash.o
            $(addprefix $(OBJDIR)/,$(addsuffix .o,$(ACORE) $(ATARI) $(UI))) \
            $(addprefix $(OBJDIR)/st/,$(addsuffix .o,$(notdir $(STBSSL))))
 # (cpucheck.c, the start that says which edition belongs on the machine,
-# and ECal's alerts last: the code before them where 2.56 had it)
-OBJS    := $(OBJS0) $(OBJDIR)/version.o $(OBJDIR)/cpualert.o $(OBJDIR)/cpucheck.o
+# and ECal's alerts last: the code before them where 2.56 had it; then
+# the date picker, so nothing of 2.58's moves for it)
+OBJS    := $(OBJS0) $(OBJDIR)/version.o $(OBJDIR)/cpualert.o $(OBJDIR)/cpucheck.o $(OBJDIR)/datepick.o $(OBJDIR)/pad_datepick.o
 HDRS    := $(wildcard src/*.h atari/*.h atari/include/*.h ui/*.h \
            common/src/*.h common/atari/*.h common/atari/include/*.h common/ui/*.h common/dsp/*.h)
 
@@ -160,7 +164,7 @@ $(OBJDIR)/fakecontact.elf: $(FAKECONTACT_OBJS) common/atari/link.ld
 $(OBJDIR)/fakecontact.o: tests/hatari/fakecontact.c common/atari/gem.h common/ui/people_ask.h | $(OBJDIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-PRGOBJS := $(filter-out $(OBJDIR)/dialog.o,$(OBJS)) $(OBJDIR)/dialog_cpu.o
+PRGOBJS := $(filter-out $(OBJDIR)/dialog.o $(OBJDIR)/datepick.o $(OBJDIR)/pad_datepick.o,$(OBJS)) $(OBJDIR)/dialog_cpu.o $(OBJDIR)/datepick.o $(OBJDIR)/pad_datepickp.o
 SHIPDIR := build
 ifneq ($(AESPROF),)
 ifneq ($(OBJDIR),$(SHIPDIR))
