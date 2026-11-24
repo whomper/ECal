@@ -125,6 +125,11 @@ extern int pf_open_files;
 
 static void file_check(const char *where)
 {
+	/* the log is the shared code's own case: kept open between lines and
+	   closed in the event wait a second after one (common's conn.c, from
+	   2.53); the check is for ECal's own files, so the log is closed
+	   here first */
+	conn_log_flush();
 	if (pf_open_files && getenv("CAL_FILECHECK")) {
 		fprintf(stderr, "cal-cli: %d file%s open %s\n", pf_open_files, pf_open_files == 1 ? "" : "s", where);
 		exit(3);
