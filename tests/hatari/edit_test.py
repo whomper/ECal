@@ -267,6 +267,27 @@ def main():
             picked = [p for p in text.split("\nR ") if "SUMMARY:Picked" in p]
             check("dates taken from the picker: the 11th to the 17th of March 2027",
                   bool(picked) and ":20270311T" in picked[0] and ":20270317T" in picked[0])
+            # 7. a start typed and left with Tab moves the end by as many days
+            #    (decided 24 Nov 2026): the end comes to March 2027 with it
+            r.key(SCAN["n"])
+            r.wait(2)
+            r.click(215, 190)
+            r.wait(1.5)
+            r.key(K["ESC"])
+            r.wait(0.5)
+            empty(r)
+            r.type("10.03.2027")
+            r.key(K["TAB"])
+            r.wait(1)
+            r.shot("18-end-followed")
+            r.click(360, 81)
+            r.type("Followed")
+            r.key(K["RETURN"])
+            r.wait(4)
+            text = cache_text(hd)
+            fol = [p for p in text.split("\nR ") if "SUMMARY:Followed" in p]
+            check("the end follows a typed start into March 2027",
+                  bool(fol) and ":20270310T" in fol[0] and "DTEND;TZID=Asia/Jerusalem:202703" in fol[0])
     finally:
         r.stop()
     print("screenshots in", os.path.join(a.work, "shots"))

@@ -216,8 +216,9 @@ ECal is in maintenance mode while EWeb, EPDF and EPlay go to 1.0 (AERA-Atari, AT
 
 - **Lifted 24 Nov 2026, the date picker** (decided 24 Nov 2026: a small month to pick the event's dates from, as the
   Mac's Calendar has, opened by a click in the date): a click in the event's Starts or Ends date opens the month
-  under it (ui/datepick.c, FF_DATE in field.c). Whether a new start moves the end with it is with the owner through
-  the hub (the answer here came from the mode, not from him); until then the end stays, as typing does.
+  under it (ui/datepick.c, FF_DATE in field.c). A new start date, picked or typed, moves the end by as many days
+  (decided 24 Nov 2026, through the hub; editor.c's end_follows). The picker's look is behind dp_text and dp_mark,
+  so it can move to common/ui when a second app asks (the hub, 24 Nov 2026).
   Maintenance comes back with the release that carries it.
 
 ## UI backlog (the owner's 54 decisions, 9 Nov 2026; AERA-Atari a261597, standards/ui)

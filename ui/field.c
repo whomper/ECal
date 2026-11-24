@@ -1092,6 +1092,9 @@ static void set_focus(DLG *d, short i)
 	d->focus = i;
 	if (old >= 0 && old != i)
 		dlg_redraw_field(d, old);
+	/* a date left: the dialog sees it (the event's end follows its start) */
+	if (old >= 0 && old != i && (d->f[old].flags & FF_DATE) && d->changed)
+		d->changed(d, old);
 	if (i >= 0)
 		dlg_redraw_field(d, i);
 }
@@ -1491,7 +1494,7 @@ static void open_date(DLG *d, short i)
 	do
 		graf_mkstate(&mx, &my, &mb, &k);
 	while (mb & 3);
-	res = date_pick(r.x - 2, r.y + r.h + 2, r.y - 2, &day, &ks, &key);
+	res = date_pick(r.x - 2, r.y + r.h + 2, r.y - 2, &day, ct_days(now_view()), opt.weekstart, &ks, &key);
 	if (res & 4)
 		draw_all(d);
 	if ((res & 3) == 1) {
@@ -1499,6 +1502,8 @@ static void open_date(DLG *d, short i)
 		f->cur = (short)strlen(f->buf);
 		f->first = 0;
 		dlg_redraw_field(d, i);
+		if (d->changed)
+			d->changed(d, i);
 	} else if ((res & 3) == 2) {
 		key_again = key;
 		ks_again = ks;

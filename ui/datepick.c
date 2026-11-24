@@ -5,7 +5,7 @@
  * the Mac's Calendar: a click in the event's Starts or Ends date opens it).
  *
  *   Nov 2026      < o >      the month; back, today, ahead
- *   Mo Tu We Th Fr Sa Su     from Settings' first day of the week
+ *   Mo Tu We Th Fr Sa Su     from the first day of the week given
  *   26 27 28 29 30 31  1     other months' days pale
  *    2  3 ...                today on red, the chosen day on black
  *
@@ -20,10 +20,29 @@
 #include "ui.h"
 #include "dialog.h"
 
+/* ---- what it takes from the app: its text in a few looks and the
+   colour that marks today. The rest is gemui.h's (fill, frame, hline,
+   cw, ch) and ctime.h's, so the file can move to common/ui as it is
+   when a second app wants it; then these become the app's hooks ---- */
+enum { DP_PLAIN, DP_BOLD, DP_HINT, DP_PALE, DP_PALE_BOLD, DP_ON_DARK, DP_ON_DARK_BOLD };
+
+static void dp_text(short x, short y, const char *s, short n, int look)
+{
+	static const short fl[] = { TX_WHITE, TX_BOLD | TX_WHITE, TX_GREY | TX_WHITE, TX_PALE | TX_WHITE,
+				    TX_PALE | TX_BOLD, TX_INVERSE, TX_INVERSE | TX_BOLD };
+	text_at(x, y, s, n, n, (short)(TX_LTR | fl[look]));
+}
+
+static short dp_mark(void)	/* today: the app's red, black in black and white */
+{
+	return red_color();
+}
+
 static GRECT pb;		/* the box */
 static long first;		/* the first day shown (top left) */
 static int ym;			/* the month shown: year * 12 + month - 1 */
 static long sel, today;
+static int wstart;		/* the first day of the week: 0 Sunday */
 
 #define DP_COLS 20		/* a day is 3 cells, the last without its space */
 #define DP_HEAD (ch + 4)
@@ -43,7 +62,7 @@ static void set_month(int m)
 	int y = m / 12, mo = m % 12 + 1;
 	long f = days_from_civil(y, mo, 1);
 	ym = m;
-	first = f - (wday_of(f) - opt.weekstart + 7) % 7;
+	first = f - (wday_of(f) - wstart + 7) % 7;
 }
 
 static void head(void)
@@ -57,10 +76,10 @@ static void head(void)
 	r.h = DP_HEAD;
 	fill(&r, 0);
 	snprintf(s, sizeof(s), "%s %d", month_short[ym % 12], ym / 12);
-	text_at(x, y, s, (long)strlen(s), 12, TX_BOLD | TX_LTR | TX_WHITE);
+	dp_text(x, y, s, (short)strlen(s), DP_BOLD);
 	/* back, today (a dot), ahead: the last five cells */
-	text_at(x + (DP_COLS - 5) * cw, y, "\x04", 1, 1, TX_LTR | TX_WHITE);
-	text_at(x + (DP_COLS - 1) * cw, y, "\x03", 1, 1, TX_LTR | TX_WHITE);
+	dp_text(x + (DP_COLS - 5) * cw, y, "\x04", 1, DP_PLAIN);
+	dp_text(x + (DP_COLS - 1) * cw, y, "\x03", 1, DP_PLAIN);
 	r.w = cw / 2 + 1;
 	r.h = r.w;
 	r.x = x + (DP_COLS - 3) * cw + (cw - r.w) / 2;
@@ -81,18 +100,19 @@ static void days(void)
 	r.h = pb.y + pb.h - 1 - r.y;
 	fill(&r, 0);
 	for (k = 0; k < 7; k++) {
-		const char *n = wday_short[(k + opt.weekstart) % 7];
+		const char *n = wday_short[(k + wstart) % 7];
 		wd[k * 3] = n[0];
 		wd[k * 3 + 1] = n[1];
 		if (k < 6)
 			wd[k * 3 + 2] = ' ';
 	}
-	text_at(x0, row_y(-1), wd, DP_COLS, DP_COLS, TX_LTR | TX_GREY | TX_WHITE);
+	dp_text(x0, row_y(-1), wd, DP_COLS, DP_HINT);
 	civil_from_days(first, &yy, &mm, &dd);
 	dim = days_in_month(yy, mm);
 	for (k = 0; k < 42; k++) {
 		long day = first + k;
-		short x = x0 + (k % 7) * 3 * cw, y = row_y(k / 7), flags;
+		short x = x0 + (k % 7) * 3 * cw, y = row_y(k / 7);
+		int look;
 		char s[2];
 		if (k) {
 			if (++dd > dim) {
@@ -104,7 +124,7 @@ static void days(void)
 				dim = days_in_month(yy, mm);
 			}
 		}
-		if (day == sel && day != today && red_color() == 1) {
+		if (day == sel && day != today && dp_mark() == 1) {
 			/* in black and white today is black too: the chosen day
 			   in a ring, so the two tell apart */
 			GRECT b;
@@ -113,25 +133,25 @@ static void days(void)
 			b.w = 2 * cw + 4;
 			b.h = ch + 2;
 			frame(&b, 1);
-			flags = (mm != m ? TX_PALE : 0) | TX_BOLD;
+			look = mm != m ? DP_PALE_BOLD : DP_BOLD;
 		} else if (day == today || day == sel) {
 			GRECT b;
 			b.x = x - 1;
 			b.y = y - 1;
 			b.w = 2 * cw + 2;
 			b.h = ch + 2;
-			fill(&b, day == today ? red_color() : 1);
-			flags = TX_INVERSE | (day == today ? TX_BOLD : 0);
+			fill(&b, day == today ? dp_mark() : 1);
+			look = day == today ? DP_ON_DARK_BOLD : DP_ON_DARK;
 			if (day == today && day == sel) {
 				/* chosen and today: red, in a black ring */
 				frame(&b, 1);
 			}
 		} else {
-			flags = (mm != m ? TX_PALE : 0) | TX_WHITE;
+			look = mm != m ? DP_PALE : DP_PLAIN;
 		}
 		s[0] = (char)(dd >= 10 ? '0' + dd / 10 : ' ');
 		s[1] = (char)('0' + dd % 10);
-		text_at(x, y, s, 2, 2, TX_LTR | flags);
+		dp_text(x, y, s, 2, look);
 	}
 }
 
@@ -194,7 +214,7 @@ static void show(long day)
 	graf_mouse(M_ON, 0);
 }
 
-int date_pick(short x, short y, short alt_y, long *day, short *kstate, short *key)
+int date_pick(short x, short y, short alt_y, long *day, long now, int weekstart, short *kstate, short *key)
 {
 	short m[8], mx, my, mb, ks, h, res = 0;
 	AEVENT e;
@@ -202,7 +222,8 @@ int date_pick(short x, short y, short alt_y, long *day, short *kstate, short *ke
 	int yy, mo, dd;
 
 	font_sys_push();
-	today = ct_days(now_view());
+	today = now;
+	wstart = weekstart;
 	sel = *day;
 	civil_from_days(sel, &yy, &mo, &dd);
 	set_month(yy * 12 + mo - 1);

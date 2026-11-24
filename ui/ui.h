@@ -253,9 +253,10 @@ void  people_setup(void);	/* EContact's file as Settings > Contacts says (main.c
 short dlg_pick(const char *title, const char *const *items, short n, short sel);
 int   dlg_ask(const char *title, const char *label, char *buf, short len);
 /* the month under a date field (datepick.c): at (x, y), above alt_y where
-   it doesn't fit below. 1 a day taken (*day), 2 a key that types (*kstate,
-   *key: the field's), 0 closed; | 4: the screen under it not kept */
-int   date_pick(short x, short y, short alt_y, long *day, short *kstate, short *key);
+   it doesn't fit below; now: today, weekstart: 0 Sunday, 1 Monday...
+   1 a day taken (*day), 2 a key that types (*kstate, *key: the field's),
+   0 closed; | 4: the screen under it not kept */
+int   date_pick(short x, short y, short alt_y, long *day, long now, int weekstart, short *kstate, short *key);
 /* dates as typed: 12.10.2026, 12/10/26, 12.10 (editor.c) */
 void  fmt_date(long day, char *out, int size);
 int   parse_date(const char *s, long *day);

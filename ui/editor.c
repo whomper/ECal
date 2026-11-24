@@ -517,7 +517,26 @@ typedef struct {
 	short last_rep;			/* the Repeat item before a change (Custom... cancelled) */
 	short rep_touched;		/* the Repeat menu was used */
 	char repdesc[90];
+	long sday0;			/* the start date as last seen; 0 none */
 } ED;
+
+/* a new start date moves the end date by as many days, keeping the
+   times and the length (decided 24 Nov 2026, as the Mac's Calendar):
+   when the start date is left, picked or the dialog is closed with OK */
+static void end_follows(DLG *d, ED *x)
+{
+	long day, eday;
+	if (!parse_date(x->f[F_SDATE].buf, &day))
+		return;
+	if (x->sday0 && day != x->sday0 && parse_date(x->f[F_EDATE].buf, &eday)) {
+		fmt_date(eday + day - x->sday0, x->f[F_EDATE].buf, x->f[F_EDATE].max);
+		x->f[F_EDATE].cur = (short)strlen(x->f[F_EDATE].buf);
+		x->f[F_EDATE].first = 0;
+		if (d)
+			dlg_redraw_field(d, F_EDATE);
+	}
+	x->sday0 = day;
+}
 
 static void describe_rule(ED *x)
 {
@@ -789,7 +808,9 @@ static void uninvite(DLG *d, short i)
 static void changed(DLG *d, short i)
 {
 	ED *x = d->ud;
-	if (i == F_INV) {
+	if (i == F_SDATE) {
+		end_follows(d, x);
+	} else if (i == F_INV) {
 		people_buttons(x);
 		dlg_redraw_field(d, B_UNINV);
 	} else if (i == B_UNINV) {
@@ -944,6 +965,7 @@ static int edit_event(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 	}
 	fmt_date(ct_days(ws), etx->sdate, sizeof(etx->sdate));
 	fmt_date(ct_days(we), etx->edate, sizeof(etx->edate));
+	parse_date(etx->sdate, &x.sday0);	/* (the end follows it from here) */
 	fmt_hm((short)(ws - ct_day_start(ws)), etx->stime, sizeof(etx->stime));
 	fmt_hm((short)(we - ct_day_start(we)), etx->etime, sizeof(etx->etime));
 
@@ -1157,7 +1179,8 @@ static int edit_event(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 		}
 		if (r != B_OK)
 			return 0;
-		/* check what was typed */
+		/* check what was typed (a start still in its field moves the end too) */
+		end_follows(0, &x);
 		if (!parse_date(etx->sdate, &sday) || !parse_date(etx->edate, &eday)) {
 			alert(1, "[1][Please type dates as|day.month.year: 12.10.2026][ OK ]");
 			continue;

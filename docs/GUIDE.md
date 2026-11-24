@@ -388,7 +388,9 @@ date as the title. Reminders still come while it is iconified.
   opens its month under it: click a day to take it, or move with the
   arrow keys and press **Return**; the arrows at its top go a month back
   or ahead, the dot to today. **Esc** or a click outside closes it, and
-  typing goes on in the date as before.
+  typing goes on in the date as before. A new start date, picked or
+  typed, moves the end date by as many days: the times and the length
+  stay.
 - **all-day** for birthdays, holidays, trips.
 - **Calendar**: which calendar it goes in (only those you can change).
 - **Zone** (with time zone support on): the event's time zone. The
