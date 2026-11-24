@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright (C) 2026 AERA | Erez Yaary
-"""webgate - the Raspberry Pi gateway for EWeb on the Atari.
+"""webgate - the Gateway's service for EWeb on the Atari.
 
 EWeb on a Falcon makes its own secure connections (TLS 1.2, the curves on
 the DSP); the ST edition, EWEBST.PRG, can't, and some sites take TLS 1.3
@@ -30,7 +30,9 @@ or 1.3) and hands the answer back as it comes:
     transparency or was a GIF or a palette PNG), its own size written in
     it ("webgate natural WxH": a JPEG's comment, a PNG's tEXt) so that the
     page is laid out as with the original. A megabyte of photo becomes a
-    few dozen kilobytes, and the Atari decodes it at its size. Needs
+    few dozen kilobytes, and the Atari decodes it at its size. deep=1: a
+    true-colour Atari; a picture made smaller keeps all its colours (a PNG
+    not cut to 256, a JPEG of quality 90). Needs
     Pillow (python3-pil); without it pictures pass as they came.
   - a picture asked for with pens ("X-Gateway-Picture: fit=608;
     size=400x300; pens=16; pal=CRC; ed=lj") comes as the Atari's screen
@@ -47,7 +49,10 @@ or 1.3) and hands the answer back as it comes:
     systemd starts one a connection, as its own user, with little memory
     and time); X-Gateway-Pens names it ("aerapens COMMON BUILD"), and the
     log says which once. Without it, or when it fails or is too slow, the
-    picture comes as above.
+    picture comes as above. soft=N (1 to 15; EWeb, decided 22 Nov 2026) asks
+    for the softer dither, N sixteenths of each pixel's error passed on
+    (common's pic_pal_soft, the request's byte 7), and the answer says
+    "X-Gateway-Soft: N"; without it, the whole dither, Floyd-Steinberg.
   - a page's pictures made ahead: EWeb POSTs http://webgate/prefetch, a
     line a picture, "URL<TAB>X-Gateway-Picture<TAB>Cookie" (the cookie
     may be left out), the window's first, after "Referer: " and "Accept: "
@@ -74,6 +79,24 @@ or 1.3) and hands the answer back as it comes:
     user, with little memory and time). Without it, with another tag, or
     when the script doesn't compile, the script comes as it came (EWeb
     compiles it itself). The server is asked for it unpacked.
+
+Translation (decided 8 Nov 2026; AERA-Atari standards/TRANSLATION-SERVICE.md):
+a GET with "X-Gateway-Translate: to=CODE" whose answer is a document
+(text/html, application/xhtml+xml or text/plain, 200) comes translated
+into CODE by translategate on this machine (its local socket: the text
+goes nowhere else): the text shown, the title, img alt, placeholders,
+button labels and title attributes; tags, links, forms, scripts,
+styles, code, URLs and numbers as they were; <html lang dir> for CODE.
+It comes in UTF-8, with X-Translate-From: the language it was in, and
+Cache-Control: no-store (EWeb keeps it in memory only). Already in CODE:
+as it came, with X-Translate-Same: 1. At most the first 64 KB of text,
+in 90 s; the rest as it was, and X-Translate-Partial: 64K (or the KB
+done when the time ran out first). A refusal (no such pair, the service
+busy or not there, a page over 4 MB) sends the page as it came, with
+X-Translate-Refused: STATUS why. The server is asked for it unpacked and
+whole (no If-None-Match or If-Modified-Since); the header goes no
+further than webgate. EWeb sends it only to a webgate whose answer to
+GET http://webgate/ carries X-Gateway-Translate: 1. Pages through the browser aren't translated.
 
 Snapshots (--browser): a GET with "X-Gateway-Snapshot: 1" is opened in an
 ordinary Chromium on the Pi (its own profile: your logins stay there), and
@@ -116,7 +139,7 @@ first /live (w=W&h=H, in pixels): the picture is then the browser's
 view at 1:1, as wide as EWeb's page and three of its screens tall
 (webgate-ext sizes the browser's window to it), so EWeb scrolls through
 it itself and asks for a new picture only after a click or past its
-third screen (Erez, 30 Oct 2026). Without them, the view is 1024x768,
+third screen (decided 30 Oct 2026). Without them, the view is 1024x768,
 made 608 pixels wide. The picture button has its height too, and the
 picture honours X-Gateway-Picture: asked as pens, it comes as the
 Atari's pens, made by aerapens, as any other picture does. http://webgate/live?url=ADDRESS opens
@@ -132,16 +155,19 @@ EWeb shows on its "can't open" page.
 Only standard Python 3 is needed, and aeragate.py next to it.
 `aera-gateway install web` sets it up as a service.
 
-    webgate.py [--port 8280] [--allow 192.168.1.50] [--allow-local] [--cafile F] [--pens-socket P] [-v]
+    webgate.py [--port 8280] [--allow 192.168.1.60] [--allow-local] [--cafile F] [--pens-socket P] [-v]
 """
 
 import argparse
+import codecs
 import gzip
 import html
 import http.client
 import io
 import json
 import os
+import re
+import select
 import socket
 import ssl
 import subprocess
@@ -152,6 +178,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
 import aeragate
+import translateclient
 
 VERSION = "1.0"
 
@@ -189,6 +216,242 @@ PREFETCH_KEEP = 180             # seconds one is kept for the Atari to ask for
 PREFETCH_BYTES = 48 << 20       # what they may take in all
 PREFETCH_ITEMS = 100            # the most of a list
 PREFETCH_PLAIN_MAX = 1 << 20    # the most of an answer that isn't a picture made that is kept
+TRANSLATE_PAGE_MAX = 4 << 20    # the most of a page webgate translates
+TRANSLATE_TEXT = 64 << 10       # the most of its text translated (EWeb's proposal, decided 8 Nov 2026)
+TRANSLATE_SECONDS = 90          # and the time for it
+TRANSLATE_TYPES = ("text/html", "application/xhtml+xml", "text/plain")
+RTL = {"he", "ar", "fa", "ur", "yi", "ps", "dv"}
+
+
+# ------------------------------------------------------------ translation
+
+def translate_want(value):
+    """X-Gateway-Translate: to=CODE -> (CODE, None), or (None, why)"""
+    m = re.fullmatch(r"\s*to=([a-z]{2,3})\s*", value or "")
+    return (m.group(1), None) if m else (None, "webgate: X-Gateway-Translate: %s?" % (value or "").strip()[:12])
+
+
+KEEP_TEXT = {"script", "style", "textarea", "code", "pre", "kbd", "samp", "var", "svg", "math", "template"}
+RAW_TEXT = {"script", "style", "textarea", "title", "xmp", "plaintext"}    # no tags inside
+TAG = re.compile(r"<(/?)([A-Za-z][A-Za-z0-9:-]*)((?:\s+[^\s\"'>/=]+(?:\s*=\s*(?:\"[^\"]*\"|'[^']*'|[^\s\"'>]+))?)*)"
+                 r"\s*(/?)>")
+ATTR = re.compile(r"([^\s\"'>/=]+)(?:(\s*=\s*)(\"[^\"]*\"|'[^']*'|[^\s\"'>]+))?")
+WORDS = re.compile(r"[^\W\d_]")
+CHARSET = re.compile(rb"""<meta[^>]+charset\s*=\s*["']?\s*([A-Za-z0-9_.:-]+)""", re.I)
+
+
+def page_text(data, ctype):
+    """a document's text (str), from its bytes and its Content-Type"""
+    m = re.search(r"charset\s*=\s*[\"']?([A-Za-z0-9_.:-]+)", ctype or "", re.I)
+    name = m.group(1) if m else None
+    if not name and "html" in (ctype or ""):
+        m = CHARSET.search(data[:4096])
+        name = m.group(1).decode("ascii") if m else None
+    try:
+        name = codecs.lookup(name).name if name else None
+    except LookupError:
+        name = None
+    if name:
+        return data.decode(name, "replace")
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        return data.decode("cp1252", "replace")
+
+
+class Slots:
+    """the text of a document to be translated, in order, each with where
+    it goes back"""
+
+    def __init__(self):
+        self.out = []           # the document, a piece at a time
+        self.slots = []         # (index in out, the text, before, after, in an attribute)
+
+    def raw(self, piece):
+        self.out.append(piece)
+
+    def text(self, raw, attr=False):
+        """raw (HTML-escaped) text: kept for translation if it has words"""
+        t = html.unescape(raw)
+        if not WORDS.search(t):
+            self.out.append(raw)
+            return
+        before, after = re.match(r"\s*", raw).group(), re.search(r"\s*$", raw).group()
+        self.slots.append((len(self.out), " ".join(t.split()), before, after, attr))
+        self.out.append(raw)
+
+    def put(self, got):
+        """the translations, in order (as many as were done)"""
+        for (i, _, before, after, attr), t in zip(self.slots, got):
+            self.out[i] = html.escape(t, quote=True) if attr else before + html.escape(t, quote=False) + after
+
+    def parts(self):
+        return [t for _, t, _, _, _ in self.slots]
+
+
+def html_slots(doc, to):
+    """a page's Slots: the text shown, the title, alt, placeholder, title and
+    button labels; <html lang dir> for to, the charset UTF-8. An element
+    marked translate="no" (HTML's attribute) is kept as it is, as EWeb's
+    Direct path keeps it"""
+    sl = Slots()
+    i, n, keep, seen_html, look = 0, len(doc), 0, False, 0
+    no = []                             # the translate="no" elements open: [name, depth]
+    while i < n:
+        j = doc.find("<", max(i, look))
+        if j < 0:
+            j = n
+        if j < n and not (doc.startswith(("<!", "<?"), j) or TAG.match(doc, j)):
+            look = j + 1                # (a "<" that is text: the text goes on)
+            continue
+        if j > i:
+            (sl.raw if keep else sl.text)(doc[i:j])
+        if j >= n:
+            break
+        if doc.startswith("<!--", j):
+            k = doc.find("-->", j + 4)
+            k = n if k < 0 else k + 3
+            sl.raw(doc[j:k])
+            i = k
+            continue
+        if doc.startswith(("<!", "<?"), j):
+            k = doc.find(">", j)
+            k = n if k < 0 else k + 1
+            sl.raw(doc[j:k])
+            i = k
+            continue
+        m = TAG.match(doc, j)
+        end, name, attrs, _ = m.groups()
+        low = name.lower()
+        i = m.end()
+        if end:
+            sl.raw(m.group())
+            if no and no[-1][0] == low:
+                no[-1][1] -= 1
+                if not no[-1][1]:
+                    no.pop()
+                    keep -= 1
+            elif low in KEEP_TEXT and low not in RAW_TEXT and keep:
+                keep -= 1
+            continue
+        if low == "html":
+            seen_html = True
+            attrs = ATTR.sub(lambda a: "" if a.group(1).lower() in ("lang", "dir") else a.group(), attrs).rstrip()
+            sl.raw("<%s%s lang=\"%s\" dir=\"%s\">" % (name, attrs, to, "rtl" if to in RTL else "ltr"))
+            continue
+        if no and no[-1][0] == low and not m.group(4):
+            no[-1][1] += 1
+        elif not m.group(4) and low not in VOID and translate_no(attrs):
+            no.append([low, 1])
+            keep += 1
+            tag_attrs(sl, m, low, keep)
+            continue
+        tag_attrs(sl, m, low, keep or translate_no(attrs))
+        if low in RAW_TEXT:
+            k = re.compile(r"</%s\s*>" % low, re.I).search(doc, i)
+            k = k.start() if k else n
+            if low == "title" and not keep:
+                sl.text(doc[i:k])
+            else:
+                sl.raw(doc[i:k])
+            i = k
+            continue
+        if low in KEEP_TEXT and not m.group(4):
+            keep += 1
+    if not seen_html and sl.slots:
+        sl.out.insert(0, "<html lang=\"%s\" dir=\"%s\">" % (to, "rtl" if to in RTL else "ltr"))
+        sl.slots = [(k + 1,) + tuple(rest) for k, *rest in sl.slots]
+    return sl
+
+
+VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
+
+
+def translate_no(attrs):
+    return any(a.group(1).lower() == "translate" and (a.group(3) or "").strip("\"'").strip().lower() == "no"
+               for a in ATTR.finditer(attrs))
+
+
+def tag_attrs(sl, m, low, keep):
+    """a start tag: its words (alt, placeholder, title, button labels) for
+    translation, a meta's charset made UTF-8"""
+    start, attrs, close = m.start(3) - m.start(), m.group(3), m.group()[m.end(3) - m.start():]
+    head = m.group()[:start]
+    found = {a.group(1).lower(): a for a in ATTR.finditer(attrs)}
+    words = {"alt", "placeholder", "title", "aria-label"}
+    if low == "input" and found.get("type") and \
+            found["type"].group(3).strip("\"'").lower() in ("submit", "button", "reset"):
+        words.add("value")
+    pos = 0
+    for a in ATTR.finditer(attrs):
+        k, v = a.group(1).lower(), a.group(3)
+        if not v:
+            continue
+        if low == "meta" and k == "charset":
+            sl.raw(head + attrs[pos:a.start(3)])
+            sl.raw('"utf-8"')
+            head, pos = "", a.end(3)
+        elif low == "meta" and k == "content" and "charset" in v.lower():
+            sl.raw(head + attrs[pos:a.start(3)])
+            sl.raw(re.sub(r"(?i)charset\s*=\s*[A-Za-z0-9_.:-]+", "charset=utf-8", v))
+            head, pos = "", a.end(3)
+        elif k in words and not keep:
+            q = v[0] if v[0] in "\"'" else ""
+            sl.raw(head + attrs[pos:a.start(3)] + '"')
+            sl.text(v[1:-1] if q else v, attr=True)
+            sl.raw('"')
+            head, pos = "", a.end(3)
+    sl.raw(head + attrs[pos:] + close)
+
+
+def text_slots(doc):
+    """a plain text's Slots: its paragraphs"""
+    sl = Slots()
+    for k, piece in enumerate(re.split(r"(\n[ \t\r]*\n\s*)", doc)):
+        if k % 2 or not WORDS.search(piece):
+            sl.raw(piece)
+        else:
+            sl.slots.append((len(sl.out), piece.strip(), re.match(r"\s*", piece).group(),
+                             re.search(r"\s*$", piece).group(), None))
+            sl.out.append(piece)
+    return sl
+
+
+def translate_page(data, ctype, to, stop=lambda: False, sock=None):
+    """a document translated: (the bytes in UTF-8, the language it was in,
+    same, the KB done when not all of it was, else None); Refused,
+    Unreachable as translateclient raises them"""
+    doc = page_text(data, ctype)
+    sl = text_slots(doc) if ctype.startswith("text/plain") else html_slots(doc, to)
+    parts, size, cut = sl.parts(), 0, None
+    for k, p in enumerate(parts):
+        size += len(p.encode("utf-8"))
+        if size > TRANSLATE_TEXT:
+            parts, cut = parts[:k], "64K"
+            break
+    if not parts:
+        return None, None, True, None
+    got, used, done = translateclient.translate_parts(parts, to, seconds=TRANSLATE_SECONDS,
+                                                      sock=sock or Config.translate_socket, stop=stop)
+    if used == to:
+        return None, used, True, None
+    if done < len(parts):
+        cut = "%dK" % max(1, -(-sum(len(p.encode("utf-8")) for p in parts[:done]) // 1024))
+    if ctype.startswith("text/plain"):
+        for (i, _, before, after, _), t in zip(sl.slots, got):
+            sl.out[i] = before + t + after
+    else:
+        sl.put(got)
+    return "".join(sl.out).encode("utf-8"), used, False, cut
+
+
+def gone(sock):
+    """has the Atari closed its connection? (it sends nothing while waiting)"""
+    try:
+        r, _, _ = select.select([sock], [], [], 0)
+        return bool(r) and sock.recv(1, socket.MSG_PEEK) == b""
+    except (OSError, ValueError):
+        return True
 
 
 def visiting(host, keep=None):
@@ -347,11 +610,14 @@ def pens_ask(request):
     return sock_ask(Config.pens_socket, request, PENS_TIME, PENS_ANSWER_MAX)
 
 
-def pens_request(ed, n, w, h, rgb=b"", data=b""):
+def pens_request(ed, n, w, h, rgb=b"", data=b"", soft=0):
     """aerapens' request (AERA-Atari, common/tools/pens/aerapens.c): ed
-    "l" (EWEB.PRG's decoders), "t" (EWEBST.PRG's) or "v" (which it is)"""
-    return (b"AEPQ\1" + ed.encode() + bytes([n - 1 if n else 0, 0]) + w.to_bytes(2, "big") + h.to_bytes(2, "big") +
-            len(data).to_bytes(4, "big") + rgb + data)
+    "l" (EWEB.PRG's decoders), "t" (EWEBST.PRG's) or "v" (which it is);
+    soft, byte 7: the dither's share of each pixel's error in sixteenths
+    (pic_pal_soft, 1 to 15; 0 the whole of it, Floyd-Steinberg; AERA-Atari
+    e6d2e16)"""
+    return (b"AEPQ\1" + ed.encode() + bytes([n - 1 if n else 0, soft]) + w.to_bytes(2, "big") +
+            h.to_bytes(2, "big") + len(data).to_bytes(4, "big") + rgb + data)
 
 
 def pens_line(answer):
@@ -379,7 +645,7 @@ def make_pens(data, want):
     if data is None:
         return None
     w, h = want["size"] or (want["fit"], 0)
-    a = pens_ask(pens_request("l" if want["ed"] == "lj" else "t", want["pens"], w, h, rgb, data))
+    a = pens_ask(pens_request("l" if want["ed"] == "lj" else "t", want["pens"], w, h, rgb, data, want["soft"]))
     got = pens_line(a) if a else None
     if got is None:
         return None
@@ -398,11 +664,13 @@ def make_pens(data, want):
         int.from_bytes(out[14:16], "big")), which
 
 
-def make_picture(data, fit):
+def make_picture(data, fit, deep=False):
     """data (a picture's file) made for a page fit pixels wide: (bytes,
     content type, what was done) or None to send it as it came (no Pillow,
     not a picture, too many pixels, or a JPEG, PNG or GIF the page can show
-    as it is)"""
+    as it is). deep: the Atari shows true colour (X-Gateway-Picture's
+    deep=1), so a picture with transparency or few colours stays a PNG of
+    all its colours (not 256) and a JPEG is written at quality 90"""
     try:
         from PIL import Image, ImageOps, PngImagePlugin
     except ImportError:
@@ -428,11 +696,11 @@ def make_picture(data, fit):
         if alpha or flat:
             info = PngImagePlugin.PngInfo()
             info.add_text("webgate", mark)
-            im.quantize(256, method=Image.FASTOCTREE if alpha else Image.MEDIANCUT).save(
+            (im if deep else im.quantize(256, method=Image.FASTOCTREE if alpha else Image.MEDIANCUT)).save(
                 out, "PNG", optimize=True, pnginfo=info)
             body, ctype = out.getvalue(), "image/png"
         else:
-            im.save(out, "JPEG", quality=80, optimize=True, progressive=False)
+            im.save(out, "JPEG", quality=90 if deep else 80, optimize=True, progressive=False)
             jpg = out.getvalue()
             com = b"webgate " + mark.encode()
             # the comment first, after SOI (Pillow before 9.4 can't write one)
@@ -458,6 +726,7 @@ class Config:
     insecure = False        # tests only: don't check certificates
     pens_socket = "/run/webgate-pens.sock"  # aerapens' socket (systemd's); not there: no pens
     js_socket = "/run/webgate-js.sock"      # aerajsc's socket (systemd's); not there: scripts as they come
+    translate_socket = translateclient.SOCKET   # translategate's local socket
 
 
 def _dial(address, timeout=None, source_address=None):
@@ -533,15 +802,15 @@ class Bridge:
 
     def gone(self):
         """the extension isn't asking for addresses: Chromium not running,
-        or webgate-ext stopped in it (Erez's live view, 30 Oct 2026: it
+        or webgate-ext stopped in it (the live view, 30 Oct 2026: it
         waited the whole minute for a browser that wasn't listening)"""
         return not self.polling and time.monotonic() - self.polled > self.GONE
 
     def why(self):
         """what to say when the browser didn't answer"""
         if self.gone():
-            return ("the Pi's browser isn't listening (webgate-ext last asked %d s ago); "
-                    "on the Pi: sudo systemctl restart webgate-browser" % (time.monotonic() - self.polled))
+            return ("the Gateway's browser isn't listening (webgate-ext last asked %d s ago); "
+                    "on the Raspberry Pi: sudo systemctl restart webgate-browser" % (time.monotonic() - self.polled))
         return "it didn't answer"
 
     def ask(self, url, wait, **more):
@@ -621,7 +890,7 @@ def picture_answer(resp, conn, u, port, want):
     if resp.will_close:
         UP.drop(u.scheme, u.hostname, port)
     pens = make_pens(data, want) if want["pens"] else None
-    made = (pens[0], "application/x-aera-pens", pens[1]) if pens else make_picture(data, want["fit"])
+    made = (pens[0], "application/x-aera-pens", pens[1]) if pens else make_picture(data, want["fit"], want["deep"])
     skip = HOP_BY_HOP | ({"content-type", "content-length"} if made else set())
     headers = [(k, v) for k, v in resp.getheaders() if theirs(k, skip)]
     if made:
@@ -629,6 +898,8 @@ def picture_answer(resp, conn, u, port, want):
         headers += [("Content-Type", made[1]), ("X-Gateway-Picture", made[2])]
     if pens:
         headers.append(("X-Gateway-Pens", pens[2]))    # which aerapens made them, for tracing
+        if want["soft"]:
+            headers.append(("X-Gateway-Soft", str(want["soft"])))   # made with that share (byte 7)
     tls = tls_of(conn)
     if tls:
         headers.append(("X-Gateway-TLS", tls))
@@ -638,8 +909,11 @@ def picture_answer(resp, conn, u, port, want):
 def picture_want(value):
     """X-Gateway-Picture: fit=WIDTH (0: none), and for pens size=WxH
     (None: fit wide at most), pens=N, pal=CRC (8 hex digits), ed=lj or
-    tj: a dict; pens 0 when they weren't asked for, or not right"""
-    want = {"fit": 0, "size": None, "pens": 0, "pal": None, "ed": "lj"}
+    tj, deep=1 (a true-colour screen: make_picture), soft=N (the pens'
+    dither softer: N sixteenths of each pixel's error passed on, 1 to 15;
+    EWeb, decided 22 Nov 2026): a dict; pens 0 when they weren't asked for, or
+    not right; soft 0 for the whole dither"""
+    want = {"fit": 0, "size": None, "pens": 0, "pal": None, "ed": "lj", "deep": False, "soft": 0}
     for part in (value or "").split(";"):
         k, _, v = part.strip().partition("=")
         if k == "fit" and v.isdigit() and 16 <= int(v) <= 4096:
@@ -654,6 +928,10 @@ def picture_want(value):
             want["pal"] = int(v, 16)
         elif k == "ed" and v in ("lj", "tj"):
             want["ed"] = v
+        elif k == "deep":
+            want["deep"] = v == "1"
+        elif k == "soft" and v.isdigit() and 1 <= int(v) <= 15:
+            want["soft"] = int(v)
     if not want["fit"] or want["pal"] is None:
         want["pens"] = 0
     return want
@@ -835,8 +1113,15 @@ class Handler(BaseHTTPRequestHandler):
     for_browser = False     # ExtHandler: the Pi's own browser, not an Atari
 
     def log_message(self, fmt, *args):
+        # only http.server's own errors come here (log_request is quiet), and
+        # their text can hold the request line, with what a form sent in it: the
+        # status alone (7.3: never a path)
         if Config.verbose:
-            aeragate.say("%s %s" % (self.address_string(), fmt % args))
+            if fmt.startswith("Request timed out"):
+                aeragate.say("%s timed out" % self.address_string())
+            else:
+                code = int(args[0]) if args and isinstance(args[0], int) else "-"   # (3.9: an HTTPStatus)
+                aeragate.say("%s refused: %s" % (self.address_string(), code))
 
     def log_request(self, code="-", size="-"):
         # the request line has the whole address, with what a form sent
@@ -890,6 +1175,12 @@ class Handler(BaseHTTPRequestHandler):
         if not self.for_browser and u.hostname == "webgate" and u.path == "/prefetch":
             self.prefetch(body)
             return
+        if not self.for_browser and u.hostname == "webgate" and u.path in ("", "/"):
+            # what this webgate takes: X-Gateway-Translate: 1 (EWeb sends
+            # the header only to a webgate that says so, which takes it out)
+            self.send_body(200, b"webgate %s\n" % VERSION.encode(), "text/plain", [("X-Gateway-Translate", "1")])
+            self.note(200, 0, " (webgate)")
+            return
         if not self.for_browser and u.hostname == "webgate" and u.path == "/scripts":
             # which scripts webgate compiles: "aerajsc TAG" (EWeb asks for
             # them compiled only of a webgate that answers this, one that
@@ -939,6 +1230,13 @@ class Handler(BaseHTTPRequestHandler):
         asked = (self.headers.get("Accept-Encoding") or "").lower()
         headers["Accept-Encoding"] = ", ".join(e for e in ("gzip", "deflate") if e in asked) or "identity"
         script = self.headers.get("X-Gateway-Script") if self.command == "GET" and not self.for_browser else None
+        tr = self.headers.get("X-Gateway-Translate") if self.command == "GET" and not self.for_browser else None
+        headers.pop("X-Gateway-Translate", None)
+        if tr is not None:
+            # (translated here: the page whole and unpacked)
+            for k in ("If-None-Match", "If-Modified-Since"):
+                headers.pop(k, None)
+            headers["Accept-Encoding"] = "identity"
         if script:
             headers.pop("X-Gateway-Script", None)
             headers["Accept-Encoding"] = "identity"     # (compiled here: it comes unpacked)
@@ -984,6 +1282,10 @@ class Handler(BaseHTTPRequestHandler):
         elif script and resp.status == 200 and \
                 (resp.getheader("Content-Encoding") or "identity").lower() == "identity":
             self.script(resp, conn, u, port, script.strip())
+        elif tr is not None and resp.status == 200 and \
+                (resp.getheader("Content-Type") or "").split(";")[0].strip().lower() in TRANSLATE_TYPES and \
+                (resp.getheader("Content-Encoding") or "identity").lower() == "identity":
+            self.translated(resp, conn, u, port, tr)
         else:
             self.pass_on(resp, conn, u, port)
 
@@ -1073,6 +1375,55 @@ class Handler(BaseHTTPRequestHandler):
             headers.append(("X-Gateway-TLS", tls))
         self.send_answer(Answer(resp.status, resp.reason, headers, data, " (%s)" % what))
 
+    def translated(self, resp, conn, u, port, value):
+        """a document translated for EWeb (translate_page), or as it came
+        with X-Translate-Refused: STATUS why"""
+        to, why = translate_want(value)
+        if to is None:
+            self.pass_on(resp, conn, u, port, extra=(("X-Translate-Refused", "400 " + why),))
+            return
+        try:
+            data = resp.read(TRANSLATE_PAGE_MAX + 1)
+        except (OSError, http.client.HTTPException):
+            UP.drop(u.scheme, u.hostname, port)
+            self.reply(502, "webgate: %s closed the connection\n" % u.hostname)
+            return
+        if len(data) > TRANSLATE_PAGE_MAX:
+            self.pass_on(resp, conn, u, port, first=data, extra=(
+                ("X-Translate-Refused", "413 webgate: the page is over %d MB" % (TRANSLATE_PAGE_MAX >> 20)),))
+            return
+        if resp.will_close:
+            UP.drop(u.scheme, u.hostname, port)
+        ctype = resp.getheader("Content-Type") or ""
+        refused = None
+        t0 = time.monotonic()
+        try:
+            made, used, same, cut = translate_page(data, ctype.lower(), to, lambda: gone(self.connection))
+        except translateclient.Refused as e:
+            refused = "%d %s" % (e.status, e.line)
+        except translateclient.TimedOut:
+            refused = "504 webgate: the translation took over %d s" % TRANSLATE_SECONDS
+        except translateclient.Unreachable:
+            refused = "503 webgate: the translation service isn't running"
+        headers = [(k, v) for k, v in resp.getheaders() if theirs(k, HOP_BY_HOP | {"content-length"})]
+        tls = tls_of(conn)
+        if tls:
+            headers.append(("X-Gateway-TLS", tls))
+        if refused or same:
+            headers += [("X-Translate-Refused", refused)] if refused else \
+                [("X-Translate-From", used or to), ("X-Translate-Same", "1")]
+            self.send_answer(Answer(resp.status, resp.reason, headers, data,
+                                    " (not translated: %s)" % refused.split()[0] if refused else " (in %s already)" % to))
+            return
+        drop = {"content-type", "content-language", "etag", "last-modified", "cache-control", "expires", "pragma"}
+        headers = [(k, v) for k, v in headers if k.lower() not in drop]
+        headers += [("Content-Type", ctype.split(";")[0].strip() + "; charset=utf-8"),
+                    ("Cache-Control", "no-store"), ("X-Translate-From", used)]
+        if cut:
+            headers.append(("X-Translate-Partial", cut))
+        self.send_answer(Answer(resp.status, resp.reason, headers, made, " (translated %s>%s%s in %.1f s)" % (
+            used, to, ", " + cut if cut else "", time.monotonic() - t0)))
+
     def send_answer(self, a, more=""):
         """an Answer (a picture made, or one made ahead: Prefetch)"""
         self.send_response(a.status, a.reason)
@@ -1103,7 +1454,7 @@ class Handler(BaseHTTPRequestHandler):
     def again(self):
         """after a click or keys: the live page again, with a new picture"""
         time.sleep(Config.live_settle)
-        self.send_body(303, b"", "text/plain", [("Location", "http://webgate/live?n=%d" % int(time.time() * 10))])
+        self.send_body(303, b"", "text/plain", [("Location", "http://webgate/live?n=%d&pic=1" % int(time.time() * 10))])
 
     def xdo(self, *args):
         """real input on the browser's screen"""
@@ -1116,30 +1467,30 @@ class Handler(BaseHTTPRequestHandler):
 
     def live(self, u):
         if not Config.browser:
-            self.reply(501, "webgate: live view needs the Pi's browser (webgate --browser)\n")
+            self.reply(501, "webgate: live view needs the Gateway's browser (webgate --browser)\n")
             return
         a = parse_qs(u.query, keep_blank_values=True)
         part = u.path[len("/live"):]
         if part == "/shot.jpg":
             # live view's picture as pens: with pens asked for, it comes as the Atari's screen
-            # shows it, nothing left for it to decode (Erez, 30 Oct 2026)
+            # shows it, nothing left for it to decode (decided 30 Oct 2026)
             want = self.picture_ask()
             if want["pens"] and PALETTES.get(want["pal"]) is None:
                 self.send_body(409, b"webgate: send the colours first\n", "text/plain", [("X-Gateway-Palette", "need")])
                 self.note(409, 0, " (no colours %08x)" % want["pal"])
                 return
-            vw, vh, pw = live_size()
-            r = BRIDGE.ask("", 20, shot=pw, w=vw, h=vh, quality=Config.live_quality)
+            r = LIVE.get("shot") if a.get("n", [""])[0] == str(LIVE.get("shot_n")) else None
+            if r is None:
+                r = live_shot()     # (an older page's picture asked for: the screen as it is now)
             if not r or not r.get("pic"):
                 why = (r or {}).get("why") or BRIDGE.why()
                 self.reply(504, "webgate: the browser's screen didn't come: %s\n" % why[:200])
                 return
-            # where the picture is on the X screen, and how much smaller
-            LIVE.update(full=r.get("w") or pw, pic=min(pw, r.get("w") or pw), ox=r.get("ox", 0), oy=r.get("oy", 0))
             pens = make_pens(r["pic"], want) if want["pens"] else None
             if pens:
                 self.send_body(200, pens[0], "application/x-aera-pens",
-                               [("X-Gateway-Picture", pens[1]), ("X-Gateway-Pens", pens[2])])
+                               [("X-Gateway-Picture", pens[1]), ("X-Gateway-Pens", pens[2])] +
+                               ([("X-Gateway-Soft", str(want["soft"]))] if want["soft"] else []))
             else:
                 self.send_body(200, r["pic"], "image/jpeg")
             return
@@ -1184,7 +1535,8 @@ class Handler(BaseHTTPRequestHandler):
         url = a.get("url", [""])[0].strip()
         if url and "://" not in url:
             url = "https://" + url          # (Go to's "www.example.com")
-        title = "the Pi's browser"
+        title = "the Gateway's browser"
+        typing = False
         if url and not self.browser_may_open(url):
             return
         if url:
@@ -1199,16 +1551,27 @@ class Handler(BaseHTTPRequestHandler):
             # nothing open in the browser yet (live view from a page that
             # isn't on the web, or a webgate just started): no screen to
             # show (the extension can't take a blank tab's), so Go to first
-            # (Erez, 28 Oct 2026: an address typed into the page's field
+            # (decided 28 Oct 2026: an address typed into the page's field
             # went nowhere, and its picture never came)
             screen = LIVE_NONE
         else:
             vw, vh, pw = live_size()
+            # the picture first, kept for shot.jpg: the page then has its
+            # links (an image map: EWeb shows the pointing hand over them)
+            # and says when a field there has the keyboard (EWeb sends what
+            # is typed there); and it comes once the browser's screen is
+            # there to show (decided 21 Nov 2026)
+            # (pic=1: EWeb's live view and the 303 after a click or keys)
+            shot = live_shot() if a.get("pic") else None
+            if shot and shot.get("pic"):
+                LIVE.update(shot=shot, shot_n=n)
+            typing = bool(shot and shot.get("typing"))
             # its height too, so that EWeb knows the size it shows it at
             # and asks for its pens at that size once
-            screen = LIVE_SCREEN % {"n": n, "w": pw, "h": vh * pw // vw}
+            screen = LIVE_SCREEN % {"n": n, "w": pw, "h": vh * pw // vw, "map": live_map(shot)}
         page = LIVE_PAGE % {"title": html.escape(title), "screen": screen,
-                            "url": html.escape(BRIDGE.shown or "", quote=True), "n": n}
+                            "url": html.escape(BRIDGE.shown or "", quote=True), "n": n,
+                            "meta": LIVE_TYPING if typing else ""}
         self.send_body(200, page.encode("utf-8"), "text/html; charset=utf-8")
 
     def browser_may_open(self, url, quiet=False):
@@ -1237,7 +1600,7 @@ class Handler(BaseHTTPRequestHandler):
     def snapshot(self, u):
         """the page as the Pi's browser shows it, after its scripts ran"""
         if not Config.browser:
-            self.reply(501, "webgate: snapshots need the Pi's browser (webgate --browser)\n")
+            self.reply(501, "webgate: snapshots need the Gateway's browser (webgate --browser)\n")
             return
         if not self.browser_may_open(self.path):
             return
@@ -1337,6 +1700,43 @@ LIVE_VIEW = (1024, 768)     # the browser's view when EWeb gives no size (as the
 LIVE_ROW = 30               # the Go to row above the picture, in EWeb's first screen
 
 
+def live_shot():
+    """the browser's screen now ({"pic", "w", "ox", "oy", "areas", "typing"}),
+    its place and scale kept for the clicks on it, or None"""
+    vw, vh, pw = live_size()
+    r = BRIDGE.ask("", 20, shot=pw, w=vw, h=vh, quality=Config.live_quality)
+    if r and r.get("pic"):
+        # where the picture is on the X screen, and how much smaller
+        LIVE.update(full=r.get("w") or pw, pic=min(pw, r.get("w") or pw), ox=r.get("ox", 0), oy=r.get("oy", 0))
+    return r
+
+
+def live_map(shot):
+    """the picture's links as <area>s (the extension's boxes, in the page's
+    CSS px from the view's corner, made the picture's px): a click on one is
+    a click at its middle, as a click on the picture is a click where it is"""
+    if not shot or not shot.get("areas"):
+        return ""
+    full = shot.get("w") or 0
+    pic = LIVE.get("pic") or full
+    dpr = shot.get("dpr") or 1
+    if not full or not pic:
+        return ""
+    k = dpr * pic / float(full)         # CSS px to the picture's px
+    out = []
+    for b in shot["areas"][:400]:
+        try:
+            x0, y0 = int(b[0] * k), int(b[1] * k)
+            x1, y1 = int((b[0] + b[2]) * k), int((b[1] + b[3]) * k)
+        except (TypeError, ValueError, IndexError):
+            continue
+        if x1 - x0 < 2 or y1 - y0 < 2:
+            continue
+        out.append('<area shape=rect coords="%d,%d,%d,%d" href="http://webgate/live/click?at.x=%d&amp;at.y=%d" alt="">'
+                   % (x0, y0, x1, y1, (x0 + x1) // 2, (y0 + y1) // 2))
+    return "\n".join(out)
+
+
 def live_size():
     """(the browser's view width and height, the picture's width): EWeb's
     page (LIVE["page"]: W, H) as the view at 1:1, PW = W less the body's
@@ -1355,14 +1755,19 @@ LIVE_KEYS = {"enter": "Return", "tab": "Tab", "backspace": "BackSpace", "esc": "
              "up": "Page_Up", "down": "Page_Down", "back": "alt+Left", "reload": "F5"}
 
 LIVE_SCREEN = """<form action="http://webgate/live/click"><input type=image name=at width=%(w)d
- height=%(h)d src="http://webgate/live/shot.jpg?n=%(n)d" alt="the Pi's browser"></form>"""
+ height=%(h)d src="http://webgate/live/shot.jpg?n=%(n)d" alt="the Gateway's browser" usemap="#live"></form>
+<map name=live>%(map)s</map>"""
 
-LIVE_NONE = """<p><b>The Pi's browser has no page open yet.</b> Put an address in the field above and
+# a field of the browser's page has the keyboard: EWeb sends what is typed
+# there (/live/type)
+LIVE_TYPING = '<meta name="aera-live" content="typing">'
+
+LIVE_NONE = """<p><b>The Gateway's browser has no page open yet.</b> Put an address in the field above and
  choose Go to; then its screen shows here, and a click on it is a click there.</p>"""
 
 LIVE_GONE = """<p><b>%(why)s.</b></p>"""
 
-LIVE_PAGE = """<!DOCTYPE html><html><head><meta charset=utf-8><title>Live: %(title)s</title>
+LIVE_PAGE = """<!DOCTYPE html><html><head><meta charset=utf-8>%(meta)s<title>Live: %(title)s</title>
 <style>body{margin:4px;font-family:sans-serif;background:#fff}form{display:inline;margin:0}
 p{margin:4px 0}input[type=image]{border:1px solid #888}</style></head><body>
 <p><form action="http://webgate/live"><input name=url size=40 value="%(url)s">
@@ -1447,8 +1852,18 @@ class ExtHandler(Handler):
             def num(k):
                 v = a.get(k, ["0"])[0]
                 return int(v) if v.lstrip("-").isdigit() else 0
-            BRIDGE.give(a.get("id", [""])[0], {"pic": data, "w": num("w"), "ox": max(0, num("ox")),
-                                               "oy": max(0, num("oy")), "why": a.get("why", [""])[0]})
+            shot = {"pic": data, "w": num("w"), "ox": max(0, num("ox")), "oy": max(0, num("oy")),
+                    "why": a.get("why", [""])[0]}
+            try:
+                # the page's links and fields in the view (CSS px), and
+                # whether a field has the keyboard (X-Live-Areas, JSON)
+                more = json.loads(self.headers.get("X-Live-Areas") or "{}")
+                if isinstance(more, dict):
+                    shot.update(areas=[b for b in more.get("areas") or [] if isinstance(b, list) and len(b) == 4],
+                                typing=bool(more.get("typing")), dpr=min(16.0, max(0.25, float(more.get("dpr") or 1))))
+            except (ValueError, TypeError):
+                pass
+            BRIDGE.give(a.get("id", [""])[0], shot)
             self.answer(200, b"{}")
             return
         if q.path != "/snapshot" or not q.query.startswith("id="):
