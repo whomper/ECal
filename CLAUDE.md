@@ -214,12 +214,15 @@ ECal is in maintenance mode while EWeb, EPDF and EPlay go to 1.0 (AERA-Atari, AT
   out 10 ms (its longest stretch) to 35-60 ms (its picture) behind 2.57 on the Falcons, the calendar list's
   drawing moved in memory, not new code: accepted (22 Nov 2026).
 
-- **Lifted 24 Nov 2026, the date picker** (decided 24 Nov 2026: a small month to pick the event's dates from, as the
+- **Done in 2.59, maintenance back: the date picker** (decided 24 Nov 2026: a small month to pick the event's dates from, as the
   Mac's Calendar has, opened by a click in the date): a click in the event's Starts or Ends date opens the month
   under it (ui/datepick.c, FF_DATE in field.c). A new start date, picked or typed, moves the end by as many days
   (decided 24 Nov 2026, through the hub; editor.c's end_follows). The picker's look is behind dp_text and dp_mark,
   so it can move to common/ui when a second app asks (the hub, 24 Nov 2026).
-  Maintenance comes back with the release that carries it.
+  datepick.o is linked last and pads after editor.o, field.o and datepick.o (atari/pad_*.S) keep the rest at
+  2.58's places. For 2.59 he accepted the Falcon-4:16 rows 5-35 ms behind 2.58 (month drawn whole 770 -> 825 ms,
+  week drawn whole 745 -> 780, month again 1075 -> 1085, next month 1260 -> 1270), ECal's own work the same
+  (0.1-0.4% of instructions by Hatari's profile) and the places back (accepted, 25 Nov 2026).
 
 ## UI backlog (the owner's 54 decisions, 9 Nov 2026; AERA-Atari a261597, standards/ui)
 
