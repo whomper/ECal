@@ -268,6 +268,12 @@ static int collect_for(unsigned long ms)
 				return 0;	/* sliced: the range's own and its
 						   days in a slice of their own */
 		}
+		/* occ is the range's from here on, its days' table (oday) not
+		   yet: not valid until got: fills it. Left valid, a sliced day
+		   after a week took the list as done at its next call, its
+		   events' days still the week's, and the day showed only those
+		   whose place in the week's list was the same day (25 Nov 2026) */
+		occ_valid = 0;
 		if (occ_from_wide(a, b)) {
 			if (ms) {
 				occ_tgt = &occ;	/* (sliced: the days in the next) */
