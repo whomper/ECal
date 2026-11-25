@@ -24,6 +24,10 @@ static unsigned long os_magic;
    screen's layout from Line-A; on (1) once the first draw's check found
    the VDI's pixels where it would put them, off (-1) for the run else */
 static int sf;				/* 0 not checked yet, 1 on, -1 off */
+static int sf_geom;			/* the screen's form known and the CPU's to move rows in (no NVDI):
+					   scr_rows needs no glyph, so not sf (EHypView, 22 Nov 2026: sf was 0
+					   at every scroll, text_font each redraw, and ST:mono's rows went
+					   through TOS's copy, 65-70 ms) */
 static const unsigned char *glyph;	/* the font's form: row r of c at [r * 256 + c] */
 static short sf_planes, sf_w, sf_h;
 static int sf_rows_cpu;			/* scr_rows by the CPU: a 68000 (on a 68030 TOS's copy is as fast) */
@@ -112,14 +116,13 @@ static int sys_form(short height, const unsigned char **form)
 	return 0;
 }
 
-static int sf_setup(short height)
+/* the screen's form from Line-A: 0 when it is one the CPU paths can
+   work in (sf_planes, sf_bpl, sf_w, sf_h set), else -6 */
+static int sf_geom_setup(void)
 {
 	const unsigned char *const *fonts;
 	const short *la = line_a(&fonts);
-	int e = sys_form(height, &glyph);
 
-	if (e < 0)
-		return e;
 	sf_rows_cpu = get_cookie(0x5F435055L) < 20;	/* '_CPU' */
 	sf_planes = la[0];		/* v_planes */
 	sf_bpl = la[1];			/* v_lin_wr */
@@ -128,7 +131,16 @@ static int sf_setup(short height)
 	if ((sf_planes != 1 && sf_planes != 2 && sf_planes != 4 && sf_planes != 8) || sf_w <= 0 || sf_h <= 0 ||
 	    sf_bpl != (long)sf_w / 8 * sf_planes)
 		return -6;
-	return 0;			/* the first draw checks it */
+	return 0;
+}
+
+static int sf_setup(short height)
+{
+	int e = sys_form(height, &glyph);
+
+	if (e < 0)
+		return e;
+	return sf_geom_setup();		/* 0: the first draw checks the glyphs */
 }
 
 void text_font(short h, short id, short w, short hgt)
@@ -149,6 +161,7 @@ void text_font(short h, short id, short w, short hgt)
 	cw = w > 0 ? w : 8;
 	ch = hgt > 0 ? hgt : 16;
 	sf = fast && cw == 8 ? sf_setup(ch) : -1;
+	sf_geom = sf >= 0 || (!get_cookie(0x4E564449L) && sf_geom_setup() == 0);	/* 'NVDI' */
 }
 
 void text_clip(short h, const short *r)
@@ -718,7 +731,7 @@ static inline void move_group(unsigned short *d, const unsigned short *s, unsign
    Line-A, on single TOS only (under MiNT or MagiC another program may draw
    meanwhile: the VDI's copy there), interleaved planes only (2, 4 or 8;
    one plane can't show a plane half moved). 0 not looked at yet, 1 usable,
-   -1 not. Apart from text_plain's check: under NVDI too (Erez's Falcon
+   -1 not. Apart from text_plain's check: under NVDI too (a real Falcon
    with NVDI showed the planes half moved; Hatari's NVDI doesn't) */
 static int pg;
 static short pg_planes, pg_w, pg_h;
@@ -749,7 +762,7 @@ static int planar_geom(void)
    with some of its planes moved and others not. TOS's copy (and the
    BLiTTER) goes a plane at a time over the whole box, and a copy that
    lasts a few frames showed the old picture in other colours: lines in
-   blue and yellow (Erez's Falcon, 256 colours, 14 Nov 2026; Hatari on
+   blue and yellow (a real Falcon, 256 colours, 14 Nov 2026; Hatari on
    TOS 4.04 Falcon-4:256: 69 frames of 139 that changed while the week
    view scrolled) */
 static void planar_rows(unsigned char *d, long dline, const unsigned char *s, long sline, short x1, short x2,
@@ -841,7 +854,7 @@ void scr_rows(short h, const short *p)
 	   faster through TOS's copy (TOS 1.04 ST:mono, 192 wide: vro_cpyfm
 	   27 ms, the CPU 51), and on a 68030 TOS's copy is as fast (Falcon-4:
 	   592 wide, 35 against 36) */
-	if (sf != 1 || !sf_rows_cpu || x2 - x1 < 383 || p[4] != x1 || p[6] != x2 || p[7] - ty != y2 - y1 || x1 < 0 || x2 < x1 || x2 >= sf_w || y1 < 0 ||
+	if (!sf_geom || !sf_rows_cpu || x2 - x1 < 383 || p[4] != x1 || p[6] != x2 || p[7] - ty != y2 - y1 || x1 < 0 || x2 < x1 || x2 >= sf_w || y1 < 0 ||
 	    y2 < y1 || y2 >= sf_h || ty < 0 || p[7] >= sf_h ||
 	    (clipping && (x1 < clip_now[0] || x2 > clip_now[2] || ty < clip_now[1] || p[7] > clip_now[3]))) {
 		MFDB scr;
