@@ -14,6 +14,18 @@ static long st_free, tt_free, given, given_mode, added;
 static int failed, checks;
 static char area[1];
 long heap_use, heap_peak, heap_early;
+static long phystop = 4L * 1024 * 1024;
+static char alerted[200];
+long Supexec(long (*f)(void))
+{
+	(void)f;
+	return phystop;
+}
+short form_alert(short def, const char *str)
+{
+	snprintf(alerted, sizeof alerted, "%s", str);
+	return def;
+}
 
 void *Malloc(long n)
 {
@@ -187,6 +199,19 @@ int main(void)
 	      "the log line");
 	printf("     %s\n", line);
 
+	phystop = 1024 * KB;
+	check(acc_small_machine(), "a 1 MB ST is a small machine: no accessory there");
+	phystop = 2048 * KB;
+	check(!acc_small_machine(), "2 MB is not");
+	phystop = 4096 * KB;
+	check(!acc_small_machine(), "a 4 MB Falcon is not");
+	{
+		long before = st_free;
+		acc_small_alert("ECal", "ECAL.ACC");
+		check(st_free == before, "the alert takes no memory (the AES's own)");
+	}
+	check(!strcmp(alerted, "[1][ECal needs|an Atari with 2 MB or more.|Remove ECAL.ACC|from the boot drive.][ OK ]"),
+	      "the alert names the program and its file");
 	printf("%d checks, %d failed\n", checks, failed);
 	return failed != 0;
 }

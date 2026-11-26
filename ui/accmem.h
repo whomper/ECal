@@ -22,6 +22,14 @@
  *                              KB, for MEMKB= at the next start (which
  *                              then measures it down; at most half free)
  *   acc_mem_line(buf, size, next_kb)   the log's "memory: ..." line
+ *   acc_small_machine()        1 on a machine with under 2 MB of ST RAM
+ *                              (phystop): no family accessory runs there
+ *                              (decided 26 Nov 2026, guidelines 2.1); the
+ *                              accessory takes no heap and its Desk entry
+ *                              shows acc_small_alert's words
+ *   acc_small_alert(name, file)   that alert, the AES's own (form_alert:
+ *                              no memory taken): "[1][NAME needs|an Atari with
+ *                              2 MB or more.|Remove FILE|from the boot drive.][ OK ]"
  *
  * The share when nothing is known (the first start, or a new machine):
  * at most half of what is free, and a quarter when 1 MB or more is free,
@@ -49,5 +57,7 @@ long acc_mem_kb(long need, long margin);
 int acc_mem_moved(long kb, long memkb);
 long acc_mem_full_kb(void);
 int acc_mem_line(char *buf, int size, long next_kb);
+int acc_small_machine(void);
+void acc_small_alert(const char *name, const char *file);
 
 #endif

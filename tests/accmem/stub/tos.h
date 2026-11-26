@@ -6,3 +6,4 @@ long Fsetdta(void *p);
 long Fsfirst(const char *path, int attr);
 long Fsnext(void);
 short boot_drive(void);
+long Supexec(long (*f)(void));
