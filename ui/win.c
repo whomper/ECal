@@ -1089,7 +1089,11 @@ int win_view_step(unsigned long ms)
 			break;		/* (one more like it would not end inside the slice) */
 	}
 	/* then the events, each once, as many as the dearest yet says fit */
-	if (vj.ti >= vj.nt && vj.ei < vj.ne && (!drawn || now - t0 + vj.ev_ms < ms)) {
+	/* (before the first event's time is known, as if 10 ms: begun
+	   at a slice's end, one event ran it 5-10 ms over on Falcon-4:256
+	   with NVDI) */
+	if (vj.ti >= vj.nt && vj.ei < vj.ne
+	    && (!drawn || now - t0 + (vj.ev_ms ? vj.ev_ms : 10) < ms)) {
 		unsigned long p0 = now;
 		drawn = 1;
 		off_until = ms > 0x7fffffffUL ? 0xffffffffUL : t0 + ms;	/* (win_view_finish: all of them) */
