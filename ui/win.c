@@ -1050,8 +1050,11 @@ int win_view_step(unsigned long ms)
 		}
 		/* not begun when the dearest yet says it would end past the
 		   slice (one drawn already: each slice draws one at least) */
-		if (drawn && p0 - t0 + (rows ? vj.row_ms * rows : vj.piece_ms * k) > ms)
-			break;
+		if (drawn && p0 - t0 + (rows ? vj.row_ms * rows : vj.piece_ms * k)
+		    + (vj.ne > 0 && (cur_view == V_DAY || cur_view == V_WEEK) ? 10 : 0) > ms)
+			break;	/* (the day's and week's pieces two ticks to spare:
+				   after the start, pieces to 5 of 6 made the day's
+				   first slice 75 ms on Falcon-4:256 with NVDI) */
 		drawn = 1;
 		vj.ti += k;
 		views_events_apart(vj.ne > 0);
