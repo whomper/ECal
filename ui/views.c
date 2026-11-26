@@ -867,6 +867,11 @@ static int has_marks(EVENT *e)
 
 /* event_box's lines of text: title, time, place as room allows, the marks
    on one */
+/* a line of text at y meets the clip: a box across the hours' bands is
+   drawn in each band's slice, and a line outside it is a text's cost for
+   nothing (clipped by the VDI, not skipped) */
+#define LINE_IN(cl, ly) ((ly) < (cl)->y + (cl)->h && (ly) + ch > (cl)->y)
+
 static void event_box_text(EVENT *e, OCC *o, GRECT *rp, GRECT *clip, int bar, int sel, short tx, short cols_,
 			   short fl, const char *title)
 {
@@ -886,17 +891,14 @@ static void event_box_text(EVENT *e, OCC *o, GRECT *rp, GRECT *clip, int bar, in
 			fmt_time(d.hour, d.min, opt.h24, tm, sizeof(tm));
 			snprintf(line, sizeof(line), "%s %s", tm, title);
 			text_at(tx, ty, line, (long)strlen(line), cols_, fl | TX_LTR);
-		} else {
+		} else if (LINE_IN(clip, ty)) {
 			text_at(tx, ty, title, (long)strlen(title), cols_, fl | TX_RIGHT);
 		}
 		return;
 	}
 	/* a box in the day/week grid: title, time, place as room allows */
 	{
-		DT a, b;
 		short lines = (r.h - 1) / ch, k = 0;
-		ct_split(o->start, &a);
-		ct_split(o->end, &b);
 		if (lines < 1)
 			lines = 1;
 		/* the marks on the time's line, or the title's when there's one line */
@@ -904,10 +906,16 @@ static void event_box_text(EVENT *e, OCC *o, GRECT *rp, GRECT *clip, int bar, in
 			/* keep room for the start time at least, or the title's start */
 			short mc = has_marks(e) ? event_marks(e, &r, ty + (lines > 1 ? ch : 0), sel ? 0 : 1, clip,
 							       lines > 1 ? (short)(opt.h24 ? 5 : 7) : 4) : 0;
-			text_at(tx, ty, title, (long)strlen(title), lines > 1 ? cols_ : cols_ - mc, fl | TX_RIGHT);
+			if (LINE_IN(clip, ty))
+				text_at(tx, ty, title, (long)strlen(title), lines > 1 ? cols_ : cols_ - mc, fl | TX_RIGHT);
 			k++;
-			if (k < lines) {
+			if (k < lines && !LINE_IN(clip, ty + k * ch)) {
+				k++;	/* (the time's line outside the clip) */
+			} else if (k < lines) {
 				char t2[16];
+				DT a, b;
+				ct_split(o->start, &a);
+				ct_split(o->end, &b);
 				fmt_time(a.hour, a.min, opt.h24, tm, sizeof(tm));
 				fmt_time(b.hour, b.min, opt.h24, t2, sizeof(t2));
 				snprintf(line, sizeof(line), "%s-%s", tm, t2);
@@ -919,7 +927,7 @@ static void event_box_text(EVENT *e, OCC *o, GRECT *rp, GRECT *clip, int bar, in
 				k++;
 			}
 		}
-		if (k < lines && e->location) {
+		if (k < lines && e->location && LINE_IN(clip, ty + k * ch)) {
 			if (ty + (k + 1) * ch > r.y + r.h)
 				fl &= ~TX_WHITE;
 			text_at(tx, ty + k * ch, e->location, (long)strlen(e->location), cols_, fl | TX_RIGHT);
@@ -957,20 +965,23 @@ static void event_box(const ITEM *it, GRECT *clip, int bar)
 			   with its cells' white (TX_WHITE), the same pixels */
 			framed = 1;
 			fl = TX_WHITE;
+		} else if (!it->cont && r.w >= 3 && r.h >= 1) {
+			frame_strip(&r, p.color, 3);	/* (the strip with it) */
+			framed = -1;
 		} else {
 			frame(&r, p.color);
 		}
 	}
 	strip = r;
 	strip.w = 3;
-	if (!it->cont)
+	if (!it->cont && framed >= 0)
 		fill(&strip, sel ? 0 : p.color);
 	if (!sel && (e->status == ST_TENTATIVE || e->status == ST_CANCELLED))
 		fl |= TX_GREY;
 	cols_ = (r.x + r.w - 2 - tx) / cw;
 	if (cols_ > 0)
 		event_box_text(e, o, &r, clip, bar, sel, tx, cols_, fl, title);
-	if (framed)
+	if (framed > 0)
 		frame(&r, p.color);
 }
 

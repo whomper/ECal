@@ -27,6 +27,17 @@ void draw_forget(void)
 	c_wr = c_fint = c_fsty = c_fcol = c_lcol = c_tcol = c_teff = c_per = -1;
 }
 
+/* boxes and lines in transparent mode, as text is (their solid fills and
+   lines the same pixels as in replace) */
+#define WR_ONE wr_one()
+
+/* (replace where text goes in by the CPU in replace mode, TOS's screen
+   in the system font: no toggling against text_plain there) */
+static short wr_one(void)
+{
+	return font_cells == FC_RUNS && text_plain_state() >= 0 ? 1 : 2;
+}
+
 void set_wrmode(short m)
 {
 	if (m != c_wr)
@@ -203,7 +214,10 @@ void fill_pat(GRECT *r, short color, short interior, short style)
 		return;
 	}
 	set_fill(interior, style, color);
-	set_wrmode(interior >= 2 ? 2 : 1);	/* patterns over what is there */
+	/* transparent: patterns over what is there, and a solid fill the same
+	   pixels as in replace; one mode for boxes, lines and text, not a
+	   vswr_mode trap twice for each event (WR_ONE) */
+	set_wrmode(interior ? WR_ONE : 1);	/* (hollow: colour 0 in replace only) */
 	vr_recfl(vdi_h, pxy);
 }
 
@@ -219,7 +233,7 @@ void line_col(short x1, short y1, short x2, short y2, short color)
 	pxy[1] = y1;
 	pxy[2] = x2;
 	pxy[3] = y2;
-	set_wrmode(1);
+	set_wrmode(WR_ONE);	/* (solid lines: the same pixels) */
 	set_lcolor(color);
 	v_pline(vdi_h, 2, pxy);
 }
@@ -247,9 +261,41 @@ void frame(GRECT *r, short color)
 	p[7] = p[5];
 	p[8] = r->x;
 	p[9] = r->y;
-	set_wrmode(1);
+	set_wrmode(WR_ONE);
 	set_lcolor(color);
 	v_pline(vdi_h, 5, p);
+}
+
+/* frame() with a strip down its left, w pixels wide (w 2 or 3), in one
+   polyline: the frame's colour twice for an event (a fill for the strip
+   was the fill colour's trap twice, white then the colour, each event) */
+void frame_strip(GRECT *r, short color, short w)
+{
+	short p[18], n = 0;
+	short x0 = r->x, y0 = r->y, x1 = r->x + r->w - 1, y1 = r->y + r->h - 1, i;
+	for (i = w - 1; i > 0; i--) {
+		/* (down and up the strip's inner columns, then the frame) */
+		p[n++] = x0 + i;
+		p[n++] = (w - 1 - i) & 1 ? y1 : y0;
+		p[n++] = x0 + i;
+		p[n++] = (w - 1 - i) & 1 ? y0 : y1;
+	}
+	{
+		short top = n >= 2 && p[n - 1] == y0;
+		short q[10];
+		short k;
+		q[0] = x0; q[1] = top ? y0 : y1;
+		if (top) {
+			q[2] = x1; q[3] = y0; q[4] = x1; q[5] = y1; q[6] = x0; q[7] = y1; q[8] = x0; q[9] = y0;
+		} else {
+			q[2] = x1; q[3] = y1; q[4] = x1; q[5] = y0; q[6] = x0; q[7] = y0; q[8] = x0; q[9] = y1;
+		}
+		for (k = 0; k < 10; k++)
+			p[n++] = q[k];
+	}
+	set_wrmode(WR_ONE);
+	set_lcolor(color);
+	v_pline(vdi_h, n / 2, p);
 }
 
 /* an outline drawn in XOR: drawn twice it is gone (a dragged event) */
@@ -729,6 +775,19 @@ void text_at(short x, short y, const char *s, long n, short cols, short flags)
 				cells_at(x + i * cw + 1, y, out + i, k);
 			}
 		}
+		return;
+	}
+	/* plain, over what is there, in black or white, in the system font on
+	   TOS's screen: by the CPU too (common's scr_text, the VDI's pixels;
+	   a short event's title, past its box, cost an ST's VDI 2 ms; a 68030's
+	   VDI is the faster) */
+	if (!effects && (color == 1 || (flags & TX_INVERSE)) && cw == 8 && (ch == 8 || ch == 16) &&
+	    font_cells == FC_RUNS && text_plain_state() >= 0 && scr_cpu_wins() &&
+	    scr_text(x, y, out, (long)n, (flags & TX_INVERSE) ? 0 : 1, ch, 0)) {
+#ifdef AES_PROFILE
+		prof_texts++;
+		prof_texts_plain++;
+#endif
 		return;
 	}
 	set_wrmode(2);

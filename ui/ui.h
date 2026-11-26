@@ -39,6 +39,7 @@ void fill(GRECT *r, short color);
 void set_wrmode(short mode);	/* VDI writing mode, through draw.c's cache */
 void fill_pat(GRECT *r, short color, short interior, short style);
 void frame(GRECT *r, short color);
+void frame_strip(GRECT *r, short color, short w);
 void xor_frame(GRECT *r);	/* an outline in XOR (twice: gone) */
 void xor_fill(GRECT *r);	/* a box in inverse by XOR (twice: gone) */
 void clip_on(GRECT *r);
