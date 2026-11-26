@@ -1096,7 +1096,10 @@ int win_view_step(unsigned long ms)
 	    && (!drawn || now - t0 + (vj.ev_ms ? vj.ev_ms : 10) < ms)) {
 		unsigned long p0 = now;
 		drawn = 1;
-		off_until = ms > 0x7fffffffUL ? 0xffffffffUL : t0 + ms;	/* (win_view_finish: all of them) */
+		/* (two ticks to spare: after the pieces, events drawn to the
+		   slice's end made it 75 ms on Falcon-4:256 with NVDI, 60 as
+		   the pieces alone) */
+		off_until = ms > 0x7fffffffUL ? 0xffffffffUL : t0 + ms - 10;	/* (win_view_finish: all of them) */
 		off_draw(NULL);
 		now = pf_ms();
 		vj.draw_ms += now - p0;
