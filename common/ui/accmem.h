@@ -48,6 +48,7 @@
 #define AERA_ACCMEM_H
 
 extern long acc_heap_bytes;	/* taken (0: none, or the program) */
+extern void *acc_heap_at;	/* where (the rigs check it lies outside the next program's TPA) */
 extern long acc_heap_avail;	/* free when it was taken, where it was taken */
 extern short acc_heap_tt;	/* 1: in TT/Fast RAM */
 extern long acc_heap_leave;	/* the least left on a 1 MB machine (32 KB) */
