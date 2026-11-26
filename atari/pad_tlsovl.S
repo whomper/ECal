@@ -6,5 +6,5 @@
    by symbol against 2.59's ELF with common/tools/profpad.py). When
    tls_ovl changes size again, size it again the same way. */
 #define PAD_NAME pad_tlsovl
-#define PAD_TEXT 234
+#define PAD_TEXT 92
 #include "../common/atari/codepad.S"

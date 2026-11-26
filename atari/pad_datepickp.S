@@ -6,6 +6,6 @@
    symbol by common/tools/profpad.py against 2.58's ELF). When datepick.c
    changes size again, size it again the same way. */
 #define PAD_NAME pad_datepick
-#define PAD_STR 168
+#define PAD_STR 80
 #define PAD_RO 244
 #include "../common/atari/codepad.S"

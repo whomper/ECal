@@ -41,8 +41,9 @@ Download from **[Releases](https://github.com/whomper/ECal/releases/latest)** th
 4. **Add account or calendar...** with an [app password](docs/GUIDE.md#app-passwords-icloud-fastmail-yahoo).
 5. Press **Help** for the [guide](docs/GUIDE.md).
 
-**Needs:** TOS 1.04 to 4.x, EmuTOS, FireTOS, MagiC or MiNT; ST medium or high, TT or Falcon resolution; 1 MB
-(2 MB for big calendars); STinG or MiNTnet. On a 1 MB ST, ECal's accessory or EContact's, not both.
+**Needs:** TOS 1.04 to 4.x, EmuTOS, FireTOS, MagiC or MiNT; ST medium or high, TT or Falcon resolution; 2 MB for the
+accessory, 1 MB for `ECAL.PRG`; STinG or MiNTnet. On a 1 MB ST use `ECAL.PRG`: there the accessory only
+says it needs 2 MB, and takes no memory.
 Under TOS, `FOLDR100.PRG` first in `AUTO`; STinG's Delay set to the machine ([why](docs/GUIDE.md#installing)).
 
 Everything ECal does, and how fast: [docs/FEATURES.md](docs/FEATURES.md).

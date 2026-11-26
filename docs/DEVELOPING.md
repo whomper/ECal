@@ -75,7 +75,8 @@ FALCON=1 make itest          # rest, changes from elsewhere, subscriptions, impo
 `tests/hatari/` runs the real accessory in the [Hatari](https://hatari.tuxfamily.org/) emulator with
 [EmuTOS](https://emutos.sourceforge.io/) 1.4, driven by Xvfb and xdotool. The machine is one of the
 family's test machines from `common/tools/machines.py`, named with `--machine`: `ST` (a 1040 ST,
-4 MB) and `ST-1` (1 MB), each with `:mono` or `:med`; `TT` and `Falcon` (`:16` or `:256` colours),
+4 MB), `ST-2` (2 MB, where the accessory's ST rigs run) and `ST-1` (1 MB: ECAL.PRG, and
+`small_acc.py`'s case that the accessory takes nothing there), each with `:mono` or `:med`; `TT` and `Falcon` (`:16` or `:256` colours),
 where the Direct connection rigs run. The program is ECAL.ACC or ECAL.PRG on all of them; the rigs put
 `binary/TLS.OVL` in ECal's folder. Each rig has a default, and prints the machine and TOS it
 ran on. An ST has no clock, so the rigs set its date and time at boot (`C:\AUTO\CLOCK.PRG`), as you

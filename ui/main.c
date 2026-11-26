@@ -1964,6 +1964,21 @@ int ui_track(const GRECT *r, short x, short y)
 long nf_on = 1;
 #endif
 
+/* under 2 MB of ST RAM the accessory doesn't run (decided 26 Nov 2026,
+   the guidelines 2.1): TOS keeps it loaded, so it takes nothing more, no
+   heap, font, overlay nor background work, and its Desk entry says so with
+   the AES's own alert (common's accmem.c) */
+static void small_machine(void)
+{
+	short msg[8];
+	AEVENT ev;
+	menu_id = menu_register(ap_id, "  ECal");
+	for (;;)
+		if (evnt_multi_(MU_MESAG, 0, 0, 0, 0, msg, &ev) & MU_MESAG)
+			if (msg[0] == AC_OPEN && msg[4] == menu_id)
+				acc_small_alert("ECal", "ECAL.ACC");
+}
+
 /* (main() is common's atari/cpucheck.c, cpucheck_cf.S in the FireBee package: the
    alert of ui/cpualert.c where this edition is the other machine's) */
 int app_main(void)
@@ -1982,6 +1997,8 @@ int app_main(void)
 	ap_id = appl_init();
 	if (ap_id < 0)
 		return 1;
+	if (is_acc && acc_small_machine())
+		small_machine();	/* (never returns) */
 	key_state_init();	/* a Shift or Ctrl typed during the long start keeps its state (gem.h; guidelines 3.2) */
 	tip_init(tip_repaint);	/* (BubbleGEM's text where it can read it: taken now) */
 	tip_rtl = tip_line_rtl;

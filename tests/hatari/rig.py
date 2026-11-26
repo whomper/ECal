@@ -42,7 +42,7 @@ def add_machine(ap, default):
 
 def is_st(spec):
     """an ST (68000) machine: no Direct connection, never TLS.OVL"""
-    return spec.partition(":")[0] in ("ST", "ST-1")
+    return spec.partition(":")[0] in ("ST", "ST-1", "ST-2")
 
 
 class Rig:

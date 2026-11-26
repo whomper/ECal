@@ -6,7 +6,7 @@ guidelines, 6.5): every Fopen, Fcreate, Fclose, Fsfirst/Fsnext,
 Fdelete/Frename, Fseek, Fread and Fwrite on ECal's own files (ECAL.INF
 in the root and everything in ECal's folder), job by job:
 
-    tests/hatari/acc_files.py WORK [--machine ST-1:mono|Falcon|...] [--run quiet|sync|falcon]
+    tests/hatari/acc_files.py WORK [--machine ST-2:mono|Falcon|...] [--run quiet|sync|falcon]
                               [--bin DIR] [--roots] [--peoplefile]
 
 Two CalDAV calendars of about 500 events between them (Radicale) and a
@@ -247,7 +247,7 @@ def main():
     global RAD, GW, FEED, SCHEME
     ap = argparse.ArgumentParser()
     ap.add_argument("work")
-    rig.add_machine(ap, "ST-1:mono")
+    rig.add_machine(ap, "ST-2:mono")
     ap.add_argument("--run", default="quiet", choices=("quiet", "sync", "falcon"))
     ap.add_argument("--bin", default=os.path.join(ROOT, "binary"))
     ap.add_argument("--roots", action="store_true", help="falcon: without ROOTS.DAT (CACERT.PEM read)")

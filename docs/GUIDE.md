@@ -72,10 +72,10 @@ Each refresh then measures what your calendars need and keeps it as
 `MEMKB=` in ECAL.INF (written with the settings, when a calendar changed
 or a setting did), with room to spare, and the next start takes that.
 When little is free it takes all but the 32 KB the desktop needs to
-start. A 1 MB ST runs it with STinG; with big calendars, 2 MB or more is
-better. On a 1 MB ST, load ECal's accessory or EContact's, not
-both: together they leave TOS no memory and the ST stops at boot. Run
-the other as a program. `HEAPKB=` in ECAL.INF sets an amount of your own, in kilobytes,
+start. The accessory needs 2 MB or more: on a 1 MB ST, where TOS keeps
+every accessory loaded and little would be left for your programs, it
+takes no memory and its Desk entry only says it needs 2 MB. Run
+`ECAL.PRG` there instead, or remove ECAL.ACC from the boot drive. `HEAPKB=` in ECAL.INF sets an amount of your own, in kilobytes,
 and ECal then keeps to it. With **Write a log** on, the log says how much
 was free at boot, how much ECal took and how much it used. When the
 memory runs out, ECal says so when you open it (and which calendar is
