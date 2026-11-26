@@ -55,7 +55,27 @@ def grid(path):
     from PIL import Image
     im = Image.open(path).convert("RGB")
     w, h = im.size
-    return im.crop((w * 3 // 10, h // 6, w - 24, h - 4)).tobytes()
+    return im.crop((w * 3 // 10, h // 6, w - 24, h - 4))
+
+
+def same(a, b, minutes):
+    """a and b the same, or (taken minutes apart) apart only in today's red
+    now line: the rows that differ make one band of at most eight rows, the
+    line where it was and where it is (an event's text is 16 rows high)"""
+    if a.tobytes() == b.tobytes():
+        return True
+    if not minutes:
+        return False
+    w, h = a.size
+    pa, pb = a.load(), b.load()
+    rows = [y for y in range(h) if any(pa[x, y] != pb[x, y] for x in range(w))]
+    bands = []
+    for y in rows:
+        if bands and y - bands[-1][1] <= 2:
+            bands[-1][1] = y
+        else:
+            bands.append([y, y])
+    return len(bands) == 1 and bands[0][1] - bands[0][0] < 8
 
 
 def start(work, machine, name):
@@ -88,6 +108,7 @@ def main():
         r.key(SCAN["d"])
         r.wait(4)
         shots[0] = r.shot("through-0")
+        minute0 = time.strftime("%H%M")
         r.key(K["RIGHT"])
         r.wait(4)
         shots[1] = r.shot("through-1")
@@ -111,9 +132,11 @@ def main():
                 r.wait(4)
             r.move(10, 10)
             alone = r.shot("alone-%d" % n)
+            minute = time.strftime("%H%M")
         finally:
             r.stop()
-        check("day %d through the week shows what it shows alone" % n, grid(shots[n]) == grid(alone))
+        check("day %d through the week shows what it shows alone" % n,
+              same(grid(shots[n]), grid(alone), n == 0 and minute != minute0))
     print("screenshots in", os.path.join(work, "*", "shots"))
     print("day/week test:", "all passed" if not fails else "%d failed" % len(fails))
     return 1 if fails else 0
