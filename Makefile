@@ -52,7 +52,7 @@ CFLAGS  += -ffunction-sections -fdata-sections
 LDFLAGS += -Wl,--gc-sections
 # the pads that keep the code after a grown file at the last release's places
 # (atari/pad_*.S), kept by -u as the link drops unused sections
-LDFLAGS += $(foreach s,pad_util pad_draw pad_ovl pad_tlsovl pad_popup pad_alert pad_alert_data pad_text pad_text_bss pad_texta pad_texta_bss pad_views pad_editor pad_field pad_field_bss pad_datepick_ro pad_datepick_str,-Wl,-u,$(s))
+LDFLAGS += $(foreach s,pad_util pad_draw pad_ovl pad_tlsovl pad_popup pad_alert pad_alert_data pad_text pad_text_bss pad_texta pad_texta_bss pad_views pad_views_bss pad_draw_bss pad_editor pad_field pad_field_bss pad_datepick_ro pad_datepick_str,-Wl,-u,$(s))
 
 # BearSSL 0.6: on the Atari only its MD5 (Digest logins), as 68000 code; the
 # TLS is TLS.OVL's (the guidelines, 7.4). The build machine's tests link it
