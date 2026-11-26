@@ -8,6 +8,6 @@
    by symbol against 2.60's ELF). When draw.c changes size again, size it
    again the same way. */
 #define PAD_NAME pad_draw
-#define PAD_TEXT 78
+#define PAD_TEXT 72
 #define PAD_BSS 244
 #include "../common/atari/codepad.S"
