@@ -960,28 +960,28 @@ static void event_box(const ITEM *it, GRECT *clip, int bar)
 		/* an event: white for easy reading, a thin border in its
 		   calendar's colour, and the thick strip on the left */
 		fill(&r, 0);
-		/* the frame after the text, which goes in with its cells' white
-		   (TX_WHITE: the box's white, the same pixels; text_plain, by the
-		   CPU, where the VDI's transparent text was a Falcon's dearest
-		   part of an event) */
-		fl = TX_WHITE;
-		if (p.color != 1 && !it->cont && r.w >= 3 && r.h >= 1)
-			framed = 2;	/* (frame_strip: the strip with it) */
-		else
+		if (p.color == 1) {
+			/* black (mono): the frame after the text, which may go in
+			   with its cells' white (TX_WHITE), the same pixels */
 			framed = 1;
+			fl = TX_WHITE;
+		} else if (!it->cont && r.w >= 3 && r.h >= 1) {
+			frame_strip(&r, p.color, 3);	/* (the strip with it) */
+			framed = -1;
+		} else {
+			frame(&r, p.color);
+		}
 	}
 	strip = r;
 	strip.w = 3;
-	if (!it->cont && framed >= 0 && framed != 2)
+	if (!it->cont && framed >= 0)
 		fill(&strip, sel ? 0 : p.color);
 	if (!sel && (e->status == ST_TENTATIVE || e->status == ST_CANCELLED))
 		fl |= TX_GREY;
 	cols_ = (r.x + r.w - 2 - tx) / cw;
 	if (cols_ > 0)
 		event_box_text(e, o, &r, clip, bar, sel, tx, cols_, fl, title);
-	if (framed == 2)
-		frame_strip(&r, p.color, 3);
-	else if (framed > 0)
+	if (framed > 0)
 		frame(&r, p.color);
 }
 
