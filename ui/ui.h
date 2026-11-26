@@ -164,6 +164,9 @@ void views_draw(GRECT *clip);
 void views_now_moved(void);		/* the minute's tick: the "now" line */
 int  views_gliding(void);		/* a key's hour still gliding: */
 int views_tiles(GRECT *t, int max);	/* the view in pieces, to draw a piece at a time */
+int views_events(void);			/* the day's and week's events drawn after the pieces: how many, 0 none */
+void views_events_apart(int on);	/* the pieces without them */
+int views_events_draw(int i, unsigned long until, unsigned long *dearest);
 int views_prepare(unsigned long ms);
 extern const char *views_phase;	/* collected and laid out a slice at a time: 1 while more */
 void views_glide(void);			/* its next step, from the event loop */

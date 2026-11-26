@@ -985,6 +985,8 @@ static void event_box(const ITEM *it, GRECT *clip, int bar)
 		frame(&r, p.color);
 }
 
+static void draw_items_one(int i, GRECT *clip, int bars);
+
 static void draw_items(GRECT *clip, int bars)
 {
 	int i;
@@ -995,6 +997,14 @@ static void draw_items(GRECT *clip, int bars)
 		   every piece drawn was a sixth of a view's time on an ST) */
 		if (ir->y >= cy1 || ir->y + ir->h <= cy0 || ir->x >= cx1 || ir->x + ir->w <= cx0)
 			continue;
+		draw_items_one(i, clip, bars);
+	}
+}
+
+/* the item i, in what clip leaves of it */
+static void draw_items_one(int i, GRECT *clip, int bars)
+{
+	{
 		if (items[i].kind == IT_MORE) {
 			char t[20];
 			GRECT c = *clip;
@@ -1002,7 +1012,7 @@ static void draw_items(GRECT *clip, int bars)
 			clip_on(&c);
 			snprintf(t, sizeof(t), "+%d more", items[i].occ);
 			text_at(items[i].r.x + 4, items[i].r.y, t, (long)strlen(t), items[i].r.w / cw, TX_LTR | TX_GREY);
-			continue;
+			return;
 		}
 		{
 			GRECT c = *clip;
@@ -1011,12 +1021,11 @@ static void draw_items(GRECT *clip, int bars)
 				GRECT g = grid;
 				/* scrolled above or below: cut at the grid's edges */
 				if (items[i].timed && !rect_and(&c, &g))
-					continue;
+					return;
 			}
 			event_box(&items[i], &c, !items[i].timed);
 		}
 	}
-	(void)bars;
 }
 
 static void draw_month(GRECT *clip)
@@ -1290,12 +1299,40 @@ static void draw_details(GRECT *clip)
 }
 
 static short now_x = -1, now_y, now_w;	/* where the "now" line was drawn, -1: not */
+static int events_apart;	/* the day's and week's pieces drawn without their events (views_events) */
+
+/* now: a red line across today */
+static void now_line(GRECT *clip)
+{
+	long t = today();
+	CTIME now = now_view();
+	now_x = -1;
+	if (t >= first_day && t < first_day + ndays) {
+		long m = now - t * MIN_PER_DAY;
+		short y = grid.y + (short)(m * hour_h / 60 - scroll_y), x = colx[t - first_day], w = COLW(t - first_day);
+		now_x = x;
+		now_y = y;
+		now_w = w;
+		if (y >= grid.y - 2 && y < grid.y + grid.h + 2) {
+			GRECT dot, cc = grid;
+			if (rect_and(&cc, clip)) {
+				clip_on(&cc);
+				line_col(x, y, x + w - 1, y, red_color());
+				line_col(x, y + 1, x + w - 1, y + 1, red_color());
+				dot.x = x;
+				dot.y = y - 2;
+				dot.w = 5;
+				dot.h = 6;
+				fill(&dot, red_color());
+			}
+		}
+	}
+}
 
 static void draw_days(GRECT *clip)
 {
 	short c, h;
 	long t = today();
-	CTIME now = now_view();
 	GRECT g;
 	short cy0 = clip->y, cy1 = clip->y + clip->h;	/* what is drawn, from row to row */
 	short cx0 = clip->x, cx1 = clip->x + clip->w;	/* and column to column */
@@ -1384,28 +1421,9 @@ static void draw_days(GRECT *clip)
 			if (colx[c] >= g.x && colx[c] < g.x + g.w)
 				line_col(colx[c], g.y, colx[c], g.y + g.h - 1, grey_color());
 	}
-	draw_items(clip, 0);
-	/* now: a red line across today */
-	now_x = -1;
-	if (t >= first_day && t < first_day + ndays) {
-		long m = now - t * MIN_PER_DAY;
-		short y = grid.y + (short)(m * hour_h / 60 - scroll_y), x = colx[t - first_day], w = COLW(t - first_day);
-		now_x = x;
-		now_y = y;
-		now_w = w;
-		if (y >= grid.y - 2 && y < grid.y + grid.h + 2) {
-			GRECT dot, cc = grid;
-			if (rect_and(&cc, clip)) {
-				clip_on(&cc);
-				line_col(x, y, x + w - 1, y, red_color());
-				line_col(x, y + 1, x + w - 1, y + 1, red_color());
-				dot.x = x;
-				dot.y = y - 2;
-				dot.w = 5;
-				dot.h = 6;
-				fill(&dot, red_color());
-			}
-		}
+	if (!events_apart) {
+		draw_items(clip, 0);
+		now_line(clip);
 	}
 	g = detail;
 	if (detail.w && rect_and(&g, clip))
@@ -1857,6 +1875,73 @@ int views_tiles(GRECT *t, int max)
 			n++;
 		}
 	return n;
+}
+
+
+/* The day's and week's page drawn off the screen in slices: the pieces
+   (views_tiles) without the events, then each event once, cut to its
+   own columns as the pieces cut it, then the "now" line over them. A
+   box across the hours' bands was drawn in each band's piece, its
+   white, frame and text again for each (a busy day's events two or
+   three times over); the page is copied to the screen whole, so it
+   comes out the same. How many: the events and the line, 0 for a view
+   drawn the old way (the month, the year) */
+int views_events(void)
+{
+	if (cur_view != V_DAY && cur_view != V_WEEK)
+		return 0;
+	layout();
+	return nitems + 1;
+}
+
+void views_events_apart(int on)
+{
+	events_apart = on && (cur_view == V_DAY || cur_view == V_WEEK);
+}
+
+/* the events from i on, while the clock says one more like the dearest
+   yet ends before until; one at least. The next to draw */
+int views_events_draw(int i, unsigned long until, unsigned long *dearest)
+{
+	GRECT v = r_view;
+	today_cache = ct_days(now_view());
+	while (i <= nitems) {
+		unsigned long p0 = pf_ms(), took;
+		if (i == nitems) {
+			now_line(&v);
+		} else {
+			const ITEM *it = &items[i];
+			GRECT c;
+			short c0 = r_view.x, c1 = r_view.x + r_view.w, k;
+			/* the columns it is in, as the pieces' edges have them */
+			if (it->r.x >= grid.x)
+				c0 = grid.x;
+			for (k = 1; k < cols && k < 7; k++) {
+				if (colx[k] <= it->r.x)
+					c0 = colx[k];
+				else if (colx[k] >= it->r.x + it->r.w && colx[k] < c1)
+					c1 = colx[k];
+			}
+			if (colx[cols < 7 ? cols : 7] >= it->r.x + it->r.w && colx[cols < 7 ? cols : 7] < c1)
+				c1 = colx[cols < 7 ? cols : 7];
+			if (detail.w && detail.x >= it->r.x + it->r.w && detail.x < c1)
+				c1 = detail.x;
+			c.x = c0;
+			c.y = r_view.y;
+			c.w = c1 - c0;
+			c.h = r_view.h;
+			if (c.w > 0 && rect_and(&c, &v))
+				draw_items_one(i, &c, 0);
+		}
+		i++;
+		took = pf_ms() - p0;
+		if (took > *dearest)
+			*dearest = took;
+		if (pf_ms() + *dearest >= until)
+			break;
+	}
+	today_cache = -1;
+	return i;
 }
 
 /* ---------------- titles and moving around ---------------- */

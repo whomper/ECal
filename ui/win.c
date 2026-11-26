@@ -107,6 +107,8 @@ static struct {
 	int on, inside, ready;
 	GRECT tile[200];		/* the view's pieces (views_tiles) */
 	short nt, ti;			/* how many, the next to draw */
+	short ne, ei;			/* the events drawn after them (views_events), the next */
+	unsigned long ev_ms;		/* the dearest event yet */
 	unsigned long t0;		/* begun when */
 	unsigned long prep_ms, draw_ms;	/* its time in the events (collect, layout) and in drawing */
 	short take, rows;		/* pieces of a row, or whole rows, to draw together next */
@@ -530,6 +532,20 @@ static int off_screen(void)
 static int under_kept;
 
 /* full drawn into the buffer (off_screen()) */
+static unsigned long off_until;	/* off_draw(NULL): the events from vj.ei, until then */
+
+static void off_paint(GRECT *full)
+{
+	if (full) {
+		draw_all(full);
+		return;
+	}
+	text_bytes = 1;
+	vj.ei = (short)views_events_draw(vj.ei, off_until, &vj.ev_ms);
+	clip_off();
+	text_bytes = 0;
+}
+
 static void off_draw(GRECT *full)
 {
 	under_kept = 0;
@@ -538,7 +554,7 @@ static void off_draw(GRECT *full)
 		vdi_h = bm_h;
 		draw_forget();
 		font_reselect();	/* the window's font, on the bitmap too */
-		draw_all(full);
+		off_paint(full);
 		vdi_h = keep;
 		draw_forget();
 	} else {
@@ -548,7 +564,7 @@ static void off_draw(GRECT *full)
 		if (vj.inside)
 			graf_mouse(M_OFF, 0);
 		xbios_setscreen(obuf);
-		draw_all(full);
+		off_paint(full);
 		xbios_setscreen(screen);
 		if (vj.inside)
 			graf_mouse(M_ON, 0);
@@ -976,6 +992,9 @@ int win_view_step(unsigned long ms)
 			vj.ready = 1;
 			vj.nt = (short)views_tiles(vj.tile, 200);
 			vj.ti = 0;
+			vj.ne = vj.show ? 0 : (short)views_events();	/* (a new window's bands shown as drawn: with them) */
+			vj.ei = 0;
+			vj.ev_ms = 0;
 			vj.take = 1;
 			vj.rows = 1;
 			vj.row_ms = vj.piece_ms = 0;
@@ -987,7 +1006,7 @@ int win_view_step(unsigned long ms)
 			return 1;	/* (a phase that worked: the next, the layout say, in a slice of its own) */
 	}
 	vj.inside = 1;		/* (off the screen: no wind_update until the copy) */
-	if (vj.ti >= vj.nt)
+	if (vj.ti >= vj.nt && vj.ei >= vj.ne)
 		goto whole;	/* (the copy alone: the last pieces had the slice before) */
 	drawn = 0;
 	/* as much as the last draw's time says fits in half the slice:
@@ -1033,7 +1052,9 @@ int win_view_step(unsigned long ms)
 			break;
 		drawn = 1;
 		vj.ti += k;
+		views_events_apart(vj.ne > 0);
 		off_draw(&r);
+		views_events_apart(0);
 		if (vj.show) {
 			/* a new window: the band on the screen at once, as
 			   EContact's (decided 31 Oct 2026) */
@@ -1065,6 +1086,15 @@ int win_view_step(unsigned long ms)
 		if (now - t0 + took > ms)
 			break;		/* (one more like it would not end inside the slice) */
 	}
+	/* then the events, each once, as many as the dearest yet says fit */
+	if (vj.ti >= vj.nt && vj.ei < vj.ne && (!drawn || now - t0 + vj.ev_ms < ms)) {
+		unsigned long p0 = now;
+		drawn = 1;
+		off_until = ms > 0x7fffffffUL ? 0xffffffffUL : t0 + ms;	/* (win_view_finish: all of them) */
+		off_draw(NULL);
+		now = pf_ms();
+		vj.draw_ms += now - p0;
+	}
 	}
 #ifdef AES_PROFILE
 	{
@@ -1073,7 +1103,7 @@ int win_view_step(unsigned long ms)
 		slice_said(w, t0);
 	}
 #endif
-	if (vj.ti >= vj.nt && !vj.show && drawn) {
+	if (vj.ti >= vj.nt && vj.ei >= vj.ne && !vj.show && drawn) {
 		/* the copy in a turn of its own, never with the last pieces
 		   (the hub, 17 Nov 2026: the two in one turn moved the rows
 		   20-45 ms by where the slices fell) */
@@ -1081,7 +1111,7 @@ int win_view_step(unsigned long ms)
 		return 1;
 	}
 whole:
-	if (vj.ti >= vj.nt) {
+	if (vj.ti >= vj.nt && vj.ei >= vj.ne) {
 		GRECT full = work;
 #ifdef AES_PROFILE
 		unsigned long c0 = pf_ms();
