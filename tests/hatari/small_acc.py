@@ -70,7 +70,7 @@ FREE_ICON = (285, 170)
 # --held: (AUTO, ECAL, A.PRG, ECAL.ACC, HOLDFRNT.PRG, TLS.OVL); after a
 # program started at boot the desktop's window is smaller and lower
 A_ICON, A_ICON_AUTO, HOLD_ICON = (220, 170), (220, 235), (365, 170)
-GRID = (0, 80, 640, 390)    # ECal's window below its status line (the clock there)
+GRID = (9, 80, 640, 390)    # ECal's window below its status line (the clock there), not the desk at its left
 ACC_Y = 59              # the Desk menu's first accessory line (cpu_alert_test.py)
 
 fails = []
