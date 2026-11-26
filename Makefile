@@ -164,6 +164,17 @@ $(OBJDIR)/fakecontact.elf: $(FAKECONTACT_OBJS) common/atari/link.ld
 $(OBJDIR)/fakecontact.o: tests/hatari/fakecontact.c common/atari/gem.h common/ui/people_ask.h | $(OBJDIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+# a stand-in program started at boot, in front while the accessory starts
+# (tests/hatari/small_acc.py)
+holdfront: $(OBJDIR)/HOLDFRNT.PRG
+$(OBJDIR)/HOLDFRNT.PRG: $(OBJDIR)/holdfront.elf common/tools/elf2tos.py
+	python3 common/tools/elf2tos.py $< $@
+HOLDFRONT_OBJS := $(addprefix $(OBJDIR)/,crt0.o gem.o holdfront.o tos.o libc.o nf.o)
+$(OBJDIR)/holdfront.elf: $(HOLDFRONT_OBJS) common/atari/link.ld
+	$(CC) $(LDFLAGS) -o $@ $(HOLDFRONT_OBJS) -lgcc
+$(OBJDIR)/holdfront.o: tests/hatari/holdfront.c common/atari/gem.h | $(OBJDIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
 PRGOBJS := $(filter-out $(OBJDIR)/dialog.o $(OBJDIR)/pad_texta.o $(OBJDIR)/datepick.o $(OBJDIR)/pad_datepick.o,$(OBJS)) $(OBJDIR)/dialog_cpu.o $(OBJDIR)/datepick.o $(OBJDIR)/pad_datepickp.o
 SHIPDIR := build
 ifneq ($(AESPROF),)
@@ -393,7 +404,7 @@ itest: $(OBJDIR)/cal-cli
 clean:
 	rm -rf $(OBJDIR) $(BIN) dist
 
-.PHONY: icons fakeguide fakecontact all help dist test itest fuzz clean profile rrjump-m68k oddaccess FORCE
+.PHONY: icons fakeguide fakecontact holdfront all help dist test itest fuzz clean profile rrjump-m68k oddaccess FORCE
 
 # ---- the core as ColdFire code (the FireBee edition, guidelines 7.4) ----
 # tests/rrjump.c (the parser, a series' occurrences, the time zones) and
