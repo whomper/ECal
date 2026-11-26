@@ -6,6 +6,6 @@
    symbol by common/tools/profpad.py against 2.58's ELF). When field.c
    changes size again, size it again the same way. */
 #define PAD_NAME pad_field
-#define PAD_TEXT 132
+#define PAD_TEXT 156
 #define PAD_BSS 252
 #include "../common/atari/codepad.S"

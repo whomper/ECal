@@ -1510,6 +1510,34 @@ static void open_date(DLG *d, short i)
 	}
 }
 
+/* a click in a field with a list (FF_LIST): the dialog's rows under it, as
+   the month opens under a date (the event's end times, decided 26 Nov 2026) */
+static void open_list(DLG *d, short i)
+{
+	FIELD *f = &d->f[i];
+	GRECT r;
+	short mx, my, mb, k;
+	f->val = -1;
+	f->nitems = 0;
+	d->changed(d, i);
+	if (f->nitems <= 0)
+		return;
+	field_rect(f, &r);
+	do
+		graf_mkstate(&mx, &my, &mb, &k);
+	while (mb & 3);
+	k = popup_m_alt(r.x - 2, r.y + r.h + 2, r.y - 2, f->items, f->nitems);
+	if (!popup_put_back)
+		draw_all(d);
+	if (k >= 0) {
+		f->val = k;
+		d->changed(d, i);
+		f->cur = (short)strlen(f->buf);
+		f->first = 0;
+		dlg_redraw_field(d, i);
+	}
+}
+
 short dlg_run(DLG *d)
 {
 	short result = -2, i, mx, my, mb, ks, m[8], tips = 0, hx = -1, hy = -1, via;
@@ -1750,6 +1778,8 @@ short dlg_run(DLG *d)
 					click_field(d, hit, e.mx, e.my);
 					if (f->flags & FF_DATE)
 						open_date(d, hit);
+					else if ((f->flags & FF_LIST) && d->changed)
+						open_list(d, hit);
 					break;
 				case FT_BUTTON:
 					if (!press_hold(d, hit))

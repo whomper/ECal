@@ -6,5 +6,5 @@
    symbol by common/tools/profpad.py against 2.58's ELF). When editor.c
    changes size again, size it again the same way. */
 #define PAD_NAME pad_editor
-#define PAD_TEXT 26
+#define PAD_TEXT 44
 #include "../common/atari/codepad.S"

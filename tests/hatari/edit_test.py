@@ -52,6 +52,10 @@ def cache_text(hd):
     return out
 
 
+ENDS_TIME = (311, 213)      # the event's Ends time on Falcon:16
+ROW_1H30 = 52               # the list's third row (1\u00bd hours), below it
+
+
 def empty(r):
     """the field with the cursor emptied: to its end, then back over it
     all (Undo cancels the dialog: guideline 3.5)"""
@@ -288,6 +292,41 @@ def main():
             fol = [p for p in text.split("\nR ") if "SUMMARY:Followed" in p]
             check("the end follows a typed start into March 2027",
                   bool(fol) and ":20270310T" in fol[0] and "DTEND;TZID=Asia/Jerusalem:202703" in fol[0])
+            # 8. the end times under the Ends time (decided 26 Nov 2026):
+            #    every half hour after the start to 3 hours; 1½ hours after
+            #    22:30 ends at midnight, the next day
+            r.key(SCAN["n"])
+            r.wait(2)
+            r.click(215, 190)
+            r.wait(1.5)
+            r.key(K["ESC"])
+            r.wait(0.5)
+            empty(r)
+            r.type("10.03.2027")
+            r.key(K["TAB"])                    # the start time
+            empty(r)
+            r.type("22:30")
+            r.key(K["TAB"])
+            r.wait(1)
+            r.click(*ENDS_TIME)                # the list opens under it
+            r.wait(1.5)
+            r.shot("19-end-times")
+            r.click(ENDS_TIME[0], ENDS_TIME[1] + ROW_1H30)   # 1½ hours
+            r.wait(1)
+            r.click(*ENDS_TIME)                # again: 00:00 (1½ hours) ticked
+            r.wait(1.5)
+            r.shot("20-end-times-ticked")
+            r.key(K["ESC"])
+            r.wait(0.5)
+            r.click(360, 81)
+            r.type("Late")
+            r.key(K["RETURN"])
+            r.wait(4)
+            text = cache_text(hd)
+            late = [p for p in text.split("\nR ") if "SUMMARY:Late" in p]
+            check("an end time from the list: 1½ hours after 22:30, at midnight the next day",
+                  bool(late) and "DTSTART;TZID=Asia/Jerusalem:20270310T223000" in late[0]
+                  and "DTEND;TZID=Asia/Jerusalem:20270311T000000" in late[0])
     finally:
         r.stop()
     print("screenshots in", os.path.join(a.work, "shots"))

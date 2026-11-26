@@ -518,6 +518,8 @@ typedef struct {
 	short rep_touched;		/* the Repeat menu was used */
 	char repdesc[90];
 	long sday0;			/* the start date as last seen; 0 none */
+	char endbuf[6][32];		/* the end times offered (end_list) */
+	const char *endlab[6];
 } ED;
 
 /* a new start date moves the end date by as many days, keeping the
@@ -536,6 +538,47 @@ static void end_follows(DLG *d, ED *x)
 			dlg_redraw_field(d, F_EDATE);
 	}
 	x->sday0 = day;
+}
+
+/* the end times offered under the Ends time (decided 26 Nov 2026, as the
+   Mac's Calendar): every half hour after the start up to 3 hours, the
+   current end ticked, "1\xab hours" for the half hours; typing a time
+   still works. FF_LIST: val -1 fills the rows, else the row is taken */
+static void end_list(DLG *d, ED *x)
+{
+	FIELD *f = &x->f[F_ETIME];
+	long sday, eday;
+	short smin, emin, k, m;
+	if (!parse_date(x->f[F_SDATE].buf, &sday) || !parse_time(x->f[F_STIME].buf, &smin))
+		return;			/* no start to count from: typed only */
+	if (f->val >= 0) {
+		m = smin + 30 * (f->val + 1);
+		fmt_hm(m % 1440, f->buf, f->max);
+		fmt_date(sday + m / 1440, x->f[F_EDATE].buf, x->f[F_EDATE].max);
+		x->f[F_EDATE].cur = (short)strlen(x->f[F_EDATE].buf);
+		x->f[F_EDATE].first = 0;
+		dlg_redraw_field(d, F_EDATE);
+		return;
+	}
+	if (!parse_date(x->f[F_EDATE].buf, &eday) || !parse_time(f->buf, &emin))
+		eday = -1, emin = -1;
+	for (k = 0; k < 6; k++) {
+		char t[16], dur[16];
+		short n = k + 1;	/* half hours */
+		m = smin + 30 * n;
+		fmt_hm(m % 1440, t, sizeof(t));
+		if (n == 1)
+			str_copy(dur, "30 minutes", sizeof(dur));
+		else if (n & 1)
+			snprintf(dur, sizeof(dur), "%d\xab hours", n / 2);
+		else
+			snprintf(dur, sizeof(dur), n == 2 ? "1 hour" : "%d hours", n / 2);
+		snprintf(x->endbuf[k], sizeof(x->endbuf[k]), "%s%s (%s)",
+			 eday == sday + m / 1440 && emin == m % 1440 ? "\x08" : "", t, dur);
+		x->endlab[k] = x->endbuf[k];
+	}
+	f->items = x->endlab;
+	f->nitems = 6;
 }
 
 static void describe_rule(ED *x)
@@ -810,6 +853,8 @@ static void changed(DLG *d, short i)
 	ED *x = d->ud;
 	if (i == F_SDATE) {
 		end_follows(d, x);
+	} else if (i == F_ETIME) {
+		end_list(d, x);
 	} else if (i == F_INV) {
 		people_buttons(x);
 		dlg_redraw_field(d, B_UNINV);
@@ -1043,7 +1088,7 @@ static int edit_event(EVENT *e, CTIME occ_start, CTIME orig, int is_new)
 	put(&x.f[F_EDATE], FT_TEXT, FF_LTR | FF_DATE, 11, row, 10, 0);
 	x.f[F_EDATE].buf = etx->edate;
 	x.f[F_EDATE].max = 12;
-	put(&x.f[F_ETIME], FT_TEXT, FF_LTR, 23, row, 7, 0);
+	put(&x.f[F_ETIME], FT_TEXT, FF_LTR | FF_LIST, 23, row, 7, 0);
 	x.f[F_ETIME].buf = etx->etime;
 	x.f[F_ETIME].max = 9;
 	row += 2;

@@ -205,6 +205,8 @@ enum { FT_LABEL, FT_TEXT, FT_PASS, FT_BUTTON, FT_CHECK, FT_POPUP, FT_MULTI, FT_H
 #define FF_DIGITS  64	/* a number field: only digits can be typed */
 #define FF_ACTION 128	/* a button that acts in the dialog (changed()), leaving it open */
 #define FF_DATE   256	/* a date (12.10.2026): a click opens the month under it (datepick.c) */
+#define FF_LIST   512	/* a click opens a list under it: changed() is called with val -1 to fill
+			   items and nitems (none: no list), then with the row taken in val */
 typedef struct {
 	short type, flags;
 	short x, y, w, h;	/* in characters */
