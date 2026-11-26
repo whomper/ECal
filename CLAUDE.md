@@ -39,8 +39,14 @@ These come from AERA-Atari's repo template and are the same in every app's CLAUD
   `VERSION` as it is (there is no `-dev` label). Don't
   commit built programs, help files or certificates (`binary/`, `dist/`). Never reuse a number.
 - **Only formal releases leave the build machine.** The owner gets vX.Y releases made by the Release workflow from `main`, nothing else: no test builds, no CI artifacts, no builds from a branch. Work lands on `main`; to try a fix on real hardware, release it. A fault found in a release is fixed forward by the next number, before any other work (guidelines 1.2, 17 Nov 2026): the old release stays, with one line in the new one's notes saying what it fixes (no revert, no "withdrawn" notice).
+- **Fewer releases, each carrying more** (decided 26 Nov 2026; guidelines 1.2): no release for every single
+  fix or feature. Changes gather on `main` and go out together when a body of work is complete, as one
+  candidate through the gate and the hub's family check. Only a data-loss, security or crash fault goes
+  out on its own at once, with only that fix, and its notes say why. A fault a user reports is fixed with
+  its rig case and rides the next release unless it is one of those; the hub's shared fixes ride it too,
+  unless the hub names one as the exception. Docs and rig changes need no release.
 - **Releases go out without asking the owner** (his decision, 23 Oct 2026; guidelines 1.2). Release when
-  work on `main` is ready:
+  a body of work on `main` is ready:
   the candidate has passed **the regression gate** (decided 17 Nov 2026: extra care with regressions, as the software has
   users: testing across all configurations, and no loss of performance; guidelines 1.2, AERA-Atari a22574e), in this order:
   1. this repo's checks (below);
@@ -177,10 +183,11 @@ ECal is in maintenance mode while EWeb, EPDF and EPlay go to 1.0 (AERA-Atari, AT
   release is reviewed; an application in maintenance is not one with faults; AERA-Atari 8ddb463). The hub notifies ECal of each new or changed rule and each
   shared fix: ECal adopts it, with the shared code it needs (`tools/sync-common.sh`), and the hub ticks its
   row in section 8's "Where each app stands". Each ✗, ~ or ? in ECal's column there is work for this session.
-- Whether such a change needs a release of its own is reviewed with the owner through the hub; a fault fix always
-  gets one.
-- A release otherwise only for a security or data-loss fault, a crash or breakage, something outside that
-  stops it working (a certificate, a server), or something EWeb, EPDF or EPlay need from it.
+- Such changes, and fault fixes, gather on `main` for the next release (26 Nov 2026, above); whether they make
+  one of their own is reviewed with the owner through the hub.
+- A release of its own at once only for a security or data-loss fault, a crash or breakage, or something
+  outside that stops it working (a certificate, a server); otherwise when a body of work is complete, or for
+  something EWeb, EPDF or EPlay need from it.
 - Nothing runs in the background; the session waits for the owner or the hub.
 - Only the owner's explicit word ends this mode. The hub passes it on quoting him.
 - **Done in 2.56, maintenance back:** the list below (decided 19 Nov 2026: items 1, 2 and 3; the hub's AERA-Atari
