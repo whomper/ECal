@@ -7,6 +7,7 @@
  * the info line.
  */
 #include <string.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include "ui.h"
 #include "conn.h"
@@ -478,9 +479,11 @@ void win_buffer_init(void)
 	int multitasking = get_cookie(0x4D694E54L) || get_cookie(0x4D616758L);	/* MiNT, MagiC */
 	if (planes < 1 || size > 640L * 1024)
 		return;
-	p = Mxalloc(size + 256, 0);			/* ST RAM, where the blitter reaches */
+	/* ST RAM, where the blitter reaches; the accessory's own on plain
+	   TOS (acc_core: not the program's in front, the hub 26 Nov 2026) */
+	p = acc_core(size + 256, 0);
 	if ((long)p == -32 || (long)p == 0)		/* no Mxalloc: plain Malloc is ST RAM */
-		p = (unsigned char *)trap1_wl(0x48, size + 256);
+		p = acc_core(size + 256, -1);
 	if ((long)p <= 0)
 		return;
 	b = (unsigned char *)(((unsigned long)p + 255) & ~255UL);
@@ -509,7 +512,7 @@ void win_buffer_init(void)
 		drawing = "off the screen, through the logical screen";
 		return;
 	}
-	trap1_wl(0x49, (long)p);			/* Mfree */
+	acc_free(p);
 }
 
 /* the GDOS fonts loaded on the window's workstation since: on the

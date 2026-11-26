@@ -111,6 +111,10 @@ void pf_entropy(unsigned char *buf, int n) { memset(buf, 0x5a, (size_t)n); }
 void (*pf_idle)(void);
 void pf_debug(const char *s) { (void)s; }
 unsigned long pf_ms(void) { return 0; }
+/* libc.c's acc_core (an accessory's own memory, common 9fd1335): never
+   an accessory here, but linked */
+long get_cookie(long id) { (void)id; return 0; }
+long tos_supexec(void *f) { return ((long (*)(void))f)(); }
 const char cal_version[] = "core-cf";
 
 void heap_add(void *p, size_t bytes);

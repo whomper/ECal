@@ -8,6 +8,7 @@
  * EMail's draw.c).
  */
 #include <string.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include "ui.h"
 #include "bidi.h"
@@ -141,9 +142,9 @@ void st_ram_init(void)
 	if (st_tried)
 		return;
 	st_tried = 1;
-	p = Mxalloc(ST_BUF, 0);
+	p = acc_core(ST_BUF, 0);		/* (the accessory's own: libc.c) */
 	if ((long)p <= 0)
-		p = Malloc(ST_BUF);
+		p = acc_core(ST_BUF, -1);
 	st_buf = (long)p > 0 ? p : 0;
 }
 
