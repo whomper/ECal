@@ -6,5 +6,5 @@
    by symbol against 2.59's ELF with common/tools/profpad.py). When
    util changes size again, size it again the same way. */
 #define PAD_NAME pad_util
-#define PAD_TEXT 194
+#define PAD_TEXT 190
 #include "../common/atari/codepad.S"

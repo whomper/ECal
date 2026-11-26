@@ -7,5 +7,5 @@
    changes size again, size it again the same way. */
 #define PAD_NAME pad_field
 #define PAD_TEXT 156
-#define PAD_BSS 252
+#define PAD_BSS 248
 #include "../common/atari/codepad.S"

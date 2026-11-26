@@ -6,6 +6,6 @@
    by symbol against 2.59's ELF with common/tools/profpad.py). When
    alert changes size again, size it again the same way. */
 #define PAD_NAME pad_alert
-#define PAD_TEXT 92
-#define PAD_DATA 252
+#define PAD_TEXT 70
+#define PAD_DATA 236
 #include "../common/atari/codepad.S"

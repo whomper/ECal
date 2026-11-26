@@ -52,7 +52,7 @@ CFLAGS  += -ffunction-sections -fdata-sections
 LDFLAGS += -Wl,--gc-sections
 # the pads that keep the code after a grown file at the last release's places
 # (atari/pad_*.S), kept by -u as the link drops unused sections
-LDFLAGS += $(foreach s,pad_util pad_draw pad_ovl pad_tlsovl pad_popup pad_alert pad_alert_data pad_text pad_text_bss pad_texta pad_texta_bss pad_views pad_views_bss pad_draw_bss pad_editor pad_field pad_field_bss pad_datepick_ro pad_datepick_str,-Wl,-u,$(s))
+LDFLAGS += $(foreach s,pad_util pad_draw pad_ovl pad_libc pad_tlsovl pad_popup pad_alert pad_alert_data pad_text pad_text_bss pad_texta pad_texta_bss pad_views pad_views_bss pad_draw_bss pad_editor pad_field pad_field_bss pad_datepick_ro pad_datepick_str,-Wl,-u,$(s))
 
 # BearSSL 0.6: on the Atari only its MD5 (Digest logins), as 68000 code; the
 # TLS is TLS.OVL's (the guidelines, 7.4). The build machine's tests link it
@@ -70,7 +70,7 @@ CORE    := util charset conn tls bidi secret futil ctime tz ics rrule xml inflat
 # on the Atari the TLS is TLS.OVL's: tls_ovl.c and ovl.c load it and hand
 # tls.h's calls on, dsp_ovl.c the DSP's (common/README.md, "TLS.OVL")
 ACORE   := $(patsubst util,util pad_util,$(filter-out tls,$(CORE))) ovl pad_ovl
-ATARI   := libc tos plat_tos net_tos sting gem tls_ovl pad_tlsovl
+ATARI   := libc pad_libc tos plat_tos net_tos sting gem tls_ovl pad_tlsovl
 UI      := main hebkey win draw pad_draw popup pad_popup dsp_ovl views pad_views sidebar editor pad_editor dialogs field pad_field about font fontsel help av alert pad_alert aboutbox iconify clip dd mbar twin busy bgwork accmem dialog av_people people_ask people_file notify aboutline text pad_text pad_texta click dlgbuild lfield eye tooltip settings
 STBSSL  := hash/md5 codec/dec32le codec/enc32le
 
