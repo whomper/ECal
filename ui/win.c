@@ -990,9 +990,11 @@ int win_view_step(unsigned long ms)
 		vj.prep_ms += pf_ms() - p0;
 		if (!more) {
 			vj.ready = 1;
-			vj.nt = (short)views_tiles(vj.tile, 200);
-			vj.ti = 0;
 			vj.ne = vj.show ? 0 : (short)views_events();	/* (a new window's bands shown as drawn: with them) */
+			views_events_apart(vj.ne > 0);	/* (the pieces for a page without them) */
+			vj.nt = (short)views_tiles(vj.tile, 200);
+			views_events_apart(0);
+			vj.ti = 0;
 			vj.ei = 0;
 			vj.ev_ms = 0;
 			vj.take = 1;

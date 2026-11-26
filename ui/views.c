@@ -1829,8 +1829,11 @@ int views_tiles(GRECT *t, int max)
 			xs[nx++] = detail.x;
 		/* the hours in quarters: a column of a busy day is too much for
 		   one slice on an ST; the day view's one column in eighths (a
-		   quarter of 24 events took an ST 110 ms) */
-		short bands = cur_view == V_DAY ? 8 : 4;
+		   quarter of 24 events took an ST 110 ms). Without its events
+		   (drawn after the pieces, views_events) a column is its lines
+		   and the hours: the week's whole, the day's in halves (its
+		   details beside it) */
+		short bands = events_apart ? (cur_view == V_DAY ? 2 : 1) : cur_view == V_DAY ? 8 : 4;
 		for (r = 0; r < bands; r++)
 			ys[ny++] = grid.y + r * (grid.h / bands);
 	} else {
