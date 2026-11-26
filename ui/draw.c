@@ -44,6 +44,16 @@ void set_wrmode(short m)
 		vswr_mode(vdi_h, c_wr = m);
 }
 
+/* a solid fill or a solid line: the same pixels in replace and in
+   transparent, so the mode stays as it is where it is one of the two
+   (an event's text transparent, its box and frame in replace were a
+   vswr_mode trap each way for each event: 108 for a week on a Falcon) */
+static void wr_solid(void)
+{
+	if (c_wr != 1 && c_wr != 2)
+		set_wrmode(WR_ONE);
+}
+
 static void set_fill(short interior, short style, short color)
 {
 	if (interior != c_fint)
@@ -217,7 +227,10 @@ void fill_pat(GRECT *r, short color, short interior, short style)
 	/* transparent: patterns over what is there, and a solid fill the same
 	   pixels as in replace; one mode for boxes, lines and text, not a
 	   vswr_mode trap twice for each event (WR_ONE) */
-	set_wrmode(interior ? WR_ONE : 1);	/* (hollow: colour 0 in replace only) */
+	if (interior == 1)
+		wr_solid();
+	else
+		set_wrmode(interior ? WR_ONE : 1);	/* (hollow: colour 0 in replace only) */
 	vr_recfl(vdi_h, pxy);
 }
 
@@ -233,7 +246,7 @@ void line_col(short x1, short y1, short x2, short y2, short color)
 	pxy[1] = y1;
 	pxy[2] = x2;
 	pxy[3] = y2;
-	set_wrmode(WR_ONE);	/* (solid lines: the same pixels) */
+	wr_solid();
 	set_lcolor(color);
 	v_pline(vdi_h, 2, pxy);
 }
@@ -261,7 +274,7 @@ void frame(GRECT *r, short color)
 	p[7] = p[5];
 	p[8] = r->x;
 	p[9] = r->y;
-	set_wrmode(WR_ONE);
+	wr_solid();
 	set_lcolor(color);
 	v_pline(vdi_h, 5, p);
 }
@@ -293,7 +306,7 @@ void frame_strip(GRECT *r, short color, short w)
 		for (k = 0; k < 10; k++)
 			p[n++] = q[k];
 	}
-	set_wrmode(WR_ONE);
+	wr_solid();
 	set_lcolor(color);
 	v_pline(vdi_h, n / 2, p);
 }
@@ -747,8 +760,13 @@ void text_at(short x, short y, const char *s, long n, short cols, short flags)
 	if ((flags & TX_WHITE) && color == 1 && !(flags & TX_INVERSE) && !(effects & ~9) &&
 	    font_cells == FC_RUNS && text_plain_state() >= 0 &&
 	    (fx == 0 || fx == 1 || text_fx_fast(fx, 1))) {
-		set_wrmode(1);
-		set_text(1, 0);
+		if ((x & 7) || text_plain_state() == 0) {
+			/* (the VDI's text, replace: off a byte, or the first, which
+			   text_plain draws by the VDI to compare; else all by the
+			   CPU, no mode or colour for the VDI) */
+			set_wrmode(1);
+			set_text(1, 0);
+		}
 		for (i = 0; i < n; i += 120) {
 			short k = n - i > 120 ? 120 : (short)(n - i);
 			text_plain(vdi_h, x + i * cw, y, out + i, k);
