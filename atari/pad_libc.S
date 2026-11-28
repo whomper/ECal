@@ -7,5 +7,5 @@
    guidelines' Speed). When libc changes size again, size it again the
    same way. */
 #define PAD_NAME pad_libc
-#define PAD_TEXT 166
+#define PAD_TEXT 138
 #include "../common/atari/codepad.S"

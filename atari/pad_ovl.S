@@ -6,5 +6,5 @@
    by symbol against 2.59's ELF with common/tools/profpad.py). When
    ovl changes size again, size it again the same way. */
 #define PAD_NAME pad_ovl
-#define PAD_TEXT 24
+#define PAD_TEXT 248
 #include "../common/atari/codepad.S"
