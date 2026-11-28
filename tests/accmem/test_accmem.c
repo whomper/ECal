@@ -221,6 +221,13 @@ int main(void)
 	}
 	check(!strcmp(alerted, "[1][ECal needs|an Atari with 2 MB or more.|Remove ECAL.ACC|from the boot drive.][ OK ]"),
 	      "the alert names the program and its file");
+	tt_free = 0;
+	check(acc_no_ttram(), "no TT RAM: EWEB.ACC stands down");
+	tt_free = 8192 * KB;
+	check(!acc_no_ttram(), "TT RAM: it runs");
+	acc_tt_alert("EWeb", "EWEB.ACC");
+	check(!strcmp(alerted, "[1][EWeb needs|an Atari with TT RAM.|Remove EWEB.ACC|from the boot drive.][ OK ]"),
+	      "the TT RAM alert's words");
 	printf("%d checks, %d failed\n", checks, failed);
 	return failed != 0;
 }

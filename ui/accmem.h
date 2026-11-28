@@ -27,6 +27,9 @@
  *                              (decided 26 Nov 2026, guidelines 2.1); the
  *                              accessory takes no heap and its Desk entry
  *                              shows acc_small_alert's words
+ *   acc_no_ttram(), acc_tt_alert(name, file)   the same for an accessory that needs TT RAM
+ *                              (EWEB.ACC): 1 with none; "[1][NAME needs|an Atari with TT RAM.|Remove FILE|
+ *                              from the boot drive.][ OK ]"
  *   acc_small_alert(name, file)   that alert, the AES's own (form_alert:
  *                              no memory taken): "[1][NAME needs|an Atari with
  *                              2 MB or more.|Remove FILE|from the boot drive.][ OK ]"
@@ -60,5 +63,7 @@ long acc_mem_full_kb(void);
 int acc_mem_line(char *buf, int size, long next_kb);
 int acc_small_machine(void);
 void acc_small_alert(const char *name, const char *file);
+int acc_no_ttram(void);
+void acc_tt_alert(const char *name, const char *file);
 
 #endif
