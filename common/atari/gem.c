@@ -1620,3 +1620,14 @@ short v_opnprn(short base, void *set, short *work_out)
 		work_out[45 + i] = ptsout[i];
 	return contrl[6];
 }
+
+/* shel_find (AES 124): looks for the file named in path (a buffer of 128
+   bytes at least) in the AES's search (the current folder, the program's,
+   PATH, the boot drive's root: each AES's own order) and writes the full
+   name found back into it; 0 where it isn't found. Last in the file, so
+   nothing before it moves */
+short shel_find(char *path)
+{
+	addrin[0] = path;
+	return aes(124, 0, 1, 1, 0);
+}

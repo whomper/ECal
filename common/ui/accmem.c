@@ -180,3 +180,20 @@ void acc_small_alert(const char *name, const char *file)
 		 name, file);
 	form_alert(1, a);
 }
+
+/* an accessory that runs only with TT RAM (EWEB.ACC, decided 27 Nov 2026): 1 when there is none of
+   it (Mxalloc mode 1 refused or empty). Where there is, TOS 3.06 and 4.04 load the accessory there
+   when its PRGFLAGS asks (EWeb's probe: a 1.56 MB image in TT RAM, no ST RAM taken) */
+int acc_no_ttram(void)
+{
+	long tt = (long)Mxalloc(-1L, 1);
+	return tt == -32 || tt <= 0;
+}
+
+void acc_tt_alert(const char *name, const char *file)
+{
+	char a[128];
+	snprintf(a, sizeof a, "[1][%s needs|an Atari with TT RAM.|Remove %s|from the boot drive.][ OK ]",
+		 name, file);
+	form_alert(1, a);
+}

@@ -243,17 +243,19 @@ static short al_build(short icon, short nlines, const char *btns, short def, sho
 #define ALW 30
 
 /* 1 where the AES's own alert is known to fail, so ours is shown there,
-   in a window as the other dialogs are (decided 25 Nov 2026): MyAES on
-   the FireBee, whose ColdFire ALERT.PRG (MyAES draws form_alert in that
-   system program of its own) died with a bus error on a tester's machine
-   for a one-button [3] alert. MyAES is told by that program (appl_find
-   "ALERT"), which XaAES, N.AES and MagiC don't have; the FireBee by _CF_ */
+   in a window as the other dialogs are: MyAES on the FireBee (decided 25
+   Nov 2026; narrowed to MyAES alone, decided 27 Nov 2026), whose ColdFire
+   ALERT.PRG (MyAES draws form_alert in that system program of its own)
+   died with a bus error on a tester's machine for a one-button [3] alert.
+   MyAES is told by its cookies MAS1 and MAS2, set from boot (MyAES 0.99
+   under FreeMiNT; XaAES sets nAES and neither of them). Its ALERT program
+   isn't: it starts only at the first form_alert. Asked at each alert, as
+   the cookies are cheap and the AES can be started after us. Either
+   cookie will do, so a value of 0 in one doesn't hide MyAES */
 static int aes_alert_fails(void)
 {
-	static int fails = -1;
-	if (fails < 0)
-		fails = get_cookie(0x5F43465FL) != 0 && appl_find("ALERT   ") >= 0;	/* '_CF_' */
-	return fails;
+	return get_cookie(0x5F43465FL) != 0 &&					/* '_CF_' */
+	       (get_cookie(0x4D415331L) != 0 || get_cookie(0x4D415332L) != 0);	/* 'MAS1', 'MAS2' */
 }
 
 short alert(short def, const char *fmt, ...)

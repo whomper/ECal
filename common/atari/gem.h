@@ -257,6 +257,8 @@ short scrp_write(const char *path);
 short shel_write(short mode, short wisgr, short wiscr, const void *cmd, const void *tail);
 short shel_envrn(char **value, const char *name);
 short shel_read(char *cmd, char *tail);
+/* shel_find: the full name of a file in the AES's search (path: 128 bytes at least, written over); 0 when not found */
+short shel_find(char *path);
 /* the program's own folder (X:\PATH\ with its backslash), from its shel_read command: not the
    current folder, which TOS leaves at the desktop's when another program starts
    it (guidelines 6.2). A program only */

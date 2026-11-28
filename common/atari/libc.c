@@ -581,6 +581,11 @@ static size_t taken;		/* bytes taken from GEMDOS and held */
    the accessory's own basepage, which never ends. The current process is
    OSHEADER's p_run (TOS 1.02 and on), TOS 1.00's at 0x602C (0x873C in
    the Spanish one). MiNT and MagiC own an accessory's memory themselves. */
+/* weak: a freestanding link of libc.o with no crt0.S or tos.c (the apps'
+   ColdFire core tests) takes no accessory path and needs none of them */
+#pragma weak _BasePage
+#pragma weak get_cookie
+#pragma weak tos_supexec
 static long acc_own_want, acc_own_mode;	/* mode -2: Mfree acc_own_got */
 static void *acc_own_got;
 static long acc_own_call(void)
@@ -610,9 +615,11 @@ static long acc_own_call(void)
 void *acc_core(long n, int mode)
 {
 	static short plain = -1;
+	if (!_is_acc || n < 0)
+		return mode < 0 ? Malloc(n) : Mxalloc(n, mode);
 	if (plain < 0)
 		plain = !get_cookie(0x4D694E54L) && !get_cookie(0x4D616758L);	/* MiNT, MagX */
-	if (!_is_acc || !plain || n < 0)
+	if (!plain)
 		return mode < 0 ? Malloc(n) : Mxalloc(n, mode);
 	acc_own_want = n;
 	acc_own_mode = mode;
@@ -624,9 +631,11 @@ void *acc_core(long n, int mode)
 long acc_free(void *p)
 {
 	static short plain = -1;
+	if (!_is_acc)
+		return Mfree(p);
 	if (plain < 0)
 		plain = !get_cookie(0x4D694E54L) && !get_cookie(0x4D616758L);
-	if (!_is_acc || !plain)
+	if (!plain)
 		return Mfree(p);
 	acc_own_got = p;
 	acc_own_mode = -2;
